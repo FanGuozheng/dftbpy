@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-BOHR = 0.529177210903
+from dftb_math import DFTBmath
+import math
+
 
 
 def sk_tran(generalpara):
@@ -23,7 +25,7 @@ def sk_tran(generalpara):
             hams = np.zeros((9, 9))
             ovrs = np.zeros((9, 9))
             generalpara['nameij'] = atomname[i]+atomname[j]
-            rr[:] = distance_vec[i, j, :]/BOHR
+            rr[:] = distance_vec[i, j, :]
             hams, ovrs = slkode(rr, i, j, generalpara, hams,
                                 ovrs, lmax, hammat, overmat)
             for n in range(0, int(atomind[j+1] - atomind[j])):
@@ -35,30 +37,29 @@ def sk_tran(generalpara):
                         idx = int(mm*(mm+1)/2 + nn)
                         hammat[idx] = hams[m, n]
                         overmat[idx] = ovrs[m, n]
-                        print('hammat[idx]', hammat[idx], 'ixd', idx)
     return hammat, overmat
 
 
 def slkode(rr, i, j, generalpara, ham_matrix, s_matrix, lmax, hammat, overmat):
     # here we transfer i from ith atom to ith spiece
     coor = generalpara['coor']
+    dd = np.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2])
     nameij = generalpara['nameij']
     if generalpara['ty'] == 0:
-        datalist = generalpara['h_s_all'+nameij]
+        hs_data = getsk(generalpara, nameij, dd)
     elif generalpara['ty'] == 1:
-        datalist = generalpara['h_s_all'+nameij]
+        hs_data = getsk(generalpara, nameij, dd)
     elif generalpara['ty'] == 5:
-        datalist = generalpara['h_s_all'][i, j, :]
+        hs_data = generalpara['h_s_all'][i, j, :]
     # print("generalpara['h_s_all']", generalpara['h_s_all'])
     grid_dist = generalpara['grid_dist'+nameij]
     skself = generalpara['onsite']
-    r_hs_cut = generalpara['ngridpoint'+nameij]*grid_dist
+    cutoff = generalpara['cutoffsk'+nameij]
     skselfnew = np.empty(3)
     xyz = rr[:]
-    d = np.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2])
-    if d > r_hs_cut:
+    if dd > cutoff:
         return ham_matrix, s_matrix
-    if d < 1E-4:
+    if dd < 1E-4:
         if i != j:
             print("ERROR,distancebetween", i, "atom and", j, "atom is 0")
         else:
@@ -95,21 +96,60 @@ def slkode(rr, i, j, generalpara, ham_matrix, s_matrix, lmax, hammat, overmat):
             ham_matrix[8, 8] = skselfnew[0]
             s_matrix[8, 8] = 1.0
     else:
-        ham_matrix, s_matrix = shpar(generalpara, rr, i, j, d, xyz, coor,
-                                     grid_dist, datalist, ham_matrix, s_matrix)
+        ham_matrix, s_matrix = shpar(generalpara, rr, i, j, dd, xyz, coor,
+                                     grid_dist, hs_data, ham_matrix, s_matrix)
     return ham_matrix, s_matrix
 
 
-def shpar(generalpara, rr, i, j, dd, xyz, coor, grid_dist, datalist, hams,
+def getsk(generalpara, nameij, dd):
+    # ninterp is the num of points for interpolation, here is 8
+    ninterp = generalpara['ninterp']
+    datalist = generalpara['h_s_all'+nameij]
+    griddist = generalpara['grid_dist'+nameij]
+    cutoff = generalpara['cutoffsk'+nameij]
+    ngridpoint = generalpara['ngridpoint'+nameij]
+    grid0 = generalpara['grid0']
+    ind = int(dd/griddist)
+    nlinesk = ngridpoint
+    lensk = nlinesk*griddist
+    hsdata = np.zeros(20)
+    if dd < grid0:
+        hsdata[:] = 0
+    elif dd >= grid0 and dd < lensk:
+        datainterp = np.zeros((int(ninterp), 20))
+        ddinterp = np.zeros(int(ninterp))
+        nlinesk = min(nlinesk, int(ind+ninterp/2+1))
+        nlinesk = max(ninterp, nlinesk)
+        print('ninterp', ninterp, 'nlinesk', nlinesk)
+        for ii in range(0, ninterp):
+            ddinterp[ii] = (nlinesk-ninterp+ii)*griddist
+        datainterp[:, :] = datalist[nlinesk-ninterp-1:nlinesk-1]
+        print('datainterp', dd, 'ddinterp', ddinterp, 'ind', ind, datainterp[:, 9])
+        print(nlinesk-ninterp-1, nlinesk-1)
+        hsdata = DFTBmath().polysk3thsk(datainterp, ddinterp, dd)
+    elif dd >= lensk and dd <= cutoff:
+        datainterp = np.zeros((ninterp, 20))
+        ddinterp = np.zeros(ninterp)
+        datainterp[:, :] = datalist[ngridpoint-ninterp:ngridpoint]
+        ddinterp = np.linspace((nline-nup)*griddist, (nline+ndown-1)*griddist,
+                               num=ninterp)
+        hsdata = DFTBmath().polysk5thsk(datainterp, ddinterp, dd)
+    else:
+        print('Error: the {} distance > cutoff'.format(nameij))
+    print('datalist[19]', datalist[19])
+    return hsdata
+
+
+def shpar(generalpara, rr, i, j, dd, xyz, coor, grid_dist, hs_data, hams,
           ovrs):
-    if generalpara['ty'] == 0:
+    '''if generalpara['ty'] == 0:
         hs_data_str = datalist[np.int(np.round(dd/grid_dist))-1]
         hs_data = np.array(hs_data_str)
     elif generalpara['ty'] == 1:
         hs_data_str = datalist[np.int(np.round(dd/grid_dist))-1]
         hs_data = np.array(hs_data_str)
     elif generalpara['ty'] == 5:
-        hs_data = datalist
+        hs_data = datalist'''
     xyz2 = np.sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2])
     if xyz2 > 1E-4:
         xx = xyz[0]/xyz2

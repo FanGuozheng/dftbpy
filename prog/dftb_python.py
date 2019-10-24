@@ -77,13 +77,16 @@ class DFTBpy(object):
         oldovermat = np.zeros((int(atomind[natom]), int(atomind[natom])))
         # -------------------Slater-Koster transfer------------------------- #
         hammat, overmat = slakotran.sk_tran(generalpara)
-        print('hammat', hammat)
+        print('H0', hammat)
         # -------------construct gamma in second-order term----------------- #
         gmat = DFTB_elect().gmatrix(generalpara)
         # **************************start SCF loop************************** #
         # ****************************************************************** #
         oldener = 0.0
-        maxIter = generalpara['maxIter']
+        if generalpara['scc']:
+            maxIter = generalpara['maxIter']
+        else:
+            maxIter = 1
         for niter in range(0, maxIter):
             print('\n \n niter:', niter)
             oldqatom[:] = qatom[:]
@@ -146,19 +149,20 @@ class DFTBpy(object):
             energy = energy - 0.5 * ecoul
             print('energy=energy-0.5ecoul', energy, '\n', 'ecoul', ecoul)
             # -------------------if reached convergence--------------------- #
-            if abs(oldener-energy) < PUBPARA['tol']:
-                print('\n')
-                print('No Occ       au               eV')
-                for ii in range(0, int(atomind[natom])):
-                    print(ii, int(occ[ii]), eigval[ii],
-                          eigval[ii]*PUBPARA['AUEV'])
-                break
-            if niter+1 >= maxIter and abs(oldener-energy) > PUBPARA['tol']:
-                print('Warning: SCF donot reach required convergence')
-            oldqatom = simplemix(generalpara, oldqatom, qatom)
-            print('charge after mixing:', oldqatom)
-            qatom[:] = oldqatom[:]
-            oldener = energy
+            if generalpara['scc']:
+                if abs(oldener-energy) < PUBPARA['tol']:
+                    print('\n')
+                    print('No Occ       au               eV')
+                    for ii in range(0, int(atomind[natom])):
+                        print(ii, int(occ[ii]), eigval[ii],
+                              eigval[ii]*PUBPARA['AUEV'])
+                    break
+                if niter+1 >= maxIter and abs(oldener-energy) > PUBPARA['tol']:
+                    print('Warning: SCF donot reach required convergence')
+                oldqatom = simplemix(generalpara, oldqatom, qatom)
+                print('charge after mixing:', oldqatom)
+                qatom[:] = oldqatom[:]
+                oldener = energy
             '''broyden1 = np.zeros((natom, 2))
             broyden2 = np.zeros((natom, 2, generalpara['maxIter']))
             print("oldqatom", oldqatom, "qatom", qatom)
@@ -303,7 +307,6 @@ def getDipole(generalpara, qzero, qatom):
     dipolemoment = np.zeros(3)
     for ii in range(0, natom):
         if generalpara['ty'] == 5:
-            print(coor[ii, 1:])
             dipolemoment[:] += (qzero[ii]-qatom[ii])*coor[ii, 1:]
         else:
             dipolemoment[:] += (qzero[ii]-qatom[ii])*np.array(coor[ii][1:])
