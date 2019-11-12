@@ -5,10 +5,13 @@ module load gcc/6
 
 cd $1
 ./dftb+ | tee output
-grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $3}' >> dipole.dat
-grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $4}' >> dipole.dat
-grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $5}' >> dipole.dat
 
-grep ' 4  ' band.out | awk '{print $2}' >> bandenergy1.dat
-grep ' 5  ' band.out | awk '{print $2}' >> bandenergy2.dat
+echo $2 >> dip.dat
+grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $3}' >> dip.dat
+grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $4}' >> dip.dat
+grep -A 2 'Dipole moment:' detailed.out | head -n 1 | awk '{print $5}' >> dip.dat
+
+echo $2 >> bandenergy.dat
+grep ' 2.00000' band.out | tail -n 1 | awk '{print $2}' >> bandenergy.dat
+grep ' 0.00000' band.out | head -n 1 | awk '{print $2}' >> bandenergy.dat
 

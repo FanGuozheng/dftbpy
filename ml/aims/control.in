@@ -7,7 +7,7 @@
 #  Physical model
 #
   xc                 pbe
-  vdw_correction_hirshfeld
+#  vdw_correction_hirshfeld
   many_body_dispersion vacuum=.true.:.true.:.true.
   spin               none
   relativistic       atomic_zora scalar
@@ -22,6 +22,7 @@
     charge_mix_param   0.3   
     sc_iter_limit      100
 #
+  output             dipole
 #  collect_eigenvectors .false.
 #  use_local_index .false.
 #  use_alltoall .false.
