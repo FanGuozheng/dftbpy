@@ -13,9 +13,12 @@ import subprocess
 import lattice_cell
 import matplotlib.pyplot as plt
 import dftbpy_benchmark as bench
+import torch
 import sys
-sys.path.insert(1, '/home/gz_fan/Documents/ML/dftb/prog')
-import dftb_python as dftb
+sys.path.append('/home/gz_fan/Documents/ML/dftb/ml/dftbtorch')
+import dftbtorch.dftb_torch as dftb_torch
+
+
 directory = '/home/gz_fan/Documents/ML/dftb/ml'
 hdf5filelist = ['/home/gz_fan/Documents/ML/database/an1/ani_gdb_s01.h5']
 dire = '/home/gz_fan/Documents/ML/dftb/slko'
@@ -25,20 +28,223 @@ grid0 = 0.4
 gridmesh = 0.2
 
 
-def main(task):
-    if task == 'dftbml':
-        dftbml()
-    elif task == 'dftbplus':
-        dftbplus()
-    elif task == 'dft':
-        dft()
+def main(task, nfile=100):
+    outpara = {}
+    outpara['nfile'] = nfile
+    outpara['rcut'] = 3
+    outpara['r_s'] = 0.8
+    outpara['eta'] = 1
+    outpara['tol'] = 1E-4
+    outpara['zeta'] = 1
+    outpara['lamda'] = 1
+    outpara['ang_paraall'] = []
+    outpara['rad_paraall'] = []
+    if task == 'dftbplus':
+        newdire = os.path.join(directory, 'dftbplus')
+        os.system('rm '+newdire+'/dip.dat')
+        os.system('rm '+newdire+'/bandenergy.dat')
+    elif task == 'aims':
+        newdire = os.path.join(directory, 'aims')
+        os.system('rm '+newdire+'/vol.dat')
+        os.system('rm '+newdire+'/bandenergy.dat')
+        os.system('rm '+newdire+'/pol.dat')
+        os.system('rm '+newdire+'/dip.dat')
+    elif task == 'dftbtorch':
+        newdire = os.path.join(directory, 'dftbtorch')
+        os.system('rm '+newdire+'/bandenergy.dat')
+        os.system('rm '+newdire+'/dipole.dat')
+        dipolemall = []
+        eigvalall = []
     elif task == 'envir':
-        envir()
-    elif task == 'dftbpy':
-        dftbpy()
+        pass
+    elif task == 'dftbml':
+        pass
+    # ######################### load file ######################### #
+    coorall, symbols, specie, speciedict = loadhdfdata(ntype=1)
+    ifile = 0
+    if task == 'dftbml':
+        dftbml('aims', outpara, coorall, nfile, specie, speciedict, symbols)
+    elif task == 'dftbpy_compr':
+        dftbpy_compr(coorall, symbols, specie, speciedict)
+    # for convinience, all options are in for loop
+    else:
+        for coor in coorall:
+            ifile += 1
+            if ifile > nfile:
+                break
+            if task == 'aims':
+                aims(ifile, coor, specie, speciedict, symbols, newdire)
+            elif task == 'dftbplus':
+                dftbplus(ifile, coor, specie, speciedict, newdire)
+            elif task == 'dftbtorch':
+                outpara = {}
+                outpara['ty'] = 1
+                outpara['symbols'] = symbols
+                outpara['dipolemall'] = dipolemall
+                outpara['eigvalall'] = eigvalall
+                outpara = dftbtorchrun(outpara, coor, newdire)
+                if ifile == nfile:
+                    save_dftbpy(outpara, newdire)
+            elif task == 'envir':
+                envir(outpara, ifile, coor, specie, speciedict,
+                      symbols, directory)
+                if ifile == nfile:
+                    save_envir(outpara, directory)
+            elif task == 'get_dftbpara':
+                get_dftbpara()
 
 
-def dftbml():
+def loadhdfdata(ntype):
+    icount = 0
+    for hdf5file in hdf5filelist:
+        adl = pya.anidataloader(hdf5file)
+        for data in adl:
+            icount += 1
+            if icount == ntype:
+                coorall = data['coordinates']
+                symbols = data['species']
+                specie = set(symbols)
+                speciedict = Counter(symbols)
+    return coorall, symbols, specie, speciedict
+
+
+def loadrefdata(ref, dire, nfile):
+    if ref == 'aims':
+        newdire = os.path.join(directory, dire)
+        if os.path.exists(os.path.join(newdire, 'bandenergy.dat')):
+            refenergy = np.zeros((nfile, 3))
+            fpenergy = open(os.path.join(newdire, 'bandenergy.dat'), 'r')
+            for ifile in range(0, nfile):
+                energy = np.fromfile(fpenergy, dtype=float,
+                                     count=3, sep=' ')
+                refenergy[ifile, :] = energy[:]
+    elif ref == 'VASP':
+        pass
+    return refenergy
+
+
+def loadenv(ref, dire, nfile, natom):
+    if os.path.exists(os.path.join(dire, 'rad_para.dat')):
+        rad = np.zeros((nfile, natom))
+        fprad = open(os.path.join(dire, 'rad_para.dat'), 'r')
+        for ifile in range(0, nfile):
+            irad = np.fromfile(fprad, dtype=float, count=natom, sep=' ')
+            rad[ifile, :] = irad[:]
+    if os.path.exists(os.path.join(dire, 'ang_para.dat')):
+        ang = np.zeros((nfile, natom))
+        fpang = open(os.path.join(dire, 'ang_para.dat'), 'r')
+        for ifile in range(0, nfile):
+            iang = np.fromfile(fpang, dtype=float, count=natom, sep=' ')
+            ang[ifile, :] = iang[:]
+    return rad, ang
+
+
+def aims(ifile, coor, specie, speciedict, symbols, dire):
+    '''here dft means FHI-aims'''
+    natom = np.shape(coor)[0]
+    write.FHIaims().geo_nonpe(ifile, coor, specie, speciedict, symbols)
+    os.rename('geometry.in.{}'.format(ifile), 'aims/geometry.in')
+    os.system('bash '+dire+'/run.sh '+dire+' '+str(ifile)+' '+str(natom))
+
+
+def dftbml(ref, outpara, coorall, nfile, specie, speciedict, symbols):
+    natom = np.shape(coorall[0])[0]
+    refbandenergy = loadrefdata(ref, ref, nfile)
+    ifile = 0
+    for coor in coorall:
+        ifile += 1
+        envir(outpara, ifile, coor, specie, speciedict, symbols, directory)
+    rad, ang = loadenv(ref, directory, nfile, natom)
+    train(refbandenergy, rad, ang)
+
+
+def dftbplus(ifile, coor, specie, speciedict, dire):
+    '''use dftb+ to calculate'''
+    write.dftbplus().geo_nonpe2(ifile, coor, specie, speciedict)
+    os.rename('geo.gen.{}'.format(ifile), 'dftbplus/geo.gen')
+    os.system('bash '+dire+'/run.sh '+dire+' '+str(ifile))
+
+
+def dftbtorchrun(outpara, coor, dire):
+    '''use dftb_python and read SK from whole .skf file, coor as input and
+    do not have to read coor from geo.gen or other input files'''
+    outpara['coor'] = torch.from_numpy(coor)
+    dipolemall = outpara['dipolemall']
+    eigvalall = outpara['eigvalall']
+    dipolem, eigval = dftb_torch.main(outpara)
+    dipolemall.append(dipolem)
+    eigvalall.append(eigval)
+    outpara['dipolemall'] = dipolemall
+    outpara['eigvalall'] = eigvalall
+    return outpara
+
+
+def save_dftbpy(outpara, dire):
+    eigvalall = outpara['eigvalall']
+    dipolemall = outpara['dipolemall']
+    with open(os.path.join(dire, 'bandenergy.dat'), 'w') as fopen:
+        for eigval in eigvalall:
+            np.savetxt(fopen, eigval, newline=" ")
+            fopen.write('\n')
+    with open(os.path.join(dire, 'dipole.dat'), 'w') as fopen:
+        for dipolem in dipolemall:
+            np.savetxt(fopen, dipolem, newline=" ")
+            fopen.write('\n')
+
+
+def envir(outpara, ifile, coor, specie, speciedict, symbols, directory):
+    r_s = outpara['r_s']
+    eta = outpara['eta']
+    tol = outpara['tol']
+    zeta = outpara['zeta']
+    rcut = outpara['rcut']
+    lamda = outpara['lamda']
+    ang_paraall = outpara['ang_paraall']
+    rad_paraall = outpara['rad_paraall']
+    rad_para = lattice_cell.rad_molecule2(coor, rcut, r_s, eta, tol, symbols)
+    ang_para = lattice_cell.ang_molecule2(coor, rcut, r_s, eta, zeta, lamda,
+                                          tol, symbols)
+    ang_paraall.append(ang_para)
+    rad_paraall.append(rad_para)
+    outpara['ang_paraall'] = ang_paraall
+    outpara['rad_paraall'] = rad_paraall
+    return outpara
+
+
+def save_envir(outpara, directory):
+    ang_paraall = outpara['ang_paraall']
+    rad_paraall = outpara['rad_paraall']
+    with open(os.path.join(directory, 'rad_para.dat'), 'w') as fopen:
+        np.savetxt(fopen, rad_paraall, fmt="%s", newline=' ')
+        fopen.write('\n')
+    with open(os.path.join(directory, 'ang_para.dat'), 'w') as fopen:
+        np.savetxt(fopen, ang_paraall, fmt="%s", newline=' ')
+        fopen.write('\n')
+
+
+class Net(torch.nn.Module):
+    def __init__(self, in_, h_, out_):
+        super(Net, self).__init__()
+        self.linear1 = torch.nn.Linear(in_, h_)
+        self.linear2 = torch.nn.Linear(h_, out_)
+
+    def forward(self, x):
+        h_relu = self.linear1(x).clamp(min=0)
+        y_pred = self.linear2(h_relu)
+        return y_pred
+
+
+def train(refbandenergy, rad, ang):
+    N, in_, h_, out_ = 50, 2, 10, 1
+    rad_ = torch.from_numpy(rad)
+    ang_ = torch.from_numpy(ang)
+    print(rad_, )
+    x = rad_[0, :30]
+    y = torch.randn(N, out_)
+    model = Net(in_, h_, out_)
+
+
+def dftbpy_compr(coorall, symbols, specie, speciedict):
     ifile = 0
     nfile = 1
     niter = 2
@@ -50,157 +256,45 @@ def dftbml():
     mldata['ty'] = 5
     mldata['direCH'] = '/home/gz_fan/Documents/ML/dftb/slko/C_H'
     mldata['direHH'] = '/home/gz_fan/Documents/ML/dftb/slko/H_H'
-    mldata['skfallHH'], mldata['nameallHH'] = bench.readsk(mldata['direHH'],
-                                              'H', 'Hh', 0.4, 0.02)
-    mldata['skfallCH'], mldata['nameallCH'] = bench.readsk(mldata['direCH'],
-                                              'C', 'H', 0.4, 0.02)
-    for hdf5file in hdf5filelist:
+    mldata['skfallHH'], mldata['nameallHH'] = bench.readsk(
+            mldata['direHH'], 'H', 'Hh', 0.4, 0.02)
+    mldata['skfallCH'], mldata['nameallCH'] = bench.readsk(
+            mldata['direCH'], 'C', 'H', 0.4, 0.02)
+    '''for hdf5file in hdf5filelist:
         adl = pya.anidataloader(hdf5file)
         for data in adl:
             coorall = data['coordinates']
             symbols = data['species']
             specie = set(symbols)
-            speciedict = Counter(symbols)
-            # ---------get_sk will read the .skf file except H and S-------- #
-            mldata = get_sk(mldata, symbols)
-            for coor in coorall:
-                ifile += 1
-                if ifile > nfile:
-                    break
-                mldata['coor'] = coor
-                mldata['symbols'] = symbols
-                natom = np.shape(coor)[0]
-                compressr0 = write.dftbplus().geo_nonpe_ml(ifile, coor, specie,
-                                           speciedict, symbols)
-                compressr = np.zeros((nfile, natom, niter))
-                for iiter in range(0, niter):
-                    for iatom in range(0, natom):
-                        compressr[ifile-1, :, iiter] = compressr0[:]
-                        for ir in compress_r:
-                            compressr0[iatom] = ir
-                            print('{} module {} atom, compressR:'.format(
-                                    ifile, iatom), compressr0)
-                            mldata = get_hsml(mldata, directory, compressr0, iatom, ir)
-                            compressr0[:] = compressr[ifile-1, :, iiter]
-                            dipolem, eigval = dftb.main(mldata)
-                            print('one {} calculation'.format(symbols))
-    '''with open('compressr.dat', 'w') as fopen2:
-        for ifile in range(0, nfile):
-            np.savetxt(fopen2, compressr[ifile, :, :], fmt="%s", newline=' ')
-            fopen2.write('\n')'''
-
-
-def dftbplus():
-    '''use dftb+ to calculate'''
-    nfile = 50
-    icount = 0
-    diredftb = os.path.join(directory, 'dftbplus')
-    os.system('rm '+diredftb+'/dipole.dat')
-    os.system('rm '+diredftb+'/bandenergy1.dat')
-    os.system('rm '+diredftb+'/bandenergy2.dat')
-    for hdf5file in hdf5filelist:
-        adl = pya.anidataloader(hdf5file)
-        for data in adl:
-            icount += 1
-            if icount > 1:
-                break
-            coorall = data['coordinates']
-            ifile = 0
-            for coor in coorall:
-                ifile += 1
-                if ifile > nfile:
-                    break
-                symbols = data['species']
-                specie = set(symbols)
-                speciedict = Counter(symbols)
-                write.dftbplus().geo_nonpe2(ifile, coor, specie, speciedict)
-                os.rename('geo.gen.{}'.format(ifile), 'dftbplus/geo.gen')
-                os.system('bash '+diredftb+'/run.sh '+diredftb)
-
-
-def dftbpy():
-    nfile = 50
-    icount = 0
-    diredftb = os.path.join(directory, 'dftbpy')
-    outpara = {}
-    outpara['ty'] = 1
-    dipolemall = []
-    eigvalall = []
-    for hdf5file in hdf5filelist:
-        adl = pya.anidataloader(hdf5file)
-        for data in adl:
-            icount += 1
-            if icount > 1:
-                break
-            coorall = data['coordinates']
-            ifile = 0
-            for coor in coorall:
-                ifile += 1
-                if ifile > nfile:
-                    break
-                symbols = data['species']
-                outpara['coor'] = coor
-                outpara['symbols'] = symbols
-                dipolem, eigval = dftb.main(outpara)
-                dipolemall.append(dipolem)
-                eigvalall.append(eigval)
-    with open(os.path.join(diredftb, 'bandenergy.dat'), 'w') as fopen:
-        for eigval in eigvalall:
-            np.savetxt(fopen, eigval, newline=" ")
-            fopen.write('\n')
-    with open(os.path.join(diredftb, 'dipole.dat'), 'w') as fopen:
-        for dipolem in dipolemall:
-            np.savetxt(fopen, dipolem, newline=" ")
-            fopen.write('\n')
-
-
-        
-def envir(coorall, nfile):
-    rcut = 3
-    r_s = 0.8
-    eta = 1
-    tol = 1E-4
-    zeta = 1
-    lamda = 1
-    env_para = np.zeros((nfile, 10, 2))
-    ang_paraall = np.zeros((nfile, 10))
-    rad_paraall = np.zeros((nfile, 10))
+            speciedict = Counter(symbols)'''
+    # ---------get_sk will read the .skf file except H and S-------- #
+    mldata = get_sk(mldata, symbols)
     for coor in coorall:
         ifile += 1
         if ifile > nfile:
             break
-        rad_para, dist_HH, dist_CH = lattice_cell.rad_module2(coor, rcut, r_s, eta, tol, symbols, dist_HH, dist_CH)
-        ang_para = lattice_cell.ang_module2(coor, rcut, r_s, eta, zeta, lamda, tol, symbols)
-        ang_paraall[ifile-1, 0] = ifile
-        ang_paraall[ifile-1, 1:1+natom] = ang_para[:]
-        rad_paraall[ifile-1, 0] = ifile
-        rad_paraall[ifile-1, 1:1+natom] = rad_para[:]
-    with open('rad_para.dat', 'w') as fopen:
-        np.savetxt(fopen, rad_paraall, fmt="%s", newline=' ')
-        fopen.write('\n')
-    with open('ang_para.dat', 'w') as fopen:
-        np.savetxt(fopen, ang_paraall, fmt="%s", newline=' ')
-        fopen.write('\n')
-
-
-def dft():
-    nfile = 5
-    for hdf5file in hdf5filelist:
-        adl = pya.anidataloader(hdf5file)
-        for data in adl:
-            coorall = data['coordinates']
-            ifile = 0
-            for coor in coorall:
-                ifile += 1
-                if ifile > nfile:
-                    break
-                symbols = data['species']
-                specie = set(symbols)
-                speciedict = Counter(symbols)
-                write.FHIaims().geo_nonpe(ifile, coor, specie, speciedict,
-                                          symbols)
-                os.rename('geometry.in.{}'.format(ifile), 'aims/geometry.in')
-                os.system('./aims/aim < aims/control.in | tee aims/aims.out')
+        mldata['coor'] = coor
+        mldata['symbols'] = symbols
+        natom = np.shape(coor)[0]
+        compressr0 = write.dftbplus().geo_nonpe_ml(
+                ifile, coor, specie, speciedict, symbols)
+        compressr = np.zeros((nfile, natom, niter))
+        for iiter in range(0, niter):
+            for iatom in range(0, natom):
+                compressr[ifile-1, :, iiter] = compressr0[:]
+                for ir in compress_r:
+                    compressr0[iatom] = ir
+                    print('{} module {} atom, compressR:'.format(
+                            ifile, iatom), compressr0)
+                    mldata = get_hsml(mldata, directory,
+                                      compressr0, iatom, ir)
+                    compressr0[:] = compressr[ifile-1, :, iiter]
+                    dipolem, eigval = dftb.main(mldata)
+                    print('one {} calculation'.format(symbols))
+    '''with open('compressr.dat', 'w') as fopen2:
+        for ifile in range(0, nfile):
+            np.savetxt(fopen2, compressr[ifile, :, :], fmt="%s", newline=' ')
+            fopen2.write('\n')'''
 
 
 def get_hsml(mldata, directory, compressr0, iatom, ir):
@@ -276,12 +370,10 @@ def compare(dir_dftb, dir_ref, natom, iatom, compress_r, compressr, ifile, it):
     fp1 = open(os.path.join(dir_ref, 'vol.dat'), 'r')
     data1 = np.fromfile(fp1, dtype=float, count=natom, sep=' ')
     data1 = data1/n_v[iatom]
-    print('data1', data1)
     onsite = np.zeros((ncompressr, natom))
     for ir1 in range(0, ncompressr):
         data0 = np.fromfile(fp0, dtype=float, count=natom+3, sep=' ')
         onsite[ir1, :] = data0[3:]/n_char[iatom]
-        print('data0', onsite[ir1, :])
     ionsite = onsite[:, iatom]
     onsite_err = list(abs(ionsite[:]-data1[iatom]))
     min_compressr = onsite_err.index(min(onsite_err))
@@ -314,7 +406,6 @@ def compare(dir_dftb, dir_ref, natom, iatom, compress_r, compressr, ifile, it):
         new_compressr = (2*compressr[iatom]+compress_r[min_compressr])/3
         old_compressr = compress_r[min_compressr]
     compressr[iatom] = new_compressr
-    print('new_compressr', new_compressr)
     with open('ml.log', 'a') as fopen:
         fopen.write("{} ifile {} iatom {} loop".format(ifile, iatom, it)+"\n")
         fopen.write('optimized compression radius: '+str(old_compressr))
@@ -328,5 +419,5 @@ def compare(dir_dftb, dir_ref, natom, iatom, compress_r, compressr, ifile, it):
 
 
 if __name__ == '__main__':
-    task = 'dftbpy'
+    task = 'dftbtorch'
     main(task)
