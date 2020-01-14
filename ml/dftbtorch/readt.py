@@ -27,43 +27,36 @@ class ReadInt(object):
 
     def __init__(self, generalpara):
         self.generalpara = generalpara
-        self.get_task(self.generalpara)
-        if self.generalpara['ty'] == 5:
-            self.get_coor5(self.generalpara)
-        elif self.generalpara['ty'] == 1:
-            self.get_coor5(self.generalpara)
-        elif self.generalpara['ty'] == 0:
-            self.get_coor(self.generalpara)
 
     def get_task(self, generalpara):
         """this def will read the general information from .json file"""
         filename = generalpara['filename']
-        direct = generalpara['dire']
+        direct = generalpara['direInput']
         with open(os.path.join(direct, filename), 'r') as f:
-            datatask = json.load(f)
+            datain = json.load(f)
             # --------------------------general----------------------------- #
             try:
-                generalpara['scf'] = datatask['general']['scf']
+                generalpara['scf'] = datain['general']['scf']
             except IOError:
                 print('please define scf: true or false')
             try:
-                generalpara['task'] = datatask['general']['task']
+                generalpara['task'] = datain['general']['task']
             except IOError:
                 print('please define task')
-            if 'mixFactor' in datatask['general']:
-                generalpara['mixFactor'] = datatask['general']['mixFactor']
+            if 'mixFactor' in datain['general']:
+                generalpara['mixFactor'] = datain['general']['mixFactor']
             else:
                 generalpara['mixFactor'] = 0.2
-            if 'tElec' in datatask['general']:
-                generalpara['tElec'] = datatask['general']['tElec']
+            if 'tElec' in datain['general']:
+                generalpara['tElec'] = datain['general']['tElec']
             else:
                 generalpara['tElec'] = 0
-            if 'maxIter' in datatask['general']:
-                generalpara['maxIter'] = datatask['general']['maxIter']
+            if 'maxIter' in datain['general']:
+                generalpara['maxIter'] = datain['general']['maxIter']
             else:
                 generalpara['maxIter'] = 60
-            if 'periodic' in datatask['general']:
-                period = datatask['general']['periodic']
+            if 'periodic' in datain['general']:
+                period = datain['general']['periodic']
                 if period == 'True' or period == 'T' or period == 'true':
                     generalpara['periodic'] = True
                 elif period == 'False' or period == 'F' or period == 'false':
@@ -73,8 +66,8 @@ class ReadInt(object):
                     print('Warning: periodic not defined correctly')
             else:
                 generalpara['periodic'] = False
-            if 'scc' in datatask['general']:
-                scc = datatask['general']['scc']
+            if 'scc' in datain['general']:
+                scc = datain['general']['scc']
                 if scc == 'True' or scc == 'T' or scc == 'true':
                     generalpara['scc'] = True
                 elif scc == 'False' or scc == 'F' or scc == 'false':
@@ -84,9 +77,20 @@ class ReadInt(object):
                     print('Warning: scc not defined correctly')
             else:
                 generalpara['scc'] = False
+            if 'splinehs' in datain['general']:
+                scc = datain['general']['splinehs']
+                if scc == 'True' or scc == 'T' or scc == 'true':
+                    generalpara['splinehs'] = True
+                elif scc == 'False' or scc == 'F' or scc == 'false':
+                    generalpara['splinehs'] = False
+                else:
+                    generalpara['splinehs'] = False
+                    print('Warning: splinehs not defined correctly')
+            else:
+                generalpara['splinehs'] = False
             # --------------------------analysis---------------------------- #
-            if 'dipole' in datatask['analysis']:
-                dipole = datatask['analysis']['dipole']
+            if 'dipole' in datain['analysis']:
+                dipole = datain['analysis']['dipole']
                 if dipole == 'True' or dipole == 'T' or dipole == 'true':
                     generalpara['dipole'] = True
                 elif dipole == 'False' or dipole == 'F' or dipole == 'false':
@@ -98,31 +102,41 @@ class ReadInt(object):
             # --------------------------geometry---------------------------- #
             if generalpara['periodic'] is True:
                 try:
-                    generalpara['ksample'] = datatask['geometry']['ksample']
+                    generalpara['ksample'] = datain['geometry']['ksample']
                 except IOError:
                     print('please define K-mesh points')
                 try:
-                    generalpara['unit'] = datatask['geometry']['unit']
+                    generalpara['unit'] = datain['geometry']['unit']
                 except ImportError:
                     print('please define unit')
-            if 'type' in datatask['geometry']:
-                generalpara['coorType'] = datatask['geometry']['periodic']
+            if 'type' in datain['geometry']:
+                generalpara['coorType'] = datain['geometry']['periodic']
             else:
                 generalpara['coorType'] = 'C'
         return generalpara
 
     def get_coor(self, generalpara):
-        filename = generalpara['filename']
-        direct = generalpara['dire']
-        with open(os.path.join(direct, filename), 'r') as f:
-            datatask = json.load(f)
-            try:
-                generalpara['coor'] = datatask['geometry']['coor']
-            except IOError:
-                print('please define the coordination')
-        coor = np.asarray(generalpara['coor'])
-        natom = np.shape(coor)[0]
-        coor = torch.from_numpy(coor)
+        if generalpara['ty'] == 0 or generalpara['ty'] == 1:
+            filename = generalpara['filename']
+            direct = generalpara['direInput']
+            with open(os.path.join(direct, filename), 'r') as f:
+                datain = json.load(f)
+                try:
+                    generalpara['coor'] = datain['geometry']['coor']
+                except IOError:
+                    print('please define the coordination')
+            coor = np.asarray(generalpara['coor'])
+            natom = np.shape(coor)[0]
+            coor = torch.from_numpy(coor)
+        else:
+            coor0 = generalpara['coor']
+            natom = np.shape(coor0)[0]
+            coor = torch.zeros((natom, 4))
+            coor[:, 1:] = coor0[:, :]
+            icount = 0
+            for iname in generalpara['symbols']:
+                coor[icount, 0] = ATOMNAME.index(iname)+1
+                icount += 1
         distance = torch.zeros((natom, natom))
         distance_norm = torch.zeros((natom, natom, 3))
         distance_vec = torch.zeros((natom, natom, 3))
@@ -154,6 +168,9 @@ class ReadInt(object):
                             dict(enumerate(set(atomnamelist))).keys()))
         for atomi in atomnamelist:
             natomtype.append(dictatom[atomi])
+        atomind2 = int(atomind[natom]*(atomind[natom]+1)/2)
+        atomname_set = list(set(atomnamelist))
+        generalpara['atomname_set'] = atomname_set
         generalpara['distance_norm'] = distance_norm
         generalpara['distance'] = distance
         generalpara['distance_vec'] = distance_vec
@@ -161,10 +178,11 @@ class ReadInt(object):
         generalpara['lmaxall'] = atom_lmax
         generalpara['atomnameall'] = atomnamelist
         generalpara['atomind'] = atomind
+        generalpara['atomind2'] = atomind2
         generalpara['natomtype'] = natomtype
         return generalpara
 
-    def get_coor5(self, generalpara):
+    '''def get_coor(self, generalpara):
         coor0 = generalpara['coor']
         natom = np.shape(coor0)[0]
         coor = torch.zeros((natom, 4))
@@ -204,6 +222,7 @@ class ReadInt(object):
                             dict(enumerate(set(atomnamelist))).keys()))
         for atomi in atomnamelist:
             natomtype.append(dictatom[atomi])
+        atomind2 = int(atomind[natom]*(atomind[natom]+1)/2)
         generalpara['coor'] = coor
         generalpara['distance_norm'] = distance_norm
         generalpara['distance'] = distance
@@ -212,24 +231,24 @@ class ReadInt(object):
         generalpara['lmaxall'] = atom_lmax
         generalpara['atomnameall'] = atomnamelist
         generalpara['atomind'] = atomind
+        generalpara['atomind2'] = atomind2
         generalpara['natomtype'] = natomtype
-        return generalpara
+        return generalpara'''
 
 
 class ReadSKt(object):
-    def __init__(self, generalpara, outpara, namei, namej):
+    def __init__(self, generalpara, namei, namej):
         self.generalpara = generalpara
         self.namei = namei
         self.namej = namej
         self.generalpara['grid0'] = 0.4
         self.generalpara['disttailsk'] = 1.0
         self.generalpara['ninterp'] = 8
-        if generalpara['ty'] == 0:
-            self.ReadSK0(namei, namej)
-        elif generalpara['ty'] == 1:
+        ty = generalpara['ty']
+        if ty == 0 or ty == 1 or ty == 6 or ty == 7:
             self.ReadSK0(namei, namej)
         elif generalpara['ty'] == 5:
-            self.ReadSK5(outpara, namei, namej)
+            self.ReadSK5(namei, namej)
         self.getCutoff(generalpara, namei, namej)
 
     def ReadSK0(self, namei, namej):
@@ -268,22 +287,21 @@ class ReadSKt(object):
         self.generalpara['h_s_all'+namei+namej] = h_s_all
         return self.generalpara
 
-    def ReadSK5(self, outpara, namei, namej):
+    def ReadSK5(self, namei, namej):
         '''read homo- type .skf file'''
-        grid_dist = float(outpara['grid_dist'+namei+namej][0])
-        ngridpoint = int(outpara['grid_dist'+namei+namej][1])
+        grid_dist = float(self.generalpara['grid_dist'+namei+namej][0])
+        ngridpoint = int(self.generalpara['grid_dist'+namei+namej][1])
         mass_cd = []
         if namei == namej:
             Espd_Uspd = []
-            for ispe in outpara['Espd_Uspd'+namei+namej]:
+            for ispe in self.generalpara['Espd_Uspd'+namei+namej]:
                 Espd_Uspd.append(float(ispe))
             self.generalpara['Espd_Uspd'+namei+namej] = Espd_Uspd
-            for imass_cd in outpara['mass_cd'+namei+namej]:
+            for imass_cd in self.generalpara['mass_cd'+namei+namej]:
                 mass_cd.append(float(imass_cd))
         self.generalpara['grid_dist'+namei+namej] = grid_dist
         self.generalpara['ngridpoint'+namei+namej] = ngridpoint
         self.generalpara['mass_cd'+namei+namej] = mass_cd
-        self.generalpara['h_s_all'] = outpara['h_s_all']
         return self.generalpara
 
     def getCutoff(self, generalpara, namei, namej):
