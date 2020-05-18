@@ -1,0 +1,3 @@
+compression radius for each molecule will initialize each time
+total molecule: 50
+steps: 200 (save every 10 steps)

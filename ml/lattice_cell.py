@@ -4,26 +4,27 @@ import numpy as np
 general = {'HH': 0.4, 'HC': 1, 'CH': 1, 'CC': 1}
 
 
-def rad_module(coor, rcut, r_s, eta, tol):
+def rad_molecule(coor, rcut, r_s, eta, tol):
     row, col = np.shape(coor)
     distance = np.zeros((row, row))
     distij = np.zeros(3)
     rad_para = np.zeros(row)
     for iatom in range(0, row):
         for jatom in range(0, row):
-            distij[:] = coor[iatom, :]-coor[jatom, :]
-            distance[iatom, jatom] = np.sqrt(sum(distij[:]**2))
+            distij[:] = coor[iatom, 1:]-coor[jatom, 1:]
+            distance[iatom, jatom] = np.sqrt(sum(distij[:] ** 2))
             print('distance[iatom, jatom]', distance[iatom, jatom])
             if distance[iatom, jatom] > rcut or distance[iatom, jatom] < tol:
                 rad_para[iatom] += 0
             else:
-                fc = 0.5*(np.cos(np.pi*distance[iatom, jatom]/rcut)+1)
-                rad_para[iatom] += np.exp(-eta*(distance[iatom, jatom]-r_s)**2)*fc
+                fc = 0.5 * (np.cos(np.pi * distance[iatom, jatom] / rcut) + 1)
+                rad_para[iatom] += np.exp(-eta * (distance[iatom, jatom] - r_s)
+                                          ** 2) * fc
         rad_para[iatom] = round(rad_para[iatom], 2)
     return rad_para
 
 
-def rad_module2(coor, rcut, r_s, eta, tol, symbols, dist_HH, dist_CH):
+def rad_molecule2(coor, rcut, r_s, eta, tol, symbols):
     row, col = np.shape(coor)
     distance = np.zeros((row, row))
     distij = np.zeros(3)
@@ -32,26 +33,25 @@ def rad_module2(coor, rcut, r_s, eta, tol, symbols, dist_HH, dist_CH):
         for jatom in range(0, row):
             symij = symbols[iatom]+symbols[jatom]
             symij_val = general[symij]
-            distij[:] = coor[iatom, :]-coor[jatom, :]
-            distance[iatom, jatom] = np.sqrt(sum(distij[:]**2))
+            distij[:] = coor[iatom, 1:] - coor[jatom,  1:]
+            distance[iatom, jatom] = np.sqrt(sum(distij[:] ** 2))
+            '''
             if distance[iatom, jatom] > 1.4:
                 dist_HH.append(distance[iatom, jatom])
             elif distance[iatom, jatom] > 0.5:
                 dist_CH.append(distance[iatom, jatom])
             else:
-                pass
-            print('distance[iatom, jatom]', iatom, jatom, distance[iatom, jatom])
+                pass'''
             if distance[iatom, jatom] > rcut or distance[iatom, jatom] < tol:
                 rad_para[iatom] += 0
             else:
                 fc = 0.5*(np.cos(np.pi*distance[iatom, jatom]/rcut)+1)
                 rad_para[iatom] += symij_val*np.exp(-eta*(distance[iatom, jatom]-r_s)**2)*fc
-                print('symij_val', symij_val, np.exp(-eta*(distance[iatom, jatom]-r_s)**2)*fc)
         rad_para[iatom] = round(rad_para[iatom], 4)
-    return rad_para, dist_HH, dist_CH
+    return rad_para
 
 
-def ang_module(coor, rcut, r_s, eta, zeta, lamda, tol):
+def ang_molecule(coor, rcut, r_s, eta, zeta, lamda, tol):
     eta = 1
     row, col = np.shape(coor)
     d_ij = np.zeros((row, row))
@@ -87,26 +87,22 @@ def ang_module(coor, rcut, r_s, eta, zeta, lamda, tol):
     return ang_para
 
 
-def ang_module2(coor, rcut, r_s, eta, zeta, lamda, tol, symbols):
+def ang_molecule2(coor, rcut, r_s, eta, zeta, lamda, tol, symbols):
     '''this function differ the diferent species'''
     row, col = np.shape(coor)
-    d_ij = np.zeros((row, row))
-    d_ik = np.zeros((row, row))
-    d_jk = np.zeros((row, row))
-    d_ij_vec = np.zeros(3)
-    d_ik_vec = np.zeros(3)
-    d_jk_vec = np.zeros(3)
+    d_ij = d_ik = d_jk = np.zeros((row, row))
+    d_ij_vec, d_ik_vec, d_jk_vec = np.zeros(3), np.zeros(3), np.zeros(3)
     ang_para = np.zeros(row)
-    ang_para = np.zeros(row)
+
     for iatom in range(0, row):
         for jatom in range(0, row):
             for katom in range(0, row):
-                d_ij_vec[:] = coor[iatom, :]-coor[jatom, :]
-                d_ik_vec[:] = coor[iatom, :]-coor[katom, :]
-                d_jk_vec[:] = coor[jatom, :]-coor[katom, :]
-                d_ij[iatom, jatom] = np.sqrt(sum(d_ij_vec[:]**2))
-                d_ik[iatom, katom] = np.sqrt(sum(d_ik_vec[:]**2))
-                d_jk[jatom, katom] = np.sqrt(sum(d_jk_vec[:]**2))
+                d_ij_vec[:] = coor[iatom, 1:]-coor[jatom, 1:]
+                d_ik_vec[:] = coor[iatom, 1:]-coor[katom, 1:]
+                d_jk_vec[:] = coor[jatom, 1:]-coor[katom, 1:]
+                d_ij[iatom, jatom] = np.sqrt(sum(d_ij_vec[:] ** 2))
+                d_ik[iatom, katom] = np.sqrt(sum(d_ik_vec[:] ** 2))
+                d_jk[jatom, katom] = np.sqrt(sum(d_jk_vec[:] ** 2))
                 if d_ij[iatom, jatom] > rcut or d_ik[iatom, katom] > rcut or d_jk[jatom, katom] > rcut:
                     ang_para[iatom] += 0
                 elif d_ij[iatom, jatom] < tol or d_ik[iatom, katom] < tol or d_jk[jatom, katom] < tol:
@@ -124,7 +120,7 @@ def ang_module2(coor, rcut, r_s, eta, zeta, lamda, tol, symbols):
     return ang_para
 
 
-def rad_ang_module(coor, rcut, r_s, eta, zeta, lamda, w_ang, tol):
+def rad_ang_molecule(coor, rcut, r_s, eta, zeta, lamda, w_ang, tol):
     row, col = np.shape(coor)
     d_ij = np.zeros((row, row))
     d_ik = np.zeros((row, row))

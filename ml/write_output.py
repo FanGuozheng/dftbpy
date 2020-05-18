@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import os
+import torch as t
 import subprocess
 
 default_r = {"H": 3, "C": 3.5, "N": 2.2, "O": 2.3, "S": 3.8}
 
-class dftbplus:
-    def __init__(self):
-        pass
+
+class Dftbplus:
+    def __init__(self, para):
+        self.para = para
 
     def geo_nonpe(self, file, coor, specie, speciedict, symbols):
         row, col = np.shape(coor)
@@ -28,7 +30,6 @@ class dftbplus:
                     f.write(str(iatom)+" "+str(ispecie)+" ")
                     np.savetxt(f, coor[iatom-1], fmt="%s", newline=" ")
                     f.write('\n')
-
 
     def geo_nonpe_ml(self, file, coor, specie, speciedict, symbols):
         row, col = np.shape(coor)
@@ -96,27 +97,86 @@ class dftbplus:
         cmd = 'mv dftb_in.temp '+direct+'/dftb_in.hsd'
         results = subprocess.run(cmd, shell=True, universal_newlines=True, check=True)
 
-class FHIaims:
-    def __init__(self):
-        pass
+    def read_bandenergy(self, para, nfile, dire):
+        '''read file bandenergy.dat, which is HOMO and LUMO data'''
+        fp = open(os.path.join(dire, 'bandenergy.dat'))
+        bandenergy = np.zeros((nfile, 2))
+        for ifile in range(0, nfile):
+            ibandenergy = np.fromfile(fp, dtype=float, count=3, sep=' ')
+            bandenergy[ifile, :] = ibandenergy[1:]
+        return bandenergy
 
-    def geo_nonpe(self, file, coor, specie, speciedict, symbols):
-        row, col = np.shape(coor)
-        with open('geometry.in.{}'.format(file), 'w') as f:
+    def read_dipole(self, para, nfile, dire):
+        '''read file dip.dat, which is dipole data'''
+        fp = open(os.path.join(dire, 'dip.dat'))
+        dipole = np.zeros((nfile, 3))
+        for ifile in range(0, nfile):
+            idipole = np.fromfile(fp, dtype=float, count=4, sep=' ')
+            dipole[ifile, :] = idipole[1:]
+        return dipole
+
+    def read_hstable(self, para, nfile, dire):
+        '''read file bandenergy.dat, which is HOMO and LUMO data'''
+        fp = open(os.path.join(dire, 'hstable_ref'))
+        hstable_ref = np.zeros(36)
+        for ifile in range(0, nfile):
+            ibandenergy = np.fromfile(fp, dtype=float, count=36, sep=' ')
+            hstable_ref[:] = ibandenergy[:]
+        return t.from_numpy(hstable_ref)
+
+
+class FHIaims:
+    def __init__(self, para):
+        self.para = para
+
+    def geo_nonpe_hdf(self, para, ibatch, coor):
+        '''input is from hdf data, output is FHI-aims input: geo.in'''
+        print(para['speciedict'])
+        specie, speciedict, symbols = para['specie'], para['speciedict'], \
+            para['symbols']
+        with open('geometry.in.{}'.format(ibatch), 'w') as fp:
             ispecie = 0
             iatom = 0
             for atom in specie:
                 ispecie += 1
                 for natom in range(0, speciedict[atom]):
                     iatom += 1
-                    f.write('atom ')
-                    np.savetxt(f, coor[iatom-1], fmt='%s', newline=' ')
-                    f.write(symbols[iatom-1])
-                    f.write('\n')
-
+                    fp.write('atom ')
+                    np.savetxt(fp, coor[iatom - 1], fmt='%s', newline=' ')
+                    fp.write(symbols[iatom - 1])
+                    fp.write('\n')
 
     def geo_pe():
         pass
+
+    def read_bandenergy(self, para, nfile, dire):
+        '''read file bandenergy.dat, which is HOMO and LUMO data'''
+        fp = open(os.path.join(dire, 'bandenergy.dat'))
+        bandenergy = np.zeros((nfile, 2))
+        for ifile in range(0, nfile):
+            ibandenergy = np.fromfile(fp, dtype=float, count=3, sep=' ')
+            bandenergy[ifile, :] = ibandenergy[1:]
+        return bandenergy
+
+    def read_dipole(self, para, nfile, dire):
+        '''read file dip.dat, which is dipole data'''
+        fp = open(os.path.join(dire, 'dip.dat'))
+        dipole = np.zeros((nfile, 3))
+        for ifile in range(0, nfile):
+            idipole = np.fromfile(fp, dtype=float, count=4, sep=' ')
+            dipole[ifile, :] = idipole[1:]
+        return dipole
+
+    def read_qatom(self, para, nfile, dire):
+        '''read file dip.dat, which is dipole data'''
+        fp = open(os.path.join(dire, 'qatomref.dat'))
+        nmaxatom = 10
+        dipole = np.zeros((nfile, nmaxatom))
+        for ifile in range(0, nfile):
+            natom = para['coorall'][ifile].shape[0]
+            iqatom = np.fromfile(fp, dtype=float, count=natom, sep=' ')
+            dipole[ifile, :natom] = iqatom[1:]
+        return dipole
 
 
 class NWchem:

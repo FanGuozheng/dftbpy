@@ -1,0 +1,5 @@
+compression radius for each specie is global parameter, which suggest that in the optimization,
+we first define compression radius for each specie, than for each molecule we will run certain
+times. 
+total molecule: 50
+steps: 10

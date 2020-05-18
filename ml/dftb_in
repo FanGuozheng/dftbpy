@@ -1,6 +1,7 @@
 {"general": 
   {
   "scf": "true",
+  "scc": "xlbomd",
   "periodic": "false",
   "task": "ground",
   "mixFactor": 0.2,
