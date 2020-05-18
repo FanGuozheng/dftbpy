@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 '''
 main DFTB code
 required:
     numpy
     pytorch
 '''
+=======
+
+'''implement of pytorch into DFTB code'''
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
 import argparse
 import os
 import numpy as np
 import torch as t
+<<<<<<< HEAD
 import bisect
 from slakot import ReadSlaKo, SlaKo, SKTran
 from electront import DFTBelect
 from readt import ReadInt, ReadSKt
 from periodic import Periodic
+=======
+from torch.autograd import Variable
+from slakot import SlaKo
+from electront import DFTBelect
+from readt import ReadInt, ReadSKt
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
 PUBPARA = {"LDIM": 9, "AUEV": 27.2113845, "BOHR": 0.529177210903, "tol": 1E-4}
@@ -26,6 +38,12 @@ def main(para):
     We have implemented pytorch into this code with different interface,
     we will_ use different ty values for different interface
     '''
+<<<<<<< HEAD
+=======
+    # the output parameters
+    parser_cmd_args(para)
+
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     # read input construct these data for next DFTB calculations
     Initialization(para)
 
@@ -33,15 +51,49 @@ def main(para):
     Rundftbpy(para)
 
 
+<<<<<<< HEAD
 class Initialization:
     '''
     this class aims to read input coor, calculation parameters and SK tables;
     Then with SK transformation, construct 1D Hamiltonian and overlap matrice
     for the following DFTB calculations
+=======
+def parser_cmd_args(para):
+    '''
+    raed some input information, including path, names of files, etc.
+    default path of input: current path
+    default path of .skf file: ./slko
+    default inout name: dftb_in (json)
+    '''
+    _description = 'Test script demonstrating argparse'
+    parser = argparse.ArgumentParser(description=_description)
+    msg = 'Directory (default: .)'
+    parser.add_argument('-d', '--directory', default='.', help=msg)
+    msg = 'Directory_SK (default: .)'
+    parser.add_argument('-sk', '--directorySK', default='slko', help=msg)
+    msg = 'input filename'
+    parser.add_argument('-f', '--filename', type=str, default='dftb_in',
+                        metavar='NAME', help=msg)
+    args = parser.parse_args()
+    path = os.getcwd()
+    para['filename'] = args.filename
+    para['direInput'] = os.path.join(path, args.directory)
+    para['direSK'] = os.path.join(path, args.directorySK)
+    return para
+
+
+class Initialization:
+    '''
+    this class aims to read input coor, calculation parameters and
+    SK tables;
+    Then with SK transformation, construct 1D Hamiltonian and
+    overlap matrix for next DFTB calculations
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     '''
     def __init__(self, para):
         '''
         here several steps will_ be easy to have more interface in the future
+<<<<<<< HEAD
         Input:
             LCmdArgs (optional): True or False
             LReadInput (optional): True or False
@@ -116,18 +168,49 @@ class Initialization:
     def gen_sk_matrix(self, para):
         '''SK transformations'''
         SKTran(para)
+=======
+        '''
+        self.para = para
+        self.slako = SlaKo(para)
+        self.read = ReadInt(para)
+        # step 1: if read input para from dftb_in file or define para as input
+        if self.para['readInput']:
+            self.read.get_task(para)
+
+        # step 2: read geo (coor) info
+        self.read.get_coor(para)
+
+        # step 3: read SK table and operate SK data for next step
+        if not para['ml']:
+            self.slako.read_skdata(para)
+            self.slako.sk_tranold(para)
+
+    def form_sk_spline(self, para):
+        '''use SK table data to build spline interpolation'''
+        self.slako.get_sk_spldata(para)
+
+    def gen_sk_matrix(self, para):
+        '''SK transformations'''
+        self.slako.sk_tranold(para)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
 
 class Rundftbpy:
     '''
+<<<<<<< HEAD
     According to the input parameters, call different calculation tasks
     input parameters:
         Lperiodic: False or True
         scc: scc, nonscc, xlbomd
+=======
+    According to the task of input parameters, this code will call different
+    calculation tasks
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     '''
     def __init__(self, para):
         '''run dftb with multi interface'''
         self.para = para
+<<<<<<< HEAD
         self.cal_repulsive()
         self.rundftbplus()
         # self.sum_dftb()
@@ -149,11 +232,25 @@ class Rundftbpy:
             scf.scf_npe_xlbomd()
         elif self.para['Lperiodic'] and self.para['scc'] is 'scc':
             scf.scf_pe_scc()
+=======
+        self.rundftbplus()
+
+    def rundftbplus(self):
+        '''run dftb-torch'''
+        # if solid / molecule, scc / nonscc
+        if not self.para['periodic'] and not self.para['scc']:
+            SCF(self.para).scf_npe_nscc()
+        elif not self.para['periodic'] and self.para['scc']:
+            SCF(self.para).scf_npe_scc()
+        elif self.para['periodic'] and self.para['scc']:
+            SCF(self.para).scf_pe()
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
     def case_mathod():
         '''case method'''
         pass
 
+<<<<<<< HEAD
     def cal_repulsive(self):
         if self.para['Lrepulsive']:
             Repulsive(self.para)
@@ -174,6 +271,21 @@ class SCF:
         atomind: lmax of atoms (valence electrons)
         atomind2: sum of all lamx od atoms (the length of Hamiltonian matrix)
         HSsym: if write all / half of the matrices (due to symmetry)
+=======
+
+class SCF:
+    '''
+    This class is for self-consistent field method, you need the
+    following parameters:
+        periodic: if Ture, solid system, elif False, molecule system
+        scc: if True, scc-DFTB, elif False, non-scc-DFTB
+        hammat: this is H0 after SK transformations
+        overmat: this is overlap after SK transformations
+    atomic coordination and electron information:
+        natom: number of atoms
+        atomind: lmax of atoms (valence electrons)
+        atomind2: sum of all lamx od atoms (the length of Hamiltonian matrix)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     '''
     def __init__(self, para):
         '''different options (scc, periodic) for scf calculations'''
@@ -190,6 +302,7 @@ class SCF:
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         '''
         get_qatom(self.para)
+<<<<<<< HEAD
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
         print_ = Print(self.para)
@@ -240,6 +353,28 @@ class SCF:
         self.para['eigenvalue'], self.para['qatomall'] = eigval_ch, qatom
         analysis.dftb_energy()
         analysis.sum_property(), print_.print_dftb_caltail()
+=======
+        eigvec = t.zeros(self.atind[self.nat], self.atind[self.nat])
+        overmat = t.zeros(self.atind[self.nat], self.atind[self.nat])
+        print(' ' * 35, 'start for NON-SCC')
+        icount = 0
+        for iind in range(0, self.atind[self.nat]):
+            for jind in range(0, iind + 1):
+                eigvec[jind, iind] = self.hmat[icount]
+                overmat[jind, iind] = self.smat[icount]
+                eigvec[iind, jind] = self.hmat[icount]
+                overmat[iind, jind] = self.smat[icount]
+                icount += 1
+
+        # get eigenvector and eigenvalue (and cholesky decomposition)
+        eigvec_, eigval = self._cholesky(eigvec, overmat)
+
+        # print and write non-SCC DFTB results
+        print('nonscc eigen value (eV): \n', eigval * PUBPARA['AUEV'])
+        nelect = self.para['nelectrons'] / 2
+        self.para['homo_lumo'] = eigval[int(nelect) - 1:int(nelect) + 1] * \
+            PUBPARA['AUEV']
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
     def scf_npe_scc(self):
         '''
@@ -247,17 +382,22 @@ class SCF:
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         '''
+<<<<<<< HEAD
         print('*' * 35, 'Non-periodic SCC DFTB', '*' * 35)
         elect = DFTBelect(self.para)
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
         print_ = Print(self.para)
+=======
+        elect, mix = DFTBelect(self.para), Mixing(self.para)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         maxiter = self.para['maxIter']
         get_qatom(self.para)
         gmat = elect.gmatrix()
 
         energy = t.zeros(maxiter)
+<<<<<<< HEAD
         self.para['qzero'] = qzero = self.para['qatom']
         eigm, eigval, qatom, qmix, qdiff = [], [], [], [], []
         denmat, denmat_2d = [], []
@@ -266,6 +406,18 @@ class SCF:
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
             eigm_ = t.zeros(ind_nat, ind_nat)
+=======
+        qzero = self.para['qatom']
+        eigvec, eigval, qatom, qmix, qdiff = [], [], [], [], []
+        denmat, denmat_2d = [], []
+        ind_nat = self.atind[self.nat]
+
+        # starting SCC loop
+        for iiter in range(0, maxiter):
+
+            # calculate the sum of gamma * delta_q, the 1st cycle is zero
+            eigvec_ = t.zeros(ind_nat, ind_nat)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             oldsmat_ = t.zeros(ind_nat, ind_nat)
             denmat_, qatom_ = t.zeros(self.atind2), t.zeros(self.nat)
             fockmat_ = t.zeros(self.atind2)
@@ -291,28 +443,53 @@ class SCF:
             icount = 0
             for iind in range(0, int(self.atind[self.nat])):
                 for j_i in range(0, iind + 1):
+<<<<<<< HEAD
                     eigm_[j_i, iind] = fockmat_[icount]
                     oldsmat_[j_i, iind] = self.smat[icount]
                     eigm_[iind, j_i] = fockmat_[icount]
+=======
+                    eigvec_[j_i, iind] = fockmat_[icount]
+                    oldsmat_[j_i, iind] = self.smat[icount]
+                    eigvec_[iind, j_i] = fockmat_[icount]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
                     oldsmat_[iind, j_i] = self.smat[icount]
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
+<<<<<<< HEAD
             eigval_, eigm_ch = self._cholesky2(eigm_, oldsmat_)
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
             occ_ = elect.fermi(eigval_)
+=======
+            eigvec_ch, eigval_ = self._cholesky(eigvec_, oldsmat_)
+            eigval.append(eigval_), eigvec.append(eigvec_ch)
+
+            # calculate the occupation of electrons
+            occ_ = elect.fermi(eigval_)
+            nocc = self.para['nocc']
+
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             for iind in range(0, int(self.atind[self.nat])):
                 if occ_[iind] > PUBPARA['tol']:
                     energy[iiter] = energy[iiter] + occ_[iind] * eigval_[iind]
 
+<<<<<<< HEAD
             # density matrix, work_ controls the unoccupied eigm as 0!!
             work_ = t.sqrt(occ_)
             for j in range(0, ind_nat):  # n = no. of occupied orbitals
                 for i in range(0, self.atind[self.nat]):
                     eigm_ch[i, j] = eigm_ch[i, j].clone() * work_[j]
             denmat_2d_ = t.mm(eigm_ch, eigm_ch.t())
+=======
+            # density matrix, work_ controls the unoccupied eigvec as 0!!
+            work_ = t.sqrt(occ_)
+            for j in range(0, ind_nat):  # n = no. of occupied orbitals
+                for i in range(0, self.atind[self.nat]):
+                    eigvec_ch[i, j] = eigvec_ch[i, j].clone() * work_[j]
+            denmat_2d_ = t.mm(eigvec_ch, eigvec_ch.t())
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             denmat_2d.append(denmat_2d_)
             for iind in range(0, int(self.atind[self.nat])):
                 for j_i in range(0, iind + 1):
@@ -321,13 +498,18 @@ class SCF:
             denmat.append(denmat_)
 
             # calculate mulliken charges
+<<<<<<< HEAD
             qatom_ = elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
+=======
+            qatom_ = elect.mulliken(self.smat[:], denmat_)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             qatom.append(qatom_)
             ecoul = 0.0
             for i in range(0, self.nat):
                 ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
             energy[iiter] = energy[iiter] - 0.5 * ecoul
             mix.mix(iiter, qzero, qatom, qmix, qdiff)
+<<<<<<< HEAD
  
            # if reached convergence
             self.print_energy(iiter, energy)
@@ -523,11 +705,30 @@ class SCF:
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom_
         analysis.sum_property(), print_.print_dftb_caltail()
 
+=======
+            self.print_energy(iiter, energy)
+
+            # if reached convergence
+            if iiter > 0 and abs(self.dE) < PUBPARA['tol']:
+                break
+            if iiter + 1 >= maxiter and abs(self.dE) > PUBPARA['tol']:
+                print('Warning: SCF donot reach required convergence')
+
+        self.para['dipole'] = get_dipole(self.para, qzero, qmix[-1])
+        self.para['homo_lumo'] = eigval_[nocc - 1:nocc + 1] * PUBPARA['AUEV']
+        print("self.para['homo_lumo']", self.para['homo_lumo'], qmix[-1])
+
+    def scf_pe(self):
+        '''scf for periodic with scc'''
+        pass
+
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     def _cholesky(self, matrixa, matrixb):
         '''
         cholesky decomposition of B: B = LL^{T}
             AX = (lambda)BX ==> (L^{-1}AL^{-T})(L^{T}X) = (lambda)(L^{T}X)
         matrix_a: Fock operator
+<<<<<<< HEAD
         matrix_b: overm'''
 
         chol_l = t.cholesky(matrixb)
@@ -703,10 +904,27 @@ class SCF:
             self.dE = energy[iiter].detach()
             print('iteration', ' '*8, 'energy', ' '*20, 'dE')
             print(f'{iiter:5} {energy[iiter].detach():25}', f'{self.dE:25}')
+=======
+        matrix_b: overmat
+        '''
+        chol_l = t.cholesky(matrixb)
+        linv_a = t.mm(t.inverse(chol_l), matrixa)
+        l_invtran = t.inverse(chol_l.t())
+        linv_a_linvtran = t.mm(linv_a, l_invtran)
+        eigval, eigvec = t.symeig(linv_a_linvtran, eigenvectors=True)
+        eigvec_ab = t.mm(l_invtran, eigvec)
+        return eigvec_ab, eigval
+
+    def print_energy(self, iiter, energy):
+        if iiter == 0:
+            print('iteration', ' '*8, 'energy', ' '*20, 'dE')
+            self.dE = energy[iiter].detach()
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         elif iiter >= 1:
             self.dE = energy[iiter].detach() - energy[iiter - 1].detach()
             print(f'{iiter:5} {energy[iiter].detach():25}', f'{self.dE:25}')
 
+<<<<<<< HEAD
     def convergence(self, iiter, maxiter, qdiff):
         if self.para['convergenceType'] == 'energy':
             if abs(self.dE) < self.para['energy_tol']:
@@ -782,6 +1000,8 @@ class Repulsive():
             print('Error: {} distance > cutoff'.format(nameij))
         return energy
 
+=======
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
 class Mixing:
 
@@ -829,10 +1049,17 @@ class Mixing:
         average_qin = (1.0 - beta) * qmix[-1] + beta * qmix[-2]
         average_qout = (1.0 - beta) * qatom[-1] + beta * qatom[-2]
         qmix_ = (1 - mixf) * average_qin + mixf * average_qout
+<<<<<<< HEAD
+=======
+        print('df_iiter, df_prev', df_iiter, df_prev)
+        print(qmix[-1], qmix[-2], qatom[-1], qatom[-2])
+        print(beta, temp1, temp2, average_qin, average_qout)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         return qmix_
 
     def broyden_mix(self, iiter, qmix, qatom_, qdiff):
         '''this is for broyden mixing method'''
+<<<<<<< HEAD
         aa = t.zeros(iiter, iiter)
         cc = t.zeros(iiter, iiter)
         beta = t.zeros(iiter, iiter)
@@ -947,6 +1174,11 @@ class Analysis:
         self.para['dipole'] = get_dipole(self.para, qzero, qatom)
 
 
+=======
+        pass
+
+
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 def read_sk(para):
     '''
     generate the electrons, the onsite only includes s, p and d oribitals
@@ -998,6 +1230,11 @@ def get_dipole(para, qzero, qatom):
             coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
             dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t
         else:
+<<<<<<< HEAD
             dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
                 coor[iatom][1:]
+=======
+            dipole[:] = dipole[:] + (
+                    qzero[iatom] - qatom[iatom]) * coor[iatom][:]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     return dipole

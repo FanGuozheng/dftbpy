@@ -62,13 +62,21 @@ class ReadInt:
             # parameter: scc
             if 'scc' in fpinput['general']:
                 scc = fpinput['general']['scc']
+<<<<<<< HEAD
                 if scc in ('scc', 'nonscc', 'xlbomd'):
                     para['scc'] = scc
+=======
+                if scc in ('True', 'T', 'true'):
+                    para['scc'] = True
+                elif scc in ('False', 'F', 'false'):
+                    para['scc'] = False
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
                 else:
                     raise ImportError('Error: scc not defined correctly')
             else:
                 para['scc'] = False
 
+<<<<<<< HEAD
             if 'Lml' in fpinput['general']:
                 Lml = fpinput['general']['Lml']
                 if Lml in ('T', 'True', 'true'):
@@ -79,6 +87,18 @@ class ReadInt:
                     raise ImportError('Error: scc not defined correctly')
             else:
                 para['Lml'] = False
+=======
+            if 'ml' in fpinput['general']:
+                scc = fpinput['general']['ml']
+                if scc in ('True', 'T', 'true'):
+                    para['ml'] = True
+                elif scc in ('False', 'F', 'false'):
+                    para['ml'] = False
+                else:
+                    raise ImportError('Error: scc not defined correctly')
+            else:
+                para['ml'] = False
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
             # parameter: mixFactor
             if 'mixFactor' in fpinput['general']:
@@ -102,6 +122,7 @@ class ReadInt:
             else:
                 para['maxIter'] = 60
 
+<<<<<<< HEAD
             # convergence
             if 'convergenceType' in fpinput['general']:
                 para['convergenceType'] = fpinput['general']['convergenceType']
@@ -112,6 +133,8 @@ class ReadInt:
             else:
                 para['energy_tol'] = 1e-6
 
+=======
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             # --------------------------skf----------------------------
             # ninterp: the number of points for interp when read .skf
             if 'ninterp' in fpinput['skf']:
@@ -161,6 +184,7 @@ class ReadInt:
                 para['coorType'] = 'C'
 
             # interphs: use interpolation to generate SK instead of read .skf
+<<<<<<< HEAD
             if 'Lml_HS' in fpinput['general']:
                 scc = fpinput['general']['Lml_HS']
                 if scc in ('True', 'T', 'true'):
@@ -425,6 +449,97 @@ class ReadSKt:
         print(namei, namej)
         nameij = namei + namej
         skfname = namei + '-' + namej + '.skf'
+=======
+            if 'interphs' in fpinput['general']:
+                scc = fpinput['general']['interphs']
+                if scc in ('True', 'T', 'true'):
+                    para['interphs'] = True
+                elif scc in ('False', 'F', 'false'):
+                    para['interphs'] = False
+                else:
+                    raise ImportError('Error: interphs not defined correctly')
+            else:
+                para['interphs'] = False
+        return para
+
+    def get_coor(self, para):
+        '''this function will (read) / process coor info'''
+        if para['readInput']:
+            filename = para['filename']
+            direct = para['direInput']
+            with open(os.path.join(direct, filename), 'r') as f:
+                fpinput = json.load(f)
+                try:
+                    para['coor'] = fpinput['geometry']['coor']
+                except IOError:
+                    print('please define the coordination')
+            coor = np.asarray(para['coor'])
+            natom = np.shape(coor)[0]
+            coor = t.from_numpy(coor)
+        else:
+            coor0 = para['coor']
+            natom = np.shape(coor0)[0]
+            coor = t.zeros((natom, 4))
+            coor[:, 1:] = coor0[:, :]
+            icount = 0
+            for iname in para['symbols']:
+                coor[icount, 0] = ATOMNAME.index(iname) + 1
+                icount += 1
+        distance = t.zeros((natom, natom))
+        dnorm = t.zeros((natom, natom, 3))
+        dvec = t.zeros((natom, natom, 3))
+        atomnamelist = []
+        atom_lmax = []
+        atomind = []
+        atomind.append(0)
+        for i in range(0, natom):
+            atomunm = int(coor[i, 0] - 1)
+            atomnamelist.append(ATOMNAME[atomunm])
+            atom_lmax.append(VAL_ORB[ATOMNAME[atomunm]])
+            atomind.append(int(atomind[i] + atom_lmax[i]**2))
+            for j in range(0, i):
+                xx = (coor[j, 1] - coor[i, 1]) / BOHR
+                yy = (coor[j, 2] - coor[i, 2]) / BOHR
+                zz = (coor[j, 3] - coor[i, 3]) / BOHR
+                dd = np.sqrt(xx * xx + yy * yy + zz * zz)
+                distance[i, j] = dd
+                if dd < err:
+                    pass
+                else:
+                    dnorm[i, j, 0], dnorm[i, j, 1], dnorm[i, j, 2] = xx / dd, \
+                        yy / dd, zz / dd
+                    dvec[i, j, 0], dvec[i, j, 1], dvec[i, j, 2] = xx, yy, zz
+        para['natomtype'] = []
+        dictatom = dict(zip(dict(enumerate(set(atomnamelist))).values(),
+                            dict(enumerate(set(atomnamelist))).keys()))
+        for atomi in atomnamelist:
+            para['natomtype'].append(dictatom[atomi])
+        para['atomind2'] = int(atomind[natom] * (atomind[natom] + 1) / 2)
+        para['atomname_set'] = list(set(atomnamelist))
+        para['distance_norm'] = dnorm
+        para['distance'] = distance
+        para['dvec'] = dvec
+        para['natom'] = natom
+        para['lmaxall'] = atom_lmax
+        para['atomnameall'] = atomnamelist
+        para['atomind'] = atomind
+        return para
+
+
+class ReadSKt:
+    '''this class is to read .skf file'''
+    def __init__(self, para, namei, namej):
+        self.para = para
+        self.namei = namei
+        self.namej = namej
+        self.read_sk(namei, namej)
+        self.get_cutoff(namei, namej)
+
+    def read_sk(self, namei, namej):
+        '''read homo- type .skf file'''
+        nameij = namei + namej
+        skfname = namei+'-'+namej+'.skf'
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         direc = self.para['direSK']
         fp_sk = open(os.path.join(direc, skfname))
         allskfdata = []
@@ -437,7 +552,11 @@ class ReadSKt:
         grid_dist = float(allskfdata[0][0])
         ngridpoint = int(allskfdata[0][1])
         mass_cd = []
+<<<<<<< HEAD
         hs_all = []
+=======
+        h_s_all = []
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         if namei == namej:
             line1_temp = []
             [line1_temp.append(float(ix)) for ix in allskfdata[1]]
@@ -448,6 +567,7 @@ class ReadSKt:
             for imass_cd in allskfdata[2]:
                 mass_cd.append(float(imass_cd))
             for iline in range(0, ngridpoint):
+<<<<<<< HEAD
                 hs_all.append([float(ii) for ii in allskfdata[iline + 3]])
         else:
             for imass_cd in allskfdata[1]:
@@ -499,3 +619,44 @@ class ReadSKt:
                 lensk = grid * ngridpoint
                 self.para['cutoffsk' + nameij] = cutoff
                 self.para['lensk' + nameij] = lensk
+=======
+                h_s_all.append([float(ii) for ii in allskfdata[iline + 3]])
+        else:
+            for imass_cd in allskfdata[1]:
+                mass_cd.append(float(imass_cd))
+        for iline in range(0, int(ngridpoint)):
+            h_s_all.append([float(ii) for ii in allskfdata[iline + 2]])
+        self.para['grid_dist' + nameij] = grid_dist
+        self.para['ngridpoint' + nameij] = ngridpoint
+        self.para['mass_cd' + nameij] = mass_cd
+        self.para['h_s_all' + nameij] = h_s_all
+        return self.para
+
+    def read_sk_(self, namei, namej):
+        '''read homo- type .skf file'''
+        grid_dist = float(self.para['grid_dist'+namei+namej][0])
+        ngridpoint = int(self.para['grid_dist'+namei+namej][1])
+        mass_cd = []
+        if namei == namej:
+            espd_uspd = []
+            for ispe in self.para['espd_uspd'+namei+namej]:
+                espd_uspd.append(float(ispe))
+            self.para['espd_uspd'+namei+namej] = espd_uspd
+            for imass_cd in self.para['mass_cd'+namei+namej]:
+                mass_cd.append(float(imass_cd))
+        self.para['grid_dist'+namei+namej] = grid_dist
+        self.para['ngridpoint'+namei+namej] = ngridpoint
+        self.para['mass_cd'+namei+namej] = mass_cd
+        return self.para
+
+    def get_cutoff(self, namei, namej):
+        '''get the cutoff of atomi-atomj in .skf file'''
+        grid = self.para['grid_dist'+namei+namej]
+        ngridpoint = self.para['ngridpoint'+namei+namej]
+        disttailsk = self.para['dist_tailskf']
+        cutoff = grid * ngridpoint + disttailsk
+        lensk = grid * ngridpoint
+        self.para['cutoffsk'+namei+namej] = cutoff
+        self.para['lensk'+namei+namej] = lensk
+        return self.para
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3

@@ -16,6 +16,7 @@ HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
         'OH': 0, 'OO': 4}
 
 
+<<<<<<< HEAD
 class ReadSlaKo:
 
     def __init__(self, para):
@@ -264,6 +265,11 @@ class SlaKo:
         get_sk_spldata: select interpolation type (Bspline, Polyspline)
         genskf_interp_ij
         genskf_interp_ij: with compr of i, j atom, interpate sk data
+=======
+class SlaKo:
+    '''
+    this class is for slater-koster files (read, processing)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     '''
     def __init__(self, para):
         self.para = para
@@ -290,6 +296,7 @@ class SlaKo:
                     para['occ_skf' + nameii])
             icount += 1
 
+<<<<<<< HEAD
     def get_sk_spldata(self):
         '''
         according to the type of interpolation, call different function
@@ -320,6 +327,25 @@ class SlaKo:
 
         ncompr = int(np.sqrt(self.para['nfile_rall' + name_init]))
         self.para['hs_compr_all'] = t.zeros(natom, natom, ncompr, ncompr, 20)
+=======
+    def get_sk_spldata(self, para):
+        '''
+        according to the type of interpolation, call different function
+        '''
+        if para['interptype'] == 'Bspline':
+            self.gen_bsplpara(para)
+        elif para['interptype'] == 'Polyspline':
+            self.gen_psplpara(para)
+
+    def genskf_interp_ij(self, para):
+        '''
+        read skf data with various compression radius, then use optimized
+        compression radius to interpolate the sk data for next step
+        '''
+        atomname = para['atomnameall']
+        natom = para['natom']
+        para['hs_compr_all'] = []
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
         # get i and j atom with various compression radius at certain dist
         print('Getting HS table according to compression R and distance',
@@ -328,6 +354,7 @@ class SlaKo:
               'R, 20 is the number of integral each line in skf file')
         for iatom in range(0, natom):
             for jatom in range(0, natom):
+<<<<<<< HEAD
                 dij = self.para['distance'][iatom, jatom]
                 nameij = atomname[iatom] + atomname[jatom]
                 self.para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
@@ -385,6 +412,22 @@ class SlaKo:
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
         Output:
             H and S matrice ([natom, natom, 20])
+=======
+                nameij = atomname[iatom] + atomname[jatom]
+                ncompr = int(np.sqrt(para['nfile_rall' + nameij]))
+                dij = para['distance'][iatom, jatom]
+                para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
+                if dij == 0:
+                    para['hs_compr_all'].append(para['hs_ij'])
+                else:
+                    self.genskf_interp_ijd(para, dij, nameij)
+                    para['hs_compr_all'].append(para['hs_ij'])
+
+    def genskf_interp_r(self, para):
+        '''
+        with given compression R, generate HS table for next SK
+        transformation and DFTB calculations
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         '''
         natom = para['natom']
         atomname = para['atomnameall']
@@ -393,10 +436,13 @@ class SlaKo:
 
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
+<<<<<<< HEAD
         print('atomname', atomname, natom)
         '''print(para['hs_compr_all'][1][1, 3, :],
               para['hs_compr_all'][5][1, 3, :],
               para['hs_compr_all'][5][3, 1, :])'''
+=======
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
         icount = 0
         for iatom in range(0, natom):
@@ -413,6 +459,11 @@ class SlaKo:
                         bicubic.bicubic_2d(xmesh, ymesh, zmeshall[:, :, icol],
                                            icompr, jcompr)
                 icount += 1
+<<<<<<< HEAD
+=======
+                if iatom != jatom:
+                    hs_ij[jatom, iatom, :] = hs_ij[iatom, jatom, :]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
             onsite = t.zeros(3)
             uhubb = t.zeros(3)
@@ -427,6 +478,7 @@ class SlaKo:
                                        icompr, jcompr)
                 para['onsite' + iname + iname] = onsite
                 para['uhubb' + iname + iname] = uhubb
+<<<<<<< HEAD
         para['hs_all'] = hs_ij
 
     def genskf_interp_compr(self):
@@ -468,6 +520,39 @@ class SlaKo:
     def gen_bsplpara(self):
         '''generate B-spline parameters'''
         h_spl_num = self.para['h_spl_num']
+=======
+        para['h_s_all'] = hs_ij
+
+    def genskf_interp_ijd(self, para, dij, nameij):
+        '''
+        this function aims to interpolate skf of i and j atom with
+        various compression radius at certain distance
+        time: 3 ~ 5 s (ncompr*ncompr*20*0.008)
+        '''
+        grid0 = para['grid0']
+        cutoff = para['interpcutoff']
+        ncompr = int(np.sqrt(para['nfile_rall' + nameij]))
+        for icompr in range(0, ncompr):
+            for jcompr in range(0, ncompr):
+                grid_dist = para['grid_dist_rall'+nameij][icompr, jcompr]
+                skfijd = para['h_s_all_rall' + nameij][icompr, jcompr, :, :]
+                col = skfijd.shape[1]
+                for icol in range(0, col):
+                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
+                        pass  # if all HS is zero, then we donot need interp
+                    else:
+                        y_beg = int(grid0 / grid_dist - 1)
+                        nline = int((cutoff - grid0) / grid_dist + 1)
+                        xp = t.linspace(grid0, (nline - 1) * grid_dist +
+                                        grid0, nline)
+                        yp = skfijd[:, icol][y_beg:y_beg+nline]
+                        para['hs_ij'][icompr, jcompr, icol] = \
+                            matht.polyInter(xp, yp, dij)
+
+    def gen_bsplpara(self, para):
+        '''generate B-spline parameters'''
+        h_spl_num = para['h_spl_num']
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         lines = int(self.cutoff / self.dist)
         cspline = t.zeros(h_spl_num, lines)
         cspl_rand = t.zeros(h_spl_num, lines)
@@ -475,17 +560,27 @@ class SlaKo:
         for ii in range(0, self.nspecie):
             for jj in range(0, self.nspecie):
                 nameij = self.atomspecie[ii] + self.atomspecie[jj]
+<<<<<<< HEAD
                 griddist = self.para['grid_dist'+nameij]
                 ngridpoint = self.para['ngridpoint'+nameij]
+=======
+                griddist = para['grid_dist'+nameij]
+                ngridpoint = para['ngridpoint'+nameij]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
                 t_beg = 0.0
                 t_end = ngridpoint*griddist
                 t_num = int((t_end - t_beg + griddist)/self.dist)
                 tspline = t.linspace(t_beg, t_end, t_num)
+<<<<<<< HEAD
                 cspline = _cspline(self.para, nameij, ihtable, griddist,
+=======
+                cspline = _cspline(para, nameij, ihtable, griddist,
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
                                    cspline, tspline)
                 ihtable += HNUM[self.atomspecie[ii]+self.atomspecie[jj]]
         shape1, shape2 = cspline.shape
         cspl_rand = cspline + t.randn(shape1, shape2)/10
+<<<<<<< HEAD
         self.para['cspline'] = cspline
         self.para['cspl_rand'] = cspl_rand
         self.para['tspline'] = tspline
@@ -501,11 +596,29 @@ class SlaKo:
         lines = int((cutoff - xp_start) / dist + 1)
         self.para['splyall'] = t.zeros(h_spl_num, lines)
         self.para['splyall_rand'] = t.zeros(h_spl_num, lines)
+=======
+        para['cspline'] = cspline
+        para['cspl_rand'] = cspl_rand
+        para['tspline'] = tspline
+
+    def gen_psplpara(self, para):
+        '''generate spline interpolation parameters'''
+        atomspecie = para['atomname_set']
+        cutoff = para['interpcutoff']
+        xp_start = para['grid0']
+        dist = para['interpdist']
+        h_spl_num = para['h_spl_num']
+        nspecie = len(atomspecie)
+        lines = int((cutoff - xp_start) / dist + 1)
+        para['splyall'] = t.zeros(h_spl_num, lines)
+        para['splyall_rand'] = t.zeros(h_spl_num, lines)
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
         # ihtable is label of which orbital and which specie it is
         for ii in range(0, nspecie):
             for jj in range(0, nspecie):
                 nameij = atomspecie[ii] + atomspecie[jj]
+<<<<<<< HEAD
                 griddist = self.para['grid_dist'+nameij]
                 self.para['interp_xall'] = t.linspace(xp_start, cutoff, lines)
                 if HNUM[nameij] > 0:
@@ -516,6 +629,18 @@ class SlaKo:
         row, col = self.para['splyall'].shape
         self.para['splyall_rand'] = self.para['splyall_rand'] + \
             t.randn(row, col) * self.para['rand_threshold']
+=======
+                griddist = para['grid_dist'+nameij]
+                para['interp_xall'] = t.linspace(xp_start, cutoff, lines)
+                if HNUM[nameij] > 0:
+                    spl_ypara(para, nameij, griddist, xp_start, lines)
+
+        # build rand interpspline data (add randn number)
+        para['splyall_rand'][:, :] = para['splyall'][:, :]
+        row, col = para['splyall'].shape
+        para['splyall_rand'] += t.randn(row, col) * para['rand_threshold']
+        return para
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
     def add_rand(self, tensor_init, tensor_rand, threshold, multi_para):
         if len(tensor_init.shape) == 1:
@@ -529,6 +654,44 @@ class SlaKo:
             tensor_temp[tensor_temp > threshold] += t.randn(1) * multi_para
             tensor_rand[:, :] == tensor_temp[:, :]
 
+<<<<<<< HEAD
+=======
+    def sk_tranold(self, para):
+        '''transfer H and S according to slater-koster rules'''
+        atomind = para['atomind']
+        natom = para['natom']
+        atomname = para['atomnameall']
+        dvec = para['dvec']
+        atomind2 = para['atomind2']
+        para['hammat'] = t.zeros((atomind2))
+        para['overmat'] = t.zeros((atomind2))
+        rr = t.zeros(3)
+        for i in range(0, natom):
+            lmaxi = para['lmaxall'][i]
+            for j in range(0, i + 1):
+                lmaxj = para['lmaxall'][j]
+                lmax = max(lmaxi, lmaxj)
+                para['hams'] = t.zeros((9, 9))
+                para['ovrs'] = t.zeros((9, 9))
+                para['nameij'] = atomname[i] + atomname[j]
+                rr[:] = dvec[i, j, :]
+
+                # generate ham, over only for atomi-atomj(non f orbital)
+                slkode(para, rr, i, j, lmax)
+
+                # transfer ham and ovr matrice to whole matrice
+                for n in range(0, atomind[j + 1] - atomind[j]):
+                    nn = atomind[j] + n
+                    for m in range(0, atomind[i + 1] - atomind[i]):
+                        mm = atomind[i] + m
+                        idx = int(mm * (mm + 1) / 2 + nn)
+                        if nn <= mm:
+                            idx = int(mm * (mm + 1) / 2 + nn)
+                            para['hammat'][idx] = para['hams'][m, n]
+                            para['overmat'][idx] = para['ovrs'][m, n]
+        return para
+
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
 
 def call_spline(xp, yp, rr, ty, order=2):
     if ty == 'Polyspline':
@@ -546,7 +709,11 @@ def _cspline(para, nameij, itable, ngridpoint, c_spline, t_spline):
     what you need: start point of x and grid distance of x; SK table data;
     define the interpolation type;
     '''
+<<<<<<< HEAD
     datalist = para['hs_all' + nameij]
+=======
+    datalist = para['h_s_all' + nameij]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     nlinesk = para['ngridpoint' + nameij]
     dist = para['interpdist']
     ninterval = int(dist / ngridpoint)
@@ -589,7 +756,11 @@ def spl_ypara(para, nameij, ngridpoint, xp0, lines):
     define the interpolation type; how many lines (points) in x or y.
     '''
     xp = para['interp_xall']
+<<<<<<< HEAD
     datalist = para['hs_all' + nameij]
+=======
+    datalist = para['h_s_all' + nameij]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     dist = para['interpdist']
     ty = para['interptype']
     if int(dist / ngridpoint) != dist / ngridpoint:
@@ -639,11 +810,19 @@ def spl_ypara(para, nameij, ngridpoint, xp0, lines):
 def slkode(para, rr, i, j, lmax):
     '''here we transfer i from ith atom to ith spiece'''
     nameij = para['nameij']
+<<<<<<< HEAD
     dd = t.sqrt(rr[:] ** 2)
     if para['Lml']:
         cutoff = para['interpcutoff']  # may need revise!!!
         if para['Lml_skf']:
             para['hsdata'] = para['hs_all'][i, j]
+=======
+    dd = t.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2])
+    if para['ml']:
+        cutoff = para['interpcutoff']  # may need revise!!!
+        if para['interpskf']:
+            para['hsdata'] = para['h_s_all'][i, j]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         else:
             getsk(para, nameij, dd)
     else:
@@ -656,10 +835,14 @@ def slkode(para, rr, i, j, lmax):
         if i != j:
             print("ERROR, distance between", i, "atom and", j, "atom is 0")
         else:
+<<<<<<< HEAD
             if type(para['onsite' + nameij]) is t.Tensor:
                 skselfnew[:] = para['onsite' + nameij]
             elif type(para['coorall'][0]) is np.ndarray:
                 skselfnew[:] = t.FloatTensor(para['onsite' + nameij])
+=======
+            skselfnew[:] = t.FloatTensor(para['onsite' + nameij])
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         if lmax == 1:
             para['hams'][0, 0] = skselfnew[2]
             para['ovrs'][0, 0] = 1.0
@@ -692,13 +875,18 @@ def slkode(para, rr, i, j, lmax):
             para['hams'][8, 8] = skselfnew[0]
             para['ovrs'][8, 8] = 1.0
     else:
+<<<<<<< HEAD
         if not para['LReadInput'] and not para['Lml_skf']:
+=======
+        if not para['readInput'] and not para['interpskf']:
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             shparspline(para, rr, i, j, dd)
         else:
             shpar(para, rr, i, j, dd)
     return para
 
 
+<<<<<<< HEAD
 def slkode_onsite(para, rr, i, j, lmax):
     '''here we transfer i from ith atom to ith spiece'''
     skselfnew = t.zeros(3)
@@ -787,13 +975,27 @@ def getsk(para, nameij, dd):
     cutoff = para['cutoffsk' + nameij]
     ngridpoint = para['ngridpoint' + nameij]
     grid0 = para['grid_dist' + nameij]
+=======
+def getsk(para, nameij, dd):
+    # ninterp is the num of points for interpolation, here is 8
+    ninterp = para['ninterp']
+    datalist = para['h_s_all' + nameij]
+    griddist = para['grid_dist' + nameij]
+    cutoff = para['cutoffsk' + nameij]
+    ngridpoint = para['ngridpoint' + nameij]
+    grid0 = para['grid0']
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     ind = int(dd / griddist)
     nlinesk = ngridpoint
     lensk = nlinesk * griddist
     para['hsdata'] = t.zeros(20)
     if dd < grid0:
         para['hsdata'][:] = 0
+<<<<<<< HEAD
     elif grid0 <= dd < lensk:  # need revise!!!
+=======
+    elif dd >= grid0 and dd < lensk:
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         datainterp = t.zeros((int(ninterp), 20))
         ddinterp = t.zeros(int(ninterp))
         nlinesk = min(nlinesk, int(ind + ninterp / 2 + 1))
@@ -815,6 +1017,7 @@ def getsk(para, nameij, dd):
     return para
 
 
+<<<<<<< HEAD
 def shpar_(para, xyz, i, j, dd, li, lj):
     hams, ovrs = para['hams'], para['ovrs']
     lmax, lmin = max(li, lj), min(li, lj)
@@ -831,6 +1034,10 @@ def shpar_(para, xyz, i, j, dd, li, lj):
 
 
 def shpar(para, hs_data, xyz, i, j, dd):
+=======
+def shpar(para, xyz, i, j, dd):
+    hs_data = para['hsdata']
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     hams = para['hams']
     ovrs = para['ovrs']
     xx = xyz[0] / dd
@@ -921,10 +1128,16 @@ def shparspline(para, xyz, i, j, dd):
     return para
 
 
+<<<<<<< HEAD
 def skss(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
     """slater-koster transfermaton for s orvitals"""
     ham[0, 0], ovr[0, 0] = hs_s_s(
             xx, yy, zz, hs_all[i, j, 9], hs_all[i, j, 19])
+=======
+def skss(xx, yy, zz, data, ham, ovr):
+    """slater-koster transfermaton for s orvitals"""
+    ham[0, 0], ovr[0, 0] = hs_s_s(xx, yy, zz, data[9], data[19])
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     return ham, ovr
 
 
@@ -946,11 +1159,16 @@ def skss_spline(para, xx, yy, zz, dd):
     return para
 
 
+<<<<<<< HEAD
 def sksp(xx, yy, zz, i, j, data, ham, ovr):
+=======
+def sksp(xx, yy, zz, data, ham, ovr):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     ham, ovr = skss(xx, yy, zz, data, ham, ovr)
     ham[0, 1], ovr[0, 1] = hs_s_x(xx, yy, zz, data[8], data[18])
     ham[0, 2], ovr[0, 2] = hs_s_y(xx, yy, zz, data[8], data[18])
     ham[0, 3], ovr[0, 3] = hs_s_z(xx, yy, zz, data[8], data[18])
+<<<<<<< HEAD
     for ii in range(nls, nlp + nls):
         ham[ii, 0] = ham[0, ii]
         ovr[ii, 0] = ovr[0, ii]
@@ -998,6 +1216,11 @@ def sksp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
                 xx, yy, zz, -hs_all[j, i, 8], -hs_all[j, i, 18])
         ham[3, 0], ovr[3, 0] = hs_s_z(
                 xx, yy, zz, -hs_all[j, i, 8], -hs_all[j, i, 18])
+=======
+    for ii in range(nls, nlp+nls):
+        ham[ii, 0] = -ham[0, ii]
+        ovr[ii, 0] = -ovr[0, ii]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     return ham, ovr
 
 
@@ -1007,7 +1230,11 @@ def skspbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
     ham[0, 1], ovr[0, 1] = hs_s_x(xx, yy, zz, h_data, data[18])
     ham[0, 2], ovr[0, 2] = hs_s_y(xx, yy, zz, h_data, data[18])
     ham[0, 3], ovr[0, 3] = hs_s_z(xx, yy, zz, h_data, data[18])
+<<<<<<< HEAD
     for ii in range(nls, nlp + nls):
+=======
+    for ii in range(nls, nlp+nls):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         ham[ii, 0] = -ham[0, ii]
         ovr[ii, 0] = -ovr[0, ii]
     return ham, ovr
@@ -1039,13 +1266,21 @@ def sksd(xx, yy, zz, data, ham, ovr):
     ham[0, 6], ovr[0, 6] = hs_s_xz(xx, yy, zz, data[7], data[17])
     ham[0, 7], ovr[0, 7] = hs_s_x2y2(xx, yy, zz, data[7], data[17])
     ham[0, 8], ovr[0, 8] = hs_s_3z2r2(xx, yy, zz, data[7], data[17])
+<<<<<<< HEAD
     for ii in range(nls + nlp, nld):
+=======
+    for ii in range(nls+nlp, nld):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         ham[ii, 0] = ham[0, ii]
         ovr[ii, 0] = ovr[0, ii]
     return ham, ovr
 
 
+<<<<<<< HEAD
 def skpp(xx, yy, zz, data, ham, ovr):
+=======
+def skpp(xx, yy, zz, dd, t, c, data, ham, ovr):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     ham, ovr = sksp(xx, yy, zz, data, ham, ovr)
     ham[1, 1], ovr[1, 1] = hs_x_x(
         xx, yy, zz, data[5], data[15], data[6], data[16])
@@ -1059,6 +1294,7 @@ def skpp(xx, yy, zz, data, ham, ovr):
         xx, yy, zz, data[5], data[15], data[6], data[16])
     ham[3, 3], ovr[3, 3] = hs_z_z(
         xx, yy, zz, data[5], data[15], data[6], data[16])
+<<<<<<< HEAD
     for ii in range(nls, nlp + nls):
         for jj in range(nls, ii + nls):
             ham[ii, jj] = -ham[jj, ii]
@@ -1088,6 +1324,10 @@ def skpp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
             hs_all[i, j, 6], hs_all[i, j, 16])
     for ii in range(nls, nlp + nls):
         for jj in range(nls, ii + nls):
+=======
+    for ii in range(nls, nlp+nls):
+        for jj in range(nls, ii+nls):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             ham[ii, jj] = ham[jj, ii]
             ovr[ii, jj] = ovr[jj, ii]
     return ham, ovr
@@ -1104,7 +1344,11 @@ def skppbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
     ham[2, 3], ovr[2, 3] = hs_y_z(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
     ham[3, 3], ovr[3, 3] = hs_z_z(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
     for ii in range(nls, nlp+nls):
+<<<<<<< HEAD
         for jj in range(nls, ii + nls):
+=======
+        for jj in range(nls, ii+nls):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             ham[ii, jj] = ham[jj, ii]
             ovr[ii, jj] = ovr[jj, ii]
     return ham, ovr
@@ -1130,8 +1374,13 @@ def skpp_spline(para, xx, yy, zz, dd):
         xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
     para['ham'][3, 3], para['ovr'][3, 3] = hs_z_z(
         xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
+<<<<<<< HEAD
     for ii in range(nls, nlp + nls):
         for jj in range(nls, ii + nls):
+=======
+    for ii in range(nls, nlp+nls):
+        for jj in range(nls, ii+nls):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             para['ham'][ii, jj] = para['ham'][jj, ii]
             para['ovr'][ii, jj] = para['ovr'][jj, ii]
     return para
@@ -1169,8 +1418,13 @@ def skpd(self, xx, yy, zz, data, ham, ovr):
         xx, yy, zz, data[3], data[13], data[4], data[14])
     ham[3, 8], ovr[3, 8] = hs_z_3z2r2(
         xx, yy, zz, data[3], data[13], data[4], data[14])
+<<<<<<< HEAD
     for ii in range(nls, nls + nlp):
         for jj in range(nls + nlp, nld):
+=======
+    for ii in range(nls, nls+nlp):
+        for jj in range(nls+nlp, nld):
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
             ham[jj, ii] = -ham[ii, jj]
             ovr[jj, ii] = -ovr[ii, jj]
     return ham, ovr
@@ -1275,7 +1529,11 @@ def HS_dist(rr, i, j, para, ham, ovr, lmax):
     if para['ty'] == 6:
         hs_data = getsk(para, nameij, dd)
     elif para['ty'] == 5:
+<<<<<<< HEAD
         hs_data = para['hs_all'][i, j, :]
+=======
+        hs_data = para['h_s_all'][i, j, :]
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
     skself = para['onsite']
     cutoff = para['cutoffsk'+nameij]
     skselfnew = t.zeros(3)
