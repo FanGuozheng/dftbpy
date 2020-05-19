@@ -204,7 +204,6 @@ class DFTBelect:
                             val21 = self.gamsub(a2, a1, rr, rrc)
                             gval = rrc - fhbond * val12 - fhbond * val21
                     gmat[iatom, jatom] = gval
-=======
         nameall = self.para['atomnameall']
         gmat = t.empty(int((natom + 1) * natom / 2))
         icount = 0

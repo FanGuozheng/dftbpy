@@ -10,6 +10,8 @@ def plot_main(outpara):
     # plot_ham(outpara)
     if 'dipole' in outpara['target']:
         plot_dip(outpara)
+    if 'energy' in outpara['target']:
+        plot_energy(outpara)
     if outpara['Lml_HS']:
         plot_spl(outpara)
     elif outpara['Lml_skf']:
@@ -18,23 +20,23 @@ def plot_main(outpara):
 
 def plot_eig(outpara):
     nfile = int(outpara['n_dataset'][0])
-    fpopt, fpref = open('eigbp.dat', 'r'), open('eigref.dat', 'r')
+    fpopt, fpref = open('HLbp.dat', 'r'), open('HLref.dat', 'r')
     nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
     dataref = np.zeros((nfile, 2))
     dataopt = np.zeros((nfile, nsteps, 2))
 
-    print('plot eigen values')
+    print('plot HOMO-LUMO values')
     for ifile in range(0, nfile):
         dataref[ifile, :] = np.fromfile(fpref, dtype=float, count=2, sep=' ')
         for istep in range(0, nsteps):
             dataopt[ifile, istep, :] = np.fromfile(
                     fpopt, dtype=float, count=2, sep=' ')
 
-    icount = 0
+    icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
-            plt.plot(istep, dataref[ifile, 0] - dataopt[ifile, istep, 0], 'xr')
-            plt.plot(istep, dataref[ifile, 1] - dataopt[ifile, istep, 1], 'ob')
+            plt.plot(icount, dataref[ifile, 0] - dataopt[ifile, istep, 0], 'xr')
+            plt.plot(icount, dataref[ifile, 1] - dataopt[ifile, istep, 1], 'ob')
             icount += 1
     plt.show()
 
@@ -53,12 +55,34 @@ def plot_dip(outpara):
             dataopt[ifile, istep, :] = np.fromfile(
                     fpopt, dtype=float, count=3, sep=' ')
 
-    icount = 0
+    icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
             plt.plot(istep, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
             plt.plot(istep, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
             plt.plot(istep, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
+            icount += 1
+    plt.show()
+
+
+def plot_energy(outpara):
+    nfile = int(outpara['n_dataset'][0])
+    fpopt, fpref = open('energybp.dat', 'r'), open('energyref.dat', 'r')
+    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    dataref = np.zeros((nfile))
+    dataopt = np.zeros((nfile, nsteps))
+
+    print('plot energy values')
+    for ifile in range(0, nfile):
+        dataref[ifile] = np.fromfile(fpref, dtype=float, count=1, sep=' ')
+        for istep in range(0, nsteps):
+            dataopt[ifile, istep] = np.fromfile(
+                    fpopt, dtype=float, count=1, sep=' ')
+
+    icount = 1
+    for ifile in range(0, nfile):
+        for istep in range(0, nsteps):
+            plt.plot(istep, abs(dataref[ifile] - dataopt[ifile, istep]), 'xr')
             icount += 1
     plt.show()
 

@@ -899,6 +899,8 @@ class Print:
         print('dipole: \n', self.para['dipole'].detach())
         print('energy: \n', self.para['energy'].detach())
         print('TS energy: \n', self.para['H0_energy'].detach())
+        if self.para['scc'] == 'scc':
+            print('Coulomb energy: \n', -self.para['coul_energy'].detach() / 2)
         print('repulsive energy: \n', self.para['rep_energy'].detach())
 
 
@@ -930,7 +932,7 @@ class Analysis:
             self.para['coul_energy'] = ecoul
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
-                    self.para['rep_energy'] + self.para['coul_energy']
+                    self.para['rep_energy'] - 0.5 * self.para['coul_energy']
             else:
                 self.para['energy'] = self.para['H0_energy'] + \
                     self.para['coul_energy']
