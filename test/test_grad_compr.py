@@ -80,10 +80,10 @@ def getmlpara(outpara):
     '''
 
     # ------------------------- loading dataset -------------------------
-    outpara['datasettype'] = 'hdf'  # hdf, json
+    outpara['datasettype'] = 'json'  # hdf, json
     if outpara['datasettype'] == 'json':
         outpara['pythondata_dire'] = '../data'
-        outpara['pythondata_file'] = 'CH_data'
+        outpara['pythondata_file'] = 'CH4'
     elif outpara['datasettype'] == 'hdf':
         hdffilelist = []
         hdffilelist.append(
@@ -123,8 +123,8 @@ def getmlpara(outpara):
     outpara['rand_threshold'] = 5E-2
     outpara['lr'] = 8e-1
     outpara['atomspecie_old'] = []
-    outpara['H_init_compr'] = 2.34
-    outpara['C_init_compr'] = 5.34
+    outpara['H_init_compr'] = 3.00
+    outpara['C_init_compr'] = 3.00
     '''outpara['init_compr_all'] = t.Tensor([3.34, 3.34, 3.34, 3.34, 3.34, 3.34,
                                           3.34, 3.34, 3.34, 3.34, 3.34, 3.34])
     outpara['H_compr_grid'] = t.Tensor([2.00, 2.34, 2.77, 3.34, 4.07, 5.03,

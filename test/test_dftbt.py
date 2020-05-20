@@ -232,4 +232,4 @@ if __name__ == '__main__':
     para['LReadInput'] = False  # define parameters in python, not read input
     para['Lml_HS'] = False  # donot perform ML process
     para['scf'] = True
-    scc_C(para)
+    nonscc_CH4(para)

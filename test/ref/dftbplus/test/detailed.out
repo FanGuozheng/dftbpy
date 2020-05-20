@@ -1,0 +1,101 @@
+ Fermi distribution function
+
+
+ Total charge:    -0.00000000
+
+ Atomic gross populations and charges (e)
+ Atom       Population          Charge
+    1       4.51562574     -0.51562574
+    2       0.86290155      0.13709845
+    3       0.87429823      0.12570177
+    4       0.86450253      0.13549747
+    5       0.88267194      0.11732806
+
+
+ Atomic net (on-site) populations and hybridisation ratios
+ Atom       Population         Hybrid.
+    1       3.06598509      0.23350373
+    2       0.55645738      0.44354262
+    3       0.55631830      0.44368170
+    4       0.55521873      0.44478127
+    5       0.57591502      0.42408498
+
+COMPONENT = q
+
+Eigenvalues (H) and fillings (e)
+       1      -0.54868   2.00000
+       2      -0.32583   2.00000
+       3      -0.31415   2.00000
+       4      -0.30262   2.00000
+       5       0.18408   0.00000
+       6       0.25664   0.00000
+       7       0.33254   0.00000
+       8       0.49119   0.00000
+
+Eigenvalues (eV) and fillings (e)
+       1       -14.930   2.00000
+       2        -8.866   2.00000
+       3        -8.548   2.00000
+       4        -8.235   2.00000
+       5         5.009   0.00000
+       6         6.983   0.00000
+       7         9.049   0.00000
+       8        13.366   0.00000
+
+Nr. of electrons (up):      8.00000000
+Atom populations (up)
+ Atom       Population
+    1       4.51562574
+    2       0.86290155
+    3       0.87429823
+    4       0.86450253
+    5       0.88267194
+
+l-shell populations (up)
+ Atom Sh.   l       Population
+    1   1   0       1.41596955
+    1   2   1       3.09965619
+    2   1   0       0.86290155
+    3   1   0       0.87429823
+    4   1   0       0.86450253
+    5   1   0       0.88267194
+
+Orbital populations (up)
+ Atom Sh.   l   m       Population
+    1   1   0   0       1.41596955
+    1   2   1  -1       1.04789552
+    1   2   1   0       0.99028850
+    1   2   1   1       1.06147217
+    2   1   0   0       0.86290155
+    3   1   0   0       0.87429823
+    4   1   0   0       0.86450253
+    5   1   0   0       0.88267194
+
+Fermi level:                        -0.0592666918 H           -1.6127 eV
+Band energy:                        -2.9825522180 H          -81.1594 eV
+TS:                                  0.0000000000 H            0.0000 eV
+Band free energy (E-TS):            -2.9825522180 H          -81.1594 eV
+Extrapolated E(0K):                 -2.9825522180 H          -81.1594 eV
+Input / Output electrons (q):      0.00000000      8.00000000
+
+Energy H0:                          -2.9825522180 H          -81.1594 eV
+Total Electronic energy:            -2.9825522180 H          -81.1594 eV
+Repulsive energy:                    0.0000000000 H            0.0000 eV
+Total energy:                       -2.9825522180 H          -81.1594 eV
+Total Mermin free energy:           -2.9825522180 H          -81.1594 eV
+
+Non-SCC calculation
+
+Total Forces
+     -0.004231893955     -0.037445095767     -0.059218557539
+      0.045092939522     -0.026866859872      0.057682018590
+      0.025989603528      0.073475306839     -0.014077192761
+     -0.041005222968     -0.017868763137     -0.056118439739
+     -0.025845426127      0.008705411936      0.071732171449
+
+Maximal derivative component:        0.734753E-01 au
+
+Dipole moment:   -0.00170299   -0.01535782   -0.05406427 au
+Dipole moment:   -0.00432857   -0.03903569   -0.13741767 Debye
+
+

@@ -33,10 +33,7 @@ class DFTBelect:
                     occ[:nef] = 2
                     occ[nef] = 1
                     self.para['nocc'] = nef + 1
-<<<<<<< HEAD
         self.para['occ'] = occ
-=======
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         return occ
 
     def fermiold(self, eigval, occ):

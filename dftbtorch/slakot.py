@@ -335,7 +335,7 @@ class SlaKo:
                 self.para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
 
                 if dij > 1e-2:
-                    self.genskf_interp_ijd(dij, nameij, compr_grid)
+                    self.genskf_interp_ijd_(dij, nameij, compr_grid)
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
 
@@ -410,32 +410,29 @@ class SlaKo:
         time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
         '''
         cutoff = self.para['interpcutoff']
-        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
-        grid_dist = self.para['grid_dist_rall' + nameij][0, 0]
         assert self.para['grid_dist_rall' + nameij][0, 0] == \
             self.para['grid_dist_rall' + nameij][-1, -1]
-        nline = int((cutoff - grid_dist) / grid_dist + 1)
-        xp = t.linspace(grid_dist, nline * grid_dist, nline)
-        r0, rend, nr = rgrid[0], rgrid[-1], len(rgrid)
-        xgrid, ygrid = np.mgrid[r0:rend:nr, r0:rend:nr, grid_dist:nline * grid_dist:nline, 0:20:1]
-        dgrid = np.mgrid[r0:rend:nr, r0:rend:nr, grid_dist:nline * grid_dist:nline, 0:20:1]
-        skfijd = self.para['hs_all_rall' + nameij][:, :, :nline, :]
+        self.para['grid_dist' + nameij] = \
+            self.para['grid_dist_rall' + nameij][0, 0]
+        self.para['ngridpoint' + nameij] = \
+            self.para['ngridpoint_rall' + nameij].min()
+        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         for icompr in range(0, ncompr):
-            for jcompr in range(0, ncompr):
-                grid_dist = \
-                    self.para['grid_dist_rall' + nameij][icompr, jcompr]
-                skfijd = \
+            for jcompr in range(0, ncompr):                    
+                self.para['hs_all' + nameij] = \
                     self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
-                col = skfijd.shape[1]
-                print(col)
-                for icol in range(0, col):
+                # col = skfijd.shape[1]
+                self.para['hs_ij'][icompr, jcompr, :] = \
+                    DFTBmath(self.para).sk_interp(dij, nameij)
+                '''for icol in range(0, col):
                     if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
                         self.para['hs_ij'][icompr, jcompr, icol] = 0.0
                     else:
+                        nline = int((cutoff - grid_dist) / grid_dist + 1)
                         xp = t.linspace(grid_dist, nline * grid_dist, nline)
                         yp = skfijd[:, icol][:nline]
                         self.para['hs_ij'][icompr, jcompr, icol] = \
-                            matht.polyInter(xp, yp, dij)
+                            matht.polyInter(xp, yp, dij)'''
 
     def genskf_interp_r(self, para):
         '''
@@ -855,20 +852,20 @@ def getsk(para, nameij, dd):
     ngridpoint = para['ngridpoint' + nameij]
     grid0 = para['grid_dist' + nameij]
     ind = int(dd / griddist)
-    nlinesk = ngridpoint
-    lensk = nlinesk * griddist
+    ilast = ngridpoint
+    lensk = ilast * griddist
     para['hsdata'] = t.zeros(20)
     if dd < grid0:
         para['hsdata'][:] = 0
     elif grid0 <= dd < lensk:  # need revise!!!
         datainterp = t.zeros((int(ninterp), 20))
         ddinterp = t.zeros(int(ninterp))
-        nlinesk = min(nlinesk, int(ind + ninterp / 2 + 1))
-        nlinesk = max(ninterp, nlinesk)
+        ilast = min(ilast, int(ind + ninterp / 2 + 1))
+        ilast = max(ninterp, ilast)
         for ii in range(0, ninterp):
-            ddinterp[ii] = (nlinesk - ninterp + ii) * griddist
+            ddinterp[ii] = (ilast - ninterp + ii) * griddist
         datainterp[:, :] = t.from_numpy(
-                np.array(datalist[nlinesk - ninterp - 1:nlinesk - 1]))
+                np.array(datalist[ilast - ninterp - 1:ilast - 1]))
         para['hsdata'] = DFTBmath().polysk3thsk(datainterp, ddinterp, dd)
     elif dd >= lensk and dd <= cutoff:
         datainterp = t.zeros(ninterp, 20)

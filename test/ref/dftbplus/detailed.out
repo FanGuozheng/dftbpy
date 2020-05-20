@@ -1,0 +1,65 @@
+ Fermi distribution function
+
+Calculation with static geometry
+
+
+********************************************************************************
+ iSCC Total electronic   Diff electronic      SCC error    
+    4   -0.18635265E+01    0.17892998E-09    0.82767322E-08
+********************************************************************************
+
+ Total charge:    -0.00000000
+
+ Atomic gross charges (e)
+ Atom           Charge
+    1      -0.11454536
+    2       0.11454536
+
+Nr. of electrons (up):      5.00000000
+Atom populations (up)
+ Atom       Population
+    1       4.11454536
+    2       0.88545464
+
+l-shell populations (up)
+ Atom Sh.   l       Population
+    1   1   0       1.76487284
+    1   2   1       2.34967252
+    2   1   0       0.88545464
+
+Orbital populations (up)
+ Atom Sh.   l   m       Population  Label
+    1   1   0   0       1.76487284  s
+    1   2   1  -1       0.78322417  p_y
+    1   2   1   0       0.78322417  p_z
+    1   2   1   1       0.78322417  p_x
+    2   1   0   0       0.88545464  s
+
+Fermi level:                        -0.1908105320 H           -5.1922 eV
+Band energy:                        -1.8584042681 H          -50.5698 eV
+TS:                                  0.0000000225 H            0.0000 eV
+Band free energy (E-TS):            -1.8584042905 H          -50.5698 eV
+Extrapolated E(0K):                 -1.8584042793 H          -50.5698 eV
+Input / Output electrons (q):      5.0000000000      5.0000000000
+
+Energy H0:                          -1.8642919933 H          -50.7300 eV
+Energy SCC:                          0.0007655218 H            0.0208 eV
+Total Electronic energy:            -1.8635264715 H          -50.7091 eV
+Repulsive energy:                    0.0342635446 H            0.9324 eV
+Total energy:                       -1.8292629269 H          -49.7768 eV
+Extrapolated to 0:                  -1.8292629382 H          -49.7768 eV
+Total Mermin free energy:           -1.8292629494 H          -49.7768 eV
+Force related energy:               -1.8292629494 H          -49.7768 eV
+
+SCC converged
+
+Total Forces
+    1     -0.070515899861      0.070515899861      0.070515899861
+    2      0.070515899861     -0.070515899861     -0.070515899861
+
+Maximal derivative component:        0.705159E-01 au
+
+Dipole moment:    0.12249116   -0.12249116   -0.12249116 au
+Dipole moment:    0.31134151   -0.31134151   -0.31134151 Debye
+
+
