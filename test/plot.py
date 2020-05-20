@@ -62,6 +62,8 @@ def plot_dip(outpara):
             plt.plot(istep, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
             plt.plot(istep, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
             icount += 1
+    plt.xlabel('steps * molecules')
+    plt.ylabel('dipole absolute difference')
     plt.show()
 
 
@@ -84,6 +86,8 @@ def plot_energy(outpara):
         for istep in range(0, nsteps):
             plt.plot(istep, abs(dataref[ifile] - dataopt[ifile, istep]), 'xr')
             icount += 1
+    plt.xlabel('steps * molecules')
+    plt.ylabel('energy absolute difference')
     plt.show()
 
 

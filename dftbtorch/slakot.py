@@ -4,6 +4,8 @@ import numpy as np
 import torch as t
 import matplotlib.pyplot as plt
 import matht
+import time
+from scipy import interpolate
 from matht import Bspline, DFTBmath
 from readt import ReadSKt
 from geninterpskf import Bicubic_2D
@@ -209,14 +211,15 @@ class SKTran:
         '''
         atomind = self.para['atomind']
         natom = self.para['natom']
+        norb = atomind[natom]
         atomname = self.para['atomnameall']
         dvec = self.para['dvec']
-        self.para['hammat'] = t.zeros(atomind[natom], atomind[natom])
-        self.para['overmat'] = t.zeros(atomind[natom], atomind[natom])
-        self.para['ham_'] = t.zeros(atomind[natom], atomind[natom])
-        self.para['over_'] = t.zeros(atomind[natom], atomind[natom])
-        self.para['h_onsite'] = t.zeros(atomind[natom])
-        self.para['s_onsite'] = t.zeros(atomind[natom])
+        self.para['hammat'] = t.zeros(norb, norb)
+        self.para['overmat'] = t.zeros(norb, norb)
+        self.para['ham_'] = t.zeros(norb, norb)
+        self.para['over_'] = t.zeros(norb, norb)
+        self.para['h_onsite'] = t.zeros(norb)
+        self.para['s_onsite'] = t.zeros(norb)
         rr = t.zeros(3)
         for i in range(0, natom):
             lmaxi = self.para['lmaxall'][i]
@@ -245,10 +248,6 @@ class SKTran:
                                 self.para['hams'][m, n]
                             self.para['over_'][mm, nn] = \
                                 self.para['ovrs'][m, n]
-                            '''self.para['hammat_'][nn, mm] = \
-                                self.para['hams'][n, m]
-                            self.para['overmat_'][nn, mm] = \
-                                self.para['ovrs'][n, m]'''
         self.para['hammat'] = self.para['ham_'] + self.para['h_onsite'].diag()
         self.para['overmat'] = self.para['over_'] + self.para['s_onsite'].diag()
 
@@ -300,10 +299,11 @@ class SlaKo:
         '''
         read skf data with various compression radius, then use optimized
         compression radius to interpolate the sk data for next step
-        input parameters:
+        Args:
             atomnameall (list): all the atom name
             natom (int): number of atom
-            distance (2D tensor): distance of i, j atom
+            distance (2D tensor): distance between all atoms
+        Returns:
             hs_compr_all (out): H0 and S of all atoms with given distance
         '''
         atomname, natom = self.para['atomnameall'], self.para['natom']
@@ -323,14 +323,19 @@ class SlaKo:
               'build matrix: [N_ij, N_R1, N_R2, 20]')
         print('N_ij is number of atom pairs, N_R1(2) is number of compression',
               'R, 20 is the number of integral each line in skf file')
+        timelist = [0]
         for iatom in range(0, natom):
             for jatom in range(0, natom):
+                timelist.append(time.time())
+                print('timeij:', timelist[-1] - timelist[-2])
                 dij = self.para['distance'][iatom, jatom]
-                nameij = atomname[iatom] + atomname[jatom]
+                namei, namej = atomname[iatom], atomname[jatom]
+                nameij = namei + namej
+                compr_grid = self.para[namei + '_compr_grid']
                 self.para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
 
                 if dij > 1e-2:
-                    self.genskf_interp_ijd(dij, nameij)
+                    self.genskf_interp_ijd(dij, nameij, compr_grid)
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
 
@@ -342,7 +347,7 @@ class SlaKo:
             self.para['onsite' + iat + iat] = onsite
             self.para['uhubb' + iat + iat] = uhubb
 
-    def genskf_interp_ijd(self, dij, nameij):
+    def genskf_interp_ijd_old(self, dij, nameij, rgrid):
         '''
         this function aims to interpolate skf of i and j atom with
         various compression radius at certain distance
@@ -359,17 +364,74 @@ class SlaKo:
                 col = skfijd.shape[1]
                 for icol in range(0, col):
                     if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
-                        # print('{} all integrals are zero'.format(nameij))
                         self.para['hs_ij'][icompr, jcompr, icol] = 0.0
                     else:
-                        '''y_beg = int(grid0 / grid_dist - 1)
-                        nline = int((cutoff - grid0) / grid_dist + 1)
-                        xp = t.linspace(grid0, (nline - 1) * grid_dist +
-                                        grid0, nline)
-                        yp = skfijd[:, icol][y_beg:y_beg+nline]
-                        para['hs_ij'][icompr, jcompr, icol] = \
-                            matht.polyInter(xp, yp, dij)'''
                         nline = int((cutoff - grid_dist) / grid_dist + 1)
+                        xp = t.linspace(grid_dist, nline * grid_dist, nline)
+                        yp = skfijd[:, icol][:nline]
+                        self.para['hs_ij'][icompr, jcompr, icol] = \
+                            matht.polyInter(xp, yp, dij)
+
+    def genskf_interp_ijd(self, dij, nameij, rgrid):
+        '''
+        this function aims to interpolate skf of i and j atom with
+        various compression radius at certain distance
+        time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
+        '''
+        cutoff = self.para['interpcutoff']
+        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
+        assert self.para['grid_dist_rall' + nameij][0, 0] == \
+            self.para['grid_dist_rall' + nameij][-1, -1]
+        grid_dist = self.para['grid_dist_rall' + nameij][0, 0]
+        nline = int((cutoff - grid_dist) / grid_dist + 1)
+        xp = t.linspace(grid_dist, nline * grid_dist, nline)
+        # timelist = [0]
+
+        for icompr in range(0, ncompr):
+            for jcompr in range(0, ncompr):
+                # timelist.append(time.time())
+                # print('timeijd:', timelist[-1] - timelist[-2])
+                skfijd = \
+                    self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
+                col = skfijd.shape[1]
+                for icol in range(0, col):
+                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
+                        self.para['hs_ij'][icompr, jcompr, icol] = 0.0
+                    else:
+                        yp = skfijd[:, icol][:nline]
+                        func = interpolate.interp1d(xp.numpy(), yp.numpy(), kind='cubic')
+                        self.para['hs_ij'][icompr, jcompr, icol] = \
+                            t.from_numpy(func(dij))
+
+    def genskf_interp_ijd_(self, dij, nameij, rgrid):
+        '''
+        this function aims to interpolate skf of i and j atom with
+        various compression radius at certain distance
+        time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
+        '''
+        cutoff = self.para['interpcutoff']
+        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
+        grid_dist = self.para['grid_dist_rall' + nameij][0, 0]
+        assert self.para['grid_dist_rall' + nameij][0, 0] == \
+            self.para['grid_dist_rall' + nameij][-1, -1]
+        nline = int((cutoff - grid_dist) / grid_dist + 1)
+        xp = t.linspace(grid_dist, nline * grid_dist, nline)
+        r0, rend, nr = rgrid[0], rgrid[-1], len(rgrid)
+        xgrid, ygrid = np.mgrid[r0:rend:nr, r0:rend:nr, grid_dist:nline * grid_dist:nline, 0:20:1]
+        dgrid = np.mgrid[r0:rend:nr, r0:rend:nr, grid_dist:nline * grid_dist:nline, 0:20:1]
+        skfijd = self.para['hs_all_rall' + nameij][:, :, :nline, :]
+        for icompr in range(0, ncompr):
+            for jcompr in range(0, ncompr):
+                grid_dist = \
+                    self.para['grid_dist_rall' + nameij][icompr, jcompr]
+                skfijd = \
+                    self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
+                col = skfijd.shape[1]
+                print(col)
+                for icol in range(0, col):
+                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
+                        self.para['hs_ij'][icompr, jcompr, icol] = 0.0
+                    else:
                         xp = t.linspace(grid_dist, nline * grid_dist, nline)
                         yp = skfijd[:, icol][:nline]
                         self.para['hs_ij'][icompr, jcompr, icol] = \
@@ -428,10 +490,10 @@ class SlaKo:
 
     def genskf_interp_compr(self):
         '''
-        Inpput:
+        Args:
             compression R
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
-        Output:
+        Returns:
             H and S matrice ([natom, natom, 20])
         '''
         natom = self.para['natom']

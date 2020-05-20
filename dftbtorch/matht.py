@@ -13,6 +13,10 @@ from torch.autograd import Variable
 class DFTBmath(object):
 
     def __init__(self):
+        '''
+        this class aims to deal with interpolation of intergral tables, tail
+        near the cutoff
+        '''
         pass
 
     def polysk3thsk(self, allarr, darr, dd):
@@ -35,6 +39,10 @@ class DFTBmath(object):
 class Bspline():
 
     def __init__(self):
+        '''
+        this function is revised from:
+        https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.interpolate.BSpline.html
+        '''
         pass
 
     def bspline(self, t, c, k, x):
@@ -57,6 +65,7 @@ class Bspline():
         return c1 + c2
 
     def test(self):
+        '''test function for Bspline'''
         tarr = [0, 1, 2, 3, 4, 5, 6]
         carr = [0, -2, -1.5, -1]
         fig, ax = plt.subplots()
@@ -169,7 +178,6 @@ def test_polyInter():
                          -2.9332E-04])
     rx = torch.linspace(1, 11, 101)
     ry = [polyInter(xarr, yarr, i) for i in rx]
-    print(polyInter(xarr, yarr, 4.124))
     plt.plot(xarr, yarr, "xb")
     plt.plot(rx, ry, "-r")
     plt.grid(True)
@@ -179,8 +187,9 @@ def test_polyInter():
 
 def polyInter(xp, yp, rr, threshold=5E-3):
     '''
-    this function is for interpolation, what you need for input:
-        x array, y array, and the interpolation point rr
+    this function is for interpolation from DFTB+ (lib_math)
+    Args:
+        x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
     '''
     icl = 0
     nn = xp.shape[0]
