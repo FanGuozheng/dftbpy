@@ -44,8 +44,11 @@ class DFTBmath(object):
             for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb = datalist[ilast - ninterp - 1:ilast - 1]
-            dd = self.polysk3thsk(yb, xa, rr)
-            # dd = self.polyInter_u(xa, yb, rr)
+            # dd = self.polysk3thsk(yb, xa, rr)  # method 1
+            dd = self.polyInter_u(xa, yb, rr)  # method 2
+            # for ii in range(0, 20):  # method 3
+            #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
+
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
             dr = rr - rMax
             ilast = leng
@@ -86,32 +89,65 @@ class DFTBmath(object):
     def polysk5thsk(self):
         pass
 
-    def polyInter_u(self, xp, yp, xx):
+    def polyInter_u(self, xp, yp, rr):
         '''
         this function is for interpolation from DFTB+ (lib_math), assume the
         grid is uniform
         Args:
             x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
         '''
-        nn = len(xp)
+        '''nn = len(xp)
         delta = t.zeros(nn)
         for ii in range(0, len(xp) - 1):
-            delta[ii] = 1.0 / (xp[1 + ii] - xp[1])
+            delta[ii] = 1.0 / (xp[ii + 1] - xp[0])
         cc = yp
         dd = yp
         iCl = math.ceil(((xx - xp[0]) * delta[0]).numpy())
-        yy = yp[:, iCl]
+        yy = yp[iCl, :]
         iCl = iCl - 1
         for mm in range(0, nn - 1):
-            for ii in range(1, nn - mm):
-                r2Tmp = (dd[:, ii] - cc[:, ii + 1]) * delta[mm]
-                cc[:, ii] = (xp[ii] - xx) * r2Tmp
-                dd[:, ii] = (xp[ii + mm] - xx) * r2Tmp
-            if 2 * iCl < nn - mm:
-                dyy = cc[:, iCl + 1]
+            for ii in range(0, nn - mm - 1):
+                r2Tmp = (dd[ii, :] - cc[ii + 1, :]) * delta[mm]
+                cc[ii, :] = (xp[ii] - xx) * r2Tmp
+                dd[ii, :] = (xp[ii + mm] - xx) * r2Tmp
+            if 2 * iCl < nn - mm - 1:
+                dyy = cc[iCl, :]
             else:
-                dyy = dd[:, iCl]
+                dyy = dd[iCl - 1, :]
                 iCl = iCl - 1
+            yy = yy + dyy
+        return yy'''
+        icl = 0
+        nn = xp.shape[0]
+        row, col = yp.shape[0], yp.shape[1]
+        assert row == nn
+        cc = t.zeros(row, col)
+        dd = t.zeros(row, col)
+
+        # if y_m-y_n is small enough, rTmp1 tends to be inf
+        cc[:, :] = yp[:, :]
+        dd[:, :] = yp[:, :]
+        dxp = abs(rr - xp[icl])
+
+        # this loop is to find the most close point to rr
+        for ii in range(0, nn - 1):
+            dxNew = abs(rr - xp[ii])
+            if dxNew < dxp:
+                icl = ii
+                dxp = dxNew
+        yy = yp[icl, :]
+
+        for mm in range(0, nn - 1):
+            for ii in range(0, nn - mm - 1):
+                rtmp0 = xp[ii] - xp[ii + mm + 1]
+                rtmp1 = (cc[ii + 1, :] - dd[ii, :]) / rtmp0
+                cc[ii, :] = (xp[ii] - rr) * rtmp1
+                dd[ii, :] = (xp[ii + mm + 1] - rr) * rtmp1
+            if 2 * icl < nn - mm - 1:
+                dyy = cc[icl, :]
+            else:
+                dyy = dd[icl - 1, :]
+                icl = icl - 1
             yy = yy + dyy
         return yy
 
@@ -123,14 +159,14 @@ class DFTBmath(object):
         '''
         icl = 0
         nn = xp.shape[0]
-        cc = Variable(t.zeros(nn))
-        dd = Variable(t.zeros(nn))
-    
+        cc = t.zeros(nn)
+        dd = t.zeros(nn)
+
         # if y_m-y_n is small enough, rTmp1 tends to be inf
         cc[:] = yp[:]
         dd[:] = yp[:]
         dxp = abs(rr - xp[icl])
-    
+
         # this loop is to find the most close point to rr
         for ii in range(1, nn):
             dxNew = abs(rr - xp[ii])
@@ -138,7 +174,7 @@ class DFTBmath(object):
                 icl = ii
                 dxp = dxNew
         yy = yp[icl]
-    
+
         for mm in range(0, nn - 1):
             for ii in range(0, nn - mm - 1):
                 rtmp0 = xp[ii] - xp[ii + mm + 1]
