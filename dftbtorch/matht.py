@@ -49,17 +49,18 @@ class DFTBmath(object):
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
             dr = rr - rMax
             ilast = leng
-            for ii in range(0, ninterp):
+            pass
+            '''for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb = datalist[ilast - ninterp - 1:ilast - 1]
-            y0 = polyInterUniform(xa, yb, xa(ninterp) - deltaR_)
-            y2 = polyInterUniform(xa, yb, xa(ninterp) + deltaR_)
+            y0 = self.polyInter_u(xa, yb, xa(ninterp) - deltaR_)
+            y2 = self.polyInter_u(xa, yb, xa(ninterp) + deltaR_)
             for ii in range(0, ):
                 ya[:] = datalist[iLast-ninterp+1:iLast, ii]
                 y1 = ya(ninterp)
                 y1p = (y2[ii] - y0[ii]) / (2.0 * deltaR_)
                 y1pp = (y2[ii] + y0[ii] - 2.0 * y1) / (deltaR_ * deltaR_)
-                dd[ii] = poly5ToZero(y1, y1p, y1pp, dr, -1.0 * distFudge)
+                dd[ii] = poly5ToZero(y1, y1p, y1pp, dr, -1.0 * distFudge)'''
         return dd
 
     def polysk3thsk(self, allarr, darr, dd):

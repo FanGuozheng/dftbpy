@@ -126,16 +126,25 @@ class SKTran:
                     lmax, lmin = max(lmaxi, lmaxj), min(lmaxi, lmaxj)
                     if lmax == 1:
                         getsk(self.para, nameij, dd)
-                        self.para['hs_all'][i, j, :] = \
-                            t.from_numpy(self.para['hsdata'])
+                        if type(self.para['hsdata']) is t.Tensor:
+                            self.para['hs_all'][i, j, :] = self.para['hsdata']
+                        else:
+                            self.para['hs_all'][i, j, :] = \
+                                t.from_numpy(self.para['hsdata'])
                     elif lmin == 1 and lmax == 2:
                         getsk(self.para, nameij, dd)
-                        self.para['hs_all'][i, j, :] = \
-                            t.from_numpy(self.para['hsdata'])
+                        if type(self.para['hsdata']) is t.Tensor:
+                            self.para['hs_all'][i, j, :] = self.para['hsdata']
+                        else:
+                            self.para['hs_all'][i, j, :] = \
+                                t.from_numpy(self.para['hsdata'])
                     elif lmin == 2 and lmax == 2:
                         getsk(self.para, nameij, dd)
-                        self.para['hs_all'][i, j, :] = \
-                            t.from_numpy(self.para['hsdata'])
+                        if type(self.para['hsdata']) is t.Tensor:
+                            self.para['hs_all'][i, j, :] = self.para['hsdata']
+                        else:
+                            self.para['hs_all'][i, j, :] = \
+                                t.from_numpy(self.para['hsdata'])
 
     def sk_tranold(self, para):
         '''transfer H and S according to slater-koster rules'''
@@ -327,7 +336,7 @@ class SlaKo:
         for iatom in range(0, natom):
             for jatom in range(0, natom):
                 timelist.append(time.time())
-                print('timeij:', timelist[-1] - timelist[-2])
+                # print('timeij:', timelist[-1] - timelist[-2])
                 dij = self.para['distance'][iatom, jatom]
                 namei, namej = atomname[iatom], atomname[jatom]
                 nameij = namei + namej
@@ -338,7 +347,7 @@ class SlaKo:
                     self.genskf_interp_ijd_(dij, nameij, compr_grid)
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
-
+        print('total time init:', timelist[-1] - timelist[1])
         for iat in atomspecie:
             # onsite is not in ML, therefore read [0, 0] here is correct!!!
             onsite, uhubb = t.zeros(3), t.zeros(3)
@@ -409,7 +418,7 @@ class SlaKo:
         various compression radius at certain distance
         time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
         '''
-        cutoff = self.para['interpcutoff']
+        # cutoff = self.para['interpcutoff']
         assert self.para['grid_dist_rall' + nameij][0, 0] == \
             self.para['grid_dist_rall' + nameij][-1, -1]
         self.para['grid_dist' + nameij] = \
@@ -418,28 +427,19 @@ class SlaKo:
             self.para['ngridpoint_rall' + nameij].min()
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         for icompr in range(0, ncompr):
-            for jcompr in range(0, ncompr):                    
+            for jcompr in range(0, ncompr):
                 self.para['hs_all' + nameij] = \
                     self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
                 # col = skfijd.shape[1]
                 self.para['hs_ij'][icompr, jcompr, :] = \
                     DFTBmath(self.para).sk_interp(dij, nameij)
-                '''for icol in range(0, col):
-                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
-                        self.para['hs_ij'][icompr, jcompr, icol] = 0.0
-                    else:
-                        nline = int((cutoff - grid_dist) / grid_dist + 1)
-                        xp = t.linspace(grid_dist, nline * grid_dist, nline)
-                        yp = skfijd[:, icol][:nline]
-                        self.para['hs_ij'][icompr, jcompr, icol] = \
-                            matht.polyInter(xp, yp, dij)'''
 
     def genskf_interp_r(self, para):
         '''
-        Inpput:
+        Args:
             compression R
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
-        Output:
+        Return:
             H and S matrice ([natom, natom, 20])
         '''
         natom = para['natom']
@@ -490,14 +490,15 @@ class SlaKo:
         Args:
             compression R
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
-        Returns:
+        Return:
             H and S matrice ([natom, natom, 20])
         '''
         natom = self.para['natom']
         atomname = self.para['atomnameall']
         bicubic = Bicubic_2D()
         hs_ij = t.zeros(natom, natom, 20)
-
+        timelist = [0]
+        timelist.append(time.time())
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
@@ -507,6 +508,7 @@ class SlaKo:
             icompr = self.para['compr_ml'][iatom]
             xmesh = self.para[iname + '_compr_grid']
             for jatom in range(0, natom):
+                timelist.append(time.time())
                 jname = atomname[jatom]
                 ymesh = self.para[jname + '_compr_grid']
                 jcompr = self.para['compr_ml'][jatom]
@@ -518,7 +520,11 @@ class SlaKo:
                                     xmesh, ymesh, zmeshall[:, :, icol],
                                     icompr, jcompr)
                 icount += 1
+                timelist.append(time.time())
+                print('time genskf_interp_compr:', timelist[-1] - timelist[-2])
         self.para['hs_all'] = hs_ij
+        timelist.append(time.time())
+        print('total time genskf_interp_compr:', timelist[-1] - timelist[1])
 
     def gen_bsplpara(self):
         '''generate B-spline parameters'''
@@ -866,7 +872,7 @@ def getsk(para, nameij, dd):
             ddinterp[ii] = (ilast - ninterp + ii) * griddist
         datainterp[:, :] = t.from_numpy(
                 np.array(datalist[ilast - ninterp - 1:ilast - 1]))
-        para['hsdata'] = DFTBmath().polysk3thsk(datainterp, ddinterp, dd)
+        para['hsdata'] = DFTBmath(para).polysk3thsk(datainterp, ddinterp, dd)
     elif dd >= lensk and dd <= cutoff:
         datainterp = t.zeros(ninterp, 20)
         ddinterp = t.zeros(ninterp)

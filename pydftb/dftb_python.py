@@ -77,7 +77,7 @@ class DFTBpy(object):
         oldovermat = np.zeros((int(atomind[natom]), int(atomind[natom])))
         # -------------------Slater-Koster transfer------------------------- #
         hammat, overmat = slakotran.sk_tran(generalpara)
-        print('H0', hammat)
+        # print('H0', hammat)
         # -------------construct gamma in second-order term----------------- #
         gmat = DFTB_elect().gmatrix(generalpara)
         # **************************start SCF loop************************** #

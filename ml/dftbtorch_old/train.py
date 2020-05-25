@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-<<<<<<< HEAD
 
 import numpy as np
 from scipy import interpolate
@@ -215,5 +214,3 @@ plt.figure()
 plt.plot(z2[:, 30]-z4[:, 30], 'k-')
 plt.plot(z3[:, 30]-z4[:, 30], 'g-')
 plt.show()
-=======
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3

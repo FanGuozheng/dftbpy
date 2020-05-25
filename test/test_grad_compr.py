@@ -15,9 +15,9 @@ import data.pyanitools as pya
 from sklearn import linear_model
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-from ase.calculators.dftb import Dftb
 import write_output as write
 import lattice_cell
+sys.path.append(os.path.join('../'))
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.slakot as slakot
 from geninterpskf import SkInterpolator
@@ -83,14 +83,14 @@ def getmlpara(outpara):
     outpara['datasettype'] = 'json'  # hdf, json
     if outpara['datasettype'] == 'json':
         outpara['pythondata_dire'] = '../data'
-        outpara['pythondata_file'] = 'CH4'
+        outpara['pythondata_file'] = 'CH4_data'
     elif outpara['datasettype'] == 'hdf':
         hdffilelist = []
         hdffilelist.append(
                 '/home/gz_fan/Documents/ML/database/an1/ani_gdb_s01.h5')
         outpara['hdffile'] = hdffilelist
         outpara['hdf_num'] = 1
-    outpara['n_dataset'] = ['1']
+    outpara['n_dataset'] = ['2']
     outpara['optim_para'] = ['Hamiltonian']
 
     # ---------------------- environment parameters ----------------------
@@ -107,9 +107,9 @@ def getmlpara(outpara):
     # splinetype: Bspline, Polyspline
     # < zero_threshold: this value is treated as zero
     # rand_threshold: the coefficient para of added randn number
-    outpara['ref'] = 'aims'
-    outpara['target'] = ['energy']  # dipole, homo_lumo, gap, eigval, qatomall
-    outpara['mlsteps'] = 8
+    outpara['ref'] = 'dftb'
+    outpara['target'] = ['eigval']  # dipole, homo_lumo, gap, eigval, qatomall
+    outpara['mlsteps'] = 1
     outpara['Lml'] = True
     outpara['Lml_skf'] = True  # if use interp to gen .skf with compress_r
     outpara['Lml_HS'] = False  # if use interp to gen HS mat (e.g Polyspline)
@@ -121,10 +121,10 @@ def getmlpara(outpara):
     outpara['interpcutoff'] = 10
     outpara['zero_threshold'] = 5E-3
     outpara['rand_threshold'] = 5E-2
-    outpara['lr'] = 8e-1
+    outpara['lr'] = 1e-1
     outpara['atomspecie_old'] = []
-    outpara['H_init_compr'] = 3.00
-    outpara['C_init_compr'] = 3.00
+    outpara['H_init_compr'] = 3.34
+    outpara['C_init_compr'] = 3.34
     '''outpara['init_compr_all'] = t.Tensor([3.34, 3.34, 3.34, 3.34, 3.34, 3.34,
                                           3.34, 3.34, 3.34, 3.34, 3.34, 3.34])
     outpara['H_compr_grid'] = t.Tensor([2.00, 2.34, 2.77, 3.34, 4.07, 5.03,
@@ -143,7 +143,7 @@ def getmlpara(outpara):
     outpara['LReadInput'] = False
     outpara['convergenceType'], outpara['energy_tol'] = 'energy', 1e-6
     outpara['scf'] = True
-    outpara['scc'] = 'scc'
+    outpara['scc'] = 'nonscc'
     outpara['task'] = 'ground'
     outpara['HSsym'] = 'symall_chol'  # symall, symhalf. important!!!!!!
     outpara['ninterp'] = 8
@@ -216,7 +216,6 @@ class RunML:
         for ibatch in range(0, self.para['nfile']):
             # get coor and related geometry information
             self.get_coor(ibatch)
-            self.genml.get_specie_label()
             dftb_torch.Initialization(self.para)
 
             if self.para['Lml_skf']:
@@ -231,6 +230,7 @@ class RunML:
                 self.runcal.idftb_torchspline()
 
             elif self.para['Lml_HS']:
+                self.genml.get_specie_label()
                 dftb_torch.Initialization(self.para).form_sk_spline()
                 self.runcal.idftb_torchspline()
                 if self.para['interptype'] == 'Polyspline':
@@ -842,7 +842,6 @@ class GenMLPara:
                         self.para['spl_label'].append(nameij)
                         self.para['spl_label'].append(h_spl_num)
                         self.para['spl_label'].append(HNUM[nameij])
-            print('initial H-table has {} rows'.format(h_spl_num))
             self.para['h_spl_num'] = h_spl_num
         return self.para
 

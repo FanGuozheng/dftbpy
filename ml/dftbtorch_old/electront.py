@@ -33,7 +33,6 @@ class DFTBelect:
                     occ[:nef] = 2
                     occ[nef] = 1
                     self.para['nocc'] = nef + 1
-        self.para['occ'] = occ
         return occ
 
     def fermiold(self, eigval, occ):
@@ -134,7 +133,6 @@ class DFTBelect:
         distance = self.para['distance']
         # uhubb = self.para['uhubb']
         natom = self.para['natom']
-<<<<<<< HEAD
         if self.para['HSsym'] == 'symhalf':
             nameall = self.para['atomnameall']
             gmat = t.empty(int((natom + 1) * natom / 2))
@@ -169,7 +167,7 @@ class DFTBelect:
                             gval = rrc - fhbond * val12 - fhbond * val21
                     gmat[icount] = gval
                     icount += 1
-        elif self.para['HSsym'] in ['symall', 'symall_chol']:
+        elif self.para['HSsym'] == 'symall':
             nameall = self.para['atomnameall']
             gmat = t.empty(natom, natom)
             for iatom in range(0, natom):
@@ -201,40 +199,6 @@ class DFTBelect:
                             val21 = self.gamsub(a2, a1, rr, rrc)
                             gval = rrc - fhbond * val12 - fhbond * val21
                     gmat[iatom, jatom] = gval
-        nameall = self.para['atomnameall']
-        gmat = t.empty(int((natom + 1) * natom / 2))
-        icount = 0
-        for iatom in range(0, natom):
-            namei = nameall[iatom] + nameall[iatom]
-            for jatom in range(0, iatom + 1):
-                rr = distance[iatom, jatom]
-                namej = nameall[jatom] + nameall[jatom]
-                # a1 = 3.2 * uhubb[iatom, 2]
-                # a2 = 3.2 * uhubb[jatom, 2]
-                # need rev!!!
-                a1 = 3.2 * self.para['uhubb' + namei][2]
-                a2 = 3.2 * self.para['uhubb' + namej][2]
-                src = 1 / (a1 + a2)
-                fac = a1 * a2 * src
-                avg = 1.6 * (fac + fac * fac * src)
-                fhbond = 1
-                if rr < 1.0E-4:
-                    gval = 0.3125 * avg
-                else:
-                    rrc = 1.0 / rr
-                    if abs(a1 - a2) < 1.0E-5:
-                        fac = avg * rr
-                        fac2 = fac * fac
-                        efac = t.exp(-fac) / 48.0
-                        gval = (1.0 - fhbond * (48.0 + 33 * fac + fac2 * (9.0
-                                + fac)) * efac) * rrc
-                    else:
-                        val12 = self.gamsub(a1, a2, rr, rrc)
-                        val21 = self.gamsub(a2, a1, rr, rrc)
-                        gval = rrc - fhbond * val12 - fhbond * val21
-                gmat[icount] = gval
-                icount += 1
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         return gmat
 
     def gamsub(self, a, b, rr, rrc):
@@ -255,7 +219,6 @@ class DFTBelect:
         shift = t.zeros(natom)
         qdiff = t.zeros(natom)
         qdiff[:] = qatom[:] - qzero[:]
-<<<<<<< HEAD
         if self.para['HSsym'] == 'symhalf':
             for iat in range(0, natom):
                 shifti = 0
@@ -268,7 +231,7 @@ class DFTBelect:
                         gamma = gmat[int(k)]
                     shifti = shifti + qdiff[jat] * gamma
                 shift[iat] = shifti
-        elif self.para['HSsym'] in ['symall', 'symall_chol']:
+        elif self.para['HSsym'] == 'symall':
             for iat in range(0, natom):
                 shifti = 0
                 for jat in range(0, natom):
@@ -297,31 +260,4 @@ class DFTBelect:
                         denmatij = denmat[jind, iind]
                         overmatij = overmat[jind, iind]
                         qatom[iat] = qatom[iat] + denmatij * overmatij
-=======
-        for iat in range(0, natom):
-            shifti = 0
-            for jat in range(0, natom):
-                if jat > iat:
-                    k = jat * (jat + 1) / 2 + iat
-                    gamma = gmat[int(k)]
-                else:
-                    k = iat * (iat + 1) / 2 + jat
-                    gamma = gmat[int(k)]
-                shifti = shifti + qdiff[jat] * gamma
-            shift[iat] = shifti
-        return shift
-
-    def mulliken(self, overmat, denmat):
-        '''calculate Mulliken charge'''
-        norbs = int(self.atind[self.nat])
-        qatom = t.zeros(self.nat)
-        for iat in range(0, self.nat):
-            for iind in range(int(self.atind[iat]), int(self.atind[iat + 1])):
-                for jind in range(0, iind):
-                    k = iind * (iind + 1) / 2 + jind
-                    qatom[iat] = qatom[iat] + denmat[int(k)] * overmat[int(k)]
-                for jind in range(iind, norbs):
-                    k = jind * (jind + 1) / 2 + iind
-                    qatom[iat] = qatom[iat] + denmat[int(k)] * overmat[int(k)]
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
         return qatom

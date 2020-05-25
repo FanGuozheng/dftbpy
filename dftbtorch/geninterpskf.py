@@ -27,17 +27,18 @@ class Bicubic_2D:
 
     def bicubic_2d(self, xmesh, ymesh, zmesh, xi, yi):
         '''
-        xmesh, ymesh: x (1D) and y (1D) input
-        zmesh: z (2D) input
-        ix, iy: the interpolation point
         famt will be the value of grid point and its derivative:
             [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
             [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
             [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
             [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
-        a_mat = coeff * famt *coeff_
+        a_mat = coeff * famt * coeff_
         therefore, this function returns:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
+        Args:
+            xmesh, ymesh: x (1D) and y (1D)
+            zmesh: z (2D)
+            ix, iy: the interpolation point
         '''
         coeff = t.Tensor([[1, 0, 0, 0],
                           [0, 0, 1, 0],

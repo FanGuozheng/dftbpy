@@ -120,18 +120,12 @@ def getsk(generalpara, nameij, dd):
         ddinterp = np.zeros(int(ninterp))
         nlinesk = min(nlinesk, int(ind+ninterp/2+1))
         nlinesk = max(ninterp, nlinesk)
-<<<<<<< HEAD:pydftb/slakotran.py
         for ii in range(0, ninterp):
             ddinterp[ii] = (nlinesk-ninterp+ii)*griddist
         datainterp[:, :] = datalist[nlinesk-ninterp-1:nlinesk-1]
-=======
-        print('ninterp', ninterp, 'nlinesk', nlinesk)
         for ii in range(0, ninterp):
             ddinterp[ii] = (nlinesk-ninterp+ii)*griddist
         datainterp[:, :] = datalist[nlinesk-ninterp-1:nlinesk-1]
-        print('datainterp', dd, 'ddinterp', ddinterp, 'ind', ind, datainterp[:, 9])
-        print(nlinesk-ninterp-1, nlinesk-1)
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3:prog/slakotran.py
         hsdata = DFTBmath().polysk3thsk(datainterp, ddinterp, dd)
     elif dd >= lensk and dd <= cutoff:
         datainterp = np.zeros((ninterp, 20))
@@ -142,10 +136,6 @@ def getsk(generalpara, nameij, dd):
         hsdata = DFTBmath().polysk5thsk(datainterp, ddinterp, dd)
     else:
         print('Error: the {} distance > cutoff'.format(nameij))
-<<<<<<< HEAD:pydftb/slakotran.py
-=======
-    print('datalist[19]', datalist[19])
->>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3:prog/slakotran.py
     return hsdata
 
 
