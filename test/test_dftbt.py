@@ -59,10 +59,7 @@ def test_nonscc_CH4(para):
         for jind in range(ind_nat):
             dataH0half[iind, jind] = \
                 np.fromfile(fphalf, dtype=float, count=1, sep=' ')
-<<<<<<< HEAD
-=======
             # print(np.fromfile(fpall, dtype=float, count=1, sep=' '))
->>>>>>> 2beaece194c877f6291fbfd2d6fbf376c90742d5
             dataH0all[iind, jind] = \
                 np.fromfile(fpall, dtype=float, count=1, sep=' ')
             overmatall[iind, jind] = \
@@ -153,13 +150,10 @@ def scc_CH4_compr(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
-<<<<<<< HEAD
     para['H_init_compr'] = 3.0
     para['C_init_compr'] = 3.0
-=======
     para['H_init_compr'] = 3.00
     para['C_init_compr'] = 3.00
->>>>>>> 2beaece194c877f6291fbfd2d6fbf376c90742d5
     para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00])
     para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -173,7 +167,6 @@ def scc_CH4_compr(para):
     para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(True)
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-<<<<<<< HEAD
 
 
 def scc_CH4_compr_(para):
@@ -230,8 +223,6 @@ def scc_CH4_compr_(para):
     para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(False)
     # slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-=======
->>>>>>> 2beaece194c877f6291fbfd2d6fbf376c90742d5
 
 
 def nonscc_CO(para):
