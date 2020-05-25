@@ -142,7 +142,7 @@ def scc_CH4_compr(para):
     para['atomspecie_old'] = []
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
+    # para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
     para['n_dataset'] = 1
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -152,8 +152,6 @@ def scc_CH4_compr(para):
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
     para['H_init_compr'] = 3.0
     para['C_init_compr'] = 3.0
-    para['H_init_compr'] = 3.00
-    para['C_init_compr'] = 3.00
     para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00])
     para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -164,6 +162,7 @@ def scc_CH4_compr(para):
     test_grad_compr.RunML(para).get_compr_specie()
 
     # build the ref data
+    print("para['compr_init']", para['compr_init'])
     para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(True)
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
@@ -195,7 +194,7 @@ def scc_CH4_compr_(para):
     para['atomspecie_old'] = []
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
+    # para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
     para['n_dataset'] = 1
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -216,13 +215,10 @@ def scc_CH4_compr_(para):
     slakot.SlaKo(para).genskf_interp_ij()
     test_grad_compr.GenMLPara(para).genml_init_compr()
 
-
-    # test_grad_compr.GenMLPara(para).get_spllabel()
-
     # build the ref data
     para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(False)
-    # slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
+
 
 
 def nonscc_CO(para):
@@ -324,3 +320,4 @@ if __name__ == '__main__':
     para['Lml_HS'] = False  # donot perform ML process
     para['scf'] = True
     scc_CH4_compr(para)
+    # nonscc_CH4(para)
