@@ -66,6 +66,40 @@ class DFTBmath(object):
                 dd[ii] = poly5ToZero(y1, y1p, y1pp, dr, -1.0 * distFudge)'''
         return dd
 
+    def sk_interp_4d(self, rr, nameij, ncompr):
+        datalist = self.para['hs_all' + nameij]
+        incr = self.para['grid_dist' + nameij]
+        ngridpoint = self.para['ngridpoint' + nameij]
+        distFudge = 5 * incr  # tail = 5 * incr
+        ninterp = 8  # number of interplation
+        rMax = ngridpoint * incr + distFudge
+        ind = int(rr / incr)
+        leng = ngridpoint
+        xa = t.zeros(ninterp)
+        yb = t.zeros(ncompr, ncompr, ninterp, 20)
+        dd = t.zeros(ncompr, ncompr, 20)
+        if leng < ninterp + 1:
+            print("Warning: not enough points for interpolation!")
+        if rr >= rMax:
+            pass
+        elif ind < leng:  # => polynomial fit
+            # iLast = min(leng, ind + nRightInterNew_)
+            ilast = min(leng, int(ind + ninterp / 2 + 1))
+            ilast = max(ninterp, ilast)
+            for ii in range(0, ninterp):
+                xa[ii] = (ilast - ninterp + ii) * incr
+            yb = datalist[:, :, ilast - ninterp - 1:ilast - 1]
+            # dd = self.polysk3thsk(yb, xa, rr)  # method 1
+            dd = self.polyInter_u_4d(xa, yb, rr)  # method 2
+            # for ii in range(0, 20):  # method 3
+            #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
+
+        else:  # Beyond the grid => extrapolation with polynomial of 5th order
+            dr = rr - rMax
+            ilast = leng
+            pass
+        return dd
+
     def polysk3thsk(self, allarr, darr, dd):
         '''
         this function is interpolation mathod with input 2D and output 1D
@@ -88,6 +122,47 @@ class DFTBmath(object):
 
     def polysk5thsk(self):
         pass
+
+    def polyInter_u_4d(self, xp, yp, rr):
+        '''
+        this function is for interpolation from DFTB+ (lib_math), assume the
+        grid is uniform
+        Args:
+            x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
+        '''
+        icl = 0
+        nn = xp.shape[0]
+        nn1, nn2, row, col = yp.shape[0], yp.shape[1], yp.shape[2], yp.shape[3]
+        assert row == nn
+        cc = t.zeros(nn1, nn2, row, col)
+        dd = t.zeros(nn1, nn2, row, col)
+
+        # if y_m-y_n is small enough, rTmp1 tends to be inf
+        cc[:, :, :, :] = yp[:, :, :, :]
+        dd[:, :, :, :] = yp[:, :, :, :]
+        dxp = abs(rr - xp[icl])
+
+        # this loop is to find the most close point to rr
+        for ii in range(0, nn - 1):
+            dxNew = abs(rr - xp[ii])
+            if dxNew < dxp:
+                icl = ii
+                dxp = dxNew
+        yy = yp[:, :, icl, :]
+
+        for mm in range(0, nn - 1):
+            for ii in range(0, nn - mm - 1):
+                rtmp0 = xp[ii] - xp[ii + mm + 1]
+                rtmp1 = (cc[:, :, ii + 1, :] - dd[:, :, ii, :]) / rtmp0
+                cc[:, :, ii, :] = (xp[ii] - rr) * rtmp1
+                dd[:, :, ii, :] = (xp[ii + mm + 1] - rr) * rtmp1
+            if 2 * icl < nn - mm - 1:
+                dyy = cc[:, :, icl, :]
+            else:
+                dyy = dd[:, :, icl - 1, :]
+                icl = icl - 1
+            yy = yy + dyy
+        return yy
 
     def polyInter_u(self, xp, yp, rr):
         '''

@@ -344,7 +344,7 @@ class SlaKo:
                 self.para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
 
                 if dij > 1e-2:
-                    self.genskf_interp_ijd_(dij, nameij, compr_grid)
+                    self.genskf_interp_ijd_4d(dij, nameij, compr_grid)
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
         print('total time init:', timelist[-1] - timelist[1])
@@ -433,6 +433,25 @@ class SlaKo:
                 # col = skfijd.shape[1]
                 self.para['hs_ij'][icompr, jcompr, :] = \
                     DFTBmath(self.para).sk_interp(dij, nameij)
+
+    def genskf_interp_ijd_4d(self, dij, nameij, rgrid):
+        '''
+        this function aims to interpolate skf of i and j atom with
+        various compression radius at certain distance without loops
+        '''
+        # cutoff = self.para['interpcutoff']
+        assert self.para['grid_dist_rall' + nameij][0, 0] == \
+            self.para['grid_dist_rall' + nameij][-1, -1]
+        self.para['grid_dist' + nameij] = \
+            self.para['grid_dist_rall' + nameij][0, 0]
+        self.para['ngridpoint' + nameij] = \
+            self.para['ngridpoint_rall' + nameij].min()
+        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
+        self.para['hs_all' + nameij] = \
+            self.para['hs_all_rall' + nameij][:, :, :, :]
+        # col = skfijd.shape[1]
+        self.para['hs_ij'][:, :, :] = \
+            DFTBmath(self.para).sk_interp_4d(dij, nameij, ncompr)
 
     def genskf_interp_r(self, para):
         '''

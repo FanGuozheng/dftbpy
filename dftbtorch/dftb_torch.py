@@ -356,7 +356,7 @@ class SCF:
         self.para['qzero'] = qzero = self.para['qatom']
         eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
         ind_nat = self.atind[self.nat]
-        print('hamt:', self.hmat)
+        # print('hamt:', self.hmat)
 
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
@@ -403,7 +403,6 @@ class SCF:
             qatom.append(qatom_)
             mix.mix(iiter, qzero, qatom, qmix, qdiff)
             self.para['qatom_'] = qatom_
-            print(qatom_)
 
             # if reached convergence
             analysis.dftb_energy()
