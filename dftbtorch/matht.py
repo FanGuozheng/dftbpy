@@ -45,7 +45,7 @@ class DFTBmath(object):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb = datalist[ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
-            dd = self.polyInter_u(xa, yb, rr)  # method 2
+            dd = self.polyInter_2d(xa, yb, rr)  # method 2
             # for ii in range(0, 20):  # method 3
             #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
 
@@ -90,7 +90,7 @@ class DFTBmath(object):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb = datalist[:, :, ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
-            dd = self.polyInter_u_4d(xa, yb, rr)  # method 2
+            dd = self.polyInter_4d(xa, yb, rr)  # method 2
             # for ii in range(0, 20):  # method 3
             #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
 
@@ -123,7 +123,7 @@ class DFTBmath(object):
     def polysk5thsk(self):
         pass
 
-    def polyInter_u_4d(self, xp, yp, rr):
+    def polyInter_4d(self, xp, yp, rr):
         '''
         this function is for interpolation from DFTB+ (lib_math), assume the
         grid is uniform
@@ -164,7 +164,7 @@ class DFTBmath(object):
             yy = yy + dyy
         return yy
 
-    def polyInter_u(self, xp, yp, rr):
+    def polyInter_2d(self, xp, yp, rr):
         '''
         this function is for interpolation from DFTB+ (lib_math), assume the
         grid is uniform

@@ -8,7 +8,7 @@ import time
 from scipy import interpolate
 from matht import Bspline, DFTBmath
 from readt import ReadSKt
-from geninterpskf import Bicubic_2D
+from geninterpskf import BicubInterp
 
 nls = 1
 nlp = 3
@@ -463,7 +463,7 @@ class SlaKo:
         '''
         natom = para['natom']
         atomname = para['atomnameall']
-        bicubic = Bicubic_2D()
+        bicubic = BicubInterp()
         hs_ij = t.zeros(natom, natom, 20)
 
         print('Getting HS table according to compression R and build matrix:',
@@ -514,7 +514,7 @@ class SlaKo:
         '''
         natom = self.para['natom']
         atomname = self.para['atomnameall']
-        bicubic = Bicubic_2D()
+        bicubic = BicubInterp()
         hs_ij = t.zeros(natom, natom, 20)
         timelist = [0]
         timelist.append(time.time())
@@ -527,7 +527,6 @@ class SlaKo:
             icompr = self.para['compr_ml'][iatom]
             xmesh = self.para[iname + '_compr_grid']
             for jatom in range(0, natom):
-                timelist.append(time.time())
                 jname = atomname[jatom]
                 ymesh = self.para[jname + '_compr_grid']
                 jcompr = self.para['compr_ml'][jatom]
@@ -538,9 +537,10 @@ class SlaKo:
                             bicubic.bicubic_2d(
                                     xmesh, ymesh, zmeshall[:, :, icol],
                                     icompr, jcompr)
+                    '''hs_ij[iatom, jatom, :] = bicubic.bicubic_3d(
+                            xmesh, ymesh, zmeshall[:, :, :], icompr, jcompr)'''
                 icount += 1
                 timelist.append(time.time())
-                print('time genskf_interp_compr:', timelist[-1] - timelist[-2])
         self.para['hs_all'] = hs_ij
         timelist.append(time.time())
         print('total time genskf_interp_compr:', timelist[-1] - timelist[1])

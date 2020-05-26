@@ -163,7 +163,7 @@ def scc_CH4_compr(para):
 
     # build the ref data
     print("para['compr_init']", para['compr_init'])
-    para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(True)
+    para['compr_ml'] = para['compr_init']
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
 

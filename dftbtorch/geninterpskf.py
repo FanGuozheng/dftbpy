@@ -17,12 +17,13 @@ intergraltyperef = {'[2, 2, 0, 0]': 0, '[2, 2, 1, 0]': 1, '[2, 2, 2, 0]': 2,
 ATOM_NUM = {"H": 1, "C": 6, "N": 7, "O": 8}
 
 
-class Bicubic_2D:
+class BicubInterp:
 
     def __init__(self):
-        pass
-
-    def read(self):
+        '''
+        This class aims to get interpolation with two variables
+        https://en.wikipedia.org/wiki/Bicubic_interpolation
+        '''
         pass
 
     def bicubic_2d(self, xmesh, ymesh, zmesh, xi, yi):
@@ -304,6 +305,220 @@ class Bicubic_2D:
             loss.backward(retain_graph=True)
             optimizer.step()
             print('loss', loss)
+
+    def bicubic_3d(self, xmesh, ymesh, zmesh, xi, yi):
+        '''
+        famt will be the value of grid point and its derivative:
+            [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
+            [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
+            [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
+            [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
+        a_mat = coeff * famt * coeff_
+        therefore, this function returns:
+            p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
+        Args:
+            xmesh, ymesh: x (1D) and y (1D)
+            zmesh: z (3D)
+            ix, iy: the interpolation point
+        '''
+        coeff11 = t.Tensor([[1, 0, 0, 0],
+                            [0, 0, 1, 0],
+                            [-3, 3, -2, -1],
+                            [2, -2, 1, 1]])
+        coeff11_ = t.Tensor([[1, 0, -3, 2],
+                             [0, 0, 3, -2],
+                             [0, 1, -2, 1],
+                             [0, 0, -1, 1]])
+        [nn1, nn2, nn3] = zmesh.shape
+        coeff, coeff_ = t.zeros(4, 4, nn3), t.zeros(4, 4, nn3)
+        fmat = t.zeros(4, 4, nn3)
+        for ii in  range(nn3):
+            coeff[:, :, ii] = coeff11[:, :]
+            coeff_[:, :, ii] = coeff11_[:, :]
+
+        # get the indices of xi and yi u=in xmesh and ymesh
+        if xi in xmesh:
+            self.nxi = np.searchsorted(xmesh.detach().numpy(),
+                                       xi.detach().numpy())
+        else:
+            self.nxi = np.searchsorted(xmesh.detach().numpy(),
+                                       xi.detach().numpy()) - 1
+        if yi in ymesh:
+            self.nyi = np.searchsorted(ymesh.detach().numpy(),
+                                       yi.detach().numpy())
+        else:
+            self.nyi = np.searchsorted(ymesh.detach().numpy(),
+                                       yi.detach().numpy()) - 1
+
+        # this is to transfer x or y to fraction way
+        try:
+            if xmesh[0] <= xi < xmesh[-1]:
+                xi_ = (xi - xmesh[self.nxi]) / \
+                    (xmesh[self.nxi + 1] - xmesh[self.nxi])
+        except ValueError:
+            print('x is out of grid point range, x0 < x < xn)')
+        try:
+            if ymesh[0] <= yi < ymesh[-1]:
+                yi_ = (yi - ymesh[self.nyi]) / \
+                    (ymesh[self.nyi + 1] - ymesh[self.nyi])
+        except ValueError:
+            print('y is out of grid point range, y0 < y < yn)')
+
+        # build [1, x, x**2, x**3] and [1, y, y**2, y**3] matrices
+        xmat, ymat = t.zeros(4), t.zeros(4)
+        xmat[0], xmat[1], xmat[2], xmat[3] = 1, xi_, xi_ * xi_, xi_ * xi_ * xi_
+        ymat[0], ymat[1], ymat[2], ymat[3] = 1, yi_, yi_ * yi_, yi_ * yi_ * yi_
+
+        self.fmat_03d(fmat, zmesh)
+        self.fmat_13d(fmat, zmesh, xmesh, ymesh, 'x')
+        self.fmat_13d(fmat, zmesh, xmesh, ymesh, 'y')
+        self.fmat_xy3d(fmat)
+        amat = t.mm(t.mm(coeff, fmat), coeff_)
+        return t.matmul(t.matmul(xmat, amat), ymat)
+
+    def fmat_03d(self, fmat, zmesh):
+        '''this function will construct f(0/1, 0/1) in fmat'''
+        f00 = zmesh[self.nxi, self.nyi, :]
+        f10 = zmesh[self.nxi + 1, self.nyi, :]
+        f01 = zmesh[self.nxi, self.nyi + 1, :]
+        f11 = zmesh[self.nxi + 1, self.nyi + 1, :]
+        fmat[0, 0, :], fmat[1, 0, :], fmat[0, 1, :], fmat[1, 1, :] = \
+            f00, f10, f01, f11
+        return fmat
+
+    def fmat_13d(self, fmat, zmesh, xmesh, ymesh, ty):
+        '''this function will construct fx(0/1, 0) or fy(0, 0/1) in fmat'''
+        x10 = xmesh[self.nxi + 1] - xmesh[self.nxi]
+        y10 = ymesh[self.nyi + 1] - ymesh[self.nyi]
+
+        if ty == 'x':
+            if self.nxi + 1 == 1:
+                x21 = xmesh[self.nxi + 2] - xmesh[self.nxi + 1]
+                z1000, z2010 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'begx')
+                z1101, z2111 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi + 1, 'begx')
+                fmat[2, 0], fmat[3, 0] = z1000 / x10, \
+                    (z1000 + z2010) / (x10 + x21)
+                fmat[2, 1], fmat[3, 1] = z1101 / x10, \
+                    (z1101 + z2111) / (x10 + x21)
+            elif 1 < self.nxi + 1 < len(xmesh) - 1:
+                x0_1 = xmesh[self.nxi] - xmesh[self.nxi - 1]
+                x21 = xmesh[self.nxi + 2] - xmesh[self.nxi + 1]
+                z2010, z1000, z00_10 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'x')
+                z2111, z1101, z01_11 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi + 1, 'x')
+                fmat[2, 0], fmat[3, 0] = (z1000 + z00_10) / (x10 + x0_1), \
+                    (z1000 + z2010) / (x10 + x21)
+                fmat[2, 1], fmat[3, 1] = (z1101 + z01_11) / (x10 + x0_1), \
+                    (z1101 + z2111) / (x10 + x21)
+            else:
+                x0_1 = xmesh[self.nxi] - xmesh[self.nxi - 1]
+                z1000, z00_10 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'endx')
+                z1101, z01_11 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi + 1, 'endx')
+                fmat[2, 1], fmat[3, 1] = (z1101 + z01_11) / (x10 + x0_1), \
+                    z1101 / x10
+        elif ty == 'y':
+            if self.nyi + 1 == 1:
+                y21 = ymesh[self.nyi + 2] - ymesh[self.nyi + 1]
+                z0100, z0201 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'begy')
+                z1110, z1211 = \
+                    self.get_diff_bound3d(zmesh, self.nxi + 1, self.nyi, 'begy')
+                fmat[0, 2], fmat[0, 3] = z0100 / y10, \
+                    (z0100 + z0201) / (y10 + y21)
+                fmat[1, 2], fmat[1, 3] = z1110 / y10, \
+                    (z1110 + z1211) / (y10 + y21)
+            elif 1 < self.nyi + 1 < len(ymesh) - 1:
+                y0_1 = xmesh[self.nyi] - xmesh[self.nyi - 1]
+                y21 = xmesh[self.nyi + 2] - xmesh[self.nyi + 1]
+                z0201, z0100, z000_1 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'y')
+                z1211, z1110, z101_1 = \
+                    self.get_diff_bound3d(zmesh, self.nxi + 1, self.nyi, 'y')
+                fmat[0, 2], fmat[0, 3] = (z0100 + z000_1) / (y10 + y0_1), \
+                    (z0100 + z0201) / (y10 + y21)
+                fmat[1, 2], fmat[1, 3] = (z1110 + z101_1) / (y10 + y0_1), \
+                    (z1110 + z0201) / (y10 + y21)
+            else:
+                y0_1 = ymesh[self.nyi] - ymesh[self.nyi - 1]
+                z0100, z000_1 = \
+                    self.get_diff_bound3d(zmesh, self.nxi, self.nyi, 'endy')
+                z1110, z101_1 = \
+                    self.get_diff_bound3d(zmesh, self.nxi + 1, self.nyi, 'endy')
+                fmat[1, 2], fmat[1, 3] = (z1110 + z101_1) / (y10 + y0_1), \
+                    z1110 / y10
+        return fmat
+
+    def fmat_xy3d(self, fmat):
+        '''this function will construct f(0/1, 0/1) in fmat'''
+        fmat[2, 2] = fmat[0, 2] * fmat[2, 0]
+        fmat[3, 2] = fmat[3, 0] * fmat[1, 2]
+        fmat[2, 3] = fmat[2, 1] * fmat[0, 3]
+        fmat[3, 3] = fmat[3, 1] * fmat[1, 3]
+        return fmat
+
+    def get_diff3d(self, mesh, nxi=None, nyi=None, ty=None):
+        '''
+        this function will get derivative over x and y direction
+        e.g, 10_00 means difference between (1, 0) and (0, 0)
+        '''
+        if nxi is not None and nyi is not None:
+            z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
+            z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
+            z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
+            z00_01 = mesh[nxi, nyi] - mesh[nxi, nyi - 1]
+            return z1000, z00_10, z0100, z00_01
+        if nxi is not None:
+            x10 = mesh[nxi + 1] - mesh[nxi]
+            x0_1 = mesh[nxi] - mesh[nxi - 1]
+            return x10, x0_1
+        if nyi is not None:
+            y10 = mesh[nyi + 1] - mesh[nyi]
+            y0_1 = mesh[nyi] - mesh[nyi - 1]
+            return y10, y0_1
+
+    def get_diff_bound3d(self, mesh, nxi, nyi, ty):
+        '''
+        this function will get derivative over x and y direction in boundary
+        e.g, 10_00 means difference between (1, 0) and (0, 0)
+        '''
+        if ty == 'begx':
+            z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
+            z2010 = mesh[nxi + 2, nyi] - mesh[nxi + 1, nyi]
+            return z1000, z2010
+        elif ty == 'x':
+            z2010 = mesh[nxi + 2, nyi] - mesh[nxi + 1, nyi]
+            z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
+            z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
+            return z2010, z1000, z00_10
+        elif ty == 'endx':
+            z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
+            z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
+            return z1000, z00_10
+        elif ty == 'begy':
+            z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
+            z0201 = mesh[nxi, nyi + 2] - mesh[nxi, nyi + 1]
+            return z0100, z0201
+        elif ty == 'y':
+            z0201 = mesh[nxi, nyi + 2] - mesh[nxi, nyi + 1]
+            z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
+            z000_1 = mesh[nxi, nyi] - mesh[nxi, nyi - 1]
+            return z0201, z0100, z000_1
+        elif ty == 'endy':
+            z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
+            z000_1 = mesh[nxi, nyi] - mesh[nxi, nyi - 1]
+            return z0100, z000_1
+        elif ty == 'xy':
+            z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
+            z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
+            z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
+            z00_01 = mesh[nxi, nyi] - mesh[nxi, nyi - 1]
+            return z1000, z00_10, z0100, z00_01
+
 
 
 class SkInterpolator:
