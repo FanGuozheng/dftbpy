@@ -1,0 +1,111 @@
+Geometry = GenFormat {
+5 C
+<<<<<<< HEAD
+C H
+1 1 0.0047238967 -0.0022558372 -0.020262089
+2 2 -0.80933553 0.6672573 -0.30761242
+3 2 -0.44382805 -0.9657981 0.4520614
+4 2 0.48617318 0.46546423 0.92478514
+=======
+H C
+1 1 0.0047238967 -0.0022558372 -0.020262089
+2 1 -0.80933553 0.6672573 -0.30761242
+3 1 -0.44382805 -0.9657981 0.4520614
+4 1 0.48617318 0.46546423 0.92478514
+>>>>>>> ad0a72eac1ab68c13c8d6d1ed31874c22bb490c3
+5 2 0.7107089 -0.14004248 -0.82801706
+}
+Driver = {}
+Hamiltonian = DFTB {
+  Scc = Yes
+  SccTolerance = 1e-8
+  MaxSccIterations = 100
+  Mixer = Broyden {
+    MixingParameter = 0.2
+    InverseJacobiWeight = 1.0000000000000000E-002
+    MinimalWeight = 1.0000000000000000
+    MaximalWeight = 100000.00000000000
+    WeightFactor = 1.0000000000000000E-002
+  }
+  MaxAngularMomentum = {
+    H = "s"
+    C = "p"
+  }
+  Charge = 0.0
+  SpinPolarisation = {}
+  Eigensolver = DivideAndConquer {}
+  Filling = Fermi {
+    Temperature [Kelvin] = 0.0
+  }
+  SlaterKosterFiles = Type2FileNames {
+    Separator = "-"
+    Suffix = ".skf"
+    Prefix = ""
+    LowerCaseTypeName = No
+  }
+  Dispersion = Mbd {
+    ReferenceSet = 'ts'
+    NOmegaGrid = 15
+    Beta = 1.05
+    KGrid = {
+3 3 3
+    }
+    VacuumAxis = {
+Yes Yes Yes
+    }
+    KGridShift = {
+ 0.50000000000000000 0.50000000000000000 0.50000000000000000
+    }
+  }
+  PolynomialRepulsive = {}
+  OrbitalResolvedSCC = No
+  OldSKInterpolation = No
+  ReadInitialCharges = No
+  InitialCharges = {}
+  DampXH = No
+  ElectricField = {}
+  ThirdOrder = No
+  ThirdOrderFull = No
+  Differentiation = FiniteDiff {
+    Delta = 1.2207031250000000E-004
+  }
+  ForceEvaluation = "Traditional"
+}
+Analysis = {
+  CalculateForces = Yes
+  ProjectStates = {}
+  MullikenAnalysis = Yes
+  AtomResolvedEnergies = No
+  WriteEigenvectors = No
+  EigenvectorsAsTxt = No
+  WriteBandOut = Yes
+}
+Options = {
+  WriteAutotestTag = Yes
+  WriteDetailedOut = Yes
+  WriteDetailedXML = No
+  WriteResultsTag = No
+  RestartFrequency = 20
+  RandomSeed = 0
+  WriteHS = No
+  WriteRealHS = No
+  MinimiseMemoryUsage = No
+  ShowFoldedCoords = No
+  TimingVerbosity = 0
+  WriteChargesAsText = No
+}
+ParserOptions = {
+  ParserVersion = 5
+  WriteHSDInput = Yes
+  WriteXMLInput = No
+  StopAfterParsing = No
+  IgnoreUnprocessedNodes = No
+}
+Parallel = {
+  UseOmpThreads = Yes
+  Groups = 1
+  Blacs = BlockSize {
+32
+  }
+}
+ExcitedState = {}

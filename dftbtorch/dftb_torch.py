@@ -192,7 +192,11 @@ class SCF:
         print_ = Print(self.para)
         self.para['qzero'], ind_nat = self.para['qatom'], self.atind[self.nat]
 <<<<<<< HEAD
+<<<<<<< HEAD
         # print('ham:', self.hmat)
+=======
+        print('ham:', self.hmat)
+>>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
 =======
         print('ham:', self.hmat)
 >>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea

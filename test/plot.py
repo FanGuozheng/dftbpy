@@ -58,9 +58,15 @@ def plot_dip(outpara):
     icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
+<<<<<<< HEAD
             plt.plot(icount, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
             plt.plot(icount, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
             plt.plot(icount, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
+=======
+            plt.plot(istep, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
+            plt.plot(istep, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
+            plt.plot(istep, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
+>>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
             icount += 1
     plt.xlabel('steps * molecules')
     plt.ylabel('dipole absolute difference')
