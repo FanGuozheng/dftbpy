@@ -58,15 +58,9 @@ def plot_dip(outpara):
     icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
-<<<<<<< HEAD
             plt.plot(icount, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
             plt.plot(icount, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
             plt.plot(icount, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
-=======
-            plt.plot(istep, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
-            plt.plot(istep, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
-            plt.plot(istep, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
             icount += 1
     plt.xlabel('steps * molecules')
     plt.ylabel('dipole absolute difference')
@@ -265,13 +259,7 @@ def plot_dip_pred(outpara, dire):
     for ifile in range(0, nfile):
         plt.ylabel('dipole with initial r vs. predict r')
         p1, = plt.plot(dataref[ifile, 0], datainit[ifile, 0], 'xr')
-        p1, = plt.plot(dataref[ifile, 1], datainit[ifile, 1], 'xr')
-        p1, = plt.plot(dataref[ifile, 2], datainit[ifile, 2], 'xr')
-        p2, = plt.plot(dataref[ifile, 0], datapred[ifile, 0], 'ob')
         p2, = plt.plot(dataref[ifile, 1], datapred[ifile, 1], 'ob')
-        p2, = plt.plot(dataref[ifile, 2], datapred[ifile, 2], 'ob')
-        p3, = plt.plot(dataref[ifile, 0], datadftbplus[ifile, 0], '*y')
-        p3, = plt.plot(dataref[ifile, 1], datadftbplus[ifile, 1], '*y')
         p3, = plt.plot(dataref[ifile, 2], datadftbplus[ifile, 2], '*y')
         plt.legend([p1, p2, p3], ['dipole-init', 'dipole-pred', 'dipole-dftbplus'])
     plt.xlabel('reference dipole')

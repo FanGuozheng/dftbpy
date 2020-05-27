@@ -80,22 +80,14 @@ def getmlpara(outpara):
     '''
 
     # ------------------------- loading dataset -------------------------
-<<<<<<< HEAD
     outpara['datasettype'] = 'hdf'  # hdf, json
-=======
     outpara['datasettype'] = 'json'  # hdf, json
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
     if outpara['datasettype'] == 'json':
         outpara['pythondata_dire'] = '../data'
         outpara['pythondata_file'] = 'CH4_data'
     elif outpara['datasettype'] == 'hdf':
         hdffilelist = []
-<<<<<<< HEAD
         hdffilelist.append('data/an1/ani_gdb_s01.h5')
-=======
-        hdffilelist.append(
-                '/home/gz_fan/Documents/ML/database/an1/ani_gdb_s01.h5')
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
         outpara['hdffile'] = hdffilelist
         outpara['hdf_num'] = 1
     outpara['n_dataset'] = ['2']
@@ -115,41 +107,25 @@ def getmlpara(outpara):
     # splinetype: Bspline, Polyspline
     # < zero_threshold: this value is treated as zero
     # rand_threshold: the coefficient para of added randn number
-<<<<<<< HEAD
-<<<<<<< HEAD
     outpara['ref'] = 'aims'
     outpara['target'] = ['dipole']  # dipole, homo_lumo, gap, eigval, qatomall
     outpara['mlsteps'] = 51
-=======
-    outpara['ref'] = 'dftb'
-    outpara['target'] = ['eigval']  # dipole, homo_lumo, gap, eigval, qatomall
     outpara['mlsteps'] = 1
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
-=======
-    outpara['ref'] = 'dftb'
-    outpara['target'] = ['eigval']  # dipole, homo_lumo, gap, eigval, qatomall
     outpara['mlsteps'] = 1
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
     outpara['Lml'] = True
     outpara['Lml_skf'] = True  # if use interp to gen .skf with compress_r
     outpara['Lml_HS'] = False  # if use interp to gen HS mat (e.g Polyspline)
     outpara['Lml_compr'] = False  # test gradients of interp of SK table
     outpara['Lml_compr_global'] = False  # each spiece has the same compress_r
-<<<<<<< HEAD
     outpara['save_steps'] = 10
-=======
     outpara['save_steps'] = 1
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
     outpara['interptype'] = 'Polyspline'
     outpara['interpdist'] = 0.4
     outpara['interpcutoff'] = 10
     outpara['zero_threshold'] = 5E-3
     outpara['rand_threshold'] = 5E-2
-<<<<<<< HEAD
     outpara['lr'] = 5e-1
-=======
     outpara['lr'] = 1e-1
->>>>>>> e068ca98592b1227f4c7d81f93fa1ea3476ffbea
     outpara['atomspecie_old'] = []
     outpara['H_init_compr'] = 3.34
     outpara['C_init_compr'] = 3.34
