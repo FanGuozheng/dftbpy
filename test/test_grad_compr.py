@@ -81,13 +81,12 @@ def getmlpara(outpara):
 
     # ------------------------- loading dataset -------------------------
     outpara['datasettype'] = 'hdf'  # hdf, json
-    outpara['datasettype'] = 'json'  # hdf, json
     if outpara['datasettype'] == 'json':
         outpara['pythondata_dire'] = '../data'
         outpara['pythondata_file'] = 'CH4_data'
     elif outpara['datasettype'] == 'hdf':
         hdffilelist = []
-        hdffilelist.append('data/an1/ani_gdb_s01.h5')
+        hdffilelist.append('data/an1/ani_gdb_s02.h5')
         outpara['hdffile'] = hdffilelist
         outpara['hdf_num'] = 1
     outpara['n_dataset'] = ['2']
@@ -109,32 +108,22 @@ def getmlpara(outpara):
     # rand_threshold: the coefficient para of added randn number
     outpara['ref'] = 'aims'
     outpara['target'] = ['dipole']  # dipole, homo_lumo, gap, eigval, qatomall
-    outpara['mlsteps'] = 51
-    outpara['mlsteps'] = 1
     outpara['mlsteps'] = 1
     outpara['Lml'] = True
     outpara['Lml_skf'] = True  # if use interp to gen .skf with compress_r
     outpara['Lml_HS'] = False  # if use interp to gen HS mat (e.g Polyspline)
     outpara['Lml_compr'] = False  # test gradients of interp of SK table
     outpara['Lml_compr_global'] = False  # each spiece has the same compress_r
-    outpara['save_steps'] = 10
     outpara['save_steps'] = 1
     outpara['interptype'] = 'Polyspline'
     outpara['interpdist'] = 0.4
     outpara['interpcutoff'] = 10
     outpara['zero_threshold'] = 5E-3
     outpara['rand_threshold'] = 5E-2
-    outpara['lr'] = 5e-1
-    outpara['lr'] = 1e-1
+    outpara['lr'] = 8e-1
     outpara['atomspecie_old'] = []
-    outpara['H_init_compr'] = 3.34
-    outpara['C_init_compr'] = 3.34
-    '''outpara['init_compr_all'] = t.Tensor([3.34, 3.34, 3.34, 3.34, 3.34, 3.34,
-                                          3.34, 3.34, 3.34, 3.34, 3.34, 3.34])
-    outpara['H_compr_grid'] = t.Tensor([2.00, 2.34, 2.77, 3.34, 4.07, 5.03,
-                                       6.28, 7.90, 10.00])
-    outpara['C_compr_grid'] = t.Tensor([2.00, 2.34, 2.77, 3.34, 4.07, 5.03,
-                                       6.28, 7.90, 10.00])'''
+    outpara['H_init_compr'] = 3.0
+    outpara['C_init_compr'] = 3.0
     outpara['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                         5.00, 5.50, 6.00])
     outpara['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -147,7 +136,7 @@ def getmlpara(outpara):
     outpara['LReadInput'] = False
     outpara['convergenceType'], outpara['energy_tol'] = 'energy', 1e-6
     outpara['scf'] = True
-    outpara['scc'] = 'nonscc'
+    outpara['scc'] = 'scc'
     outpara['task'] = 'ground'
     outpara['HSsym'] = 'symall_chol'  # symall, symhalf. important!!!!!!
     outpara['ninterp'] = 8
