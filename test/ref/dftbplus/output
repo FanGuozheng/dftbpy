@@ -1,0 +1,105 @@
+|===============================================================================
+|
+|  DFTB+ development version (commit: e9f7d9c, base: 18.2)
+|
+|  Copyright (C) 2006 - 2019  DFTB+ developers group
+|
+|===============================================================================
+|
+|  When publishing results obtained with DFTB+, please cite the following
+|  reference:
+|
+|  * B. Aradi, B. Hourahine and T. Frauenheim,
+|    DFTB+, a Sparse Matrix-Based Implementation of the DFTB Method,
+|    J. Phys. Chem. A, 111 5678 (2007).  [doi: 10.1021/jp070186p]
+|
+|  You should also cite additional publications crediting the parametrization
+|  data you use. Please consult the documentation of the SK-files for the
+|  references.
+|
+|===============================================================================
+
+Reading input file 'dftb_in.hsd'
+Parser version: 7
+
+--------------------------------------------------------------------------------
+***  Converting input from version  5 to version  7 ...
+WARNING!
+-> Keyword renamed to 'Solver'.
+Path: dftbplusinput/Hamiltonian/DFTB/Eigensolver
+Line: 20-20 (File: dftb_in.hsd)
+
+***  Done.
+
+Reading SK-files:
+Done.
+WARNING!
+-> Settings will be read but ignored (compiled without MPI support)
+Path: dftbplusinput/Parallel
+Line: 53-55 (File: dftb_in.hsd)
+
+
+
+Processed input in HSD format written to 'dftb_pin.hsd'
+
+Starting initialization...
+--------------------------------------------------------------------------------
+OpenMP threads:              4
+Chosen random seed:          345231676
+Mode:                        Static calculation
+Self consistent charges:     Yes
+SCC-tolerance:                 0.100000E-07
+Max. scc iterations:                    100
+Shell resolved Hubbard:      No
+Spin polarisation:           No
+Nr. of up electrons:             2.500000
+Nr. of down electrons:           2.500000
+Periodic boundaries:         No
+Electronic solver:           Divide and Conquer
+Mixer:                       Broyden mixer
+Mixing parameter:                  0.200000
+Maximal SCC-cycles:                     100
+Nr. of chrg. vec. in memory:              0
+Electronic temperature:        0.100000E-07 H      0.272114E-06 eV
+Initial charges:             Set automatically (system chrg:   0.000E+00)
+Included shells:             C:  s, p
+                             H:  s
+Extra options:
+                             Mulliken analysis
+                             Force calculation
+Force type                   original
+
+--------------------------------------------------------------------------------
+
+***  Geometry step: 0
+
+ iSCC Total electronic   Diff electronic      SCC error    
+ qOutput   1.7720188356313400       0.78858289493230094       0.78858289295123263       0.78858289133283077       0.86223248515229489        0.0000000000000000        0.0000000000000000        0.0000000000000000     
+ energy%EnonSCC  -1.8644473018038736      atom..  -1.5048778302852428      -0.35956947151863095     
+    1   -0.18633399E+01    0.00000000E+00    0.13776751E+00
+ qOutput   1.7703012139983343       0.78729653242606290       0.78729653187368220       0.78729653235478947       0.86780918934713225        0.0000000000000000        0.0000000000000000        0.0000000000000000     
+ energy%EnonSCC  -1.8644383348125062      atom..  -1.5034311222035730      -0.36100721260893315     
+    2   -0.18634188E+01   -0.78869884E-04    0.10463731E+00
+ qOutput   1.7648712422453676       0.78322297417449194       0.78322297417449216       0.78322297417449238       0.88545983523115424        0.0000000000000000        0.0000000000000000        0.0000000000000000     
+ energy%EnonSCC  -1.8642919239950257      atom..  -1.4988008836869646      -0.36549104030806107     
+    3   -0.18635265E+01   -0.10767874E-03    0.30766020E-04
+ qOutput   1.7648728390258683       0.78322417437752534       0.78322417407706202       0.78322417377659947       0.88545463874294550        0.0000000000000000        0.0000000000000000        0.0000000000000000     
+ energy%EnonSCC  -1.8642919932721553      atom..  -1.4988022581701481      -0.36548973510200722     
+    4   -0.18635265E+01    0.17892998E-09    0.82767322E-08
+>> Charges saved for restart in charges.bin
+
+Total Energy:                       -1.8292629269 H          -49.7768 eV
+Extrapolated to 0:                  -1.8292629382 H          -49.7768 eV
+Total Mermin free energy:           -1.8292629494 H          -49.7768 eV
+Force related energy:               -1.8292629494 H          -49.7768 eV
+
+--------------------------------------------------------------------------------
+DFTB+ running times                          cpu [s]             wall clock [s]
+--------------------------------------------------------------------------------
+Global initialisation                  +     0.02  (  2.1%)      0.00  (  2.0%)
+Pre-SCC initialisation                 +     0.40  ( 52.9%)      0.13  ( 51.6%)
+SCC                                    +     0.33  ( 43.5%)      0.11  ( 44.5%)
+--------------------------------------------------------------------------------
+Missing                                +     0.01  (  1.6%)      0.01  (  2.0%)
+Total                                  =     0.76  (100.0%)      0.25  (100.0%)
+--------------------------------------------------------------------------------

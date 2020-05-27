@@ -1,0 +1,7 @@
+optimze compression radius (x)
+target, dipole (y), reference FHIaims
+data from hdf, first CH4
+use simple anderson mixing
+100 loops, every 10 loops save data
+50 molecule
+

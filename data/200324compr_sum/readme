@@ -1,0 +1,7 @@
+optimze compression radius (x), initial r: 3.34
+target, gap (y)
+data from symmetric CH4 (0.8, 0.9, 1.0, 1.1, 1.2 experimental C-H bond length)
+use simple mixing (sim) and anderson mixing (and)
+learning rate, in group meeting 2020 figures folder, 5_5 means 5e-5
+100 loop: loops are 100
+nonsym_CH4: non symmetric CH4, which is ../CH4_data2, otherwise is symmetric CH4, ../CH4_data
