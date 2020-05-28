@@ -1,5 +1,0 @@
-compression radius for each atom in each molecule is from default values, which suggest that in the optimization,
-we first define compression radius for each atom, than for each molecule we will run 200 cycles
-total molecule: 50
-steps: 200 / save every 20 times
-lr = 1e-1
