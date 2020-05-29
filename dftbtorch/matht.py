@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
 
-class DFTBmath(object):
+class DFTBmath:
 
     def __init__(self, para):
         '''
@@ -24,6 +24,9 @@ class DFTBmath(object):
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
+        if type(datalist) is np.ndarray:
+            datalist = t.from_numpy(np.asarray(datalist))
+
         # cutoff = self.para['cutoffsk' + nameij]
         distFudge = 5 * incr  # tail = 5 * incr
         ninterp = 8  # number of interplation
@@ -43,7 +46,7 @@ class DFTBmath(object):
             ilast = max(ninterp, ilast)
             for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
-            yb = datalist[ilast - ninterp - 1:ilast - 1]
+            yb[:, :] = datalist[ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.polyInter_2d(xa, yb, rr)  # method 2
             # for ii in range(0, 20):  # method 3
@@ -70,6 +73,9 @@ class DFTBmath(object):
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
+        if type(datalist) is np.array:
+            datalist = t.from_numpy(datalist)
+
         distFudge = 5 * incr  # tail = 5 * incr
         ninterp = 8  # number of interplation
         rMax = ngridpoint * incr + distFudge

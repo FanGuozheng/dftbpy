@@ -31,8 +31,8 @@ def nonscc_CH4(para):
     para['grid0'] = 0.4
     para['Lml_skf'] = True
     para['Lrepulsive'] = True
-    para['direSK'] = '/home/gz_fan/Documents/ML/dftb/ml/test/slko'
-    # para['direTest'] = '/home/gz_fan/Documents/ML/dftb/ml/test/data/test'
+    # para['direSK'] = '/home/gz_fan/Documents/ML/dftb/ml/test/slko'
+    para['direSK'] = '../slko'
     para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -116,6 +116,39 @@ def scc_CH4(para):
     # test_scc_CH4(para)
 
 
+def scc_C2H6(para):
+    '''
+    Test eigen values, charges of CH4 by using SCC DFTB;
+    Before DFTB calculations, we will also test H0 and S;
+    '''
+    para['scc'] = 'scc'  # nonscc, scc, xlbomd
+    para['Lml'] = False  # only perform DFTB part without ML
+    para['Lperiodic'] = False
+    para['task'] = 'ground'
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['Ldipole'] = True
+    para['symbols'] = ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H']
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['Lml_skf'] = True
+    para['Lrepulsive'] = True
+    para['direSK'] = '../slko'
+    para['coor'] = t.Tensor([
+            [6, 0.7601011, -0.0086139515, -0.004985126],
+            [6, -0.75717264, 0.0053435215, 0.002526484],
+            [1, 1.2256869, 0.93354744, -0.2479243],
+            [1, 1.0585717, -0.10417827, 0.99811083],
+            [1, 1.1498983, -0.8023914, -0.7629031],
+            [1, -1.144929, 0.6961519, 0.6684843],
+            [1, -1.1742622, -1.0236914, 0.38357222],
+            [1, -1.1476712, 0.3453085, -1.017948]])
+    main(para)
+
+
 def scc_CH4_compr(para):
     '''
     Test eigen values, charges of CH4 by using SCC DFTB;
@@ -141,8 +174,7 @@ def scc_CH4_compr(para):
     para['Lml_compr_global'] = False
     para['atomspecie_old'] = []
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
-    para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    # para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
+    # para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
     para['n_dataset'] = 1
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -162,18 +194,17 @@ def scc_CH4_compr(para):
     test_grad_compr.RunML(para).get_compr_specie()
 
     # build the ref data
-    print("para['compr_init']", para['compr_init'])
     para['compr_ml'] = para['compr_init']
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
 
 
-def scc_CH4_compr_(para):
+def nonscc_CH4_compr(para):
     '''
     Test eigen values, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
-    para['scc'] = 'scc'  # nonscc, scc, xlbomd
+    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = True  # only perform DFTB part without ML
     para['Lperiodic'] = False
     para['task'] = 'ground'
@@ -193,8 +224,6 @@ def scc_CH4_compr_(para):
     para['Lml_compr_global'] = False
     para['atomspecie_old'] = []
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
-    para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    # para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
     para['n_dataset'] = 1
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -202,23 +231,22 @@ def scc_CH4_compr_(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
-    para['H_init_compr'] = 3.0
-    para['C_init_compr'] = 3.0
+    para['H_init_compr'] = 3.34
+    para['C_init_compr'] = 4.07
     para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00])
     para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00])
     dftb_torch.Initialization(para)
-    test_grad_compr.interpskf(para)  # read all skf data
+    test_grad_compr.GenMLPara(para).get_spllabel()
+    test_grad_compr.interpskf(para)
     test_grad_compr.RunML(para).get_compr_specie()
 
-    slakot.SlaKo(para).genskf_interp_ij()
-    test_grad_compr.GenMLPara(para).genml_init_compr()
-
     # build the ref data
-    para['compr_ml'] = para['compr_init'].detach().clone().requires_grad_(False)
+    para['compr_ml'] = para['compr_init']
+    slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-
+    test_nonscc_CH4(para)
 
 
 def nonscc_CO(para):
@@ -311,13 +339,17 @@ def test_nonsccCO(para):
 
 if __name__ == '__main__':
     '''
-    Required:
-        .skf: compression R of H: 3.34, C: 4.07
+    Attention:
+        if read test H0, S, compression R of H: 3.34, C: 4.07
     '''
-    t.set_printoptions(precision=15)
+    t.set_printoptions(precision=10)
     para = {}
     para['LReadInput'] = False  # define parameters in python, not read input
     para['Lml_HS'] = False  # donot perform ML process
     para['scf'] = True
-    scc_CH4_compr(para)
+    # scc_CH4_compr(para)
+    scc_C2H6(para)
+    # nonscc_CH4_compr(para)
+    # scc_CH4(para)
+    # nonscc_CO(para)
     # nonscc_CH4(para)

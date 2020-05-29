@@ -10,7 +10,7 @@ import os
 import numpy as np
 import torch as t
 err = 1E-4
-BOHR = 0.529177210903
+BOHR = 0.529177249
 ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
             "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr",
             "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br",
@@ -253,10 +253,10 @@ class ReadSKt:
     def read_skf_specie(self):
         '''
         read .skf according to atom species and its combinations
-        Input:
+        Args:
             atom specie
             directory of .skf and .skf files with format atom-atom.skf
-        Output (suffix with names of between atoms):
+        Returns (suffix with names of between atoms):
             grid distance
             number of total grids
             onsite, SPE and occupations

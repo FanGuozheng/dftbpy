@@ -125,6 +125,7 @@ class SKTran:
                 else:
                     lmax, lmin = max(lmaxi, lmaxj), min(lmaxi, lmaxj)
                     if lmax == 1:
+                        # self.para['hsdata'] = DFTBmath(self.para).sk_interp(dd, nameij)
                         getsk(self.para, nameij, dd)
                         if type(self.para['hsdata']) is t.Tensor:
                             self.para['hs_all'][i, j, :] = self.para['hsdata']
@@ -132,6 +133,7 @@ class SKTran:
                             self.para['hs_all'][i, j, :] = \
                                 t.from_numpy(self.para['hsdata'])
                     elif lmin == 1 and lmax == 2:
+                        # self.para['hsdata'] = DFTBmath(self.para).sk_interp(dd, nameij)
                         getsk(self.para, nameij, dd)
                         if type(self.para['hsdata']) is t.Tensor:
                             self.para['hs_all'][i, j, :] = self.para['hsdata']
@@ -883,7 +885,7 @@ def getsk(para, nameij, dd):
     if dd < grid0:
         para['hsdata'][:] = 0
     elif grid0 <= dd < lensk:  # need revise!!!
-        datainterp = t.zeros((int(ninterp), 20))
+        datainterp = t.zeros(int(ninterp), 20)
         ddinterp = t.zeros(int(ninterp))
         ilast = min(ilast, int(ind + ninterp / 2 + 1))
         ilast = max(ninterp, ilast)

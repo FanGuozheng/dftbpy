@@ -18,49 +18,64 @@ def plot_main(outpara):
         plot_compr(outpara)
 
 
-def plot_eig(outpara):
-    nfile = int(outpara['n_dataset'][0])
-    fpopt, fpref = open('HLbp.dat', 'r'), open('HLref.dat', 'r')
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
-    dataref = np.zeros((nfile, 2))
-    dataopt = np.zeros((nfile, nsteps, 2))
+def plot_eig(para):
+    '''
+    the directory will store data is fixed, in .data
+    '''
+    nfile = int(para['n_dataset'][0])
+    if para['ref'] == 'aims':
+        eigref = '.data/HLaims.dat'
+    elif para['ref'] == 'dftbplus':
+        eigref = '.data/HLdftbplus.dat'
+    elif para['ref'] == 'dftb':
+        eigref = '.data/HLref.dat'
+    fpopt, fpref = open('.data/HLbp.dat', 'r'), open(eigref, 'r')
+    nsteps = int(para['mlsteps'] / para['save_steps'])
+    datref = np.zeros((nfile, 2))
+    datopt = np.zeros((nfile, nsteps, 2))
 
     print('plot HOMO-LUMO values')
     for ifile in range(0, nfile):
-        dataref[ifile, :] = np.fromfile(fpref, dtype=float, count=2, sep=' ')
+        datref[ifile, :] = np.fromfile(fpref, dtype=float, count=2, sep=' ')
         for istep in range(0, nsteps):
-            dataopt[ifile, istep, :] = np.fromfile(
-                    fpopt, dtype=float, count=2, sep=' ')
+            datopt[ifile, istep, :] = np.fromfile(
+                   fpopt, dtype=float, count=2, sep=' ')
 
     icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
-            plt.plot(icount, dataref[ifile, 0] - dataopt[ifile, istep, 0], 'xr')
-            plt.plot(icount, dataref[ifile, 1] - dataopt[ifile, istep, 1], 'ob')
+            plt.plot(icount, datref[ifile, 0] - datopt[ifile, istep, 0], 'xr')
+            plt.plot(icount, datref[ifile, 1] - datopt[ifile, istep, 1], 'ob')
             icount += 1
     plt.show()
 
 
-def plot_dip(outpara):
-    nfile = int(outpara['n_dataset'][0])
-    fpopt, fpref = open('dipbp.dat', 'r'), open('dipref.dat', 'r')
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
-    dataref = np.zeros((nfile, 3))
-    dataopt = np.zeros((nfile, nsteps, 3))
+def plot_dip(para):
+    if para['ref'] == 'aims':
+        dipref = '.data/dipaims.dat'
+    elif para['ref'] == 'dftbplus':
+        dipref = '.data/dipdftbplus.dat'
+    elif para['ref'] == 'dftb':
+        dipref = '.data/dipref.dat'
+    nfile = int(para['n_dataset'][0])
+    fpopt, fpref = open('.data/dipbp.dat', 'r'), open(dipref, 'r')
+    nsteps = int(para['mlsteps'] / para['save_steps'])
+    dref = np.zeros((nfile, 3))
+    dopt = np.zeros((nfile, nsteps, 3))
 
     print('plot dipole values')
     for ifile in range(0, nfile):
-        dataref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
+        dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
         for istep in range(0, nsteps):
-            dataopt[ifile, istep, :] = np.fromfile(
+            dopt[ifile, istep, :] = np.fromfile(
                     fpopt, dtype=float, count=3, sep=' ')
 
     icount = 1
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
-            plt.plot(icount, abs(dataref[ifile, 0] - dataopt[ifile, istep, 0]), 'xr')
-            plt.plot(icount, abs(dataref[ifile, 1] - dataopt[ifile, istep, 1]), 'ob')
-            plt.plot(icount, abs(dataref[ifile, 2] - dataopt[ifile, istep, 2]), 'vy')
+            plt.plot(icount, abs(dref[ifile, 0] - dopt[ifile, istep, 0]), 'xr')
+            plt.plot(icount, abs(dref[ifile, 1] - dopt[ifile, istep, 1]), 'ob')
+            plt.plot(icount, abs(dref[ifile, 2] - dopt[ifile, istep, 2]), 'vy')
             icount += 1
     plt.xlabel('steps * molecules')
     plt.ylabel('dipole absolute difference')
@@ -68,8 +83,14 @@ def plot_dip(outpara):
 
 
 def plot_energy(outpara):
+    if para['ref'] == 'aims':
+        enerref = '.data/energyaims.dat'
+    elif para['ref'] == 'dftbplus':
+        enerref = '.data/energydftbplus.dat'
+    elif para['ref'] == 'dftb':
+        enerref = '.data/energyref.dat'
     nfile = int(outpara['n_dataset'][0])
-    fpopt, fpref = open('energybp.dat', 'r'), open('energyref.dat', 'r')
+    fpopt, fpref = open('energybp.dat', 'r'), open(enerref, 'r')
     nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
     dataref = np.zeros((nfile))
     dataopt = np.zeros((nfile, nsteps))
@@ -274,7 +295,7 @@ def plot_dip_pred(outpara, dire):
 
 def plot_compr(outpara):
     nfile = int(outpara['n_dataset'][0])
-    fpr = open('compr.dat', 'r')
+    fpr = open('.data/comprbp.dat', 'r')
     nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
     max_natom = 10
     datafpr = np.zeros((nfile, nsteps, max_natom))
@@ -308,9 +329,9 @@ def plot_compr_(outpara, dire, ty):
     max_natom = 10
     datafpr = np.zeros((nfile, nsteps, max_natom))
     icount = 0
+    natom = outpara['natom']
     print('plot compression R')
     for ifile in range(0, nfile):
-        natom = 5
         for istep in range(0, nsteps):
             datafpr[ifile, istep, :natom] = np.fromfile(
                     fpr, dtype=float, count=natom, sep=' ')
@@ -492,11 +513,12 @@ def plot_ham(outpara):
 
 if __name__ == '__main__':
     para = {}
-    dire = '/home/gz_fan/Documents/ML/dftb/ml'
-    para['n_dataset'] = ['100']
-    nsteps = 20
-    para['mlsteps'] = 50
-    para['save_steps'] = 10
+    dire = '.'
+    para['n_dataset'] = ['50']
+    # nsteps = 30
+    para['mlsteps'] = 30
+    para['save_steps'] = 5
+    para['natom'] = 5
     para['qatomlist'] = ['qatom_dip_sim.dat', 'qatom_dip_and.dat']
     # plot_gap_(para, dire, 'all')
     # plot_dip_(para, dire, 'be_end')

@@ -5,61 +5,76 @@ Calculation with static geometry
 
 ********************************************************************************
  iSCC Total electronic   Diff electronic      SCC error    
-    4   -0.18635265E+01    0.17892998E-09    0.82767322E-08
+    9   -0.27247309E+01   -0.88817842E-15    0.21794122E-10
 ********************************************************************************
 
  Total charge:    -0.00000000
 
  Atomic gross charges (e)
  Atom           Charge
-    1      -0.11454536
-    2       0.11454536
+    1       0.38066313
+    2      -0.04383987
+    3      -0.06913899
+    4      -0.01108304
+    5      -0.25660123
 
-Nr. of electrons (up):      5.00000000
+Nr. of electrons (up):      8.00000000
 Atom populations (up)
  Atom       Population
-    1       4.11454536
-    2       0.88545464
+    1       0.61933687
+    2       1.04383987
+    3       1.06913899
+    4       1.01108304
+    5       4.25660123
 
 l-shell populations (up)
  Atom Sh.   l       Population
-    1   1   0       1.76487284
-    1   2   1       2.34967252
-    2   1   0       0.88545464
+    1   1   0       0.61933687
+    2   1   0       1.04383987
+    3   1   0       1.06913899
+    4   1   0       1.01108304
+    5   1   0       1.84174050
+    5   2   1       2.41486073
 
 Orbital populations (up)
  Atom Sh.   l   m       Population  Label
-    1   1   0   0       1.76487284  s
-    1   2   1  -1       0.78322417  p_y
-    1   2   1   0       0.78322417  p_z
-    1   2   1   1       0.78322417  p_x
-    2   1   0   0       0.88545464  s
+    1   1   0   0       0.61933687  s
+    2   1   0   0       1.04383987  s
+    3   1   0   0       1.06913899  s
+    4   1   0   0       1.01108304  s
+    5   1   0   0       1.84174050  s
+    5   2   1  -1       0.96488592  p_y
+    5   2   1   0       0.73549185  p_z
+    5   2   1   1       0.71448296  p_x
 
-Fermi level:                        -0.1908105320 H           -5.1922 eV
-Band energy:                        -1.8584042681 H          -50.5698 eV
-TS:                                  0.0000000225 H            0.0000 eV
-Band free energy (E-TS):            -1.8584042905 H          -50.5698 eV
-Extrapolated E(0K):                 -1.8584042793 H          -50.5698 eV
-Input / Output electrons (q):      5.0000000000      5.0000000000
+Fermi level:                        -0.1964270436 H           -5.3451 eV
+Band energy:                        -2.8146414269 H          -76.5903 eV
+TS:                                  0.0000000000 H            0.0000 eV
+Band free energy (E-TS):            -2.8146414269 H          -76.5903 eV
+Extrapolated E(0K):                 -2.8146414269 H          -76.5903 eV
+Input / Output electrons (q):      8.0000000000      8.0000000000
 
-Energy H0:                          -1.8642919933 H          -50.7300 eV
-Energy SCC:                          0.0007655218 H            0.0208 eV
-Total Electronic energy:            -1.8635264715 H          -50.7091 eV
-Repulsive energy:                    0.0342635446 H            0.9324 eV
-Total energy:                       -1.8292629269 H          -49.7768 eV
-Extrapolated to 0:                  -1.8292629382 H          -49.7768 eV
-Total Mermin free energy:           -1.8292629494 H          -49.7768 eV
-Force related energy:               -1.8292629494 H          -49.7768 eV
+Energy H0:                          -2.7304644137 H          -74.2997 eV
+Energy SCC:                          0.0057335569 H            0.1560 eV
+Total Electronic energy:            -2.7247308568 H          -74.1437 eV
+Repulsive energy:                   -0.0000698296 H           -0.0019 eV
+Total energy:                       -2.7248006864 H          -74.1456 eV
+Extrapolated to 0:                  -2.7248006864 H          -74.1456 eV
+Total Mermin free energy:           -2.7248006864 H          -74.1456 eV
+Force related energy:               -2.7248006864 H          -74.1456 eV
 
 SCC converged
 
 Total Forces
-    1     -0.070515899861      0.070515899861      0.070515899861
-    2      0.070515899861     -0.070515899861     -0.070515899861
+    1     -0.048832990356      0.051101985750      0.057525115979
+    2      0.013062432437      0.003371970998     -0.044349620293
+    3      0.030812763220     -0.037688114520     -0.038886633948
+    4      0.048682379072     -0.005750188818     -0.033436378440
+    5     -0.043724584373     -0.011035653410      0.059147516702
 
-Maximal derivative component:        0.705159E-01 au
+Maximal derivative component:        0.591475E-01 au
 
-Dipole moment:    0.12249116   -0.12249116   -0.12249116 au
-Dipole moment:    0.31134151   -0.31134151   -0.31134151 Debye
+Dipole moment:   -0.22291346    0.22758736    0.34258180 au
+Dipole moment:   -0.56658956    0.57846941    0.87075615 Debye
 
 

@@ -3,10 +3,8 @@
 '''
 main DFTB code
 required:
-    numpy
-    pytorch
+    numpy, pytorch
 '''
-
 import argparse
 import os
 import numpy as np
@@ -18,7 +16,7 @@ from readt import ReadInt, ReadSKt
 from periodic import Periodic
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
-PUBPARA = {"LDIM": 9, "AUEV": 27.2113845, "BOHR": 0.529177210903, "tol": 1E-4}
+PUBPARA = {"LDIM": 9, "AUEV": 27.2113845, "BOHR": 0.529177249, "tol": 1E-4}
 
 
 def main(para):
@@ -191,7 +189,7 @@ class SCF:
         analysis = Analysis(self.para)
         print_ = Print(self.para)
         self.para['qzero'], ind_nat = self.para['qatom'], self.atind[self.nat]
-        # print('ham:', self.hmat)
+        print('ham:', self.hmat)
 
         icount = 0
         if self.para['HSsym'] in ['symall', 'symall_chol']:
@@ -245,7 +243,6 @@ class SCF:
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         '''
-        print('*' * 35, 'Non-periodic SCC DFTB', '*' * 35)
         elect = DFTBelect(self.para)
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
@@ -326,8 +323,8 @@ class SCF:
                 ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
             energy[iiter] = energy[iiter] - 0.5 * ecoul
             mix.mix(iiter, qzero, qatom, qmix, qdiff)
- 
-           # if reached convergence
+
+            # if reached convergence
             self.print_energy(iiter, energy)
             reach_convergence = self.convergence(iiter, maxiter, qdiff)
             if reach_convergence:
@@ -357,6 +354,7 @@ class SCF:
         eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
         ind_nat = self.atind[self.nat]
         # print('hamt:', self.hmat)
+        print('coor', self.para['coor'])
 
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
@@ -898,7 +896,7 @@ class Print:
 
     def print_dftb_caltail(self):
         print('charge: \n', self.para['qatomall'].detach())
-        print('dipole: \n', self.para['dipole'].detach())
+        print('dipole (eAng): \n', self.para['dipole'].detach())
         print('energy: \n', self.para['energy'].detach())
         print('TS energy: \n', self.para['H0_energy'].detach())
         if self.para['scc'] == 'scc':

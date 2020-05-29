@@ -21,6 +21,8 @@ def loadhdfdata(para):
         nlist += 1
         adl = pya.anidataloader(hdf5file)
         print('nlist:', nlist, hdf5file)
+        if nlist > 4:
+            break
         for data in adl:
             icount += 1
             print(icount)
@@ -57,13 +59,18 @@ def interpskf(para):
 
 if __name__ == '__main__':
     para = {}
-    # 1: CH4, 2: NH3, 3: H2O, 4: C2H6 5: CNH5, 6: N2 7: NH3O 8: NHO 9: COH4
-    # 10: C2H4, 11: CH2O, 12: O2 13: H2O2, 14: C2H2, 15: N2H4, 16: N2H2
-    # 17: C3H8, 18: C2NH7, 19: CNOH3, 20: CO2H2, 21: CN2H4, 22: CNOH3, 23: C3H4
-    # 24: C3H6, 25: C2NH5, 26: C2OH4 (OSerror), 27: NO2H (OSerror), 28: O3H2 ()
-    # 29: C2OH6 (), 30: C2NH7 (), 31: C2OH6 (), 32: C3H6 (), 33: C2OH4 ()
-    # 34: CO2 (), 35
-    para['hdf_num'] = 3
+    # ani_gdb_s01.h5: 1: CH4, 2: NH3, 3: H2O
+    # ani_gdb_s02.h5: 1: C2H6, 2: CH5N, 3: N2 4: NH3O, 5: NHO, 6: CH4O, 7: C2H4
+    #                 8: CH2O, 9: O2, 10: O2H2, 11: C2H2, 12: N2H4, 13: N2H2
+    # ani_gdb_s03.h5: 1: C3H8, 2: C2NH7, 3: CH3ON, 4: CH2O2, 5: CH4N2, 6: CH3ON
+    #                 7: C3H4, 8: C3H6, 9: C2H5N, 10: C2H4O, 11: NHO2,
+    #                 12: O3H2, 13: C2OH6, 14: C2H7N, 15: C2H6O, 16: C3H6,
+    #                 17: C2H4O, 18: CO2, 19: C2H3N, 20: CH4N2
+    # ani_gdb_s04.h5: 1: C3H9N, 2: C3H8O, 3: CH2O3, 4: C4H10, 5: C3H9N
+    #                 6: C3H8O, 7:C2H8N2 , 8: C2H7ON, 9: C2H6O2, 10: C3H9N
+    #                 11: NHO2, 12: C4H8, 13: C3H9N, 14: C3H6O, 15: C3H5N
+    #                 16: C3H7N, 17: C3H6O,18: C2H4O2, 19: C2H3NO, 20: C2H6N2
+    para['hdf_num'] = 20
     hdffilelist = []
     filelist = os.listdir('data/an1')
     filelist.sort()

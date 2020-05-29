@@ -97,31 +97,40 @@ class Dftbplus:
         cmd = 'mv dftb_in.temp '+direct+'/dftb_in.hsd'
         results = subprocess.run(cmd, shell=True, universal_newlines=True, check=True)
 
-    def read_bandenergy(self, para, nfile, dire):
+    def read_bandenergy(self, para, nfile, dire,
+                        inunit='hartree', outunit='hartree'):
         '''read file bandenergy.dat, which is HOMO and LUMO data'''
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2))
         for ifile in range(0, nfile):
             ibandenergy = np.fromfile(fp, dtype=float, count=2, sep=' ')
-            bandenergy[ifile, :] = ibandenergy[:]
+            if inunit == outunit:
+                bandenergy[ifile, :] = ibandenergy[:]
         return bandenergy
 
-    def read_dipole(self, para, nfile, dire):
+    def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
         '''read file dip.dat, which is dipole data'''
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3))
         for ifile in range(0, nfile):
             idipole = np.fromfile(fp, dtype=float, count=3, sep=' ')
-            dipole[ifile, :] = idipole[:]
+            if unit == 'eang' and outunit == 'debye':
+                dipole[ifile, :] = idipole[:] / 0.2081943
+            elif unit == outunit:
+                dipole[ifile, :] = idipole[:]
+            elif unit == 'debye' and outunit == 'eang':
+                dipole[ifile, :] = idipole[:] * 0.2081943
         return dipole
 
-    def read_energy(self, para, nfile, dire):
+    def read_energy(self, para, nfile, dire,
+                    inunit='hartree', outunit='hartree'):
         '''read file dip.dat, which is dipole data'''
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros(nfile)
         for ifile in range(0, nfile):
             iener = np.fromfile(fp, dtype=float, count=1, sep=' ')
-            energy[ifile] = iener
+            if inunit == outunit:
+                energy[ifile] = iener
         return energy
 
     def read_hstable(self, para, nfile, dire):
@@ -135,12 +144,12 @@ class Dftbplus:
 
 
 class FHIaims:
+
     def __init__(self, para):
         self.para = para
 
     def geo_nonpe_hdf(self, para, ibatch, coor):
         '''input is from hdf data, output is FHI-aims input: geo.in'''
-        print(para['speciedict'])
         specie, speciedict, symbols = para['specie'], para['speciedict'], \
             para['symbols']
         with open('geometry.in.{}'.format(ibatch), 'w') as fp:
@@ -158,43 +167,53 @@ class FHIaims:
     def geo_pe():
         pass
 
-    def read_bandenergy(self, para, nfile, dire):
+    def read_bandenergy(self, para, nfile, dire,
+                        inunit='hartree', outunit='hartree'):
         '''read file bandenergy.dat, which is HOMO and LUMO data'''
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2))
         for ifile in range(0, nfile):
             ibandenergy = np.fromfile(fp, dtype=float, count=2, sep=' ')
-            bandenergy[ifile, :] = ibandenergy[:]
+            if inunit == outunit:
+                bandenergy[ifile, :] = ibandenergy[:]
         return bandenergy
 
-    def read_dipole(self, para, nfile, dire):
+    def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
         '''read file dip.dat, which is dipole data'''
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3))
         for ifile in range(0, nfile):
             idipole = np.fromfile(fp, dtype=float, count=3, sep=' ')
-            dipole[ifile, :] = idipole[:]
+            if unit == 'eang' and outunit == 'debye':
+                dipole[ifile, :] = idipole[:] / 0.2081943
+            elif unit == outunit:
+                dipole[ifile, :] = idipole[:]
+            elif unit == 'debye' and outunit == 'eang':
+                dipole[ifile, :] = idipole[:] * 0.2081943
         return dipole
 
-    def read_energy(self, para, nfile, dire):
+    def read_energy(self, para, nfile, dire,
+                    inunit='hartree', outunit='hartree'):
         '''read file dip.dat, which is dipole data'''
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros(nfile)
         for ifile in range(0, nfile):
             iener = np.fromfile(fp, dtype=float, count=1, sep=' ')
-            energy[ifile] = iener[:]
+            if inunit == outunit:
+                energy[ifile] = iener[:]
         return energy
 
-    def read_qatom(self, para, nfile, dire):
+    def read_qatom(self, para, nfile, dire, inunit='e', outunit='e'):
         '''read file dip.dat, which is dipole data'''
         fp = open(os.path.join(dire, 'qatomref.dat'))
         nmaxatom = 10
-        dipole = np.zeros((nfile, nmaxatom))
+        qatom = np.zeros((nfile, nmaxatom))
         for ifile in range(0, nfile):
             natom = para['coorall'][ifile].shape[0]
             iqatom = np.fromfile(fp, dtype=float, count=natom, sep=' ')
-            dipole[ifile, :natom] = iqatom[:]
-        return dipole
+            if inunit == outunit:
+                qatom[ifile, :natom] = iqatom[:]
+        return qatom
 
 
 class NWchem:
