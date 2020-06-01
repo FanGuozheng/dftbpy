@@ -10,6 +10,7 @@ import os
 import numpy as np
 import torch as t
 import bisect
+import parameters
 from slakot import ReadSlaKo, SlaKo, SKTran
 from electront import DFTBelect
 from readt import ReadInt, ReadSKt
@@ -184,12 +185,11 @@ class SCF:
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         '''
-        get_qatom(self.para)
-        elect = DFTBelect(self.para)
-        analysis = Analysis(self.para)
+        analysis, elect = Analysis(self.para), DFTBelect(self.para)
+
+        analysis.get_qatom()
         print_ = Print(self.para)
         self.para['qzero'], ind_nat = self.para['qatom'], self.atind[self.nat]
-        print('ham:', self.hmat)
 
         icount = 0
         if self.para['HSsym'] in ['symall', 'symall_chol']:
@@ -234,6 +234,7 @@ class SCF:
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_ch, qatom
+        self.para['denmat'] = denmat
         analysis.dftb_energy()
         analysis.sum_property(), print_.print_dftb_caltail()
 
@@ -247,9 +248,10 @@ class SCF:
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
+
         print_ = Print(self.para)
         maxiter = self.para['maxIter']
-        get_qatom(self.para)
+        analysis.get_qatom()
         gmat = elect.gmatrix()
 
         energy = t.zeros(maxiter)
@@ -332,6 +334,7 @@ class SCF:
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
+        self.para['denmat'] = denmat
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def scf_npe_scc_symall(self):
@@ -344,9 +347,10 @@ class SCF:
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
+
         print_ = Print(self.para)
         maxiter = self.para['maxIter']
-        get_qatom(self.para)
+        analysis.get_qatom()
         gmat = elect.gmatrix()
 
         energy = t.zeros(maxiter)
@@ -354,7 +358,6 @@ class SCF:
         eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
         ind_nat = self.atind[self.nat]
         # print('hamt:', self.hmat)
-        print('coor', self.para['coor'])
 
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
@@ -411,6 +414,7 @@ class SCF:
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
+        self.para['denmat'] = denmat
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def scf_pe_scc(self):
@@ -424,12 +428,12 @@ class SCF:
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         '''
         elect = DFTBelect(self.para)
-        get_qatom(self.para)
         gmat = elect.gmatrix()
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
         print_ = Print(self.para)
+        analysis.get_qatom()
 
         energy = 0
         self.para['qzero'] = qzero = self.para['qatom']
@@ -518,6 +522,7 @@ class SCF:
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom_
+        self.para['denmat'] = denmat_
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def _cholesky(self, matrixa, matrixb):
@@ -943,60 +948,160 @@ class Analysis:
         qzero, qatom = self.para['qzero'], self.para['qatomall']
         self.para['homo_lumo'] = eigval[int(nocc) - 1:int(nocc) + 1] * \
             PUBPARA['AUEV']
-        self.para['dipole'] = get_dipole(self.para, qzero, qatom)
+        self.para['dipole'] = self.get_dipole(qzero, qatom)
+        if self.para['LMBD_DFTB']:
+            self.mbd_init()
+            self.qatom_population()
+            self.get_cpa()
+            self.get_mbdenergy()
 
+    def get_qatom(self):
+        '''get the basic electronic info of each atom'''
+        atomname = self.para['atomnameall']
+        num_electrons = 0
+        qatom = t.empty(self.nat)
+        for i in range(0, self.nat):
+            qatom[i] = VAL_ELEC[atomname[i]]
+            num_electrons += qatom[i]
+        self.para['qatom'] = qatom
+        self.para['nelectrons'] = num_electrons
 
-def read_sk(para):
-    '''
-    generate the electrons, the onsite only includes s, p and d oribitals
-    '''
-    atomname = para['atomnameall']
-    onsite = np.zeros((len(atomname), 3))
-    spe = np.zeros(len(atomname))
-    uhubb = np.zeros((len(atomname), 3))
-    occ_atom = np.zeros((len(atomname), 3))
-    atomname_set = list(set(atomname))
-    icount = 0
-    for namei in atomname:
-        for namej in atomname:
-            ReadSKt(para, namei, namej)
-        onsite[icount, :] = para['espd_uspd'+namei+namei][0:3]
-        spe[icount] = para['espd_uspd'+namei+namei][3]
-        uhubb[icount, :] = para['espd_uspd'+namei+namei][4:7]
-        occ_atom[icount, :] = para['espd_uspd'+namei+namei][7:10]
-        icount += 1
-    para['atomname_set'] = atomname_set
-    para['onsite'] = onsite
-    para['spe'] = spe
-    para['uhubb'] = uhubb
-    para['occ_atom'] = occ_atom
-    return para
+    def get_dipole(self, qzero, qatom):
+        '''read and process dipole data'''
+        coor = self.para['coor']
+        dipole = t.zeros(3)
+        for iatom in range(0, self.nat):
+            if type(coor[iatom][:]) is list:
+                coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
+                dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t
+            else:
+                dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
+                    coor[iatom][1:]
+        return dipole
 
+    def mbd_init(self):
+        parameters.mbd_parameter(self.para)
+        self.para['alpha_free'] = t.zeros(self.nat)
+        self.para['C6_free'] = t.zeros(self.nat)
+        self.para['R_vdw_free'] = t.zeros(self.nat)
+        self.para['alpha_ts'] = t.zeros(self.nat)
+        self.para['R_TS_VdW'] = t.zeros(self.nat)
+        self.para['sigma'] = t.zeros(self.nat)
+        for iat in range(self.nat):
+            parameters.mbd_vdw_para(self.para, iat)
 
-def get_qatom(para):
-    '''get the basic electronic info of each atom'''
-    natom = para['natom']
-    atomname = para['atomnameall']
-    num_electrons = 0
-    qatom = t.empty(natom)
-    for i in range(0, natom):
-        qatom[i] = VAL_ELEC[atomname[i]]
-        num_electrons += qatom[i]
-    para['qatom'] = qatom
-    para['nelectrons'] = num_electrons
-    return para
+    def mbdvdw_para_init(self):
+        self.para['num_pairs'] = int((self.nat ** 2 - self.nat) / 2 + self.nat)
+        pairs_scs = t.zeros(self.para['num_pairs'], 2)
+        counter = 0
+        for p in range(self.nat):
+            for q in range(p, self.nat):
+                pairs_scs[counter, 0],pairs_scs[counter, 1] = p, q
+                counter = counter + 1
+        self.para['pairs_scs'] = pairs_scs
 
+    def qatom_population(self):
+        '''sum density matrix diagnal value for each atom'''
+        self.para['qatompopulation'] = t.zeros(self.nat)
+        atomind = self.para['atomind']
+        denmat = self.para['denmat'][-1].diag()
+        for iatom in range(self.nat):
+            ii1 = atomind[iatom]
+            ii2 = atomind[iatom + 1]
+            self.para['qatompopulation'][iatom] = denmat[ii1: ii2].sum()
 
-def get_dipole(para, qzero, qatom):
-    '''read and process dipole data'''
-    coor = para['coor']
-    natom = para['natom']
-    dipole = t.zeros(3)
-    for iatom in range(0, natom):
-        if type(coor[iatom][:]) is list:
-            coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
-            dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t
-        else:
-            dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
-                coor[iatom][1:]
-    return dipole
+    def get_cpa(self):
+        '''
+        this is from MBD-DFTB for charge population analysis
+        J. Chem. Phys. 144, 151101 (2016)
+        '''
+        cpa = t.zeros(self.nat)
+        vefftsvdw = t.zeros(self.nat)
+        onsite = self.para['qatompopulation']
+        qzero = self.para['qzero']
+        coor = self.para['coor']
+        for iatom in range(self.nat):
+            cpa[iatom] = 1.0 + (onsite[iatom] - qzero[iatom]) / coor[iatom][0]
+            vefftsvdw[iatom] = coor[iatom][0] + onsite[iatom] - qzero[iatom]
+        # sedc_ts_veff_div_vfree = scaling_ratio
+        self.para['cpa'] = cpa
+        self.para['vefftsvdw'] = vefftsvdw
+
+    def get_mbdenergy(self):
+        omega = self.para['omega']
+        for ieff in range(self.para['n_omega_grid'] + 1):
+            self.mbdvdw_effqts(omega[ieff])
+            self.mbdvdw_SCS()
+
+    def mbdvdw_effqts(self, omega):
+        alpha_free = self.para['alpha_free']
+        C6_free = self.para['C6_free']
+        R_vdw_free = self.para['R_vdw_free']
+        vfree = self.para['atomNumber']
+        VefftsvdW = self.para['vefftsvdw']
+        if self.para['vdw_self_consistent']:
+            dsigmadV = t.zeros(self.nat, self.nat)
+            dR_TS_VdWdV = t.zeros(self.nat, self.nat)
+            dalpha_tsdV = t.zeros(self.nat, self.nat)
+        for iat in range(self.nat):
+            omega_free = ((4.0 / 3.0) * C6_free[iat] / (alpha_free[iat] ** 2))
+
+            # Padé Approx: Tang, K.T, M. Karplus. Phys Rev 171.1 (1968): 70
+            pade_approx = 1.0 / (1.0 + (omega / omega_free) ** 2)
+
+            # Computes sigma
+            gamma = (1.0 / 3.0) * np.sqrt(2.0 / np.pi) * pade_approx * \
+                (alpha_free[iat] / vfree[iat])
+            gamma = gamma ** (1.0 / 3.0)
+            self.para['sigma'][iat] = gamma * VefftsvdW[iat] ** (1.0 / 3.0)
+
+            # Computes R_TS: equation 11 in [PRL 102, 073005 (2009)]
+            xi = R_vdw_free[iat] / (vfree[iat]) ** (1.0 / 3.0)
+            self.para['R_TS_VdW'][iat] = xi * VefftsvdW[iat] ** (1.0 / 3.0)
+
+            # Computes alpha_ts: equation 1 in [PRL 108 236402 (2012)]
+            lambda_ = pade_approx * alpha_free[iat] / vfree[iat]
+            self.para['alpha_ts'][iat] = lambda_ * VefftsvdW[iat]
+
+            if self.para['vdw_self_consistent']:
+                for jat in range(self.nat):
+                    if iat == jat:
+                        dsigmadV[iat, jat] = gamma / \
+                            (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
+                        dR_TS_VdWdV[iat, jat] = xi / \
+                            (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
+                        dalpha_tsdV[iat, jat] = lambda_
+
+    def mbdvdw_SCS(self):
+        self.mbdvdw_para_init()
+        num_pairs = self.para['num_pairs']
+        pairs_scs = self.para['pairs_scs']
+        for ii in range(num_pairs):
+            p, q = pairs_scs[ii, 0], pairs_scs[ii, 1]
+            # cpuid = pairs_scs(i)%cpu
+
+            if cpuid + 1 == me:
+                sl_mult = 1.0
+                self.mbdvdw_TGG(1, p, q, nat, h_, ainv_, tau, Tsr, dTsrdR, dTsrdh, dTsrdV)
+
+                my_tsr[counter,: ,:] = tsr
+
+                if self.para['vdw_self_consistent']:
+                    my_dtsrdv[counter,:,:,:] = dtsrdv
+
+                if self.para['do_forces']:
+                    for s in range(self.nat):
+                        for i_f in range(3):
+                            my_dtsrdr[counter, :, :, 3 * (s - 1) + i_f] = \
+                                dtsrdr[:, :, s, i_f]
+                if not self.para['mbd_vdw_isolated']:
+                    for s in range(3):
+                        for i_f in range(3):
+                            my_dtsrdh[counter, :, :, 3 * (s - 1) + i_f] = \
+                                dtsrdh[:, :, s, i_f]
+                            counter = counter + 1
+    def mbdvdw_TGG(self):
+        pass
+
+    def mbdvdw_calculate_screened_pol(self):
+        pass

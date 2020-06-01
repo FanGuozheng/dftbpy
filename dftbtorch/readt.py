@@ -186,6 +186,7 @@ class ReadInt:
             except IOError:
                 print('please define the coordination')
         self.para['coor'] = t.from_numpy(np.asarray(coor))
+        self.para['atomNumber'] = self.para['coor'][:, 0]
 
     def cal_coor(self):
         '''

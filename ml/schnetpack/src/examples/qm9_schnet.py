@@ -11,7 +11,8 @@ from schnetpack.datasets import *
 data = QM9("qm9.db")
 
 # split in train and val
-train, val, test = data.create_splits(100000, 10000)
+# train, val, test = data.create_splits(100000, 10000)
+train, val, test = data.create_splits(1000, 100)
 loader = spk.data.AtomsLoader(train, batch_size=100, num_workers=4)
 val_loader = spk.data.AtomsLoader(val)
 

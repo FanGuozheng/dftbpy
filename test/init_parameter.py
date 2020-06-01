@@ -90,6 +90,7 @@ def init_dftb_ml(para):
 
     # ----------------------------- DFTB -----------------------------
     para['LReadInput'] = False
+    para['LMBD_DFTB'] = False
     para['convergenceType'], para['energy_tol'] = 'energy', 1e-6
     para['scf'] = True
     para['scc'] = 'scc'

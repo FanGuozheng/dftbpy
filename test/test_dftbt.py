@@ -40,6 +40,7 @@ def nonscc_CH4(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
     test_nonscc_CH4(para)
 
@@ -112,6 +113,7 @@ def scc_CH4(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
     # test_scc_CH4(para)
 
@@ -146,6 +148,7 @@ def scc_C2H6(para):
             [1, -1.144929, 0.6961519, 0.6684843],
             [1, -1.1742622, -1.0236914, 0.38357222],
             [1, -1.1476712, 0.3453085, -1.017948]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
 
 
@@ -182,6 +185,7 @@ def scc_CH4_compr(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+    para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 3.0
     para['C_init_compr'] = 3.0
     para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -231,6 +235,7 @@ def nonscc_CH4_compr(para):
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+    para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 3.34
     para['C_init_compr'] = 4.07
     para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -274,6 +279,7 @@ def nonscc_CO(para):
     para['coor'] = t.Tensor([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
     test_nonsccCO(para)
 
@@ -300,6 +306,7 @@ def scc_H(para):
     para['grid0'] = 0.4
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
     para['coor'] = t.Tensor([[1, 0.0000000000, 0.0000000000, 0.0000000000]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
 
 
@@ -325,6 +332,7 @@ def scc_C(para):
     para['grid0'] = 0.4
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
     para['coor'] = t.Tensor([[6, 0.0000000000, 0.0000000000, 0.0000000000]])
+    para['atomNumber'] = para['coor'][:, 0]
     main(para)
 
 
@@ -347,9 +355,13 @@ if __name__ == '__main__':
     para['LReadInput'] = False  # define parameters in python, not read input
     para['Lml_HS'] = False  # donot perform ML process
     para['scf'] = True
+    para['LMBD_DFTB'] = True
+    if para['LMBD_DFTB']:
+        para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
+        para['vdw_self_consistent'] = True
     # scc_CH4_compr(para)
-    scc_C2H6(para)
+    # scc_C2H6(para)
     # nonscc_CH4_compr(para)
-    # scc_CH4(para)
+    scc_CH4(para)
     # nonscc_CO(para)
     # nonscc_CH4(para)

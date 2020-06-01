@@ -37,7 +37,9 @@ class DFTBelect:
         return occ
 
     def fermiold(self, eigval, occ):
-        '''fermi-dirac distributions'''
+        '''
+        fermi-dirac distributions
+        '''
         nelect = self.para['nelectrons']
         natom = self.para['natom']
         atomind = self.para['atomind']
@@ -215,7 +217,9 @@ class DFTBelect:
         return gval
 
     def shifthamgam(self, para, qatom, qzero, gmat):
-        '''this function is to realize: sum_K(gamma_IK * Delta_q_K)'''
+        '''
+        this function is to realize: sum_K(gamma_IK * Delta_q_K)
+        '''
         natom = para['natom']
         shift = t.zeros(natom)
         qdiff = t.zeros(natom)
@@ -242,7 +246,11 @@ class DFTBelect:
         return shift
 
     def mulliken(self, sym, overmat, denmat):
-        '''calculate Mulliken charge'''
+        '''
+        calculate Mulliken charge
+        symhalf is used to calculate the matrice are upper or lower
+        symall and symall_chol are symmetric matrice
+        '''
         norbs = int(self.atind[self.nat])
         qatom = t.zeros(self.nat)
         if sym == 'symhalf':

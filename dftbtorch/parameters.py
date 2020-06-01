@@ -3,6 +3,7 @@
 """
 definition of parameters
 """
+import torch as t
 
 
 def dftb_parameter(para):
@@ -25,27 +26,43 @@ def mbd_parameter(para):
 
 
 def gauss_legendre_grid15(para):
-    omega, omega_weight = t.zeros(15), t.zeros(15)
-    omega[0] = 0.0000000000000000, omega_weight[0] = 0.0000000000000000
-    omega[1] = 0.0036240021641946, omega_weight[1] = 0.0093377589930291
-    omega[2] = 0.0194272861575501, omega_weight[2] = 0.0224989668490614
-    omega[3] = 0.0492780681398096, omega_weight[3] = 0.0376452136210375
-    omega[4] = 0.0958870685315184, omega_weight[4] = 0.0563236089195038
-    omega[5] = 0.1638582152651668, omega_weight[5] = 0.0808455433033145
-    omega[6] = 0.2607386870266663, omega_weight[6] = 0.1149344187522071
-    omega[7] = 0.3990059108653618, omega_weight[7] = 0.1650309702105489
-    omega[8] = 0.6000000000000000, omega_weight[8] = 0.2430938903106735
-    omega[9] = 0.9022422731012530, omega_weight[9] = 0.3731722103362876
-    omega[10] = 1.3806926931529038, omega_weight[10] = 0.6086136045730677
-    omega[11] = 2.1970213664137801, omega_weight[11] = 1.0839821838000396
-    omega[12] = 3.7544165810186048, omega_weight[12] = 2.2053264790411675
-    omega[13] = 7.3054811925383074, omega_weight[13] = 5.5809087182012016
-    omega[14] = 18.5306376341242682, omega_weight[14] = 21.4605477286440589
-    omega[15] = 99.3376890214983490, omega_weight[15] = 255.9577387044332113
+    omega, omega_weight = t.zeros(16), t.zeros(16)
+    omega[0] = 0.0000000000000000
+    omega_weight[0] = 0.0000000000000000
+    omega[1] = 0.0036240021641946
+    omega_weight[1] = 0.0093377589930291
+    omega[2] = 0.0194272861575501
+    omega_weight[2] = 0.0224989668490614
+    omega[3] = 0.0492780681398096
+    omega_weight[3] = 0.0376452136210375
+    omega[4] = 0.0958870685315184
+    omega_weight[4] = 0.0563236089195038
+    omega[5] = 0.1638582152651668
+    omega_weight[5] = 0.0808455433033145
+    omega[6] = 0.2607386870266663
+    omega_weight[6] = 0.1149344187522071
+    omega[7] = 0.3990059108653618
+    omega_weight[7] = 0.1650309702105489
+    omega[8] = 0.6000000000000000
+    omega_weight[8] = 0.2430938903106735
+    omega[9] = 0.9022422731012530
+    omega_weight[9] = 0.3731722103362876
+    omega[10] = 1.3806926931529038
+    omega_weight[10] = 0.6086136045730677
+    omega[11] = 2.1970213664137801
+    omega_weight[11] = 1.0839821838000396
+    omega[12] = 3.7544165810186048
+    omega_weight[12] = 2.2053264790411675
+    omega[13] = 7.3054811925383074
+    omega_weight[13] = 5.5809087182012016
+    omega[14] = 18.5306376341242682
+    omega_weight[14] = 21.4605477286440589
+    omega[15] = 99.3376890214983490
+    omega_weight[15] = 255.9577387044332113
     para['omega'], para['omega_weight'] = omega, omega_weight
 
 
-def mbd_vdw_para(para):
+def mbd_vdw_para(para, iat):
     atom_num = para['atomNumber'][iat]
     if atom_num == 1:
         alpha = 4.500000
@@ -222,6 +239,6 @@ def mbd_vdw_para(para):
         C6 = 162.000000
         R0 = 3.930000
 
-    para['alpha0'][iat] = alpha
-    para['Cfree'][iat] = C6
-    para['R0_vdw'][iat] = R0
+    para['alpha_free'][iat] = alpha
+    para['C6_free'][iat] = C6
+    para['R_vdw_free'][iat] = R0
