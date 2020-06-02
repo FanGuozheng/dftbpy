@@ -33,9 +33,9 @@ class DFTBmath:
         rMax = ngridpoint * incr + distFudge
         ind = int(rr / incr)
         leng = ngridpoint
-        xa = t.zeros(ninterp)
-        yb = t.zeros(ninterp, 20)
-        dd = t.zeros(20)
+        xa = t.zeros((ninterp), dtype=t.float64)
+        yb = t.zeros((ninterp, 20), dtype=t.float64)
+        dd = t.zeros((20), dtype=t.float64)
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
         if rr >= rMax:

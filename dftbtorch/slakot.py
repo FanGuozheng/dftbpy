@@ -51,10 +51,10 @@ class ReadSlaKo:
         read the SK table raw data, right now only for s, p, d oribitals
         '''
         atomname, natom = self.para['atomnameall'], self.para['natom']
-        self.para['onsite'] = t.zeros(natom, 3)
-        self.para['spe'] = t.zeros(natom)
-        self.para['uhubb'] = t.zeros(natom, 3)
-        self.para['occ_atom'] = t.zeros(natom, 3)
+        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['spe'] = t.zeros((natom), dtype=t.float64)
+        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
         icount = 0
         print('read_sk')
         for namei in atomname:
@@ -83,6 +83,7 @@ class SKTran:
         SK transformations
         '''
         self.para = para
+        self.math = DFTBmath(self.para)
 
         if not self.para['Lml']:
             self.get_sk_all()
@@ -102,7 +103,7 @@ class SKTran:
         according to distance between atom i and j, get integrals from .skf
         '''
         natom = self.para['natom']
-        self.para['hs_all'] = t.zeros(natom, natom, 20)
+        self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
         for i in range(0, natom):
             lmaxi = self.para['lmaxall'][i]
@@ -125,23 +126,24 @@ class SKTran:
                 else:
                     lmax, lmin = max(lmaxi, lmaxj), min(lmaxi, lmaxj)
                     if lmax == 1:
-                        # self.para['hsdata'] = DFTBmath(self.para).sk_interp(dd, nameij)
-                        getsk(self.para, nameij, dd)
+                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
+                        # getsk(self.para, nameij, dd)
                         if type(self.para['hsdata']) is t.Tensor:
                             self.para['hs_all'][i, j, :] = self.para['hsdata']
                         else:
                             self.para['hs_all'][i, j, :] = \
                                 t.from_numpy(self.para['hsdata'])
                     elif lmin == 1 and lmax == 2:
-                        # self.para['hsdata'] = DFTBmath(self.para).sk_interp(dd, nameij)
-                        getsk(self.para, nameij, dd)
+                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
+                        # getsk(self.para, nameij, dd)
                         if type(self.para['hsdata']) is t.Tensor:
                             self.para['hs_all'][i, j, :] = self.para['hsdata']
                         else:
                             self.para['hs_all'][i, j, :] = \
                                 t.from_numpy(self.para['hsdata'])
                     elif lmin == 2 and lmax == 2:
-                        getsk(self.para, nameij, dd)
+                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
+                        # getsk(self.para, nameij, dd)
                         if type(self.para['hsdata']) is t.Tensor:
                             self.para['hs_all'][i, j, :] = self.para['hsdata']
                         else:
@@ -225,12 +227,12 @@ class SKTran:
         norb = atomind[natom]
         atomname = self.para['atomnameall']
         dvec = self.para['dvec']
-        self.para['hammat'] = t.zeros(norb, norb)
-        self.para['overmat'] = t.zeros(norb, norb)
-        self.para['ham_'] = t.zeros(norb, norb)
-        self.para['over_'] = t.zeros(norb, norb)
-        self.para['h_onsite'] = t.zeros(norb)
-        self.para['s_onsite'] = t.zeros(norb)
+        self.para['hammat'] = t.zeros((norb, norb), dtype=t.float64)
+        self.para['overmat'] = t.zeros((norb, norb), dtype=t.float64)
+        self.para['ham_'] = t.zeros((norb, norb), dtype=t.float64)
+        self.para['over_'] = t.zeros((norb, norb), dtype=t.float64)
+        self.para['h_onsite'] = t.zeros((norb), dtype=t.float64)
+        self.para['s_onsite'] = t.zeros((norb), dtype=t.float64)
         rr = t.zeros(3)
         for i in range(0, natom):
             lmaxi = self.para['lmaxall'][i]

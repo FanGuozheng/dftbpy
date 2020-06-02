@@ -199,8 +199,9 @@ class ReadInt:
         '''
         coor = self.para['coor']
         natom = np.shape(coor)[0]
-        distance = t.zeros(natom, natom)
-        dnorm, dvec = t.zeros(natom, natom, 3), t.zeros(natom, natom, 3)
+        distance = t.zeros((natom, natom), dtype=t.float64)
+        dnorm = t.zeros((natom, natom, 3), dtype=t.float64)
+        dvec = t.zeros((natom, natom, 3), dtype=t.float64)
         atomnamelist, atom_lmax, atomind = [], [], []
         self.para['natomtype'] = []
 
@@ -227,7 +228,6 @@ class ReadInt:
         self.para['dvec'], self.para['natom'] = dvec, natom
         self.para['lmaxall'], self.para['atomind'] = atom_lmax, atomind
         self.para['atomnameall'] = atomnamelist
-
         self.cal_neighbour()
 
     def cal_neighbour(self):
@@ -282,6 +282,7 @@ class ReadSKt:
                     fp_line = [float(ii) for ii in fp.readline().split()]
                     fp_line_ = t.from_numpy(np.asarray(fp_line))
                     self.para['onsite' + nameij] = fp_line_[0:3]
+                    print(fp_line_[0:3])
                     self.para['spe' + nameij] = fp_line_[3]
                     self.para['uhubb' + nameij] = fp_line_[4:7]
                     self.para['occ_skf' + nameij] = fp_line_[7:10]

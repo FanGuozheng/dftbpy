@@ -179,6 +179,7 @@ class SCF:
         self.atind2 = para['atomind2']
         self.hmat = para['hammat']
         self.smat = para['overmat']
+        print(self.hmat)
 
     def scf_npe_nscc(self):
         '''
@@ -900,13 +901,16 @@ class Print:
             print('*' * 35, 'Periodic SCC-DFTB', '*' * 35)
 
     def print_dftb_caltail(self):
-        print('charge: \n', self.para['qatomall'].detach())
+        t.set_printoptions(precision=10)
+        print('charge (e): \n', self.para['qatomall'].detach())
         print('dipole (eAng): \n', self.para['dipole'].detach())
-        print('energy: \n', self.para['energy'].detach())
-        print('TS energy: \n', self.para['H0_energy'].detach())
+        print('energy (Hartree): \n', self.para['energy'].detach())
+        print('TS energy (Hartree): \n', self.para['H0_energy'].detach())
         if self.para['scc'] == 'scc':
-            print('Coulomb energy: \n', -self.para['coul_energy'].detach() / 2)
-        print('repulsive energy: \n', self.para['rep_energy'].detach())
+            print('Coulomb energy (Hartree): \n',
+                  -self.para['coul_energy'].detach())
+        print('repulsive energy (Hartree): \n',
+              self.para['rep_energy'].detach())
 
 
 class Analysis:
@@ -934,10 +938,10 @@ class Analysis:
             for i in range(0, self.nat):
                 ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
             # energy[iiter] = energy[iiter] - 0.5 * ecoul
-            self.para['coul_energy'] = ecoul
+            self.para['coul_energy'] = ecoul / 2.0
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
-                    self.para['rep_energy'] - 0.5 * self.para['coul_energy']
+                    self.para['rep_energy'] - self.para['coul_energy']
             else:
                 self.para['energy'] = self.para['H0_energy'] + \
                     self.para['coul_energy']

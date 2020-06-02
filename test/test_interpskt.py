@@ -21,7 +21,7 @@ def loadhdfdata(para):
         nlist += 1
         adl = pya.anidataloader(hdf5file)
         print('nlist:', nlist, hdf5file)
-        if nlist > 4:
+        if nlist > 3:
             break
         for data in adl:
             icount += 1
@@ -43,7 +43,7 @@ def loadhdfdata(para):
                 [para['atomspecie'].append(ispecie) for ispecie in specie]
                 # para['speciedict'] = speciedict
                 print(icount, len(para['coorall']), data['species'])
-                # print(para['coorall'])
+                print(para['coorall'])
 
 
 def interpskf(para):
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     #                 6: C3H8O, 7:C2H8N2 , 8: C2H7ON, 9: C2H6O2, 10: C3H9N
     #                 11: NHO2, 12: C4H8, 13: C3H9N, 14: C3H6O, 15: C3H5N
     #                 16: C3H7N, 17: C3H6O,18: C2H4O2, 19: C2H3NO, 20: C2H6N2
-    para['hdf_num'] = 20
+    para['hdf_num'] = 13
     hdffilelist = []
     filelist = os.listdir('data/an1')
     filelist.sort()

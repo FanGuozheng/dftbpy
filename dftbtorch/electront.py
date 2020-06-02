@@ -15,7 +15,7 @@ class DFTBelect:
         fermi distribution
         there is no gradient here right now
         '''
-        occ = t.zeros(self.atind[self.nat])
+        occ = t.zeros((self.atind[self.nat]), dtype=t.float64)
         nelect = self.para['nelectrons']
         natom = self.para['natom']
         norbs = int(self.atind[natom])
