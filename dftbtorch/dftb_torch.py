@@ -13,7 +13,7 @@ import bisect
 import parameters
 from slakot import ReadSlaKo, SlaKo, SKTran
 from electront import DFTBelect
-from readt import ReadInt, ReadSKt
+from readt import ReadInt
 from periodic import Periodic
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
@@ -196,7 +196,8 @@ class SCF:
         if self.para['HSsym'] in ['symall', 'symall_chol']:
             eigm, overm = self.hmat, self.smat
         elif self.para['HSsym'] == 'symhalf':
-            eigm, overm = t.zeros(ind_nat, ind_nat), t.zeros(ind_nat, ind_nat)
+            eigm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            overm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             for iind in range(0, ind_nat):
                 for jind in range(0, iind + 1):
                     eigm[jind, iind] = self.hmat[icount]
@@ -224,7 +225,7 @@ class SCF:
 
         # calculate mulliken charges
         if self.para['HSsym'] == 'symhalf':
-            denmat_ = t.zeros(self.atind2)
+            denmat_ = t.zeros((self.atind2), dtype=t.float64)
             for iind in range(0, ind_nat):
                 for j_i in range(0, iind + 1):
                     inum = int(iind * (iind + 1) / 2 + j_i)
@@ -255,7 +256,7 @@ class SCF:
         analysis.get_qatom()
         gmat = elect.gmatrix()
 
-        energy = t.zeros(maxiter)
+        energy = t.zeros((maxiter), dtype=t.float64)
         self.para['qzero'] = qzero = self.para['qatom']
         eigm, eigval, qatom, qmix, qdiff = [], [], [], [], []
         denmat, denmat_2d = [], []
@@ -263,12 +264,15 @@ class SCF:
 
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
-            eigm_ = t.zeros(ind_nat, ind_nat)
-            oldsmat_ = t.zeros(ind_nat, ind_nat)
-            denmat_, qatom_ = t.zeros(self.atind2), t.zeros(self.nat)
-            fockmat_ = t.zeros(self.atind2)
-            shift_, shiftorb_ = t.zeros(self.nat), t.zeros(ind_nat)
-            occ_, work_ = t.zeros(ind_nat), t.zeros(ind_nat)
+            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            oldsmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            denmat_ = t.zeros((self.atind2), dtype=t.float64)
+            qatom_ = t.zeros((self.nat), dtype=t.float64)
+            fockmat_ = t.zeros((self.atind2), dtype=t.float64)
+            shift_ = t.zeros((self.nat), dtype=t.float64)
+            shiftorb_ = t.zeros((ind_nat), dtype=t.float64)
+            occ_ = t.zeros((ind_nat), dtype=t.float64)
+            work_ = t.zeros((ind_nat), dtype=t.float64)
 
             if iiter > 0:
                 shift_ = elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
@@ -354,7 +358,7 @@ class SCF:
         analysis.get_qatom()
         gmat = elect.gmatrix()
 
-        energy = t.zeros(maxiter)
+        energy = t.zeros((maxiter), dtype=t.float64)
         self.para['qzero'] = qzero = self.para['qatom']
         eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
         ind_nat = self.atind[self.nat]
@@ -362,9 +366,12 @@ class SCF:
 
         for iiter in range(0, maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
-            qatom_, fockmat_ = t.zeros(self.nat), t.zeros(ind_nat, ind_nat)
-            shift_, shiftorb_ = t.zeros(self.nat), t.zeros(ind_nat)
-            occ_, work_ = t.zeros(ind_nat), t.zeros(ind_nat)
+            qatom_ = t.zeros((self.nat), dtype=t.float64)
+            fockmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            shift_ = t.zeros((self.nat), dtype=t.float64)
+            shiftorb_ = t.zeros((ind_nat), dtype=t.float64)
+            occ_ = t.zeros((ind_nat), dtype=t.float64)
+            work_ = t.zeros((ind_nat), dtype=t.float64)
 
             if iiter > 0:
                 shift_ = elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
@@ -469,7 +476,7 @@ class SCF:
 
         icount = 0
         if self.para['HSsym'] == 'symall':
-            eigm_ = t.zeros(ind_nat, ind_nat)
+            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             for iind in range(0, ind_nat):
                 for j_i in range(0, ind_nat):
                     eigm_[iind, j_i] = self.hmat[iind, j_i] + 0.5 * \
@@ -478,8 +485,8 @@ class SCF:
             oldsmat_ = self.hmat
         elif self.para['HSsym'] == 'symhalf':
             fockmat_ = t.zeros(self.atind2)
-            eigm_ = t.zeros(ind_nat, ind_nat)
-            oldsmat_ = t.zeros(ind_nat, ind_nat)
+            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            oldsmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             for iind in range(0, int(self.atind[self.nat])):
                 for j_i in range(0, iind + 1):
                     fockmat_[icount] = self.hmat[icount] + 0.5 * \
@@ -555,7 +562,7 @@ class SCF:
         A2, LU_A1 = t.solve(A1.t(), chol_l)
         A3 = A2.t()
         eigval, eigm = t.symeig(A3, eigenvectors=True)
-        l_inv, _ = t.solve(t.eye(row), chol_l.t())
+        l_inv, _ = t.solve(t.eye((row), dtype=t.float64), chol_l.t())
         eigm_ab = t.mm(l_inv, eigm)
         return eigval, eigm_ab
 
@@ -743,7 +750,7 @@ class Repulsive():
         Periodic(self.para).get_neighbour(cutoff='repulsive')
 
     def cal_rep_energy(self):
-        self.rep_energy = t.zeros(self.nat)
+        self.rep_energy = t.zeros((self.nat), dtype=t.float64)
         atomnameall = self.para['atomnameall']
         for iat in range(0, self.nat):
             for jat in range(iat + 1, self.nat):
@@ -758,7 +765,7 @@ class Repulsive():
 
     def cal_erep_atomij(self, distanceij, nameij):
         nint = self.para['nint_rep' + nameij]
-        alldist = t.zeros(nint + 1)
+        alldist = t.zeros((nint + 1), dtype=t.float64)
         a1 = self.para['a1_rep' + nameij]
         a2 = self.para['a2_rep' + nameij]
         a3 = self.para['a3_rep' + nameij]
@@ -793,15 +800,15 @@ class Mixing:
         self.para = para
         if self.para['mixMethod'] == 'broyden':
             self.df, self.uu = [], []
-            self.ww = t.zeros(self.para['maxIter'])
+            self.ww = t.zeros((self.para['maxIter']), dtype=t.float64)
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
         '''calling different mixing methods'''
         if iiter == 0:
             qmix.append(qzero)
             if self.para['mixMethod'] == 'broyden':
-                self.df.append(t.zeros(self.para['natom']))
-                self.uu.append(t.zeros(self.para['natom']))
+                self.df.append(t.zeros((self.para['natom']), dtype=t.float64))
+                self.uu.append(t.zeros((self.para['natom']), dtype=t.float64))
             qmix_ = self.simple_mix(qzero, qatom[-1], qdiff)
             qmix.append(qmix_)
         else:
@@ -836,9 +843,9 @@ class Mixing:
 
     def broyden_mix(self, iiter, qmix, qatom_, qdiff):
         '''this is for broyden mixing method'''
-        aa = t.zeros(iiter, iiter)
-        cc = t.zeros(iiter, iiter)
-        beta = t.zeros(iiter, iiter)
+        aa = t.zeros((iiter, iiter), dtype=t.float64)
+        cc = t.zeros((iiter, iiter), dtype=t.float64)
+        beta = t.zeros((iiter, iiter), dtype=t.float64)
         weight = 1e-2
         omega0 = 1e-2
         alpha = self.para['mixFactor']
@@ -963,7 +970,7 @@ class Analysis:
         '''get the basic electronic info of each atom'''
         atomname = self.para['atomnameall']
         num_electrons = 0
-        qatom = t.empty(self.nat)
+        qatom = t.zeros((self.nat), dtype=t.float64)
         for i in range(0, self.nat):
             qatom[i] = VAL_ELEC[atomname[i]]
             num_electrons += qatom[i]
@@ -973,7 +980,7 @@ class Analysis:
     def get_dipole(self, qzero, qatom):
         '''read and process dipole data'''
         coor = self.para['coor']
-        dipole = t.zeros(3)
+        dipole = t.zeros((3), dtype=t.float64)
         for iatom in range(0, self.nat):
             if type(coor[iatom][:]) is list:
                 coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
@@ -985,28 +992,29 @@ class Analysis:
 
     def mbd_init(self):
         parameters.mbd_parameter(self.para)
-        self.para['alpha_free'] = t.zeros(self.nat)
-        self.para['C6_free'] = t.zeros(self.nat)
-        self.para['R_vdw_free'] = t.zeros(self.nat)
-        self.para['alpha_ts'] = t.zeros(self.nat)
-        self.para['R_TS_VdW'] = t.zeros(self.nat)
-        self.para['sigma'] = t.zeros(self.nat)
+        self.para['alpha_free'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['C6_free'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['R_vdw_free'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['alpha_ts'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['R_TS_VdW'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['sigma'] = t.zeros((self.nat), dtype=t.float64)
+
         for iat in range(self.nat):
             parameters.mbd_vdw_para(self.para, iat)
 
     def mbdvdw_para_init(self):
         self.para['num_pairs'] = int((self.nat ** 2 - self.nat) / 2 + self.nat)
-        pairs_scs = t.zeros(self.para['num_pairs'], 2)
+        pairs_scs = t.zeros((self.para['num_pairs'], 2), dtype=t.float64)
         counter = 0
         for p in range(self.nat):
             for q in range(p, self.nat):
-                pairs_scs[counter, 0],pairs_scs[counter, 1] = p, q
+                pairs_scs[counter, 0], pairs_scs[counter, 1] = p, q
                 counter = counter + 1
         self.para['pairs_scs'] = pairs_scs
 
     def qatom_population(self):
         '''sum density matrix diagnal value for each atom'''
-        self.para['qatompopulation'] = t.zeros(self.nat)
+        self.para['qatompopulation'] = t.zeros((self.nat), dtype=t.float64)
         atomind = self.para['atomind']
         denmat = self.para['denmat'][-1].diag()
         for iatom in range(self.nat):
@@ -1019,8 +1027,8 @@ class Analysis:
         this is from MBD-DFTB for charge population analysis
         J. Chem. Phys. 144, 151101 (2016)
         '''
-        cpa = t.zeros(self.nat)
-        vefftsvdw = t.zeros(self.nat)
+        cpa = t.zeros((self.nat), dtype=t.float64)
+        vefftsvdw = t.zeros((self.nat), dtype=t.float64)
         onsite = self.para['qatompopulation']
         qzero = self.para['qzero']
         coor = self.para['coor']
@@ -1044,9 +1052,9 @@ class Analysis:
         vfree = self.para['atomNumber']
         VefftsvdW = self.para['vefftsvdw']
         if self.para['vdw_self_consistent']:
-            dsigmadV = t.zeros(self.nat, self.nat)
-            dR_TS_VdWdV = t.zeros(self.nat, self.nat)
-            dalpha_tsdV = t.zeros(self.nat, self.nat)
+            dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
+            dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
+            dalpha_tsdV = t.zeros((self.nat, self.nat), dtype=t.float64)
         for iat in range(self.nat):
             omega_free = ((4.0 / 3.0) * C6_free[iat] / (alpha_free[iat] ** 2))
 

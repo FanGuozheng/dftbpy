@@ -17,12 +17,10 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import write_output as write
 import lattice_cell
-sys.path.append(os.path.join('../'))
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.slakot as slakot
-from geninterpskf import SkInterpolator
 from plot import plot_main
-from readt import ReadInt
+from readt import ReadInt, SkInterpolator
 import init_parameter as initpara
 Directory = '/home/gz_fan/Documents/ML/dftb/ml'
 DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
@@ -103,12 +101,12 @@ class RunML:
         if len(self.para['n_dataset']) == 1:
             self.nbatch = int(self.para['n_dataset'][0])
         self.para['nfile'] = self.nbatch
-        self.para['refhomo_lumo'] = t.zeros(self.nbatch, 2)
-        self.para['refenergy'] = t.zeros(self.nbatch)
-        self.para['refeigval'] = []
-        self.para['refdipole'] = t.zeros(self.nbatch, 3)
-        self.para['natomall'] = t.zeros(self.nbatch)
+        self.para['refhomo_lumo'] = t.zeros((self.nbatch, 2), dtype=t.float64)
+        self.para['refenergy'] = t.zeros((self.nbatch), dtype=t.float64)
+        self.para['refdipole'] = t.zeros((self.nbatch, 3), dtype=t.float64)
+        self.para['natomall'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['specieall'] = []
+        self.para['refeigval'] = []
 
         if self.para['ref'] == 'dftb':
             self.dftb_ref()
@@ -395,7 +393,7 @@ class RunML:
         for ibatch in range(0, self.nbatch):
             eigref = para['refhomo_lumo'][ibatch]
             if 'dipole' in range(0, self.nbatch):
-                dipref = t.zeros(3)
+                dipref = t.zeros((3), dtype=t.float64)
                 dipref[:] = para['refdipole'][ibatch][:]
 
             # for each molecule we will run mlsteps
@@ -446,10 +444,10 @@ class RunML:
 
             # build the ref data
             if any(x in para['target'] for x in ['homo_lumo', 'gap']):
-                homo_lumo_ref = t.zeros(2)
+                homo_lumo_ref = t.zeros((2), dtype=t.float64)
                 homo_lumo_ref[:] = para['refhomo_lumo'][ibatch]
             elif 'dipole' in para['target']:
-                dipref = t.zeros(3)
+                dipref = t.zeros((3), dtype=t.float64)
                 dipref[:] = para['refdipole'][ibatch]
             elif 'hstable' in para['target']:
                 hatableref = para['refhammat'][ibatch]
@@ -687,7 +685,7 @@ class GenMLPara:
     def genml_init_compr(self):
         atomname = self.para['atomnameall']
         natom = self.para['natom']
-        init_compr = t.empty(natom)
+        init_compr = t.zeros((natom), dtype=t.float64)
         icount = 0
         if self.para['Lml_compr_global']:
             for iatom in atomname:
@@ -772,7 +770,7 @@ class LoadData:
                 if icount == ntype:
                     for icoor in data['coordinates']:
                         row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                        coor = t.zeros(row, col + 1)
+                        coor = t.zeros((row, col + 1), dtype=t.float64)
                         for iat in range(0, len(data['species'])):
                             coor[iat, 0] = ATOMNUM[data['species'][iat]]
                             coor[iat, 1:] = t.from_numpy(icoor[iat, :])
@@ -816,7 +814,7 @@ class LoadData:
             newdire = os.path.join(Directory, dire)
             if os.path.exists(os.path.join(newdire,
                                            'bandenergy.dat')):
-                refenergy = Variable(t.empty(nfile, 2),
+                refenergy = Variable(t.zeros((nfile, 2), dtype=t.float64),
                                      requires_grad=False)
                 fpenergy = open(os.path.join(newdire, 'bandenergy.dat'), 'r')
                 for ifile in range(0, nfile):
@@ -826,7 +824,7 @@ class LoadData:
         elif ref == 'dftbrand':
             newdire = os.path.join(Directory, dire)
             if os.path.exists(os.path.join(newdire, 'bandenergy.dat')):
-                refenergy = Variable(t.empty(nfile, 2),
+                refenergy = Variable(t.zeros((nfile, 2), dtype=t.float64),
                                      requires_grad=False)
                 fpenergy = open(os.path.join(newdire, 'bandenergy.dat'), 'r')
                 for ifile in range(0, nfile):

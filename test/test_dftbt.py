@@ -2,9 +2,7 @@
 from __future__ import absolute_import
 import torch as t
 import numpy as np
-import sys
 import os
-sys.path.append(os.path.join('../'))
 import dftbtorch.slakot as slakot
 import dftbtorch.dftb_torch as dftb_torch
 from dftb_torch import main
@@ -165,7 +163,7 @@ def scc_C2H6(para):
     para['Lml_skf'] = True
     para['Lrepulsive'] = True
     para['direSK'] = '../slko'
-    para['coor'] = t.Tensor([
+    para['coor'] = t.tensor(([
             [6, 0.7601011, -0.0086139515, -0.004985126],
             [6, -0.75717264, 0.0053435215, 0.002526484],
             [1, 1.2256869, 0.93354744, -0.2479243],
@@ -173,7 +171,7 @@ def scc_C2H6(para):
             [1, 1.1498983, -0.8023914, -0.7629031],
             [1, -1.144929, 0.6961519, 0.6684843],
             [1, -1.1742622, -1.0236914, 0.38357222],
-            [1, -1.1476712, 0.3453085, -1.017948]])
+            [1, -1.1476712, 0.3453085, -1.017948]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
 
@@ -205,19 +203,19 @@ def scc_CH4_compr(para):
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
     # para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
     para['n_dataset'] = 1
-    para['coor'] = t.Tensor([
+    para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 3.0
     para['C_init_compr'] = 3.0
-    para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00])
-    para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00])
+    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.Tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.interpskf(para)
@@ -255,19 +253,19 @@ def nonscc_CH4_compr(para):
     para['atomspecie_old'] = []
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
     para['n_dataset'] = 1
-    para['coor'] = t.Tensor([
+    para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]])
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 3.34
     para['C_init_compr'] = 4.07
-    para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00])
-    para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00])
+    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                      5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.interpskf(para)
@@ -301,10 +299,10 @@ def nonscc_CO(para):
     para['grid0'] = 0.4
     para['Lrepulsive'] = True
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    para['qatom_xlbomd'] = t.Tensor([4.3, 0.9, 0.9, 0.9, 0.9])
-    para['coor'] = t.Tensor([
-            [6, 0.0000000000, 0.0000000000, 0.0000000000],
-            [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]])
+    para['coor'] = t.tensor((
+            [[6, 0.0000000000, 0.0000000000, 0.0000000000],
+             [8, 0.6512511036458978, -0.6512511036458978,
+              0.6512511036458978]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     test_nonsccCO(para)
@@ -331,7 +329,8 @@ def scc_H(para):
     para['ninterp'] = 8
     para['grid0'] = 0.4
     para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
-    para['coor'] = t.Tensor([[1, 0.0000000000, 0.0000000000, 0.0000000000]])
+    para['coor'] = t.tensor(([[1, 0.0000000000, 0.0000000000, 0.0000000000]]),
+                            dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
 

@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 import matht
 import time
 from scipy import interpolate
-from matht import Bspline, DFTBmath
+from matht import Bspline, DFTBmath, BicubInterp
 from readt import ReadSKt
-from geninterpskf import BicubInterp
+
 
 nls = 1
 nlp = 3

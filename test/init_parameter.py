@@ -26,7 +26,7 @@ def init_dftb_ml(para):
         para['dire_interpSK'] = os.path.join(path, '../slko/H_O_den')
     elif para['dataType'] == 'hdf':
         hdffilelist = []
-        hdffilelist.append('data/an1/ani_gdb_s01.h5')
+        hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
         para['hdf_num'] = 2  # this will determine read which type of molecule
         para['n_dataset'] = ['2']  # how many molecules
@@ -52,10 +52,10 @@ def init_dftb_ml(para):
     # splinetype: Bspline, Polyspline
     para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
     para['target'] = ['dipole']  # dipole, homo_lumo, gap, eigval, qatomall
-    para['mlsteps'] = 3  # how many steps for optimizing in DFTB-ML
+    para['mlsteps'] = 2  # how many steps for optimizing in DFTB-ML
     para['save_steps'] = 1  # how many steps to save the DFTB-ML data
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['lr'] = 1e-1  # learning rate
+    para['lr'] = 5e-1  # learning rate
 
     # the follwing is ML target, if optimize compression radius, integrals...
     para['Lml_skf'] = True  # if use interp to gen .skf with compress_r

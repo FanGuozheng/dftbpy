@@ -520,7 +520,6 @@ class BicubInterp:
             return z1000, z00_10, z0100, z00_01
 
 
-
 class SkInterpolator:
     """This code aims to generate integrals by interpolation method.
     Therefore, the inputs include the grid points of the integrals,

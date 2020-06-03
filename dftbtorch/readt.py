@@ -20,6 +20,14 @@ ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
             "Tm", "Yb", "Lu", "Hf", "Ta", "W ", "Re", "Os", "Ir", "Pt", "Au",
             "Hg", "Tl", "Pb", "Bi", "Po", "At"]
 VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
+intergraltyperef = {'[2, 2, 0, 0]': 0, '[2, 2, 1, 0]': 1, '[2, 2, 2, 0]': 2,
+                    '[1, 2, 0, 0]': 3, '[1, 2, 1, 0]': 4, '[1, 1, 0, 0]': 5,
+                    '[1, 1, 1, 0]': 6, '[0, 2, 0, 0]': 7, '[0, 1, 0, 0]': 8,
+                    '[0, 0, 0, 0]': 9, '[2, 2, 0, 1]': 10, '[2, 2, 1, 1]': 11,
+                    '[2, 2, 2, 1]': 12, '[1, 2, 0, 1]': 13, '[1, 2, 1, 1]': 14,
+                    '[1, 1, 0, 1]': 15, '[1, 1, 1, 1]': 16, '[0, 2, 0, 1]': 17,
+                    '[0, 1, 0, 1]': 18, '[0, 0, 0, 1]': 19}
+ATOM_NUM = {"H": 1, "C": 6, "N": 7, "O": 8}
 
 
 class ReadInt:
@@ -501,3 +509,226 @@ class ReadSKt:
                 lensk = grid * ngridpoint
                 self.para['cutoffsk' + nameij] = cutoff
                 self.para['lensk' + nameij] = lensk
+
+
+class SkInterpolator:
+    """This code aims to generate integrals by interpolation method.
+    Therefore, the inputs include the grid points of the integrals,
+    the compression radius of atom1 (r1) and atom2 (r2)
+    """
+    def __init__(self, para, gridmesh):
+        self.para = para
+        self.gridmesh = gridmesh
+
+    def readskffile(self, namei, namej, directory):
+        """
+        Input:
+            all .skf file, atom names, directory
+        Output:
+            gridmesh_points, onsite_spe_u, mass_rcut, integrals
+        Namestyle:
+            C-H.skf.02.77.03.34, compr of C, H are 2.77 and 3.34, respectively
+        """
+        nameij = namei + namej
+        filenamelist = self.getfilenamelist(namei, namej, directory)
+        nfile, ncompr = len(filenamelist), int(np.sqrt(len(filenamelist)))
+
+        ngridpoint, grid_dist = t.empty(nfile), t.empty(nfile)
+        onsite, spe, uhubb, occ_skf = t.empty(nfile, 3), t.empty(nfile), \
+            t.empty(nfile, 3), t.empty(nfile, 3)
+        mass_rcut = t.empty(nfile, 20)
+        integrals, atomname_filename, self.para['rest'] = [], [], []
+
+        icount = 0
+        for filename in filenamelist:
+            fp = open(os.path.join(directory, filename), 'r')
+            words = fp.readline().split()
+            grid_dist[icount] = float(words[0])
+            ngridpoint[icount] = int(words[1])
+            nitem = int(ngridpoint[icount] * 20)
+            atomname_filename.append((filename.split('.')[0]).split("-"))
+            split = filename.split('.')
+
+            if [namei, split[-1], split[-2]] == [namej, split[-3], split[-4]]:
+                fp_line2 = [float(ii) for ii in fp.readline().split()]
+                fp_line2_ = t.from_numpy(np.asarray(fp_line2))
+                onsite[icount, :] = fp_line2_[0:3]
+                spe[icount] = fp_line2_[3]
+                uhubb[icount, :] = fp_line2_[4:7]
+                occ_skf[icount, :] = fp_line2_[7:10]
+                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                mass_rcut[icount, :] = t.from_numpy(data)
+                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                data.shape = (int(ngridpoint[icount]), 20)
+                integrals.append(data)
+                self.para['rest'].append(fp.read())
+            else:
+                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                mass_rcut[icount, :] = t.from_numpy(data)
+                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                data.shape = (int(ngridpoint[icount]), 20)
+                integrals.append(data)
+                self.para['rest'].append(fp.read())
+            icount += 1
+
+        if self.para['Lrepulsive']:
+            fp = open(os.path.join(directory, namei + '-' + namej + '.rep'), "r")
+            first_line = fp.readline().split()
+            assert 'Spline' in first_line
+            nInt_cutoff = fp.readline().split()
+            nint_ = int(nInt_cutoff[0])
+            self.para['nint_rep' + nameij] = nint_
+            self.para['cutoff_rep' + nameij] = float(nInt_cutoff[1])
+            a123 = fp.readline().split()
+            self.para['a1_rep' + nameij] = float(a123[0])
+            self.para['a2_rep' + nameij] = float(a123[1])
+            self.para['a3_rep' + nameij] = float(a123[2])
+            datarep = np.fromfile(fp, dtype=float,
+                                  count=(nint_-1)*6, sep=' ')
+            datarep.shape = (nint_ - 1, 6)
+            self.para['rep' + nameij] = t.from_numpy(datarep)
+            datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
+            self.para['repend' + nameij] = t.from_numpy(datarepend)
+
+        self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 5)
+        superskf = t.zeros(ncompr, ncompr,
+                           self.para['skf_line_tail' + nameij], 20)
+        mass_rcut_ = t.zeros(ncompr, ncompr, 20)
+        onsite_ = t.zeros(ncompr, ncompr, 3)
+        spe_ = t.zeros(ncompr, ncompr)
+        uhubb_ = t.zeros(ncompr, ncompr, 3)
+        occ_skf_ = t.zeros(ncompr, ncompr, 3)
+        ngridpoint_ = t.zeros(ncompr, ncompr)
+        grid_dist_ = t.zeros(ncompr, ncompr)
+
+        # transfer 1D [nfile, n] to 2D [ncompr, ncompr, n]
+        for skfi in range(0, nfile):
+            rowi = int(skfi // ncompr)
+            colj = int(skfi % ncompr)
+            ingridpoint = int(ngridpoint[skfi])
+            superskf[rowi, colj, :ingridpoint, :] = \
+                t.from_numpy(integrals[skfi])
+            grid_dist_[rowi, colj] = grid_dist[skfi]
+            ngridpoint_[rowi, colj] = ngridpoint[skfi]
+            mass_rcut_[rowi, colj, :] = mass_rcut[skfi, :]
+            onsite_[rowi, colj, :] = onsite[skfi, :]
+            spe_[rowi, colj] = spe[skfi]
+            uhubb_[rowi, colj, :] = uhubb[skfi, :]
+            occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
+        self.para['massrcut_rall' + nameij] = mass_rcut_
+        self.para['onsite_rall' + nameij] = onsite_
+        self.para['spe_rall' + nameij] = spe_
+        self.para['uhubb_rall' + nameij] = uhubb_
+        self.para['occ_skf_rall' + nameij] = occ_skf_
+        self.para['nfile_rall' + nameij] = nfile
+        self.para['grid_dist_rall' + nameij] = grid_dist_
+        self.para['ngridpoint_rall' + nameij] = ngridpoint_
+        self.para['hs_all_rall' + nameij] = superskf
+        self.para['atomnameInSkf' + nameij] = atomname_filename
+
+    def getfilenamelist(self, namei, namej, directory):
+        """read all the skf files and return lists of skf files according to
+        the types of skf """
+        filename = namei + '-' + namej + '.skf.'
+        filenamelist = []
+        filenames = os.listdir(directory)
+        filenames.sort()
+        for name in filenames:
+            if name.startswith(filename):
+                filenamelist.append(name)
+        return filenamelist
+
+    def getallgenintegral(self, ninterpfile, skffile, r1, r2, gridarr1,
+                          gridarr2):
+        """this function is to generate the whole integrals"""
+        superskf = skffile["intergrals"]
+        nfile = skffile["nfilenamelist"]
+        row = int(np.sqrt(nfile))
+        xneigh = (np.abs(gridarr1 - r1)).argmin()
+        yneigh = (np.abs(gridarr2 - r2)).argmin()
+        ninterp = round(xneigh*row + yneigh)
+        ninterpline = int(skffile["gridmeshpoint"][ninterp, 1])
+        # print("ninterpline", ninterpline)
+        hs_skf = np.empty((ninterpline+5, 20))
+        for lineskf in range(0, ninterpline):
+            distance = lineskf*self.gridmesh + self.grid0
+            counti = 0
+            for intergrali in intergraltyperef:
+                znew3 = SkInterpolator.getintegral(self, r1, r2, intergrali,
+                                                   distance, gridarr1,
+                                                   gridarr2, superskf)
+                hs_skf[lineskf, counti] = znew3
+                counti += 1
+        return hs_skf, ninterpline
+
+    def getintegral(self, interpr1, interpr2, integraltype, distance,
+                    gridarr1, gridarr2, superskf):
+        """this function is to generate interpolation at given distance and
+        given compression radius"""
+        numgridpoints = len(gridarr1)
+        numgridpoints2 = len(gridarr2)
+        if numgridpoints != numgridpoints2:
+            print('Error: the dimension is not equal')
+        skftable = np.empty((numgridpoints, numgridpoints))
+        numline = int((distance - self.grid0)/self.gridmesh)
+        numtypeline = intergraltyperef[integraltype]
+        skftable = superskf[:, :, numline, numtypeline]
+        # print('skftable', skftable)
+        funcubic = scipy.interpolate.interp2d(gridarr2, gridarr1, skftable,
+                                              kind='cubic')
+        interporbital = funcubic(interpr2, interpr1)
+        return interporbital
+
+    def polytozero(self, hs_skf, ninterpline):
+        """Here, we fit the tail of skf file (5lines, 5th order)"""
+        ni = ninterpline
+        dx = self.gridmesh * 5
+        ytail = hs_skf[ni - 1, :]
+        ytailp = (hs_skf[ni - 1, :] - hs_skf[ni - 2, :]) / self.gridmesh
+        ytailp2 = (hs_skf[ni - 2, :]-hs_skf[ni - 3, :]) / self.gridmesh
+        ytailpp = (ytailp - ytailp2) / self.gridmesh
+        xx = np.array([self.gridmesh * 4, self.gridmesh * 3, self.gridmesh * 2,
+                       self.gridmesh, 0.0])
+        nline = ninterpline
+        for xxi in xx:
+            dx1 = ytailp * dx
+            dx2 = ytailpp * dx * dx
+            dd = 10.0 * ytail - 4.0 * dx1 + 0.5 * dx2
+            ee = -15.0 * ytail + 7.0 * dx1 - 1.0 * dx2
+            ff = 6.0 * ytail - 3.0 * dx1 + 0.5 * dx2
+            xr = xxi / dx
+            yy = ((ff * xr + ee) * xr + dd) * xr * xr * xr
+            hs_skf[nline, :] = yy
+            nline += 1
+        return hs_skf
+
+    def saveskffile(self, ninterpfile, atomnameall, skffile, hs_skf,
+                    ninterpline):
+        """this function is to save all parts in skf file"""
+        atomname1 = atomnameall[0]
+        atomname2 = atomnameall[1]
+        nfile = skffile["nfilenamelist"]
+        if ninterpfile in (0, 3):
+            print('generate {}-{}.skf'.format(atomname1, atomname2))
+            with open('{}-{}.skf'.format(atomname1, atomname1), 'w') as fopen:
+                fopen.write(str(skffile["gridmeshpoint"][nfile-1][0])+" ")
+                fopen.write(str(int(ninterpline)))
+                fopen.write('\n')
+                np.savetxt(fopen, skffile["onsitespeu"], fmt="%s", newline=" ")
+                fopen.write('\n')
+                np.savetxt(fopen, skffile["massrcut"][nfile-1], newline=" ")
+                fopen.write('\n')
+                np.savetxt(fopen, hs_skf)
+                fopen.write('\n')
+                fopen.write(skffile["rest"])
+        elif ninterpfile in (1, 2):
+            print('generate {}-{}.skf'.format(atomname1, atomname2))
+            with open('{}-{}.skf'.format(atomname1, atomname2), 'w') as fopen:
+                fopen.write(str(skffile["gridmeshpoint"][nfile-1][0])+" ")
+                fopen.write(str(int(ninterpline)))
+                fopen.write('\n')
+                np.savetxt(fopen, skffile["massrcut"][nfile-1], newline=" ")
+                fopen.write('\n')
+                np.savetxt(fopen, hs_skf)
+                fopen.write('\n')
+                fopen.write(skffile["rest"])
