@@ -1,0 +1,4 @@
+export PATH=$PWD:$PATH
+export PYTHONPATH=$PWD:$PYTHONPATH
+export PYTHONPATH=$PWD/dftbtorch:$PYTHONPATH
+
