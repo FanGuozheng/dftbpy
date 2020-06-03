@@ -125,13 +125,12 @@ class RunML:
         for ibatch in range(0, self.para['nfile']):
             # get coor and related geometry information
             self.get_coor(ibatch)
-            dftb_torch.Initialization(self.para)
 
             if self.para['Lml_skf']:
                 # if read all .skf and build [N_ij, N_R1, N_R2, 20] matrix
                 if self.para['atomspecie'] != self.para['atomspecie_old']:
                     self.genml.get_spllabel()
-                    interpskf(self.para)
+                dftb_torch.Initialization(self.para)
                 self.get_compr_specie()
 
                 self.para['compr_ml'] = self.para['compr_init'] - 1
@@ -139,6 +138,7 @@ class RunML:
                 self.runcal.idftb_torchspline()
 
             elif self.para['Lml_HS']:
+                dftb_torch.Initialization(self.para)
                 self.genml.get_specie_label()
                 dftb_torch.Initialization(self.para).form_sk_spline()
                 self.runcal.idftb_torchspline()
@@ -435,11 +435,10 @@ class RunML:
         for ibatch in range(0, self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
-            dftb_torch.Initialization(self.para)
 
             if self.para['atomspecie'] != self.para['atomspecie_old']:
                 self.genml.get_spllabel()
-                interpskf(self.para)
+            dftb_torch.Initialization(self.para)
             self.get_compr_specie()
 
             # build the ref data

@@ -290,7 +290,6 @@ class ReadSKt:
                     fp_line = [float(ii) for ii in fp.readline().split()]
                     fp_line_ = t.from_numpy(np.asarray(fp_line))
                     self.para['onsite' + nameij] = fp_line_[0:3]
-                    print(fp_line_[0:3])
                     self.para['spe' + nameij] = fp_line_[3]
                     self.para['uhubb' + nameij] = fp_line_[4:7]
                     self.para['occ_skf' + nameij] = fp_line_[7:10]
@@ -512,22 +511,26 @@ class ReadSKt:
 
 
 class SkInterpolator:
-    """This code aims to generate integrals by interpolation method.
-    Therefore, the inputs include the grid points of the integrals,
-    the compression radius of atom1 (r1) and atom2 (r2)
-    """
+
     def __init__(self, para, gridmesh):
+        """
+        This code aims to generate integrals by interpolation method.
+        For the moment, onsite will be included in machine learning, therefore
+        onsite will be offered in init_parameters!!!
+        """
         self.para = para
         self.gridmesh = gridmesh
 
     def readskffile(self, namei, namej, directory):
         """
-        Input:
-            all .skf file, atom names, directory
-        Output:
-            gridmesh_points, onsite_spe_u, mass_rcut, integrals
-        Namestyle:
+        Namestyle example:
             C-H.skf.02.77.03.34, compr of C, H are 2.77 and 3.34, respectively
+        You can choose only read the integrals, since if we only tune the
+        compression radius, the onsite remain unchanged.
+        Args:
+            all .skf file, atom names, directory
+        Returns:
+            gridmesh_points, onsite_spe_u, mass_rcut, integrals
         """
         nameij = namei + namej
         filenamelist = self.getfilenamelist(namei, namej, directory)

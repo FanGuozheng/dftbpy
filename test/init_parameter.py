@@ -22,7 +22,7 @@ def init_dftb_ml(para):
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = ['2']
+        para['n_dataset'] = ['3']
         para['dire_interpSK'] = os.path.join(path, '../slko/H_O_den')
     elif para['dataType'] == 'hdf':
         hdffilelist = []
@@ -39,8 +39,8 @@ def init_dftb_ml(para):
     para['feature'] = 'rad'
     para['direfeature'] = '.'
 
-    para['rcut'] = 5
-    para['r_s'] = 3
+    para['rcut'] = 15
+    para['r_s'] = 5
     para['eta'] = 0.1
     para['tol'] = 1E-4
     para['zeta'] = 1
@@ -103,7 +103,7 @@ def init_dftb_ml(para):
     para['maxIter'] = 60
     para['Lperiodic'] = False
     para['Ldipole'] = True
-    para['Lrepulsive'] = True
+    para['Lrepulsive'] = False
     para['coorType'] = 'C'
     para['filename'] = 'dftb_in'
     para['direInput'] = os.path.join(path, 'dftbtorch')

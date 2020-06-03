@@ -13,7 +13,7 @@ import bisect
 import parameters
 from slakot import ReadSlaKo, SlaKo, SKTran
 from electront import DFTBelect
-from readt import ReadInt
+from readt import ReadInt, SkInterpolator
 from periodic import Periodic
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
@@ -70,6 +70,10 @@ class Initialization:
 
         if not self.para['Lml']:
             self.normal_sk()
+        if self.para['Lml']:
+            if self.para['Lml_skf']:
+                if self.para['atomspecie'] != self.para['atomspecie_old']:
+                    self.interpskf(self.para)
 
     def parser_cmd_args(self):
         '''
@@ -112,6 +116,16 @@ class Initialization:
     def gen_sk_matrix(self, para):
         '''SK transformations'''
         SKTran(para)
+
+    def interpskf(self):
+        '''
+        read .skf data from skgen with various compR
+        '''
+        print('** read skf file with all compR **')
+        for namei in self.para['atomspecie']:
+            for namej in self.para['atomspecie']:
+                SkInterpolator(para, gridmesh=0.2).readskffile(
+                        namei, namej, self.para['dire_interpSK'])
 
 
 class Rundftbpy:
@@ -179,7 +193,6 @@ class SCF:
         self.atind2 = para['atomind2']
         self.hmat = para['hammat']
         self.smat = para['overmat']
-        print(self.hmat)
 
     def scf_npe_nscc(self):
         '''
@@ -916,8 +929,9 @@ class Print:
         if self.para['scc'] == 'scc':
             print('Coulomb energy (Hartree): \n',
                   -self.para['coul_energy'].detach())
-        print('repulsive energy (Hartree): \n',
-              self.para['rep_energy'].detach())
+        if self.para['Lrepulsive']:
+            print('repulsive energy (Hartree): \n',
+                  self.para['rep_energy'].detach())
 
 
 class Analysis:
