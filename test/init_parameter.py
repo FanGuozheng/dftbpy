@@ -22,15 +22,15 @@ def init_dftb_ml(para):
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = ['3']
-        para['dire_interpSK'] = os.path.join(path, '../slko/H_O_den')
+        para['n_dataset'] = ['2']
+        para['dire_interpSK'] = os.path.join(path, '../slko')
     elif para['dataType'] == 'hdf':
         hdffilelist = []
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = 2  # this will determine read which type of molecule
-        para['n_dataset'] = ['2']  # how many molecules
-        para['dire_interpSK'] = os.path.join(path, '../slko/H_N_den')
+        para['hdf_num'] = 3  # this will determine read which type of molecule
+        para['n_dataset'] = ['50']  # how many molecules
+        # para['dire_interpSK'] = os.path.join(path, '../slko')
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
@@ -52,10 +52,10 @@ def init_dftb_ml(para):
     # splinetype: Bspline, Polyspline
     para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
     para['target'] = ['dipole']  # dipole, homo_lumo, gap, eigval, qatomall
-    para['mlsteps'] = 2  # how many steps for optimizing in DFTB-ML
-    para['save_steps'] = 1  # how many steps to save the DFTB-ML data
+    para['mlsteps'] = 100  # how many steps for optimizing in DFTB-ML
+    para['save_steps'] = 10  # how many steps to save the DFTB-ML data
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['lr'] = 5e-1  # learning rate
+    para['lr'] = 8e-1  # learning rate
 
     # the follwing is ML target, if optimize compression radius, integrals...
     para['Lml_skf'] = True  # if use interp to gen .skf with compress_r
@@ -70,23 +70,58 @@ def init_dftb_ml(para):
     para['interpcutoff'] = 10
     para['atomspecie_old'] = []
     if para['Lml_skf']:
-        para['H_init_compr'] = 3.0
-        para['C_init_compr'] = 3.0
-        para['N_init_compr'] = 3.0
-        para['O_init_compr'] = 3.0
+        para['LreadSKFinterp'] = True
+        para['Lonsite'] = False
+
+        para['typeSKinterp'] = 'uniform'  # if the grid of compr is uniform
+        if para['typeSKinterp'] == 'nonuniform':
+            para['dire_interpSK'] = os.path.join(path, '../slko/nonuniform')
+        elif para['typeSKinterp'] == 'uniform':
+            para['dire_interpSK'] = os.path.join(path, '../slko/uniform')
         para['ncompr'] = 10
-        para['H_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                         5.00, 6.00, 8.00, 10.00])
-        para['C_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                         5.00, 6.00, 8.00, 10.00])
-        para['N_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                         5.00, 6.00, 8.00, 10.00])
-        para['O_compr_grid'] = t.Tensor([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                         5.00, 6.00, 8.00, 10.00])
+        para['H_compr_grid'] = t.tensor((
+                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
+                dtype=t.float64)
+        para['C_compr_grid'] = t.tensor((
+                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
+                dtype=t.float64)
+        para['N_compr_grid'] = t.tensor((
+                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
+                dtype=t.float64)
+        para['O_compr_grid'] = t.tensor((
+                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
+                dtype=t.float64)
         assert len(para['H_compr_grid']) == para['ncompr']
         assert len(para['C_compr_grid']) == para['ncompr']
         assert len(para['N_compr_grid']) == para['ncompr']
         assert len(para['O_compr_grid']) == para['ncompr']
+
+        para['H_init_compr'] = 3.0
+        para['C_init_compr'] = 3.0
+        para['N_init_compr'] = 3.0
+        para['O_init_compr'] = 3.0
+        para['onsiteH'] = t.tensor((
+                [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+        para['onsiteC'] = t.tensor((
+                [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+                dtype=t.float64)
+        para['onsiteN'] = t.tensor((
+                [0.0E+00, -2.607280834222E-01, -6.400000000000E-01]),
+                dtype=t.float64)
+        para['onsiteO'] = t.tensor((
+                [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
+                dtype=t.float64)
+        para['uhubbH'] = t.tensor((
+                [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+        para['uhubbC'] = t.tensor((
+                [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+                dtype=t.float64)
+        para['uhubbN'] = t.tensor((
+                [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]),
+                dtype=t.float64)
+        para['uhubbO'] = t.tensor((
+                [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]),
+                dtype=t.float64)
 
     # ----------------------------- DFTB -----------------------------
     para['LReadInput'] = False
@@ -94,7 +129,6 @@ def init_dftb_ml(para):
     para['convergenceType'], para['energy_tol'] = 'energy', 1e-6
     para['scf'] = True
     para['scc'] = 'scc'
-    para['task'] = 'ground'
     para['HSsym'] = 'symall_chol'  # symall, symhalf. important!!!!!!
     para['ninterp'] = 8
     para['dist_tailskf'] = 1.0
@@ -107,7 +141,6 @@ def init_dftb_ml(para):
     para['coorType'] = 'C'
     para['filename'] = 'dftb_in'
     para['direInput'] = os.path.join(path, 'dftbtorch')
-    para['direSK'] = os.path.join(path, 'slko')
 
     # ---------------------- plotting and others ----------------------
     para['plot_ham'] = True

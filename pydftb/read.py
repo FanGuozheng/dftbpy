@@ -20,220 +20,243 @@ ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
 VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
 
 
-class ReadInput(object):
-    """This class will read from .hsd input file, and return these file for
-    further calculations"""
+class ReadInput:
+    """
+    This class will read from .hsd input file, and return these file for
+    further calculations
+    """
 
-    def __init__(self, generalpara):
-        self.generalpara = generalpara
-        self.get_task(self.generalpara)
-        if self.generalpara['ty'] == 5:
-            self.get_coor5(self.generalpara)
-        elif self.generalpara['ty'] == 1:
-            self.get_coor5(self.generalpara)
-        elif self.generalpara['ty'] == 0:
-            self.get_coor(self.generalpara)
+    def __init__(self, para):
+        """
+        according to different Args, call different functions
+        """
+        self.para = para
+        self.get_task()
+        self.cal_coor()
 
-    def get_task(self, generalpara):
+    def get_task(self):
         """this def will read the general information from .json file"""
-        filename = generalpara['filename']
-        direct = generalpara['dire']
+        filename = self.para['filename']
+        direct = self.para['dire']
+
         with open(os.path.join(direct, filename), 'r') as f:
             datatask = json.load(f)
-            # --------------------------general----------------------------- #
+
+            # general
             try:
-                generalpara['scf'] = datatask['general']['scf']
+                self.para['ty'] = datatask['general']['ty']
+            except IOError:
+                print('please define ty: true or false')
+
+            try:
+                self.para['scf'] = datatask['general']['scf']
             except IOError:
                 print('please define scf: true or false')
+
             try:
-                generalpara['task'] = datatask['general']['task']
+                self.para['task'] = datatask['general']['task']
             except IOError:
                 print('please define task')
+
+            if 'mixMethod' in datatask['general']:
+                self.para['mixMethod'] = datatask['general']['mixMethod']
+            else:
+                self.para['mixMethod'] = 'simple'
+
             if 'mixFactor' in datatask['general']:
-                generalpara['mixFactor'] = datatask['general']['mixFactor']
+                self.para['mixFactor'] = datatask['general']['mixFactor']
             else:
-                generalpara['mixFactor'] = 0.2
+                self.para['mixFactor'] = 0.2
+
             if 'tElec' in datatask['general']:
-                generalpara['tElec'] = datatask['general']['tElec']
+                self.para['tElec'] = datatask['general']['tElec']
             else:
-                generalpara['tElec'] = 0
+                self.para['tElec'] = 0
+
             if 'maxIter' in datatask['general']:
-                generalpara['maxIter'] = datatask['general']['maxIter']
+                self.para['maxIter'] = datatask['general']['maxIter']
             else:
-                generalpara['maxIter'] = 60
+                self.para['maxIter'] = 60
+
+            if 'convergenceType' in datatask['general']:
+                self.para['convergenceType'] = \
+                    datatask['general']['convergenceType']
+            else:
+                self.para['convergenceType'] = 'energy'
+
             if 'periodic' in datatask['general']:
                 period = datatask['general']['periodic']
                 if period == 'True' or period == 'T' or period == 'true':
-                    generalpara['periodic'] = True
+                    self.para['periodic'] = True
                 elif period == 'False' or period == 'F' or period == 'false':
-                    generalpara['periodic'] = False
+                    self.para['periodic'] = False
                 else:
-                    generalpara['periodic'] = False
+                    self.para['periodic'] = False
                     print('Warning: periodic not defined correctly')
             else:
-                generalpara['periodic'] = False
+                self.para['periodic'] = False
+
             if 'scc' in datatask['general']:
                 scc = datatask['general']['scc']
                 if scc == 'True' or scc == 'T' or scc == 'true':
-                    generalpara['scc'] = True
+                    self.para['scc'] = True
                 elif scc == 'False' or scc == 'F' or scc == 'false':
-                    generalpara['scc'] = False
+                    self.para['scc'] = False
                 else:
-                    generalpara['scc'] = False
+                    self.para['scc'] = False
                     print('Warning: scc not defined correctly')
             else:
-                generalpara['scc'] = False
-            # --------------------------analysis---------------------------- #
+                self.para['scc'] = False
+
+            # analysis
             if 'dipole' in datatask['analysis']:
                 dipole = datatask['analysis']['dipole']
                 if dipole == 'True' or dipole == 'T' or dipole == 'true':
-                    generalpara['dipole'] = True
+                    self.para['dipole'] = True
                 elif dipole == 'False' or dipole == 'F' or dipole == 'false':
-                    generalpara['dipole'] = False
+                    self.para['dipole'] = False
                 else:
                     print('Warning: dipole parameter format')
             else:
-                generalpara['dipole'] = False
-            # --------------------------geometry---------------------------- #
-            if generalpara['periodic'] is True:
+                self.para['dipole'] = False
+
+            # geometry
+            if self.para['periodic'] is True:
                 try:
-                    generalpara['ksample'] = datatask['geometry']['ksample']
+                    self.para['ksample'] = datatask['geometry']['ksample']
                 except IOError:
                     print('please define K-mesh points')
                 try:
-                    generalpara['unit'] = datatask['geometry']['unit']
+                    self.para['unit'] = datatask['geometry']['unit']
                 except ImportError:
                     print('please define unit')
-            if 'type' in datatask['geometry']:
-                generalpara['coorType'] = datatask['geometry']['periodic']
-            else:
-                generalpara['coorType'] = 'C'
-        return generalpara
 
-    def get_coor(self, generalpara):
-        filename = generalpara['filename']
-        direct = generalpara['dire']
+            if 'type' in datatask['geometry']:
+                self.para['coorType'] = datatask['geometry']['periodic']
+            else:
+                self.para['coorType'] = 'C'
+
+            if self.para['ty'] in ['dftb']:
+                try:
+                    self.para['coor'] = np.asarray(
+                            datatask['geometry']['coor'])
+                except IOError:
+                    print('please define coor: true or false')
+
+    def read_cal_coor(self):
+        '''
+        reading and processing geometry data
+        '''
+        filename = self.para['filename']
+        direct = self.para['dire']
         with open(os.path.join(direct, filename), 'r') as f:
             datatask = json.load(f)
             try:
-                generalpara['coor'] = datatask['geometry']['coor']
+                self.para['coor'] = datatask['geometry']['coor']
             except IOError:
                 print('please define the coordination')
-        coor = np.asarray(generalpara['coor'])
+        coor = np.asarray(self.para['coor'])
         natom = np.shape(coor)[0]
-        distance = np.zeros((natom, natom))
-        distance_norm = np.zeros((natom, natom, 3))
-        distance_vec = np.zeros((natom, natom, 3))
+        distance = np.zeros((natom, natom), dtype=float)
+        distance_norm = np.zeros((natom, natom, 3), dtype=float)
+        distance_vec = np.zeros((natom, natom, 3), dtype=float)
         atomnamelist = []
         atom_lmax = []
-        atomind = np.zeros(natom+1)
-        for i in range(0, natom):
-            atomunm = int(coor[i, 0]-1)
+        atomind = np.zeros((natom + 1), dtype=int)
+        for iat in range(natom):
+            atomunm = int(coor[iat, 0] - 1)
             atomnamelist.append(ATOMNAME[atomunm])
             atom_lmax.append(VAL_ORB[ATOMNAME[atomunm]])
-            atomind[i+1] = atomind[i] + atom_lmax[i]**2
-            for j in range(0, i):
-                xx = (coor[j, 1] - coor[i, 1])/BOHR
-                yy = (coor[j, 2] - coor[i, 2])/BOHR
-                zz = (coor[j, 3] - coor[i, 3])/BOHR
-                dd = np.sqrt(xx*xx + yy*yy + zz*zz)
-                distance[i, j] = dd
+            atomind[iat + 1] = atomind[iat] + atom_lmax[iat] ** 2
+            for jat in range(iat):
+                [xx, yy, zz] = (coor[jat, 1:] - coor[iat, 1:]) / BOHR
+                dd = np.sqrt(xx ** 2 + yy ** 2 + zz ** 2)
+                distance[iat, jat] = dd
                 if dd < tol4:
                     pass
                 else:
-                    distance_norm[i, j, 0] = xx/dd
-                    distance_norm[i, j, 1] = yy/dd
-                    distance_norm[i, j, 2] = zz/dd
-                    distance_vec[i, j, 0] = xx
-                    distance_vec[i, j, 1] = yy
-                    distance_vec[i, j, 2] = zz
+                    distance_norm[iat, jat, :] = [xx, yy, zz] / dd
+                    distance_vec[iat, jat, :] = [xx, yy, zz]
         natomtype = []
         dictatom = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                             dict(enumerate(set(atomnamelist))).keys()))
         for atomi in atomnamelist:
             natomtype.append(dictatom[atomi])
-        generalpara['distance_norm'] = distance_norm
-        generalpara['distance'] = distance
-        generalpara['distance_vec'] = distance_vec
-        generalpara['natom'] = natom
-        generalpara['lmaxall'] = atom_lmax
-        generalpara['atomnameall'] = atomnamelist
-        generalpara['atomind'] = atomind
-        generalpara['natomtype'] = natomtype
-        return generalpara
+        self.para['distance_norm'] = distance_norm
+        self.para['distance'] = distance
+        self.para['distance_vec'] = distance_vec
+        self.para['natom'] = natom
+        self.para['lmaxall'] = atom_lmax
+        self.para['atomnameall'] = atomnamelist
+        self.para['atomind'] = atomind
+        self.para['natomtype'] = natomtype
 
-    def get_coor5(self, generalpara):
-        coor0 = generalpara['coor']
+    def cal_coor(self):
+        '''
+        with raw geometry data and processing
+        '''
+        coor0 = self.para['coor']
         natom = np.shape(coor0)[0]
-        coor = np.zeros((natom, 4))
-        coor[:, 1:] = coor0[:, :]
-        icount = 0
-        for iname in generalpara['symbols']:
-            coor[icount, 0] = ATOMNAME.index(iname)+1
-            icount += 1
-        distance = np.zeros((natom, natom))
-        distance_norm = np.zeros((natom, natom, 3))
-        distance_vec = np.zeros((natom, natom, 3))
+        coor = np.zeros((natom, 4), dtype=float)
+        distance = np.zeros((natom, natom), dtype=float)
+        distance_norm = np.zeros((natom, natom, 3), dtype=float)
+        distance_vec = np.zeros((natom, natom, 3), dtype=float)
         atomnamelist = []
         atom_lmax = []
-        atomind = np.zeros(natom+1)
-        for i in range(0, natom):
-            atomunm = int(coor[i, 0]-1)
+        atomind = np.zeros((natom + 1), dtype=int)
+
+        coor[:, :] = coor0[:, :]
+        for iat in range(0, natom):
+            atomunm = int(coor[iat, 0] - 1)
             atomnamelist.append(ATOMNAME[atomunm])
             atom_lmax.append(VAL_ORB[ATOMNAME[atomunm]])
-            atomind[i+1] = atomind[i] + atom_lmax[i]**2
-            for j in range(0, i):
-                xx = (coor[j, 1] - coor[i, 1])/BOHR
-                yy = (coor[j, 2] - coor[i, 2])/BOHR
-                zz = (coor[j, 3] - coor[i, 3])/BOHR
+            atomind[iat + 1] = atomind[iat] + atom_lmax[iat] ** 2
+            for jat in range(iat):
+                xx = (coor[jat, 1] - coor[iat, 1])/BOHR
+                yy = (coor[jat, 2] - coor[iat, 2])/BOHR
+                zz = (coor[jat, 3] - coor[iat, 3])/BOHR
                 dd = np.sqrt(xx*xx + yy*yy + zz*zz)
-                distance[i, j] = dd
+                distance[iat, jat] = dd
                 if dd < tol4:
                     pass
                 else:
-                    distance_norm[i, j, 0] = xx/dd
-                    distance_norm[i, j, 1] = yy/dd
-                    distance_norm[i, j, 2] = zz/dd
-                    distance_vec[i, j, 0] = xx
-                    distance_vec[i, j, 1] = yy
-                    distance_vec[i, j, 2] = zz
+                    distance_norm[iat, jat, :] = [xx, yy, zz] / dd
+                    distance_vec[iat, jat, :] = [xx, yy, zz]
         natomtype = []
         dictatom = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                             dict(enumerate(set(atomnamelist))).keys()))
         for atomi in atomnamelist:
             natomtype.append(dictatom[atomi])
-        generalpara['coor'] = coor
-        generalpara['distance_norm'] = distance_norm
-        generalpara['distance'] = distance
-        generalpara['distance_vec'] = distance_vec
-        generalpara['natom'] = natom
-        generalpara['lmaxall'] = atom_lmax
-        generalpara['atomnameall'] = atomnamelist
-        generalpara['atomind'] = atomind
-        generalpara['natomtype'] = natomtype
-        return generalpara
+        self.para['coor'] = coor
+        self.para['distance_norm'] = distance_norm
+        self.para['distance'] = distance
+        self.para['distance_vec'] = distance_vec
+        self.para['natom'] = natom
+        self.para['lmaxall'] = atom_lmax
+        self.para['atomnameall'] = atomnamelist
+        self.para['atomind'] = atomind
+        self.para['natomtype'] = natomtype
 
 
-class ReadSK(object):
-    def __init__(self, generalpara, outpara, namei, namej):
-        self.generalpara = generalpara
+class ReadSK:
+
+    def __init__(self, para, namei, namej):
+        self.para = para
         self.namei = namei
         self.namej = namej
-        self.generalpara['grid0'] = 0.4
-        self.generalpara['disttailsk'] = 1.0
-        self.generalpara['ninterp'] = 8
-        if generalpara['ty'] == 0:
+        self.para['grid0'] = 0.4
+        self.para['disttailsk'] = 1.0
+        self.para['ninterp'] = 8
+        if self.para['ty'] in ['dftb', 'dftbpy']:
             self.ReadSK0(namei, namej)
-        elif generalpara['ty'] == 1:
-            self.ReadSK0(namei, namej)
-        elif generalpara['ty'] == 5:
-            self.ReadSK5(outpara, namei, namej)
-        self.getCutoff(generalpara, namei, namej)
+        elif self.para['ty'] in ['ml']:
+            self.ReadSK5(namei, namej)
+        self.getCutoff(namei, namej)
 
     def ReadSK0(self, namei, namej):
         '''read homo- type .skf file'''
         skfname = namei+'-'+namej+'.skf'
-        direc = self.generalpara['direSK']
+        direc = self.para['direSK']
         fp_sk = open(os.path.join(direc, skfname))
         allskfdata = []
         try:
@@ -250,7 +273,7 @@ class ReadSK(object):
             Espd_Uspd = []
             for ispe in allskfdata[1]:
                 Espd_Uspd.append(float(ispe))
-            self.generalpara['Espd_Uspd'+namei+namej] = Espd_Uspd
+            self.para['Espd_Uspd'+namei+namej] = Espd_Uspd
             for imass_cd in allskfdata[2]:
                 mass_cd.append(float(imass_cd))
             for iline in range(0, int(ngridpoint)):
@@ -260,36 +283,33 @@ class ReadSK(object):
                 mass_cd.append(float(imass_cd))
         for iline in range(0, int(ngridpoint)):
             h_s_all.append([float(ii) for ii in allskfdata[iline+2]])
-        self.generalpara['grid_dist'+namei+namej] = grid_dist
-        self.generalpara['ngridpoint'+namei+namej] = ngridpoint
-        self.generalpara['mass_cd'+namei+namej] = mass_cd
-        self.generalpara['h_s_all'+namei+namej] = h_s_all
-        return self.generalpara
+        self.para['grid_dist' + namei + namej] = grid_dist
+        self.para['ngridpoint' + namei + namej] = ngridpoint
+        self.para['mass_cd' + namei + namej] = mass_cd
+        self.para['h_s_all' + namei + namej] = h_s_all
 
-    def ReadSK5(self, outpara, namei, namej):
+    def ReadSK5(self, namei, namej):
         '''read homo- type .skf file'''
-        grid_dist = float(outpara['grid_dist'+namei+namej][0])
-        ngridpoint = int(outpara['grid_dist'+namei+namej][1])
+        grid_dist = float(self.para['grid_dist' + namei + namej][0])
+        ngridpoint = int(self.para['grid_dist' + namei + namej][1])
         mass_cd = []
         if namei == namej:
             Espd_Uspd = []
-            for ispe in outpara['Espd_Uspd'+namei+namej]:
+            for ispe in self.para['Espd_Uspd' + namei + namej]:
                 Espd_Uspd.append(float(ispe))
-            self.generalpara['Espd_Uspd'+namei+namej] = Espd_Uspd
-            for imass_cd in outpara['mass_cd'+namei+namej]:
+            self.para['Espd_Uspd' + namei + namej] = Espd_Uspd
+            for imass_cd in self.para['mass_cd'+namei+namej]:
                 mass_cd.append(float(imass_cd))
-        self.generalpara['grid_dist'+namei+namej] = grid_dist
-        self.generalpara['ngridpoint'+namei+namej] = ngridpoint
-        self.generalpara['mass_cd'+namei+namej] = mass_cd
-        self.generalpara['h_s_all'] = outpara['h_s_all']
-        return self.generalpara
+        self.para['grid_dist' + namei + namej] = grid_dist
+        self.para['ngridpoint' + namei + namej] = ngridpoint
+        self.para['mass_cd' + namei + namej] = mass_cd
+        self.para['h_s_all'] = self.para['h_s_all']
 
-    def getCutoff(self, generalpara, namei, namej):
-        grid = self.generalpara['grid_dist'+namei+namej]
-        ngridpoint = self.generalpara['ngridpoint'+namei+namej]
-        disttailsk = self.generalpara['disttailsk']
-        cutoff = grid*ngridpoint+disttailsk
-        lensk = grid*ngridpoint
-        self.generalpara['cutoffsk'+namei+namej] = cutoff
-        self.generalpara['lensk'+namei+namej] = lensk
-        return self.generalpara
+    def getCutoff(self, namei, namej):
+        grid = self.para['grid_dist' + namei + namej]
+        ngridpoint = self.para['ngridpoint' + namei + namej]
+        disttailsk = self.para['disttailsk']
+        cutoff = grid * ngridpoint + disttailsk
+        lensk = grid * ngridpoint
+        self.para['cutoffsk' + namei + namej] = cutoff
+        self.para['lensk' + namei + namej] = lensk

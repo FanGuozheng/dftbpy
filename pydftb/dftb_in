@@ -1,18 +1,24 @@
-{"general": 
+{
+"general": 
   {
+  "ty": "dftb",
   "scf": "true",
+  "scc": "true",
   "periodic": "false",
   "task": "ground",
+  "mixMethod": "anderson",
   "mixFactor": 0.2,
   "tElec": 0,
   "maxIter": 60
   },
- "analysis":
+ 
+"analysis":
   {
   "writeMulliken": "true",
   "dipole": "true"
   },
-  "geometry":
+ 
+"geometry":
   {
   "unit": [[10, 0, 0],[0, 10, 0], [0, 0, 10]],
   "coor":[[6, 0.0000000000, 0.0000000000, 0.0000000000],

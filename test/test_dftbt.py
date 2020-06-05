@@ -29,7 +29,8 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         elif abs(dataH0 - para['hammat']).sum() < 1e-4 * nat ** 2:
             print('average H0 error is smaller than 1E-4')
         else:
-            print('average H0 error is larger than 1E-4')
+            print('Warning: average H0 error is larger than 1E-4: {}'.format(
+                    abs(dataH0 - para['qatomall']).sum() / nat))
     if S is not None:
         dataS = para['dataS']
         if abs(dataS - para['overmat']).sum() < 1e-6 * nat ** 2:
@@ -39,7 +40,8 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         elif abs(dataS - para['overmat']).sum() < 1e-4 * nat ** 2:
             print('average S error is smaller than 1E-4')
         else:
-            print('average S error is larger than 1E-4')
+            print('Warning: average S error is larger than 1E-4: {}'.format(
+                    abs(dataS - para['qatomall']).sum() / nat))
     if q is not None:
         dataq = para['dataq']
         if abs(dataq - para['qatomall']).sum() < 1e-6 * nat:
@@ -49,7 +51,8 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         elif abs(dataq - para['qatomall']).sum() < 1e-4 * nat:
             print('average charge error is smaller than 1E-4')
         else:
-            print('average charge error is larger than 1E-4')
+            print('Warning: average charge error is larger than 1E-4: ',
+                  '{}'.format(abs(dataq - para['qatomall']).sum() / nat))
     print('-' * 35, 'end test accuracy:', name, '-' * 35)
 
 
@@ -94,9 +97,9 @@ def nonscc_CH4(para):
     Test eigen values, charges of CH4 by using Non-SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
+    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -127,7 +130,6 @@ def scc_CH4(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -159,7 +161,6 @@ def nonscc_CH4_nonsym(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -191,7 +192,6 @@ def scc_CH4_nonsym(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -223,7 +223,6 @@ def nonscc_H2(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -251,7 +250,6 @@ def scc_H2(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -280,7 +278,6 @@ def nonscc_CO(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -309,7 +306,6 @@ def scc_CO(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -339,7 +335,6 @@ def nonscc_CO2(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -369,7 +364,6 @@ def scc_CO2(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -399,7 +393,6 @@ def nonscc_C2H6(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -435,7 +428,6 @@ def scc_C2H6(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -471,7 +463,6 @@ def nonscc_C2H6O(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -508,7 +499,6 @@ def scc_C2H6O(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -545,7 +535,6 @@ def scc_CH4_compr(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['Lml'] = True  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -558,10 +547,12 @@ def scc_CH4_compr(para):
     para['grid0'] = 0.4
     para['interpcutoff'] = 4.0
     para['Lml_skf'] = True
-    para['Lrepulsive'] = True
+    para['Lrepulsive'] = False
     para['Lml_compr_global'] = False
+    para['LreadSKFinterp'] = True
+    para['Lonsite'] = False
     para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
     para['n_dataset'] = 1
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -572,13 +563,27 @@ def scc_CH4_compr(para):
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 2.5
     para['C_init_compr'] = 3.0
+    '''
+    para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)'''
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
     para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.interpskf(para)
     test_grad_compr.RunML(para).get_compr_specie()
 
     # build the ref data
@@ -596,7 +601,6 @@ def nonscc_CH4_compr(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['Lml'] = True  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -609,10 +613,12 @@ def nonscc_CH4_compr(para):
     para['grid0'] = 0.4
     para['interpcutoff'] = 4.0
     para['Lml_skf'] = True
-    para['Lrepulsive'] = True
+    para['Lrepulsive'] = False
     para['Lml_compr_global'] = False
+    para['LreadSKFinterp'] = True
+    para['Lonsite'] = False
     para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/sk_den3')
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
     para['n_dataset'] = 1
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -621,15 +627,29 @@ def nonscc_CH4_compr(para):
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 3.34
-    para['C_init_compr'] = 4.07
+    para['H_init_compr'] = 2.5
+    para['C_init_compr'] = 3.0
+    '''
+    para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)'''
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                      5.00, 5.50, 6.00]), dtype=t.float64)
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
     para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.interpskf(para)
     test_grad_compr.RunML(para).get_compr_specie()
 
     # build the ref data
@@ -637,6 +657,148 @@ def nonscc_CH4_compr(para):
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
     test_accuracy(para, 'CH4_compr', './data', q='CH4_nonscc_sym_q.dat')
+
+
+def nonscc_CH4_compr_nongrid(para):
+    '''
+    Test eigen values, charges of CH4 by using SCC DFTB;
+    Before DFTB calculations, we will also test H0 and S;
+    '''
+    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
+    para['Lml'] = True  # only perform DFTB part without ML
+    para['Lperiodic'] = False
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['Ldipole'] = True
+    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['grid0'] = 0.4
+    para['interpcutoff'] = 4.0
+    para['Lml_skf'] = True
+    para['Lrepulsive'] = False
+    para['Lml_compr_global'] = False
+    para['LreadSKFinterp'] = True
+    para['Lonsite'] = False
+    para['atomspecie_old'] = []
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
+    para['n_dataset'] = 1
+    para['coor'] = t.tensor((
+            [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
+             [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
+             [1, -6.3309413195e-01, -9.2448824644e-01,  2.2396698594e-01],
+             [1, 4.5421713591e-01,  5.9006392956e-01, 7.5088745356e-01],
+             [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
+            dtype=t.float64)
+    para['atomNumber'] = para['coor'][:, 0]
+    para['H_init_compr'] = 2.7
+    para['C_init_compr'] = 3.4
+    para['H_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
+        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
+        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    '''para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)'''
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)
+    dftb_torch.Initialization(para)
+    test_grad_compr.GenMLPara(para).get_spllabel()
+    test_grad_compr.RunML(para).get_compr_specie()
+
+    # build the ref data
+    para['compr_ml'] = para['compr_init']
+    slakot.SlaKo(para).genskf_interp_compr()
+    test_grad_compr.RunCalc(para).idftb_torchspline()
+    test_accuracy(para, 'CH4_nonscc_nonsym_C3.4_H2.7', './data',
+                  q='CH4_nonscc_nonsym_C3.4_H2.7_q.dat')
+
+
+def scc_CH4_compr_nongrid(para):
+    '''
+    Test eigen values, charges of CH4 by using SCC DFTB;
+    Before DFTB calculations, we will also test H0 and S;
+    '''
+    para['scc'] = 'scc'  # nonscc, scc, xlbomd
+    para['Lml'] = True  # only perform DFTB part without ML
+    para['Lperiodic'] = False
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['Ldipole'] = True
+    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['grid0'] = 0.4
+    para['interpcutoff'] = 4.0
+    para['Lml_skf'] = True
+    para['Lrepulsive'] = False
+    para['Lml_compr_global'] = False
+    para['LreadSKFinterp'] = True
+    para['Lonsite'] = False
+    para['atomspecie_old'] = []
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
+    para['n_dataset'] = 1
+    para['coor'] = t.tensor((
+            [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
+             [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
+             [1, -6.3309413195e-01, -9.2448824644e-01,  2.2396698594e-01],
+             [1, 4.5421713591e-01,  5.9006392956e-01, 7.5088745356e-01],
+             [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
+            dtype=t.float64)
+    para['atomNumber'] = para['coor'][:, 0]
+    para['H_init_compr'] = 2.7
+    para['C_init_compr'] = 3.4
+    para['H_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
+        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
+        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    '''para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
+                                    06.28, 07.90, 10.00]), dtype=t.float64)
+    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)'''
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)
+    dftb_torch.Initialization(para)
+    test_grad_compr.GenMLPara(para).get_spllabel()
+    test_grad_compr.RunML(para).get_compr_specie()
+
+    # build the ref data
+    para['compr_ml'] = para['compr_init']
+    slakot.SlaKo(para).genskf_interp_compr()
+    test_grad_compr.RunCalc(para).idftb_torchspline()
+    test_accuracy(para, 'CH4_scc_nonsym_C3.4_H2.7', './data',
+                  q='CH4_scc_nonsym_C3.4_H2.7_q.dat')
 
 
 def scc_H(para):
@@ -648,7 +810,6 @@ def scc_H(para):
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
     para['Lrepulsive'] = True
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -675,7 +836,6 @@ def scc_C(para):
     para['Lml'] = False  # only perform DFTB part without ML
     para['Lperiodic'] = False
     para['Lrepulsive'] = True
-    para['task'] = 'ground'
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
@@ -701,6 +861,33 @@ def test_nonsccCO(para):
         print('Test: qatomall correct')
     else:
         print('Test: qatomall wrong')
+
+
+def generate_compr():
+    '''
+    We use R = a * k ** n + b to generate series compression radius
+    here we set k = np.array([1.1, 1.15, 1.2, 1.3])
+    n equals to the number of compression radius grids
+    and satisfy:
+        a * k ** 1 + b = 2
+        a * k ** 15 + b = 10
+    '''
+    k = np.array([1.1, 1.15, 1.2, 1.3, 1.5])
+    for ik in range(len(k)):
+        ii = k[ik]
+        a = 8 / (ii ** 15 - ii)
+        b = 2 - a * ii
+        compr = np.zeros(15)
+        for ir in range(15):
+            compr[ir] = a * ii ** (ir + 1) + b
+        print(compr)
+
+
+def test_compr_k():
+    '''
+    test the best k value in generate_compr
+    '''
+    k = np.array([1.0, 1.1, 1.15, 1.2, 1.3])
 
 
 if __name__ == '__main__':
@@ -750,8 +937,13 @@ if __name__ == '__main__':
     if 'nonscc_C2H6O' in testlist:
         nonscc_C2H6O(para)
 
-    testlist_compr = ['scc_CH4', 'nonscc_CH4', 'scc_CO', 'nonscc_CO']
-    if 'scc_CH4' in testlist:
+    testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
+                      'scc_CH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
+    if 'scc_CH4' in testlist_compr:
         scc_CH4_compr(para)
-    if 'nonscc_CH4' in testlist:
+    if 'nonscc_CH4' in testlist_compr:
         nonscc_CH4_compr(para)
+    if 'nonscc_CH4_compr_nongrid' in testlist_compr:
+        nonscc_CH4_compr_nongrid(para)
+    if 'scc_CH4_compr_nongrid' in testlist_compr:
+        scc_CH4_compr_nongrid(para)

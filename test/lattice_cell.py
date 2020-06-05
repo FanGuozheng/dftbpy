@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import numpy as np
-general = {'HH': 0.4, 'HC': 1, 'CH': 1, 'CC': 1}
+general = {'HH': 1, 'HC': 1, 'CH': 1, 'HN': 1, 'NH': 1, 'HO': 1, 'OH': 1,
+           'CC': 1, 'CN': 1, 'NC': 1, 'CO': 1, 'OC': 1, 'NN': 1, 'NO': 1,
+           'ON': 1, 'OO': 1}
 
 
 def rad_molecule(coor, rcut, r_s, eta, tol):
@@ -31,7 +33,7 @@ def rad_molecule2(coor, rcut, r_s, eta, tol, symbols):
     rad_para = np.zeros(row)
     for iatom in range(0, row):
         for jatom in range(0, row):
-            symij = symbols[iatom]+symbols[jatom]
+            symij = symbols[iatom] + symbols[jatom]
             symij_val = general[symij]
             distij[:] = coor[iatom, 1:] - coor[jatom,  1:]
             distance[iatom, jatom] = np.sqrt(sum(distij[:] ** 2))

@@ -19,8 +19,8 @@ import write_output as write
 import lattice_cell
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.slakot as slakot
-from plot import plot_main
-from readt import ReadInt, SkInterpolator
+import plot
+from readt import ReadInt
 import init_parameter as initpara
 Directory = '/home/gz_fan/Documents/ML/dftb/ml'
 DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
@@ -53,7 +53,7 @@ def optml(para):
     runml.mldftb(para)
 
     # plot data from ML
-    plot_main(para)
+    plot.plot_main(para)
 
 
 def testml(para):
@@ -64,15 +64,20 @@ def testml(para):
     # load dataset, here is hdf type
     LoadData(para)
 
-    # run reference calculations, either dft or dftb
+    # if refrence is not DFTB+, add DFTB+ results
     ML(para)
     runml = RunML(para)
+    para['Ldftbplus_test'] = True
+    if para['ref'] != 'dftbplus':
+        para['ref'] = 'dftbplus'
 
     runml.ref()
 
     # runml.test_compr(para)
-
     runml.test_pred_compr(para)
+
+    plot.plot_dip_pred(
+            para, para['dire_data'], aims='aims', dftbplus='dftbplus')
 
 
 class RunML:
@@ -130,6 +135,8 @@ class RunML:
                 # if read all .skf and build [N_ij, N_R1, N_R2, 20] matrix
                 if self.para['atomspecie'] != self.para['atomspecie_old']:
                     self.genml.get_spllabel()
+                else:
+                    self.para['LreadSKFinterp'] = False
                 dftb_torch.Initialization(self.para)
                 self.get_compr_specie()
 
@@ -211,11 +218,11 @@ class RunML:
         homo_lumo = write.FHIaims(self.para).read_bandenergy(
                 self.para, self.para['nfile'], self.dir_ref)
         dipole = write.FHIaims(self.para).read_dipole(
-                self.para, self.para['nfile'], self.dir_ref, 'eang', 'debye')
+                self.para, self.para['nfile'], self.dir_ref, 'eang', 'eang')
         '''energy = write.FHIaims(self.para).read_energy(
                  self.para, self.para['nfile'], self.dir_ref)'''
-        self.para['refhomo_lumo'] = t.from_numpy(homo_lumo)
-        self.para['refdipole'] = t.from_numpy(dipole)
+        self.para['refhomo_lumo'] = homo_lumo
+        self.para['refdipole'] = dipole
         os.system('mv ' + os.path.join(self.direaims, 'bandenergy.dat') +
                   ' .data/HLaims.dat')
         os.system('cp ' + os.path.join(self.direaims, 'dip.dat') +
@@ -278,20 +285,33 @@ class RunML:
 
     def save_dftbplus(self):
         '''save files for reference calculations'''
-        homo_lumo = write.Dftbplus(self.para).read_bandenergy(
+        dftb = write.Dftbplus(self.para)
+        homo_lumo = dftb.read_bandenergy(
                 self.para, self.para['nfile'], self.dir_ref)
-        dipole = write.Dftbplus(self.para).read_dipole(
-                self.para, self.para['nfile'], self.dir_ref, 'debye', 'debye')
-        self.para['refhomo_lumo'] = t.from_numpy(homo_lumo)
-        self.para['refdipole'] = t.from_numpy(dipole)
-        os.system('cp ' + os.path.join(self.diredftbplus, 'bandenergy.dat') +
-                  ' .data/HLdftbplus.dat')
-        os.system('cp ' + os.path.join(self.diredftbplus, 'dip.dat') +
-                  ' .data/dipdftbplus.dat')
+        # the run.sh will read debye dipolemoment from detailed.out
+        dipole = dftb.read_dipole(
+                self.para, self.para['nfile'], self.dir_ref, 'debye', 'eang')
+        self.para['refhomo_lumo'] = homo_lumo
+        self.para['refdipole'] = dipole
+
+        if para['task'] == 'optml':
+            dire = '.data'
+        elif para['task'] == 'test':
+            dire = para['dire_data']
+        os.system('rm ' + dire + '/dipdftbplus.dat')
+        os.system('rm ' + dire + '/natom.dat')
+        os.system('rm ' + dire + '/energydftbplus.dat')
+
+        os.system('cp ' + os.path.join(self.diredftbplus, 'bandenergy.dat ') +
+                  dire + '/HLdftbplus.dat')
+        '''os.system('cp ' + os.path.join(self.diredftbplus, 'dip.dat ') +
+                  dire + '/dipdftbplus.dat')'''
+        self.save.save1D(self.para['refdipole'].detach().numpy(),
+                         name='dipdftbplus.dat', dire=dire, ty='a')
         self.save.save1D(self.para['refenergy'].detach().numpy(),
-                         name='energydftbplus.dat', ty='a')
+                         name='energydftbplus.dat', dire=dire, ty='a')
         self.save.save1D(self.para['natomall'].detach().numpy(),
-                         name='natom.dat', ty='a')
+                         name='natom.dat', dire=dire, ty='a')
 
     def dftb(self, para):
         '''this function is for dftb calculation'''
@@ -355,7 +375,6 @@ class RunML:
         2. get the itegrals matrix: natom * natom * [ncompr, ncompr, 20]
         3. get the initial compR
         '''
-        # interpskf(self.para)
         self.slako.genskf_interp_ij()
         self.genml.genml_init_compr()
 
@@ -438,6 +457,8 @@ class RunML:
 
             if self.para['atomspecie'] != self.para['atomspecie_old']:
                 self.genml.get_spllabel()
+            else:
+                self.para['LreadSKFinterp'] = False
             dftb_torch.Initialization(self.para)
             self.get_compr_specie()
 
@@ -537,11 +558,12 @@ class RunML:
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
-        os.system('rm qatompred.dat dippred.dat eigpred.dat')
-        # rm the old file
         self.nbatch = int(self.para['n_dataset'][0])
+        dire = self.para['dire_data']
+        os.system('rm ' + dire + '/eigpred.dat')
+        os.system('rm ' + dire + '/dippred.dat')
+        os.system('rm ' + dire + '/qatompred.dat')
 
-        # calculate one by one to optimize para
         for ibatch in range(0, self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
@@ -549,7 +571,9 @@ class RunML:
 
             if self.para['atomspecie'] != self.para['atomspecie_old']:
                 self.genml.get_spllabel()
-                interpskf(self.para)
+            else:
+                self.para['LreadSKFinterp'] = False
+            dftb_torch.Initialization(self.para)
             self.get_compr_specie()
 
             para['compr_ml'] = self.para['compr_pred'][ibatch]
@@ -559,14 +583,13 @@ class RunML:
             self.slako.genskf_interp_compr()
             self.runcal.idftb_torchspline()
             homo_lumo = para['homo_lumo']
-            if 'dipole' in para['target']:
-                dipole = para['dipole']
-            self.save.save1D(homo_lumo.numpy(), name='eigpred.dat', ty='a')
-            if 'dipole' in para['target']:
-                self.save.save1D(dipole.numpy(),
-                                 name='dippred.dat', ty='a')
+            dipole = para['dipole']
+            self.save.save1D(
+                    homo_lumo.numpy(), name='eigpred.dat', dire=dire, ty='a')
+            self.save.save1D(
+                    dipole.numpy(), name='dippred.dat', dire=dire, ty='a')
             self.save.save1D(para['qatomall'].numpy(),
-                             name='qatompred.dat', ty='a')
+                             name='qatompred.dat', dire=dire, ty='a')
 
     def ml_compr_interp(self, para):
         '''test the interpolation gradients'''
@@ -608,17 +631,6 @@ class RunML:
                 print("para['compr_ml']", para['compr_ml'])
                 self.save.save1D(para['compr_ml'].detach().numpy(),
                                  name='comprbp.dat', dire='.data', ty='a')
-
-
-def interpskf(para):
-    '''
-    read .skf data from skgen with various compR
-    '''
-    print('** read skf file with all compR **')
-    for namei in para['atomspecie']:
-        for namej in para['atomspecie']:
-            SkInterpolator(para, gridmesh=0.2).readskffile(
-                    namei, namej, para['dire_interpSK'])
 
 
 def readhs_ij_line(iat, jat, para):
@@ -868,16 +880,20 @@ class RunCalc:
         natom = np.shape(coor)[0]
         write.FHIaims(para).geo_nonpe_hdf(para, ibatch, coor[:, 1:])
         os.rename('geometry.in.{}'.format(ibatch), 'ref/aims/geometry.in')
-        os.system('bash '+dire+'/run.sh '+dire+' '+str(ibatch)+' '+str(natom))
+        os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch) +
+                  ' ' + str(natom))
 
     def dftbplus(self, para, ibatch, dire):
         '''use dftb+ to calculate'''
+        dftb = write.Dftbplus(para)
         coor = para['coor']
         self.para['natom'] = coor.shape[0]
-        specie, speciedict = para['specie'], para['speciedict']
-        write.Dftbplus(para).geo_nonpe2(ibatch, coor[:, 1:], specie, speciedict)
-        os.rename('geo.gen.{}'.format(ibatch), 'ref/dftbplus/geo.gen')
-        os.system('bash '+dire+'/run.sh '+dire+' '+str(ibatch))
+        specie = para['specie']
+        scc = para['scc']
+
+        dftb.geo_nonpe(dire, coor, specie)
+        dftb.write_dftbin(dire, scc, coor, specie)
+        os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch))
 
     def dftbtorchrun(self, para, coor, DireSK):
         '''
@@ -899,7 +915,8 @@ class RunCalc:
         use dftb_python and read SK from whole .skf file, coor as input and
         do not have to read coor from geo.gen or other input files
         '''
-        dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
+        # dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
+        slakot.SKTran(self.para)
         dftb_torch.Rundftbpy(self.para)
 
 
@@ -984,18 +1001,19 @@ class ML:
         self.para = para
         self.read = Read(para)
         self.nfile = int(para['n_dataset'][0])
-        self.dataprocess()
+        self.dataprocess(self.para['dire_data'])
         if self.para['testMLmodel'] == 'linear':
             self.linearmodel()
 
-    def dataprocess(self):
-        dire = self.para['direfeature']
+    def dataprocess(self, diredata):
+        # dire = self.para['direfeature']
         nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
-        self.para['natomall'] = self.read.read1d('.', 'natom.dat', self.nfile)
+        self.para['natomall'] = self.read.read1d(diredata, 'natom.dat',
+                                                 self.nfile)
 
         if self.para['Lml_skf']:
             natom = int(self.para['natomall'].max())
-            fpcompr = open(os.path.join(dire, 'compr.dat'), 'r')
+            fpcompr = open(os.path.join(diredata, 'comprbp.dat'), 'r')
             compr = np.zeros((self.nfile, nsteps_, natom))
 
             for ifile in range(0, self.nfile):
@@ -1006,7 +1024,7 @@ class ML:
                 compr[ifile, :, :natom_] = datafpcompr
             self.para['optRall'] = compr
         if self.para['feature'] == 'rad':
-            fprad = open(os.path.join(dire, 'env_rad.dat'), 'r')
+            fprad = open(os.path.join(diredata, 'env_rad.dat'), 'r')
             datafprad = np.fromfile(fprad, dtype=float,
                                     count=natom_*self.nfile,  sep=' ')
             datafprad.shape = (self.nfile, natom_)
@@ -1080,8 +1098,8 @@ def get_env_para():
         irad = para['rad_paraall'][ibatch]
         # irad = para['distance'][0]
         # irad = irad / (max(irad) + min(irad[1:]))
-        save.save1D(iang, name='env_ang.dat', ty='a')
-        save.save1D(irad, name='env_rad.dat', ty='a')
+        save.save1D(iang, name='env_ang.dat', dire='.data', ty='a')
+        save.save1D(irad, name='env_rad.dat', dire='.data', ty='a')
 
 
 if __name__ == '__main__':
@@ -1092,6 +1110,7 @@ if __name__ == '__main__':
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
+        para['dire_data'] = '../data/200604compr_50mol_dip'
         testml(para)
     elif para['task'] == 'envpara':
         get_env_para()

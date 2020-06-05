@@ -6,7 +6,6 @@ import numpy as np
 import torch as t
 import scipy.interpolate
 import bisect
-import math
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 

@@ -431,7 +431,6 @@ class ReadSKt:
 
     def read_sk(self, namei, namej):
         '''read homo- type .skf file'''
-        print(namei, namej)
         nameij = namei + namej
         skfname = namei + '-' + namej + '.skf'
         direc = self.para['direSK']
@@ -552,6 +551,7 @@ class SkInterpolator:
             atomname_filename.append((filename.split('.')[0]).split("-"))
             split = filename.split('.')
 
+            '''
             if [namei, split[-1], split[-2]] == [namej, split[-3], split[-4]]:
                 fp_line2 = [float(ii) for ii in fp.readline().split()]
                 fp_line2_ = t.from_numpy(np.asarray(fp_line2))
@@ -571,7 +571,13 @@ class SkInterpolator:
                 data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
                 data.shape = (int(ngridpoint[icount]), 20)
                 integrals.append(data)
-                self.para['rest'].append(fp.read())
+                self.para['rest'].append(fp.read())'''
+            data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+            mass_rcut[icount, :] = t.from_numpy(data)
+            data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+            data.shape = (int(ngridpoint[icount]), 20)
+            integrals.append(data)
+            self.para['rest'].append(fp.read())
             icount += 1
 
         if self.para['Lrepulsive']:
@@ -592,17 +598,18 @@ class SkInterpolator:
             self.para['rep' + nameij] = t.from_numpy(datarep)
             datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
             self.para['repend' + nameij] = t.from_numpy(datarepend)
-
+        
         self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 5)
         superskf = t.zeros(ncompr, ncompr,
                            self.para['skf_line_tail' + nameij], 20)
-        mass_rcut_ = t.zeros(ncompr, ncompr, 20)
-        onsite_ = t.zeros(ncompr, ncompr, 3)
-        spe_ = t.zeros(ncompr, ncompr)
-        uhubb_ = t.zeros(ncompr, ncompr, 3)
-        occ_skf_ = t.zeros(ncompr, ncompr, 3)
-        ngridpoint_ = t.zeros(ncompr, ncompr)
-        grid_dist_ = t.zeros(ncompr, ncompr)
+        if self.para['Lonsite']:
+            mass_rcut_ = t.zeros((ncompr, ncompr, 20), dtype=t.float64)
+            onsite_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
+            spe_ = t.zeros((ncompr, ncompr), dtype=t.float64)
+            uhubb_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
+            occ_skf_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
+        ngridpoint_ = t.zeros((ncompr, ncompr), dtype=t.float64)
+        grid_dist_ = t.zeros((ncompr, ncompr), dtype=t.float64)
 
         # transfer 1D [nfile, n] to 2D [ncompr, ncompr, n]
         for skfi in range(0, nfile):
@@ -613,16 +620,18 @@ class SkInterpolator:
                 t.from_numpy(integrals[skfi])
             grid_dist_[rowi, colj] = grid_dist[skfi]
             ngridpoint_[rowi, colj] = ngridpoint[skfi]
-            mass_rcut_[rowi, colj, :] = mass_rcut[skfi, :]
-            onsite_[rowi, colj, :] = onsite[skfi, :]
-            spe_[rowi, colj] = spe[skfi]
-            uhubb_[rowi, colj, :] = uhubb[skfi, :]
-            occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
-        self.para['massrcut_rall' + nameij] = mass_rcut_
-        self.para['onsite_rall' + nameij] = onsite_
-        self.para['spe_rall' + nameij] = spe_
-        self.para['uhubb_rall' + nameij] = uhubb_
-        self.para['occ_skf_rall' + nameij] = occ_skf_
+            if self.para['Lonsite']:
+                mass_rcut_[rowi, colj, :] = mass_rcut[skfi, :]
+                onsite_[rowi, colj, :] = onsite[skfi, :]
+                spe_[rowi, colj] = spe[skfi]
+                uhubb_[rowi, colj, :] = uhubb[skfi, :]
+                occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
+        if self.para['Lonsite']:
+            self.para['massrcut_rall' + nameij] = mass_rcut_
+            self.para['onsite_rall' + nameij] = onsite_
+            self.para['spe_rall' + nameij] = spe_
+            self.para['uhubb_rall' + nameij] = uhubb_
+            self.para['occ_skf_rall' + nameij] = occ_skf_
         self.para['nfile_rall' + nameij] = nfile
         self.para['grid_dist_rall' + nameij] = grid_dist_
         self.para['ngridpoint_rall' + nameij] = ngridpoint_
@@ -651,7 +660,6 @@ class SkInterpolator:
         yneigh = (np.abs(gridarr2 - r2)).argmin()
         ninterp = round(xneigh*row + yneigh)
         ninterpline = int(skffile["gridmeshpoint"][ninterp, 1])
-        # print("ninterpline", ninterpline)
         hs_skf = np.empty((ninterpline+5, 20))
         for lineskf in range(0, ninterpline):
             distance = lineskf*self.gridmesh + self.grid0

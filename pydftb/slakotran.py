@@ -2,31 +2,29 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from dftb_math import DFTBmath
-import math
 
 
-
-def sk_tran(generalpara):
+def sk_tran(para):
     '''transfer H and S according to slater-koster rules'''
-    atomind = generalpara['atomind']
-    natom = generalpara['natom']
-    atomname = generalpara['atomnameall']
-    distance_vec = generalpara['distance_vec']
-    # izp = generalpara['natomtype']
+    atomind = para['atomind']
+    natom = para['natom']
+    atomname = para['atomnameall']
+    distance_vec = para['distance_vec']
+    # izp = para['natomtype']
     atomind2 = int(atomind[natom]*(atomind[natom]+1)/2)
     hammat = np.zeros((atomind2))
     overmat = np.zeros((atomind2))
     rr = np.zeros(3)
     for i in range(0, natom):
-        lmaxi = generalpara['lmaxall'][i]
+        lmaxi = para['lmaxall'][i]
         for j in range(0, i+1):
-            lmaxj = generalpara['lmaxall'][j]
+            lmaxj = para['lmaxall'][j]
             lmax = max(lmaxi, lmaxj)
             hams = np.zeros((9, 9))
             ovrs = np.zeros((9, 9))
-            generalpara['nameij'] = atomname[i]+atomname[j]
+            para['nameij'] = atomname[i]+atomname[j]
             rr[:] = distance_vec[i, j, :]
-            hams, ovrs = slkode(rr, i, j, generalpara, hams,
+            hams, ovrs = slkode(rr, i, j, para, hams,
                                 ovrs, lmax, hammat, overmat)
             for n in range(0, int(atomind[j+1] - atomind[j])):
                 nn = atomind[j] + n
@@ -40,21 +38,20 @@ def sk_tran(generalpara):
     return hammat, overmat
 
 
-def slkode(rr, i, j, generalpara, ham_matrix, s_matrix, lmax, hammat, overmat):
+def slkode(rr, i, j, para, ham_matrix, s_matrix, lmax, hammat, overmat):
     # here we transfer i from ith atom to ith spiece
-    coor = generalpara['coor']
-    dd = np.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2])
-    nameij = generalpara['nameij']
-    if generalpara['ty'] == 0:
-        hs_data = getsk(generalpara, nameij, dd)
-    elif generalpara['ty'] == 1:
-        hs_data = getsk(generalpara, nameij, dd)
-    elif generalpara['ty'] == 5:
-        hs_data = generalpara['h_s_all'][i, j, :]
-    # print("generalpara['h_s_all']", generalpara['h_s_all'])
-    grid_dist = generalpara['grid_dist'+nameij]
-    skself = generalpara['onsite']
-    cutoff = generalpara['cutoffsk'+nameij]
+    coor = para['coor']
+    dd = np.sqrt(np.sum(rr[:] ** 2))
+    nameij = para['nameij']
+
+    if para['ty'] in ['dftb', 'dftbpy']:
+        hs_data = getsk(para, nameij, dd)
+    elif para['ty'] in ['ml']:
+        hs_data = para['h_s_all'][i, j, :]
+
+    grid_dist = para['grid_dist' + nameij]
+    skself = para['onsite']
+    cutoff = para['cutoffsk' + nameij]
     skselfnew = np.empty(3)
     xyz = rr[:]
     if dd > cutoff:
@@ -96,19 +93,19 @@ def slkode(rr, i, j, generalpara, ham_matrix, s_matrix, lmax, hammat, overmat):
             ham_matrix[8, 8] = skselfnew[0]
             s_matrix[8, 8] = 1.0
     else:
-        ham_matrix, s_matrix = shpar(generalpara, rr, i, j, dd, xyz, coor,
+        ham_matrix, s_matrix = shpar(para, rr, i, j, dd, xyz, coor,
                                      grid_dist, hs_data, ham_matrix, s_matrix)
     return ham_matrix, s_matrix
 
 
-def getsk(generalpara, nameij, dd):
+def getsk(para, nameij, dd):
     # ninterp is the num of points for interpolation, here is 8
-    ninterp = generalpara['ninterp']
-    datalist = generalpara['h_s_all'+nameij]
-    griddist = generalpara['grid_dist'+nameij]
-    cutoff = generalpara['cutoffsk'+nameij]
-    ngridpoint = generalpara['ngridpoint'+nameij]
-    grid0 = generalpara['grid0']
+    ninterp = para['ninterp']
+    datalist = para['h_s_all'+nameij]
+    griddist = para['grid_dist'+nameij]
+    cutoff = para['cutoffsk'+nameij]
+    ngridpoint = para['ngridpoint'+nameij]
+    grid0 = para['grid0']
     ind = int(dd/griddist)
     nlinesk = ngridpoint
     lensk = nlinesk*griddist
@@ -139,23 +136,23 @@ def getsk(generalpara, nameij, dd):
     return hsdata
 
 
-def shpar(generalpara, rr, i, j, dd, xyz, coor, grid_dist, hs_data, hams,
+def shpar(para, rr, i, j, dd, xyz, coor, grid_dist, hs_data, hams,
           ovrs):
-    '''if generalpara['ty'] == 0:
+    '''if para['ty'] == 0:
         hs_data_str = datalist[np.int(np.round(dd/grid_dist))-1]
         hs_data = np.array(hs_data_str)
-    elif generalpara['ty'] == 1:
+    elif para['ty'] == 1:
         hs_data_str = datalist[np.int(np.round(dd/grid_dist))-1]
         hs_data = np.array(hs_data_str)
-    elif generalpara['ty'] == 5:
+    elif para['ty'] == 5:
         hs_data = datalist'''
     xyz2 = np.sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2])
     if xyz2 > 1E-4:
         xx = xyz[0]/xyz2
         yy = xyz[1]/xyz2
         zz = xyz[2]/xyz2
-    lmaxi = generalpara['lmaxall'][i]
-    lmaxj = generalpara['lmaxall'][j]
+    lmaxi = para['lmaxall'][i]
+    lmaxj = para['lmaxall'][j]
     maxmax = max(lmaxi, lmaxj)
     minmax = min(lmaxi, lmaxj)
     if maxmax == 1:

@@ -56,7 +56,6 @@ class ReadSlaKo:
         self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
         self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
         icount = 0
-        print('read_sk')
         for namei in atomname:
             for namej in atomname:
                 self.readsk.read_sk(namei, namej)
@@ -354,9 +353,14 @@ class SlaKo:
         print('total time init:', timelist[-1] - timelist[1])
         for iat in atomspecie:
             # onsite is not in ML, therefore read [0, 0] here is correct!!!
-            onsite, uhubb = t.zeros(3), t.zeros(3)
-            onsite[:] = self.para['onsite_rall' + iat + iat][0, 0]
-            uhubb[:] = self.para['uhubb_rall' + iat + iat][0, 0]
+            onsite = t.zeros((3), dtype=t.float64)
+            uhubb = t.zeros((3), dtype=t.float64)
+            if self.para['Lonsite']:
+                onsite[:] = self.para['onsite_rall' + iat + iat][0, 0]
+                uhubb[:] = self.para['uhubb_rall' + iat + iat][0, 0]
+            else:
+                onsite[:] = self.para['onsite' + iat]
+                uhubb[:] = self.para['uhubb' + iat]
             self.para['onsite' + iat + iat] = onsite
             self.para['uhubb' + iat + iat] = uhubb
 
@@ -472,7 +476,6 @@ class SlaKo:
 
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
-        print('atomname', atomname, natom)
         '''print(para['hs_compr_all'][1][1, 3, :],
               para['hs_compr_all'][5][1, 3, :],
               para['hs_compr_all'][5][3, 1, :])'''

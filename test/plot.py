@@ -253,13 +253,17 @@ def plot_dip_(outpara, dire, ty):
     plt.show()
 
 
-def plot_dip_pred(outpara, dire):
-    fpinit = open(os.path.join(dire, 'dipbp.dat'), 'r')
-    fpref = open(os.path.join(dire, 'dipref.dat'), 'r')
-    fppred = open(os.path.join(dire, 'dippred.dat'), 'r')
-    fpdftbplus = open(os.path.join(dire, 'dipdftbplus.dat'), 'r')
+def plot_dip_pred(outpara, dire,  aims=None, dftbplus=None):
+    '''plot dipole with various results'''
     nfile = int(outpara['n_dataset'][0])
     nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+
+    if aims is not None:
+        fpref = open(os.path.join(dire, 'dipaims.dat'), 'r')
+    if dftbplus is not None:
+        fpdftbplus = open(os.path.join(dire, 'dipdftbplus.dat'), 'r')
+    fppred = open(os.path.join(dire, 'dippred.dat'), 'r')
+    fpinit = open(os.path.join(dire, 'dipbp.dat'), 'r')
     dataref = np.zeros((nfile, 3))
     datainit = np.zeros((nfile, 3))
     datapred = np.zeros((nfile, 3))
@@ -279,16 +283,21 @@ def plot_dip_pred(outpara, dire):
         diff_dftbplus[ifile] = sum(abs(dataref[ifile, :] - datadftbplus[ifile, :]))
     for ifile in range(0, nfile):
         plt.ylabel('dipole with initial r vs. predict r')
-        p1, = plt.plot(dataref[ifile, 0], datainit[ifile, 0], 'xr')
-        p2, = plt.plot(dataref[ifile, 1], datapred[ifile, 1], 'ob')
-        p3, = plt.plot(dataref[ifile, 2], datadftbplus[ifile, 2], '*y')
+        p1, = plt.plot(dataref[ifile, :], datainit[ifile, :], 'xr')
+        p2, = plt.plot(dataref[ifile, :], datapred[ifile, :], 'ob')
+        p3, = plt.plot(dataref[ifile, :], datadftbplus[ifile, :], '*y')
         plt.legend([p1, p2, p3], ['dipole-init', 'dipole-pred', 'dipole-dftbplus'])
     plt.xlabel('reference dipole')
-    plt.plot(dataref, dataref, 'k')
+
+    minref, maxref = np.min(dataref), np.max(dataref)
+    refrange = np.linspace(minref, maxref)
+    plt.plot(refrange, refrange, 'k')
+
     plt.show()
+
     plt.plot(np.arange(1, nfile + 1, 1), diff_init, 'xr')
     plt.plot(np.arange(1, nfile + 1, 1), diff_pred, 'ob')
-    plt.plot(np.arange(1, nfile + 1, 1), diff_dftbplus, 'ob')
+    plt.plot(np.arange(1, nfile + 1, 1), diff_dftbplus, 'vk')
     print(sum(diff_pred) / sum(diff_init), sum(diff_pred) / sum(diff_dftbplus))
     plt.show()
 

@@ -13,7 +13,6 @@ Hamiltonian = DFTB {
   }
   MaxAngularMomentum {
     H="s"
-    C="p"
   }
   Charge = 0.0
   SpinPolarisation {}
@@ -26,24 +25,14 @@ Hamiltonian = DFTB {
     Suffix = ".skf"
   }
 
-#  Dispersion = Mbd {
-#    ReferenceSet = 'ts'
-#    NOmegaGrid = 15
-#    Beta = 1.05
-#    KGrid = 3 3 3
-#    VacuumAxis = Yes Yes Yes
-#  }
 }
 
 Analysis {
   CalculateForces = Yes
-#  WriteMulliken = Yes
-#  OscillatorWindows = Yes
 }
 
 Options {
   WriteAutotestTag = Yes
-#  WriteTransitionDipole = Yes
 }
 
 ParserOptions {

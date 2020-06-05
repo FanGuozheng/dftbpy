@@ -18,6 +18,7 @@ from periodic import Periodic
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
 PUBPARA = {"LDIM": 9, "AUEV": 27.2113845, "BOHR": 0.529177249, "tol": 1E-4}
+ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
 def main(para):
@@ -68,12 +69,12 @@ class Initialization:
         # step 3: generate vector, distance ... from given geometry
         self.readin.cal_coor()
 
+        # step 4: read SKF files
         if not self.para['Lml']:
             self.normal_sk()
         if self.para['Lml']:
-            if self.para['Lml_skf']:
-                if self.para['atomspecie'] != self.para['atomspecie_old']:
-                    self.interpskf(self.para)
+            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
+                self.interpskf()
 
     def parser_cmd_args(self):
         '''
@@ -113,9 +114,8 @@ class Initialization:
         self.readsk.read_sk_specie()
         self.slako.get_sk_spldata()
 
-    def gen_sk_matrix(self, para):
-        '''SK transformations'''
-        SKTran(para)
+    '''def gen_sk_matrix(self, para):
+        SKTran(para)'''
 
     def interpskf(self):
         '''
@@ -124,8 +124,16 @@ class Initialization:
         print('** read skf file with all compR **')
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
-                SkInterpolator(para, gridmesh=0.2).readskffile(
-                        namei, namej, self.para['dire_interpSK'])
+                if ATOMNUM[namei] <= ATOMNUM[namej]:  # this is just nanestyle
+                    dire = self.para['dire_interpSK'] + '/' + namei + \
+                        '_' + namej + '_den'
+                    SkInterpolator(self.para, gridmesh=0.2).readskffile(
+                            namei, namej, dire)
+                else:
+                    dire = self.para['dire_interpSK'] + '/' + namej + \
+                        '_' + namei + '_den'
+                    SkInterpolator(self.para, gridmesh=0.2).readskffile(
+                            namei, namej, dire)
 
 
 class Rundftbpy:
