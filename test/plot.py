@@ -4,18 +4,18 @@ import os
 import matplotlib.pyplot as plt
 
 
-def plot_main(outpara):
-    if 'hstable' not in outpara['target']:
-        plot_eig(outpara)
-    # plot_ham(outpara)
-    if 'dipole' in outpara['target']:
-        plot_dip(outpara)
-    if 'energy' in outpara['target']:
-        plot_energy(outpara)
-    if outpara['Lml_HS']:
-        plot_spl(outpara)
-    elif outpara['Lml_skf']:
-        plot_compr(outpara)
+def plot_main(para):
+    if 'hstable' not in para['target']:
+        plot_eig(para)
+    # plot_ham(para)
+    if 'dipole' in para['target']:
+        plot_dip(para)
+    if 'energy' in para['target']:
+        plot_energy(para)
+    if para['Lml_HS']:
+        plot_spl(para)
+    elif para['Lml_skf']:
+        plot_compr(para)
 
 
 def plot_eig(para):
@@ -82,16 +82,16 @@ def plot_dip(para):
     plt.show()
 
 
-def plot_energy(outpara):
+def plot_energy(para):
     if para['ref'] == 'aims':
         enerref = '.data/energyaims.dat'
     elif para['ref'] == 'dftbplus':
         enerref = '.data/energydftbplus.dat'
     elif para['ref'] == 'dftb':
         enerref = '.data/energyref.dat'
-    nfile = int(outpara['n_dataset'][0])
+    nfile = int(para['n_dataset'][0])
     fpopt, fpref = open('energybp.dat', 'r'), open(enerref, 'r')
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     dataref = np.zeros((nfile))
     dataopt = np.zeros((nfile, nsteps))
 
@@ -112,11 +112,11 @@ def plot_energy(outpara):
     plt.show()
 
 
-def plot_eig_(outpara, dire, ty):
+def plot_eig_(para, dire, ty):
     fpopt = open(os.path.join(dire, 'eigbp.dat'), 'r')
     fpref = open(os.path.join(dire, 'eigref.dat'), 'r')
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     dataref = np.zeros((nfile, 2))
     dataopt = np.zeros((nfile, nsteps, 2))
 
@@ -155,11 +155,11 @@ def plot_eig_(outpara, dire, ty):
     plt.show()
 
 
-def plot_gap_(outpara, dire, ty):
+def plot_gap_(para, dire, ty):
     fpopt = open(os.path.join(dire, 'eigbp.dat'), 'r')
     fpref = open(os.path.join(dire, 'eigref.dat'), 'r')
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     dataref = np.zeros((nfile, 2))
     dataopt = np.zeros((nfile, nsteps, 2))
 
@@ -194,11 +194,11 @@ def plot_gap_(outpara, dire, ty):
     plt.show()
 
 
-def plot_dip_(outpara, dire, ty):
+def plot_dip_(para, dire, ty):
     fpopt = open(os.path.join(dire, 'dipbp.dat'), 'r')
     fpref = open(os.path.join(dire, 'dipref.dat'), 'r')
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     dataref = np.zeros((nfile, 3))
     dataopt = np.zeros((nfile, nsteps, 3))
 
@@ -253,10 +253,11 @@ def plot_dip_(outpara, dire, ty):
     plt.show()
 
 
-def plot_dip_pred(outpara, dire,  aims=None, dftbplus=None):
+def plot_dip_pred(para, dire,  aims=None, dftbplus=None):
     '''plot dipole with various results'''
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    ntest = int(para['n_test'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
 
     if aims is not None:
         fpref = open(os.path.join(dire, 'dipaims.dat'), 'r')
@@ -264,54 +265,82 @@ def plot_dip_pred(outpara, dire,  aims=None, dftbplus=None):
         fpdftbplus = open(os.path.join(dire, 'dipdftbplus.dat'), 'r')
     fppred = open(os.path.join(dire, 'dippred.dat'), 'r')
     fpinit = open(os.path.join(dire, 'dipbp.dat'), 'r')
-    dataref = np.zeros((nfile, 3))
-    datainit = np.zeros((nfile, 3))
-    datapred = np.zeros((nfile, 3))
-    datadftbplus = np.zeros((nfile, 3))
-    diff_init = np.zeros(nfile)
-    diff_pred = np.zeros(nfile)
-    diff_dftbplus = np.zeros(nfile)
+    dinit = np.zeros((nfile, 3), dtype=float)
+    diff_init = np.zeros((nfile), dtype=float)
 
-    print('plot eigen values')
-    for ifile in range(0, nfile):
-        dataref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
-        datainit[ifile, :] = np.fromfile(fpinit, dtype=float, count=3, sep=' ')
-        datapred[ifile, :] = np.fromfile(fppred, dtype=float, count=3, sep=' ')
-        datadftbplus[ifile, :] = np.fromfile(fpdftbplus, dtype=float, count=3, sep=' ')
-        diff_init[ifile] = sum(abs(dataref[ifile, :] - datainit[ifile, :]))
-        diff_pred[ifile] = sum(abs(dataref[ifile, :] - datapred[ifile, :]))
-        diff_dftbplus[ifile] = sum(abs(dataref[ifile, :] - datadftbplus[ifile, :]))
-    for ifile in range(0, nfile):
-        plt.ylabel('dipole with initial r vs. predict r')
-        p1, = plt.plot(dataref[ifile, :], datainit[ifile, :], 'xr')
-        p2, = plt.plot(dataref[ifile, :], datapred[ifile, :], 'ob')
-        p3, = plt.plot(dataref[ifile, :], datadftbplus[ifile, :], '*y')
-        plt.legend([p1, p2, p3], ['dipole-init', 'dipole-pred', 'dipole-dftbplus'])
+    dref = np.zeros((ntest, 3), dtype=float)
+    dpred = np.zeros((ntest, 3), dtype=float)
+    ddftbplus = np.zeros((ntest, 3), dtype=float)
+    diff_pred = np.zeros((ntest), dtype=float)
+    diff_dftbplus = np.zeros((ntest), dtype=float)
+
+    print('plot dipole values')
+    for ifile in range(nfile):
+        dinit_ = np.fromfile(fpinit, dtype=float, count=3*nsteps, sep=' ')
+        dinit[ifile, :] = dinit_[:3]
+
+    for ifile in range(ntest):
+        dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
+        dpred[ifile, :] = np.fromfile(fppred, dtype=float, count=3, sep=' ')
+        ddftbplus[ifile, :] = np.fromfile(
+                fpdftbplus, dtype=float, count=3, sep=' ')
+
+    min_ = min(nfile, ntest)
+    for ii in range(min_):
+        diff_init[ii] = sum(abs(dref[ii, :] - dinit[ii, :]))
+        p1, = plt.plot(dref[ii, :], dinit[ii, :], 'xr')
+
+    for ii in range(ntest):
+        diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
+        p2, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
+
+    if aims is not None:
+        for ii in range(ntest):
+            diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
+            p3, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
+
+    if aims is not None:
+        plt.legend([p1, p2, p3],
+                   ['dipole-init', 'dipole-pred', 'dipole-DFTB+'])
+    else:
+        # p1, = plt.plot(dref[: min_], dinit[: min_], 'xr')
+        # p2, = plt.plot(dref, dpred, 'ob')
+        plt.legend([p1, p2], ['dipole-init', 'dipole-pred'])
     plt.xlabel('reference dipole')
+    plt.ylabel('dipole with initial r vs. predict r')
 
-    minref, maxref = np.min(dataref), np.max(dataref)
+    minref, maxref = np.min(dref), np.max(dref)
     refrange = np.linspace(minref, maxref)
     plt.plot(refrange, refrange, 'k')
-
     plt.show()
 
-    plt.plot(np.arange(1, nfile + 1, 1), diff_init, 'xr')
-    plt.plot(np.arange(1, nfile + 1, 1), diff_pred, 'ob')
-    plt.plot(np.arange(1, nfile + 1, 1), diff_dftbplus, 'vk')
-    print(sum(diff_pred) / sum(diff_init), sum(diff_pred) / sum(diff_dftbplus))
+    p1 = plt.plot(np.arange(1, min_ + 1, 1), diff_init[: min_], marker='x',
+                  color='r', label='dipole-init')
+    p2 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
+                  color='b', label='dipole-pred')
+    if aims is not None:
+        p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
+                      color='y', label='dipole-dftbplus')
+        print('(prediction -reference) / (DFTB+ - reference):',
+              sum(diff_pred) / sum(diff_dftbplus))
+    plt.xlabel('molecule number')
+    plt.ylabel('dipole difference between DFTB and aims')
+    plt.legend()
+    print('(prediction -reference) / (initial - reference):',
+          sum(diff_pred) / sum(diff_init))
     plt.show()
 
 
-def plot_compr(outpara):
-    nfile = int(outpara['n_dataset'][0])
+def plot_compr(para):
+    nfile = int(para['n_dataset'][0])
     fpr = open('.data/comprbp.dat', 'r')
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     max_natom = 10
     datafpr = np.zeros((nfile, nsteps, max_natom))
     icount = 0
     print('plot compression R')
     for ifile in range(0, nfile):
-        natom = outpara['coorall'][ifile].shape[0]
+        natom = para['coorall'][ifile].shape[0]
         for istep in range(0, nsteps):
             datafpr[ifile, istep, :natom] = np.fromfile(
                     fpr, dtype=float, count=natom, sep=' ')
@@ -320,7 +349,7 @@ def plot_compr(outpara):
     plt.xlabel('steps * molecule')
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
-            natom = outpara['coorall'][ifile].shape[0]
+            natom = para['coorall'][ifile].shape[0]
             for iatom in range(0, natom):
                 if iatom == 0:
                     p1, = plt.plot(icount, datafpr[ifile, istep, iatom], 'xb')
@@ -331,14 +360,14 @@ def plot_compr(outpara):
     plt.show()
 
 
-def plot_compr_(outpara, dire, ty):
+def plot_compr_(para, dire, ty):
     fpr = open(os.path.join(dire, 'compr.dat'), 'r')
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     max_natom = 10
     datafpr = np.zeros((nfile, nsteps, max_natom))
     icount = 0
-    natom = outpara['natom']
+    natom = para['natom']
     print('plot compression R')
     for ifile in range(0, nfile):
         for istep in range(0, nsteps):
@@ -502,10 +531,10 @@ def plot_spl(para):
     plt.show()
 
 
-def plot_ham(outpara):
+def plot_ham(para):
     print('plot ham from spline interpolation')
-    nfile = int(outpara['n_dataset'][0])
-    nsteps = int(outpara['mlsteps'] / outpara['save_steps'])
+    nfile = int(para['n_dataset'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
     fphamupdate = open('ham.dat', 'r')
     fphamref = open('hamref.dat', 'r')
     istep = 0

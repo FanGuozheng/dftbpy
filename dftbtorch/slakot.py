@@ -529,6 +529,7 @@ class SlaKo:
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
         icount = 0
+        print("self.para['compr_ml']", self.para['compr_ml'])
         for iatom in range(0, natom):
             iname = atomname[iatom]
             icompr = self.para['compr_ml'][iatom]

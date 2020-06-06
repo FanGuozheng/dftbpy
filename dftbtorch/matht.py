@@ -511,6 +511,12 @@ class BicubInterp:
             zmesh: z (2D)
             ix, iy: the interpolation point
         '''
+        # check if xi, yi is out of range of xmesh, ymesh, maybe not good!!!!!
+        if xi < xmesh[0]:
+            xi = xmesh[0]
+        if yi < ymesh[0]:
+            yi = ymesh[0]
+
         coeff = t.Tensor([[1, 0, 0, 0],
                           [0, 0, 1, 0],
                           [-3, 3, -2, -1],

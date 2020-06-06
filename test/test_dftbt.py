@@ -1,8 +1,9 @@
 '''test dftbpy'''
 from __future__ import absolute_import
+import os
 import torch as t
 import numpy as np
-import os
+import matplotlib.pyplot as plt
 import dftbtorch.slakot as slakot
 import dftbtorch.dftb_torch as dftb_torch
 from dftb_torch import main
@@ -883,11 +884,169 @@ def generate_compr():
         print(compr)
 
 
-def test_compr_k():
+def test_compr_para(para):
     '''
     test the best k value in generate_compr
     '''
-    k = np.array([1.0, 1.1, 1.15, 1.2, 1.3])
+    para['scclist'] = ['scc', 'nonscc']  # nonscc, scc, xlbomd
+    para['Lml'] = True  # only perform DFTB part without ML
+    para['Lperiodic'] = False
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['Ldipole'] = True
+    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['grid0'] = 0.4
+    para['interpcutoff'] = 4.0
+    para['Lml_skf'] = True
+    para['Lrepulsive'] = False
+    para['Lml_compr_global'] = False
+    para['LreadSKFinterp'] = True
+    para['Lonsite'] = False
+    para['atomspecie_old'] = []
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
+    para['n_dataset'] = 1
+    para['coor'] = t.tensor((
+            [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
+             [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
+             [1, -6.3309413195e-01, -9.2448824644e-01,  2.2396698594e-01],
+             [1, 4.5421713591e-01,  5.9006392956e-01, 7.5088745356e-01],
+             [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
+            dtype=t.float64)
+    para['atomNumber'] = para['coor'][:, 0]
+    para['H_compr_grid_tol'] = t.tensor(([
+            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
+             7.71, 8.28, 8.85, 9.42, 10.],
+            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
+             6.55, 7.29, 8.11, 9.01, 10.],
+            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
+             6.01, 6.80, 7.72, 8.78, 10.],
+            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
+             5.50, 6.34, 7.34, 8.55, 10.],
+            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
+             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+    para['C_compr_grid_tol'] = t.tensor(([
+            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
+             7.71, 8.28, 8.85, 9.42, 10.],
+            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
+             6.55, 7.29, 8.11, 9.01, 10.],
+            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
+             6.01, 6.80, 7.72, 8.78, 10.],
+            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
+             5.50, 6.34, 7.34, 8.55, 10.],
+            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
+             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)
+
+    kk = ['00', '10', '15', '20', '30']
+    compr_H = np.array([2.2, 2.5, 2.5, 5, 3, 4, 5, 7, 9])
+    compr_C = np.array([2.2, 2.5, 5, 2.5, 3, 4, 5, 7, 9])
+    dire_ = '/home/gz_fan/Downloads/test/work/nonuniform/test'
+
+    CH4_nonscc_5compr = t.tensor([
+            [4.54877458, 0.90414736, 0.89171705, 0.84654232, 0.80881869],
+            [4.55692722, 0.89271487, 0.88479718, 0.84749998, 0.81806075],
+            [4.39621741, 0.91806577, 0.91452962, 0.89408694, 0.87710025],
+            [4.74736139, 0.83225687, 0.82908318, 0.80566861, 0.78562995],
+            [4.55634287, 0.88296256, 0.87903179, 0.85158529, 0.83007749],
+            [4.55684916, 0.87323674, 0.87272719, 0.85576384, 0.84142308],
+            [4.56767973, 0.86576564, 0.86681774, 0.85528902, 0.84444786],
+            [4.58810449, 0.85627158, 0.85862637, 0.85229435, 0.84470322],
+            [4.59921028, 0.85180023, 0.85459586, 0.85035610, 0.84403753]],
+            dtype=t.float64)
+
+    CH4_scc_5compr = t.tensor([
+            [4.43328956, 0.92712097, 0.91655472, 0.87744897, 0.84558578],
+            [4.44522114, 0.91908073, 0.91151631, 0.87575851, 0.84842331],
+            [4.33079794, 0.93562673, 0.93178550, 0.90948106, 0.89230877],
+            [4.61624592, 0.87103181, 0.86624626, 0.83473415, 0.81174186],
+            [4.45366071, 0.91072798, 0.90602786, 0.87584618, 0.85373726],
+            [4.46582226, 0.90073745, 0.89867175, 0.87571182, 0.85905672],
+            [4.48135560, 0.89327086, 0.89241721, 0.87342269, 0.85953364],
+            [4.50478922, 0.88416605, 0.88429830, 0.86905292, 0.85769350],
+            [4.51678901, 0.87994673, 0.88040059, 0.86662875, 0.85623492]],
+            dtype=t.float64)
+
+    qatomall = t.zeros((2, 5, 9, 5), dtype=t.float64)
+    qdiff = t.zeros((2, 5, 9, 5), dtype=t.float64)
+    qdiff2 = t.zeros((2, 5, 9), dtype=t.float64)
+
+    with open(os.path.join('.data', 'test_compr_para_q.hsd'), 'w') as fpq:
+
+        for iscc in range(len(para['scclist'])):
+            para['scc'] = para['scclist'][iscc]
+
+            for ik in range(len(kk)):
+                para['H_compr_grid'] = para['H_compr_grid_tol'][ik]
+                para['C_compr_grid'] = para['C_compr_grid_tol'][ik]
+                para['dire_interpSK'] = os.path.join(dire_, kk[ik])
+
+                for ir in range(5):
+                    para['H_init_compr'] = compr_H[ir]
+                    para['C_init_compr'] = compr_C[ir]
+
+                    dftb_torch.Initialization(para)
+                    test_grad_compr.GenMLPara(para).get_spllabel()
+                    test_grad_compr.RunML(para).get_compr_specie()
+                    # build the ref data
+                    para['compr_ml'] = para['compr_init']
+                    slakot.SlaKo(para).genskf_interp_compr()
+                    test_grad_compr.RunCalc(para).idftb_torchspline()
+                    qatomall[iscc, ik, ir, :] = para['qatomall']
+
+                    if para['scc'] == 'scc':
+                        qdiff[iscc, ik, ir, :] = \
+                            CH4_scc_5compr[ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = sum(abs(qdiff[iscc, ik, ir, :])) / 5
+                    elif para['scc'] == 'nonscc':
+                        qdiff[iscc, ik, ir, :] = \
+                            CH4_nonscc_5compr[ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = sum(abs(qdiff[iscc, ik, ir, :])) / 5
+
+                    np.savetxt(fpq, para['qatomall'].numpy(),
+                               fmt="%s", newline=" ")
+                    fpq.write('\n')
+                    np.savetxt(fpq, qdiff[iscc, ik, ir, :].numpy(),
+                               fmt="%s", newline=" ")
+                    fpq.write('\n')
+
+    xx = np.linspace(1, 9, 9)
+    yy = np.linspace(0, 0, 9)
+    plt.plot(xx, qdiff2[0, 0, :], color='r', linestyle='-', linewidth=2,
+             label='para 1')
+    plt.plot(xx, qdiff2[0, 1, :], color='b', linestyle='-', linewidth=2,
+             label='para 2')
+    plt.plot(xx, qdiff2[0, 2, :], color='y', linestyle='-', linewidth=2,
+             label='para 3')
+    plt.plot(xx, qdiff2[0, 3, :], color='c', linestyle='-', linewidth=2,
+             label='para 4')
+    plt.plot(xx, qdiff2[0, 4, :], color='k', linestyle='-', linewidth=2,
+             label='para 5')
+    plt.plot(xx, qdiff2[1, 0, :], color='r', linestyle='--', linewidth=2)
+    plt.plot(xx, qdiff2[1, 1, :], color='b', linestyle='--', linewidth=2)
+    plt.plot(xx, qdiff2[1, 2, :], color='y', linestyle='--', linewidth=2)
+    plt.plot(xx, qdiff2[1, 3, :], color='c', linestyle='--', linewidth=2)
+    plt.plot(xx, qdiff2[1, 4, :], color='k', linestyle='--', linewidth=2)
+    plt.legend()
+    plt.xlabel('different compression radius pair points')
+    plt.ylabel('absolute charge difference')
+    plt.plot(xx, yy, color='k', linestyle='-', linewidth=30, alpha=.2)
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -910,7 +1069,7 @@ if __name__ == '__main__':
         para['vdw_self_consistent'] = False
     if 'scc_CH4' in testlist:
         scc_CH4(para)
-    if 'nonscc_CH4' in testlist:
+    '''if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_H2' in testlist:
         scc_H2(para)
@@ -939,6 +1098,9 @@ if __name__ == '__main__':
 
     testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
                       'scc_CH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
+
+    test_compr_para(para)
+
     if 'scc_CH4' in testlist_compr:
         scc_CH4_compr(para)
     if 'nonscc_CH4' in testlist_compr:
@@ -946,4 +1108,4 @@ if __name__ == '__main__':
     if 'nonscc_CH4_compr_nongrid' in testlist_compr:
         nonscc_CH4_compr_nongrid(para)
     if 'scc_CH4_compr_nongrid' in testlist_compr:
-        scc_CH4_compr_nongrid(para)
+        scc_CH4_compr_nongrid(para)'''

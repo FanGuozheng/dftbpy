@@ -58,6 +58,8 @@ def optml(para):
 
 def testml(para):
 
+    get_env_para(para)
+
     # get the default para for dftb and ML, these para will maintain unchanged
     initpara.init_dftb_ml(para)
 
@@ -66,18 +68,65 @@ def testml(para):
 
     # if refrence is not DFTB+, add DFTB+ results
     ML(para)
+
     runml = RunML(para)
-    para['Ldftbplus_test'] = True
+    if int(para['n_dataset'][0]) < int(para['n_test'][0]):
+        para['n_dataset_'] = []
+        para['n_dataset_'].append(para['n_dataset'][0])
+        para['n_dataset'][0] = para['n_test'][0]
+        runml.ref()
+
     if para['ref'] != 'dftbplus':
         para['ref'] = 'dftbplus'
+        if int(para['n_dataset'][0]) == int(para['n_test'][0]):
+            runml.ref()
+        elif int(para['n_dataset'][0]) < int(para['n_test'][0]):
+            para['n_dataset_'] = []
+            para['n_dataset_'].append(para['n_dataset'])
+            para['n_dataset'][0] = para['n_test'][0]
+            runml.ref()
 
-    runml.ref()
-
+    para['n_dataset'] = []
+    para['n_dataset'].append(para['n_dataset_'][0])
     # runml.test_compr(para)
     runml.test_pred_compr(para)
 
     plot.plot_dip_pred(
             para, para['dire_data'], aims='aims', dftbplus='dftbplus')
+
+
+def get_env_para(para):
+    '''
+    this function is to get the environmental parameters
+    '''
+    dire_ = para['dire_data']
+    os.system('rm ' + dire_ + '/env_rad.dat')
+    os.system('rm ' + dire_ + '/env_ang.dat')
+
+    genpara = GenMLPara(para)
+    initpara.init_dftb_ml(para)
+    load = LoadData(para)
+    save = SaveData(para)
+
+    load.loadhdfdata()
+    if len(para['n_dataset']) == 1:
+        nbatch = max(int(para['n_dataset'][0]), int(para['n_test'][0]))
+    print('begin to calculate environmental parameters')
+    symbols = para['symbols']
+    for ibatch in range(0, nbatch):
+        if type(para['coorall'][ibatch]) is np.array:
+            coor = t.from_numpy(para['coorall'][ibatch])
+        elif type(para['coorall'][ibatch]) is t.Tensor:
+            coor = para['coorall'][ibatch]
+        para['coor'] = coor[:]
+        genpara.genenvir(nbatch, para, ibatch, coor, symbols)
+
+        ReadInt(para).cal_coor()
+        iang = para['ang_paraall'][ibatch]
+        irad = para['rad_paraall'][ibatch]
+
+        save.save1D(iang, name='env_ang.dat', dire=dire_, ty='a')
+        save.save1D(irad, name='env_rad.dat', dire=dire_, ty='a')
 
 
 class RunML:
@@ -223,14 +272,25 @@ class RunML:
                  self.para, self.para['nfile'], self.dir_ref)'''
         self.para['refhomo_lumo'] = homo_lumo
         self.para['refdipole'] = dipole
+
+        if para['task'] == 'optml':
+            dire = '.data'
+        elif para['task'] == 'test':
+            dire = para['dire_data']
+        os.system('rm ' + dire + '/dipaims.dat')
+        os.system('rm ' + dire + '/natom.dat')
+        os.system('rm ' + dire + '/energyaims.dat')
+
         os.system('mv ' + os.path.join(self.direaims, 'bandenergy.dat') +
                   ' .data/HLaims.dat')
         os.system('cp ' + os.path.join(self.direaims, 'dip.dat') +
                   ' .data/dipaims.dat')
+        self.save.save1D(self.para['refdipole'].detach().numpy(),
+                         name='dipaims.dat', dire=dire, ty='a')
         self.save.save1D(self.para['refenergy'].detach().numpy(),
-                         name='energyaims.dat', dire='.data', ty='a')
+                         name='energyaims.dat', dire=dire, ty='a')
         self.save.save1D(self.para['natomall'].detach().numpy(),
-                         name='natom.dat', dire='.data', ty='a')
+                         name='natom.dat', dire=dire, ty='a')
 
     def cal_for_energy(self, energy, coor):
         natom = coor.shape[0]
@@ -558,7 +618,7 @@ class RunML:
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
-        self.nbatch = int(self.para['n_dataset'][0])
+        self.nbatch = int(self.para['n_test'][0])
         dire = self.para['dire_data']
         os.system('rm ' + dire + '/eigpred.dat')
         os.system('rm ' + dire + '/dippred.dat')
@@ -998,9 +1058,14 @@ class Read:
 class ML:
 
     def __init__(self, para):
+        '''
+        nfile is the optimization dataset number
+        ntest is the test dataset number
+        '''
         self.para = para
         self.read = Read(para)
         self.nfile = int(para['n_dataset'][0])
+        self.ntest = int(para['n_test'][0])
         self.dataprocess(self.para['dire_data'])
         if self.para['testMLmodel'] == 'linear':
             self.linearmodel()
@@ -1026,27 +1091,35 @@ class ML:
         if self.para['feature'] == 'rad':
             fprad = open(os.path.join(diredata, 'env_rad.dat'), 'r')
             datafprad = np.fromfile(fprad, dtype=float,
-                                    count=natom_*self.nfile,  sep=' ')
-            datafprad.shape = (self.nfile, natom_)
+                                    count=natom_*self.ntest,  sep=' ')
+            datafprad.shape = (self.ntest, natom_)
             self.para['feature_data'] = datafprad
 
     def linearmodel(self):
+        '''
+        use the optimization dataset for training
+        '''
         reg = linear_model.LinearRegression()
-        X = self.para['feature_data']
+        X = self.para['feature_data'][:self.nfile]
+        X_pred = self.para['feature_data']
         y = self.para['optRall'][:, -1, :]
         X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.5)
+
         reg.fit(X_train, y_train)
-        y_pred = reg.predict(X)
-        plt.scatter(X_test[:, 0], y_test[:, 0],  color='black')
-        plt.plot(X[:, 0], y_pred[:, 0], 'ob')
-        plt.xlabel('feature of Carbon')
-        plt.ylabel('compression radius of Carbon')
+
+        y_pred = reg.predict(X_pred)
+
+        plt.scatter(X_train, X_train,  color='black')
+        plt.plot(X_train, y_train, 'ob')
+        plt.xlabel('feature of training dataset')
+        plt.ylabel('traning compression radius')
         plt.show()
-        plt.scatter(X_test[:, 1:], y_test[:, 1:],  color='black')
-        plt.plot(X[:, 1:], y_pred[:, 1:], 'ob')
-        plt.xlabel('feature of Hydrogen')
-        plt.ylabel('compression radius of Hydrogen')
+
+        plt.scatter(X_pred, y_pred,  color='black')
+        plt.plot(X_pred, y_pred, 'ob')
+        plt.xlabel('feature of prediction (tesing)')
+        plt.ylabel('testing compression radius')
         plt.show()
         self.para['compr_pred'] = t.from_numpy(y_pred)
 
@@ -1069,44 +1142,11 @@ class Net(t.nn.Module):
         return y_pred
 
 
-def get_env_para():
-    '''this function is to get the environmental parameters'''
-
-    os.system('rm env_rad.dat env_ang.dat')
-
-    para = {}
-    genpara = GenMLPara(para)
-    initpara.init_dftb_ml(para)
-    load = LoadData(para)
-    save = SaveData(para)
-
-    load.loadhdfdata()
-    if len(para['n_dataset']) == 1:
-        nbatch = int(para['n_dataset'][0])
-    print('begin to calculate environmental parameters')
-    symbols = para['symbols']
-    for ibatch in range(0, nbatch):
-        if type(para['coorall'][ibatch]) is np.array:
-            coor = t.from_numpy(para['coorall'][ibatch])
-        elif type(para['coorall'][ibatch]) is t.Tensor:
-            coor = para['coorall'][ibatch]
-        para['coor'] = coor[:]
-        genpara.genenvir(nbatch, para, ibatch, coor, symbols)
-        # ReadInt(para).get_coor()
-        ReadInt(para).cal_coor()
-        iang = para['ang_paraall'][ibatch]
-        irad = para['rad_paraall'][ibatch]
-        # irad = para['distance'][0]
-        # irad = irad / (max(irad) + min(irad[1:]))
-        save.save1D(iang, name='env_ang.dat', dire='.data', ty='a')
-        save.save1D(irad, name='env_rad.dat', dire='.data', ty='a')
-
-
 if __name__ == '__main__':
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'optml'
+    para['task'] = 'test'
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
