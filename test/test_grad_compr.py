@@ -1073,11 +1073,14 @@ class ML:
     def dataprocess(self, diredata):
         # dire = self.para['direfeature']
         nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
-        self.para['natomall'] = self.read.read1d(diredata, 'natom.dat',
-                                                 self.nfile)
+        self.para['natomall'] = []
+        [self.para['natomall'].append(len(coor))
+         for coor in self.para['coorall']]
+        # self.para['natomall'] = \
+        #   self.read.read1d(diredata, 'natom.dat', self.nfile)
 
         if self.para['Lml_skf']:
-            natom = int(self.para['natomall'].max())
+            natom = int(max(self.para['natomall']))
             fpcompr = open(os.path.join(diredata, 'comprbp.dat'), 'r')
             compr = np.zeros((self.nfile, nsteps_, natom))
 
@@ -1150,7 +1153,7 @@ if __name__ == '__main__':
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
-        para['dire_data'] = '../data/200604compr_50mol_dip'
+        para['dire_data'] = '../data/200609compr_100mol_dip'
         testml(para)
     elif para['task'] == 'envpara':
         get_env_para()

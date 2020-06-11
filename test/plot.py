@@ -327,7 +327,7 @@ def plot_dip_pred(para, dire,  aims=None, dftbplus=None):
     plt.ylabel('dipole difference between DFTB and aims')
     plt.legend()
     print('(prediction -reference) / (initial - reference):',
-          sum(diff_pred) / sum(diff_init))
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
     plt.show()
 
 

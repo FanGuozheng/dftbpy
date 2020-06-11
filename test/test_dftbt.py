@@ -23,33 +23,48 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
 
     if H0 is not None:
         dataH0 = para['dataH']
-        if abs(dataH0 - para['hammat']).sum() < 1e-6 * nat ** 2:
+        data_ = abs((dataH0 - para['hammat']) / abs(dataH0)).sum()
+        if data_ < 1e-8 * nat ** 2:
+            print('average H0 error is smaller than 1E-8')
+        elif data_ < 1e-7 * nat ** 2:
+            print('average H0 error is smaller than 1E-7')
+        elif data_ < 1e-6 * nat ** 2:
             print('average H0 error is smaller than 1E-6')
-        elif abs(dataH0 - para['hammat']).sum() < 1e-5 * nat ** 2:
+        elif data_ < 1e-5 * nat ** 2:
             print('average H0 error is smaller than 1E-5')
-        elif abs(dataH0 - para['hammat']).sum() < 1e-4 * nat ** 2:
+        elif data_ < 1e-4 * nat ** 2:
             print('average H0 error is smaller than 1E-4')
         else:
             print('Warning: average H0 error is larger than 1E-4: {}'.format(
                     abs(dataH0 - para['qatomall']).sum() / nat))
     if S is not None:
         dataS = para['dataS']
-        if abs(dataS - para['overmat']).sum() < 1e-6 * nat ** 2:
+        data_ = abs((dataS - para['overmat']) / abs(dataS)).sum()
+        if data_ < 1e-8 * nat ** 2:
+            print('average S error is smaller than 1E-8')
+        elif data_ < 1e-7 * nat ** 2:
+            print('average S error is smaller than 1E-7')
+        elif data_ < 1e-6 * nat ** 2:
             print('average S error is smaller than 1E-6')
-        elif abs(dataS - para['overmat']).sum() < 1e-5 * nat ** 2:
+        elif data_ < 1e-5 * nat ** 2:
             print('average S error is smaller than 1E-5')
-        elif abs(dataS - para['overmat']).sum() < 1e-4 * nat ** 2:
+        elif data_ < 1e-4 * nat ** 2:
             print('average S error is smaller than 1E-4')
         else:
             print('Warning: average S error is larger than 1E-4: {}'.format(
                     abs(dataS - para['qatomall']).sum() / nat))
     if q is not None:
         dataq = para['dataq']
-        if abs(dataq - para['qatomall']).sum() < 1e-6 * nat:
+        data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum()
+        if data_ < 1e-8 * nat:
+            print('average charge error is smaller than 1E-8')
+        elif data_ < 1e-7 * nat:
+            print('average charge error is smaller than 1E-7')
+        elif data_ < 1e-6 * nat:
             print('average charge error is smaller than 1E-6')
-        elif abs(dataq - para['qatomall']).sum() < 1e-5 * nat:
+        elif data_ < 1e-5 * nat:
             print('average charge error is smaller than 1E-5')
-        elif abs(dataq - para['qatomall']).sum() < 1e-4 * nat:
+        elif data_ < 1e-4 * nat:
             print('average charge error is smaller than 1E-4')
         else:
             print('Warning: average charge error is larger than 1E-4: ',
@@ -564,11 +579,6 @@ def scc_CH4_compr(para):
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 2.5
     para['C_init_compr'] = 3.0
-    '''
-    para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)'''
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
     para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -630,11 +640,6 @@ def nonscc_CH4_compr(para):
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 2.5
     para['C_init_compr'] = 3.0
-    '''
-    para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)'''
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
     para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -695,20 +700,14 @@ def nonscc_CH4_compr_nongrid(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 2.7
-    para['C_init_compr'] = 3.4
-    para['H_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
-        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
-        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    '''para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)'''
+    para['H_init_compr'] = 2.2
+    para['C_init_compr'] = 3.2
+    para['H_compr_grid'] = t.tensor((
+            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
+             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor((
+            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
+             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
     para['onsiteH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
     para['onsiteC'] = t.tensor((
@@ -727,8 +726,8 @@ def nonscc_CH4_compr_nongrid(para):
     para['compr_ml'] = para['compr_init']
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_nonscc_nonsym_C3.4_H2.7', './data',
-                  q='CH4_nonscc_nonsym_C3.4_H2.7_q.dat')
+    test_accuracy(para, 'CH4_nonscc_nonsym_C2.2_H2.2', './data',
+                  q='CH4_nonscc_9compr.dat')
 
 
 def scc_CH4_compr_nongrid(para):
@@ -768,18 +767,12 @@ def scc_CH4_compr_nongrid(para):
     para['atomNumber'] = para['coor'][:, 0]
     para['H_init_compr'] = 2.7
     para['C_init_compr'] = 3.4
-    para['H_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
-        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.19, 02.42, 02.68, 02.98, 03.33,
-        03.72, 04.18, 04.71, 05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    '''para['H_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([02.00, 02.34, 02.77, 03.34, 04.07, 05.03,
-                                    06.28, 07.90, 10.00]), dtype=t.float64)
-    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)'''
+    para['H_compr_grid'] = t.tensor((
+            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
+             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor((
+            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
+             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
     para['onsiteH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
     para['onsiteC'] = t.tensor((
@@ -798,8 +791,8 @@ def scc_CH4_compr_nongrid(para):
     para['compr_ml'] = para['compr_init']
     slakot.SlaKo(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_scc_nonsym_C3.4_H2.7', './data',
-                  q='CH4_scc_nonsym_C3.4_H2.7_q.dat')
+    test_accuracy(para, 'CH4_scc_nonsym_C2.2_H2.2', './data',
+                  q='CH4_scc_9compr.dat')
 
 
 def scc_H(para):
@@ -908,7 +901,6 @@ def test_compr_para(para):
     para['LreadSKFinterp'] = True
     para['Lonsite'] = False
     para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
     para['n_dataset'] = 1
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
@@ -918,29 +910,6 @@ def test_compr_para(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_compr_grid_tol'] = t.tensor(([
-            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
-             7.71, 8.28, 8.85, 9.42, 10.],
-            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
-             6.55, 7.29, 8.11, 9.01, 10.],
-            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
-             6.01, 6.80, 7.72, 8.78, 10.],
-            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
-             5.50, 6.34, 7.34, 8.55, 10.],
-            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
-             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
-    para['C_compr_grid_tol'] = t.tensor(([
-            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
-             7.71, 8.28, 8.85, 9.42, 10.],
-            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
-             6.55, 7.29, 8.11, 9.01, 10.],
-            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
-             6.01, 6.80, 7.72, 8.78, 10.],
-            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
-             5.50, 6.34, 7.34, 8.55, 10.],
-            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
-             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
-
     para['onsiteH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
     para['onsiteC'] = t.tensor((
@@ -951,53 +920,90 @@ def test_compr_para(para):
     para['uhubbC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
             dtype=t.float64)
-
-    kk = ['00', '10', '15', '20', '30']
-    compr_H = np.array([2.2, 2.5, 2.5, 5, 3, 4, 5, 7, 9])
-    compr_C = np.array([2.2, 2.5, 5, 2.5, 3, 4, 5, 7, 9])
-    dire_ = '/home/gz_fan/Downloads/test/work/nonuniform/test'
-
-    CH4_nonscc_5compr = t.tensor([
+    para['compr_H'] = np.array([2.1, 2.1, 2.2, 2.2, 2.7, 2.4, 2.5, 2.5, 5,
+                                2.7, 3, 5])
+    para['compr_C'] = np.array([2.1, 2.3, 2.2, 2.7, 2.2, 2.4, 2.5, 5, 2.5,
+                                2.7, 3, 5])
+    para['CH4_nonscc_compr'] = t.tensor([
+            [4.54222504, 0.90951905, 0.89506652, 0.84723615, 0.80595324],
+            [4.51346052, 0.91145168, 0.90039668, 0.85559173, 0.81909940],
             [4.54877458, 0.90414736, 0.89171705, 0.84654232, 0.80881869],
+            [4.48491188, 0.91035700, 0.90308465, 0.86536815, 0.83627831],
+            [4.63626735, 0.87746000, 0.86587724, 0.82671359, 0.79368182],
+            [4.55554297, 0.89585744, 0.88667872, 0.84686949, 0.81505137],
             [4.55692722, 0.89271487, 0.88479718, 0.84749998, 0.81806075],
             [4.39621741, 0.91806577, 0.91452962, 0.89408694, 0.87710025],
             [4.74736139, 0.83225687, 0.82908318, 0.80566861, 0.78562995],
+            [4.55757414, 0.88787885, 0.88192651, 0.84911303, 0.82350747],
             [4.55634287, 0.88296256, 0.87903179, 0.85158529, 0.83007749],
-            [4.55684916, 0.87323674, 0.87272719, 0.85576384, 0.84142308],
-            [4.56767973, 0.86576564, 0.86681774, 0.85528902, 0.84444786],
-            [4.58810449, 0.85627158, 0.85862637, 0.85229435, 0.84470322],
-            [4.59921028, 0.85180023, 0.85459586, 0.85035610, 0.84403753]],
+            [4.56767973, 0.86576564, 0.86681774, 0.85528902, 0.84444786]],
             dtype=t.float64)
 
-    CH4_scc_5compr = t.tensor([
+    para['CH4_scc_compr'] = t.tensor([
+            [4.42661256, 0.93059198, 0.91873601, 0.87880395, 0.84525550],
+            [4.40626883, 0.93237145, 0.92288854, 0.88463111, 0.85384007],
             [4.43328956, 0.92712097, 0.91655472, 0.87744897, 0.84558578],
+            [4.38830761, 0.93181547, 0.92499370, 0.89058300, 0.86430023],
+            [4.50593586, 0.90809171, 0.89766872, 0.85934482, 0.82895889],
+            [4.44221632, 0.92141881, 0.91299468, 0.87604833, 0.84732186],
             [4.44522114, 0.91908073, 0.91151631, 0.87575851, 0.84842331],
             [4.33079794, 0.93562673, 0.93178550, 0.90948106, 0.89230877],
             [4.61624592, 0.87103181, 0.86624626, 0.83473415, 0.81174186],
+            [4.44950900, 0.91518760, 0.90900459, 0.87561221, 0.85068660],
             [4.45366071, 0.91072798, 0.90602786, 0.87584618, 0.85373726],
-            [4.46582226, 0.90073745, 0.89867175, 0.87571182, 0.85905672],
-            [4.48135560, 0.89327086, 0.89241721, 0.87342269, 0.85953364],
-            [4.50478922, 0.88416605, 0.88429830, 0.86905292, 0.85769350],
-            [4.51678901, 0.87994673, 0.88040059, 0.86662875, 0.85623492]],
+            [4.48135560, 0.89327086, 0.89241721, 0.87342269, 0.85953364]],
             dtype=t.float64)
+    assert para['CH4_scc_compr'].shape == para['CH4_nonscc_compr'].shape
 
-    qatomall = t.zeros((2, 5, 9, 5), dtype=t.float64)
-    qdiff = t.zeros((2, 5, 9, 5), dtype=t.float64)
-    qdiff2 = t.zeros((2, 5, 9), dtype=t.float64)
+
+def test_compr_para_10points(para):
+    para['H_compr_grid_tol'] = t.tensor(([
+            [2., 2.88, 3.77, 4.66, 5.55, 6.44, 7.33, 8.22, 9.11, 10.],
+            [2., 2.58, 3.23, 3.95, 4.73, 5.59, 6.54, 7.58, 8.73, 10.],
+            [2., 2.47, 3.02, 3.65, 4.37, 5.21, 6.17, 7.27, 8.54, 10.],
+            [2., 2.38, 2.84, 3.40, 4.06, 4.86, 5.81, 6.96, 8.34, 10.],
+            [2., 2.31, 2.69, 3.18, 3.78, 4.54, 5.49, 6.67, 8.15, 10.],
+            [2., 2.24, 2.57, 2.99, 3.54, 4.25, 5.18, 6.39, 7.96, 10.],
+            [2., 2.20, 2.47, 2.84, 3.33, 4.00, 4.90, 6.12, 7.77, 10.],
+            [2., 2.16, 2.39, 2.70, 3.15, 3.78, 4.65, 5.88, 7.59, 10.],
+            [2., 2.10, 2.26, 2.50, 2.86, 3.40, 4.22, 5.43, 7.26, 10.]]),
+            dtype=t.float64)
+    para['C_compr_grid_tol'] = t.tensor(([
+            [2., 2.88, 3.77, 4.66, 5.55, 6.44, 7.33, 8.22, 9.11, 10.],
+            [2., 2.58, 3.23, 3.95, 4.73, 5.59, 6.54, 7.58, 8.73, 10.],
+            [2., 2.47, 3.02, 3.65, 4.37, 5.21, 6.17, 7.27, 8.54, 10.],
+            [2., 2.38, 2.84, 3.40, 4.06, 4.86, 5.81, 6.96, 8.34, 10.],
+            [2., 2.31, 2.69, 3.18, 3.78, 4.54, 5.49, 6.67, 8.15, 10.],
+            [2., 2.24, 2.57, 2.99, 3.54, 4.25, 5.18, 6.39, 7.96, 10.],
+            [2., 2.20, 2.47, 2.84, 3.33, 4.00, 4.90, 6.12, 7.77, 10.],
+            [2., 2.16, 2.39, 2.70, 3.15, 3.78, 4.65, 5.88, 7.59, 10.],
+            [2., 2.10, 2.26, 2.50, 2.86, 3.40, 4.22, 5.43, 7.26, 10.]]),
+            dtype=t.float64)
+    assert para['H_compr_grid_tol'].shape == para['C_compr_grid_tol'].shape
+
+    # kk = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '50']
+    kk = ['00', '05', '10', '20', '30', '40', '50']
+    dire_ = '/home/gz_fan/Downloads/test/work/nonuniform/test10'
+    nkk = len(kk)
+    nrr = para['CH4_scc_compr'].shape[0]
+
+    qatomall = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
+    qdiff = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
+    qdiff2 = t.zeros((2, nkk, nrr), dtype=t.float64)
 
     with open(os.path.join('.data', 'test_compr_para_q.hsd'), 'w') as fpq:
 
         for iscc in range(len(para['scclist'])):
             para['scc'] = para['scclist'][iscc]
 
-            for ik in range(len(kk)):
+            for ik in range(nkk):
                 para['H_compr_grid'] = para['H_compr_grid_tol'][ik]
                 para['C_compr_grid'] = para['C_compr_grid_tol'][ik]
                 para['dire_interpSK'] = os.path.join(dire_, kk[ik])
 
-                for ir in range(5):
-                    para['H_init_compr'] = compr_H[ir]
-                    para['C_init_compr'] = compr_C[ir]
+                for ir in range(nrr):
+                    para['H_init_compr'] = para['compr_H'][ir]
+                    para['C_init_compr'] = para['compr_C'][ir]
 
                     dftb_torch.Initialization(para)
                     test_grad_compr.GenMLPara(para).get_spllabel()
@@ -1010,13 +1016,20 @@ def test_compr_para(para):
 
                     if para['scc'] == 'scc':
                         qdiff[iscc, ik, ir, :] = \
-                            CH4_scc_5compr[ir, :] - para['qatomall']
-                        qdiff2[iscc, ik, ir] = sum(abs(qdiff[iscc, ik, ir, :])) / 5
+                            para['CH4_scc_compr'][ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = \
+                            sum(abs(qdiff[iscc, ik, ir, :]) /
+                                abs(para['CH4_scc_compr'][ir, :])) / 5
+                        print('1:', sum(abs(qdiff[iscc, ik, ir, :])) / 5)
+                        print('2:', qdiff2[iscc, ik, ir])
                     elif para['scc'] == 'nonscc':
                         qdiff[iscc, ik, ir, :] = \
-                            CH4_nonscc_5compr[ir, :] - para['qatomall']
-                        qdiff2[iscc, ik, ir] = sum(abs(qdiff[iscc, ik, ir, :])) / 5
-
+                            para['CH4_nonscc_compr'][ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = \
+                            sum(abs(qdiff[iscc, ik, ir, :]) /
+                                abs(para['CH4_scc_compr'][ir, :])) / 5
+                        print('1:', sum(abs(qdiff[iscc, ik, ir, :])) / 5)
+                        print('2:', qdiff2[iscc, ik, ir])
                     np.savetxt(fpq, para['qatomall'].numpy(),
                                fmt="%s", newline=" ")
                     fpq.write('\n')
@@ -1024,8 +1037,8 @@ def test_compr_para(para):
                                fmt="%s", newline=" ")
                     fpq.write('\n')
 
-    xx = np.linspace(1, 9, 9)
-    yy = np.linspace(0, 0, 9)
+    xx = np.linspace(1, nrr, nrr)
+    yy = np.linspace(0, 0, nrr)
     plt.plot(xx, qdiff2[0, 0, :], color='r', linestyle='-', linewidth=2,
              label='para 1')
     plt.plot(xx, qdiff2[0, 1, :], color='b', linestyle='-', linewidth=2,
@@ -1034,17 +1047,165 @@ def test_compr_para(para):
              label='para 3')
     plt.plot(xx, qdiff2[0, 3, :], color='c', linestyle='-', linewidth=2,
              label='para 4')
-    plt.plot(xx, qdiff2[0, 4, :], color='k', linestyle='-', linewidth=2,
+    plt.plot(xx, qdiff2[0, 4, :], color='g', linestyle='-', linewidth=2,
              label='para 5')
-    plt.plot(xx, qdiff2[1, 0, :], color='r', linestyle='--', linewidth=2)
-    plt.plot(xx, qdiff2[1, 1, :], color='b', linestyle='--', linewidth=2)
-    plt.plot(xx, qdiff2[1, 2, :], color='y', linestyle='--', linewidth=2)
-    plt.plot(xx, qdiff2[1, 3, :], color='c', linestyle='--', linewidth=2)
-    plt.plot(xx, qdiff2[1, 4, :], color='k', linestyle='--', linewidth=2)
+    plt.plot(xx, qdiff2[0, 5, :], color='m', linestyle='-', linewidth=2,
+             label='para 6')
+    # plt.plot(xx, qdiff2[0, 6, :], color='0.75', linestyle='-', linewidth=2, label='para 7')
+    plt.xlabel('different compression radius points')
+    plt.ylabel('absolute charge difference (non-SCC)')
+    plt.plot(xx, yy, color='k', linestyle='-', linewidth=70, alpha=.15)
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+    plt.legend()
+    plt.show()
+    plt.plot(xx, qdiff2[1, 0, :], color='r', linestyle='--', linewidth=2,
+             label='para 1')
+    plt.plot(xx, qdiff2[1, 1, :], color='b', linestyle='--', linewidth=2,
+             label='para 2')
+    plt.plot(xx, qdiff2[1, 2, :], color='y', linestyle='--', linewidth=2,
+             label='para 3')
+    plt.plot(xx, qdiff2[1, 3, :], color='c', linestyle='--', linewidth=2,
+             label='para 4')
+    plt.plot(xx, qdiff2[1, 4, :], color='g', linestyle='--', linewidth=2,
+             label='para 5')
+    plt.plot(xx, qdiff2[1, 5, :], color='m', linestyle='--', linewidth=2,
+             label='para 6')
+    # plt.plot(xx, qdiff2[1, 6, :], color='0.5', linestyle='--', linewidth=2)
+    plt.xlabel('different compression radius points')
+    plt.ylabel('absolute charge difference (SCC)')
+    plt.plot(xx, yy, color='k', linestyle='-', linewidth=70, alpha=.15)
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+    plt.legend()
+    plt.show()
+
+
+def test_compr_para_15points(para):
+    para['H_compr_grid_tol'] = t.tensor(([
+            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
+             7.71, 8.28, 8.85, 9.42, 10.],
+            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
+             6.55, 7.29, 8.11, 9.01, 10.],
+            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
+             6.01, 6.80, 7.72, 8.78, 10.],
+            [2., 2.15, 2.34, 2.56, 2.82, 3.12, 3.48, 3.91, 4.41, 5., 5.7,
+             6.52, 7.49, 8.64, 10.00],
+            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
+             5.50, 6.34, 7.34, 8.55, 10.],
+            [2., 2.1, 2.23, 2.4, 2.6, 2.84, 3.14, 3.52, 3.97, 4.54, 5.23,
+             6.08, 7.12, 8.41, 10.00],
+            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
+             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+    para['C_compr_grid_tol'] = t.tensor(([
+            [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
+             7.71, 8.28, 8.85, 9.42, 10.],
+            [2., 2.28, 2.60, 2.94, 3.32, 3.74, 4.20, 4.71, 5.27, 5.88,
+             6.55, 7.29, 8.11, 9.01, 10.],
+            [2., 2.19, 2.42, 2.68, 2.98, 3.33, 3.72, 4.18, 4.71, 5.31,
+             6.01, 6.80, 7.72, 8.78, 10.],
+            [2., 2.15, 2.34, 2.56, 2.82, 3.12, 3.48, 3.91, 4.41, 5., 5.7,
+             6.52, 7.49, 8.64, 10.00],
+            [2., 2.13, 2.29, 2.49, 2.72, 3.00, 3.34, 3.74, 4.22, 4.81,
+             5.50, 6.34, 7.34, 8.55, 10.],
+            [2., 2.1, 2.23, 2.4, 2.6, 2.84, 3.14, 3.52, 3.97, 4.54, 5.23,
+             6.08, 7.12, 8.41, 10.00],
+            [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
+             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+    assert para['H_compr_grid_tol'].shape == para['C_compr_grid_tol'].shape
+
+    kk = ['00', '10', '15', '18', '20', '23', '30']
+    dire_ = '/home/gz_fan/Downloads/test/work/nonuniform/test15'
+    nkk = len(kk)
+    nrr = para['CH4_scc_compr'].shape[0]
+
+    qatomall = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
+    qdiff = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
+    qdiff2 = t.zeros((2, nkk, nrr), dtype=t.float64)
+
+    with open(os.path.join('.data', 'test_compr_para_q.hsd'), 'w') as fpq:
+
+        for iscc in range(len(para['scclist'])):
+            para['scc'] = para['scclist'][iscc]
+
+            for ik in range(nkk):
+                para['H_compr_grid'] = para['H_compr_grid_tol'][ik]
+                para['C_compr_grid'] = para['C_compr_grid_tol'][ik]
+                para['dire_interpSK'] = os.path.join(dire_, kk[ik])
+
+                for ir in range(nrr):
+                    para['H_init_compr'] = para['compr_H'][ir]
+                    para['C_init_compr'] = para['compr_C'][ir]
+
+                    dftb_torch.Initialization(para)
+                    test_grad_compr.GenMLPara(para).get_spllabel()
+                    test_grad_compr.RunML(para).get_compr_specie()
+                    # build the ref data
+                    para['compr_ml'] = para['compr_init']
+                    slakot.SlaKo(para).genskf_interp_compr()
+                    test_grad_compr.RunCalc(para).idftb_torchspline()
+                    qatomall[iscc, ik, ir, :] = para['qatomall']
+
+                    if para['scc'] == 'scc':
+                        qdiff[iscc, ik, ir, :] = \
+                            para['CH4_scc_compr'][ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = \
+                            sum(abs(qdiff[iscc, ik, ir, :]) /
+                                abs(para['CH4_scc_compr'][ir, :])) / 5
+                        print('1:', sum(abs(qdiff[iscc, ik, ir, :])) / 5)
+                        print('2:', qdiff2[iscc, ik, ir])
+                    elif para['scc'] == 'nonscc':
+                        qdiff[iscc, ik, ir, :] = \
+                            para['CH4_nonscc_compr'][ir, :] - para['qatomall']
+                        qdiff2[iscc, ik, ir] = \
+                            sum(abs(qdiff[iscc, ik, ir, :]) /
+                                abs(para['CH4_scc_compr'][ir, :])) / 5
+
+                    np.savetxt(fpq, para['qatomall'].numpy(),
+                               fmt="%s", newline=" ")
+                    fpq.write('\n')
+                    np.savetxt(fpq, qdiff[iscc, ik, ir, :].numpy(),
+                               fmt="%s", newline=" ")
+                    fpq.write('\n')
+
+    xx = np.linspace(1, nrr, nrr)
+    yy = np.linspace(0, 0, nrr)
+    plt.plot(xx, qdiff2[0, 0, :], color='r', linestyle='-', linewidth=2,
+             label='para 1')
+    plt.plot(xx, qdiff2[0, 1, :], color='b', linestyle='-', linewidth=2,
+             label='para 2')
+    plt.plot(xx, qdiff2[0, 2, :], color='y', linestyle='-', linewidth=2,
+             label='para 3')
+    plt.plot(xx, qdiff2[0, 3, :], color='c', linestyle='-', linewidth=2,
+             label='para 4')
+    plt.plot(xx, qdiff2[0, 4, :], color='g', linestyle='-', linewidth=2,
+             label='para 5')
+    plt.plot(xx, qdiff2[0, 5, :], color='m', linestyle='-', linewidth=2,
+             label='para 6')
+    plt.plot(xx, qdiff2[0, 6, :], color='0.75', linestyle='-', linewidth=2,
+             label='para 7')
     plt.legend()
     plt.xlabel('different compression radius pair points')
     plt.ylabel('absolute charge difference')
-    plt.plot(xx, yy, color='k', linestyle='-', linewidth=30, alpha=.2)
+    plt.plot(xx, yy, color='k', linestyle='-', linewidth=70, alpha=.15)
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+    plt.show()
+    plt.plot(xx, qdiff2[1, 0, :], color='r', linestyle='--', linewidth=2,
+             label='para 1')
+    plt.plot(xx, qdiff2[1, 1, :], color='b', linestyle='--', linewidth=2,
+             label='para 2')
+    plt.plot(xx, qdiff2[1, 2, :], color='y', linestyle='--', linewidth=2,
+             label='para 3')
+    plt.plot(xx, qdiff2[1, 3, :], color='c', linestyle='--', linewidth=2,
+             label='para 4')
+    plt.plot(xx, qdiff2[1, 4, :], color='g', linestyle='--', linewidth=2,
+             label='para 5')
+    plt.plot(xx, qdiff2[1, 5, :], color='m', linestyle='--', linewidth=2,
+             label='para 6')
+    plt.plot(xx, qdiff2[1, 6, :], color='0.75', linestyle='--', linewidth=2,
+             label='para 7')
+    plt.legend()
+    plt.xlabel('different compression radius pair points')
+    plt.ylabel('absolute charge difference')
+    plt.plot(xx, yy, color='k', linestyle='-', linewidth=70, alpha=.15)
     plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
     plt.show()
 
@@ -1054,6 +1215,7 @@ if __name__ == '__main__':
     Attention:
         if read test H0, S, compression R of H: 3.34, C: 4.07
     '''
+    print('ddddddddddrfdszgfffffffjjdddddddddddddddd')
     t.set_printoptions(precision=15)
     para = {}
     testlist = ['scc_CH4', 'nonscc_CH4', 'scc_H2', 'nonscc_H2', 'scc_CO',
@@ -1063,13 +1225,14 @@ if __name__ == '__main__':
     para['LReadInput'] = False  # define parameters in python, not read input
     para['Lml_HS'] = False  # donot perform ML process
     para['scf'] = True
-    para['LMBD_DFTB'] = False
+    para['LMBD_DFTB'] = True
     if para['LMBD_DFTB']:
         para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
         para['vdw_self_consistent'] = False
+        para['beta'] = 1.05
     if 'scc_CH4' in testlist:
         scc_CH4(para)
-    '''if 'nonscc_CH4' in testlist:
+    ''' if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_H2' in testlist:
         scc_H2(para)
@@ -1099,8 +1262,6 @@ if __name__ == '__main__':
     testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
                       'scc_CH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
 
-    test_compr_para(para)
-
     if 'scc_CH4' in testlist_compr:
         scc_CH4_compr(para)
     if 'nonscc_CH4' in testlist_compr:
@@ -1109,3 +1270,7 @@ if __name__ == '__main__':
         nonscc_CH4_compr_nongrid(para)
     if 'scc_CH4_compr_nongrid' in testlist_compr:
         scc_CH4_compr_nongrid(para)'''
+
+    # test_compr_para(para)  # common parameters for 10 or 15 points
+    # test_compr_para_10points(para)
+    # test_compr_para_15points(para)

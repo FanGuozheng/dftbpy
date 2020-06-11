@@ -994,3 +994,40 @@ class BicubInterp:
             z0100 = mesh[nxi, nyi + 1] - mesh[nxi, nyi]
             z00_01 = mesh[nxi, nyi] - mesh[nxi, nyi - 1]
             return z1000, z00_10, z0100, z00_01
+
+
+class LinAl:
+
+    def __init__(self, para):
+        self.para = para
+
+    def inv33_mat(self, in_):
+        '''
+        return inverse of 3 * 3 matrix
+        out_ = 1 / det(in_) adj(in_)
+        '''
+        out_ = t.zeros((3, 3), dtype=t.float64)
+        det = self.det33_mat(in_)
+
+        out_[0, 0] = (in_[1, 1] * in_[2, 2] - in_[1, 2] * in_[2, 1]) / det
+        out_[0, 1] = -(in_[0, 1] * in_[2, 2] - in_[0, 2] * in_[2, 1]) / det
+        out_[0, 2] = (in_[0, 1] * in_[1, 2] - in_[0, 2] * in_[1, 1]) / det
+        out_[1, 0] = -(in_[1, 0] * in_[2, 2] - in_[1, 2] * in_[2, 0]) / det
+        out_[1, 1] = (in_[0, 0] * in_[2, 2] - in_[0, 2] * in_[2, 0]) / det
+        out_[1, 2] = -(in_[0, 0] * in_[1, 2] - in_[0, 2] * in_[1, 0]) / det
+        out_[2, 0] = (in_[1, 0] * in_[2, 1] - in_[1, 1] * in_[2, 0]) / det
+        out_[2, 1] = -(in_[0, 0] * in_[2, 1] - in_[0, 1] * in_[2, 0]) / det
+        out_[2, 2] = (in_[0, 0] * in_[1, 1] - in_[0, 1] * in_[1, 0]) / det
+        return out_
+
+    def det33_mat(self, in_):
+        '''
+        return 3*3 determinant
+        '''
+        det = in_[0, 0] * in_[1, 1] * in_[2, 2] - \
+            in_[0, 0] * in_[1, 2] * in_[2, 1] - \
+            in_[0, 1] * in_[1, 0] * in_[2, 2] + \
+            in_[0, 1] * in_[1, 2] * in_[2, 0] + \
+            in_[0, 2] * in_[1, 0] * in_[2, 1] - \
+            in_[0, 2] * in_[1, 1] * in_[2, 0]
+        return det

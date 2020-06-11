@@ -205,6 +205,7 @@ class ReadInt:
             natomtype: the type of atom, the 1st is 0, the 2nd different is 1
             atomind: how many orbitals of each atom in DFTB calculations
         '''
+        self.para['coorbohr'] = self.para['coor'][:, 1:] / BOHR
         coor = self.para['coor']
         natom = np.shape(coor)[0]
         distance = t.zeros((natom, natom), dtype=t.float64)

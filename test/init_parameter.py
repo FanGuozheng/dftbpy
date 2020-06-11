@@ -28,9 +28,9 @@ def init_dftb_ml(para):
         hdffilelist = []
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = 3  # this will determine read which type of molecule
-        para['n_dataset'] = ['50']  # how many molecules used to optimize
-        para['n_test'] = ['100']  # how many used to test
+        para['hdf_num'] = 1  # this will determine read which type of molecule
+        para['n_dataset'] = ['100']  # how many molecules used to optimize
+        para['n_test'] = ['200']  # how many used to test
         assert len(para['n_dataset']) == len(para['n_test'])
         # para['dire_interpSK'] = os.path.join(path, '../slko')
     # para['optim_para'] = ['Hamiltonian']
@@ -57,7 +57,7 @@ def init_dftb_ml(para):
     para['mlsteps'] = 100  # how many steps for optimizing in DFTB-ML
     para['save_steps'] = 10  # how many steps to save the DFTB-ML data
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['lr'] = 8e-1  # learning rate
+    para['lr'] = 1  # 8e-1  # learning rate
 
     # the follwing is ML target, if optimize compression radius, integrals...
     para['Lml_skf'] = True  # if use interp to gen .skf with compress_r
