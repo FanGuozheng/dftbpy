@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+"""Interface to DFTB+, FHI-aims."""
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
 import numpy as np
@@ -8,18 +9,14 @@ ATOMNUM = {"H": 1, "C": 6, "N": 7, "O": 8}
 
 
 class Dftbplus:
-    '''
-    interface to DFTB+
-    '''
+    """Interface to DFTB+."""
 
     def __init__(self, para):
-        '''
-        read output from DFTB+, write DFTB+ input files
-        '''
+        """Read output from DFTB+, write DFTB+ input files."""
         self.para = para
 
     def geo_nonpe_ml(self, file, coor, specie, speciedict, symbols):
-        '''write geo.gen in a dataset for non-periodic condition'''
+        """Write geo.gen in a dataset for non-periodic condition."""
         row, col = np.shape(coor)
         compressr0 = np.zeros(row)
         with open('geo.gen.{}'.format(file), 'w') as fp:
@@ -42,9 +39,7 @@ class Dftbplus:
         return compressr0
 
     def geo_nonpe(self, dire, coor, specie):
-        '''
-        this code is used to ml process, each atom will be added a number
-        so that every atom will be different'''
+        """Write geo.gen in a dataset for non-periodic condition."""
         row, col = np.shape(coor)
         with open(os.path.join(dire, 'geo.gen'), 'w') as fp:
 
@@ -70,11 +65,11 @@ class Dftbplus:
                         fp.write('\n')
 
     def geo_pe():
-        '''write geo.gen in a dataset for periodic condition'''
+        """Write geo.gen in a dataset for periodic condition."""
         pass
 
     def write_dftbin(self, dire, scc, coor, specie):
-        '''write dftb_in.hsd'''
+        """Write dftb_in.hsd."""
         with open(os.path.join(dire, 'dftb_in.hsd'), 'w') as fp:
             fp.write('Geometry = GenFormat { \n')
             fp.write('  <<< "geo.gen" \n } \n')
@@ -114,24 +109,8 @@ class Dftbplus:
             fp.write('ParserOptions { \n ParserVersion = 5 \n } \n')
             fp.write('Parallel { \n UseOmpThreads = Yes \n } \n')
 
-        '''row, col = np.shape(coor)
-        os.sys('cp dftb_in.hsd dftb_in.temp')
-        os.sys("sed -i '15, 16d' dftb_in.temp")
-        for ispe in specie:
-            atom_i = 0
-            if iname == 'H':
-                os.sys("sed -i '15i\H" + str(iatom + 1) + '=' + '"s"' +
-                       "' dftb_in.temp")
-            if iname == 'C':
-                os.sys("sed -i '15i\C" + str(iatom + 1) + '=' +
-                       '"p"'+"' dftb_in.temp")
-        os.sys('mv dftb_in.temp '+direct+'/dftb_in.hsd')'''
-
     def read_bandenergy(self, para, nfile, dire, inunit='H', outunit='H'):
-        '''
-        read file bandenergy.dat, which is HOMO and LUMO data
-        H: Hartree
-        '''
+        """Read file bandenergy.dat, which is HOMO and LUMO data."""
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2), dtype=float)
         for ifile in range(0, nfile):
@@ -141,7 +120,7 @@ class Dftbplus:
         return t.from_numpy(bandenergy)
 
     def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
-        '''read file dip.dat, which is dipole data'''
+        """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3))
         for ifile in range(0, nfile):
@@ -155,7 +134,7 @@ class Dftbplus:
         return t.from_numpy(dipole)
 
     def read_energy(self, para, nfile, dire, inunit='H', outunit='H'):
-        '''read file dip.dat, which is dipole data'''
+        """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros((nfile), dtype=float)
 
@@ -166,7 +145,7 @@ class Dftbplus:
         return t.from_numpy(energy)
 
     def read_hstable(self, para, nfile, dire):
-        '''read file bandenergy.dat, which is HOMO and LUMO data'''
+        """Read file bandenergy.dat, which is HOMO and LUMO data."""
         fp = open(os.path.join(dire, 'hstable_ref'))
         hstable_ref = np.zeros((36), dtype=float)
 
@@ -177,13 +156,13 @@ class Dftbplus:
 
 
 class FHIaims:
-    '''interface to FHI-aims'''
+    """Interface to FHI-aims."""
 
     def __init__(self, para):
         self.para = para
 
     def geo_nonpe_hdf(self, para, ibatch, coor):
-        '''input is from hdf data, output is FHI-aims input: geo.in'''
+        """Input is from hdf data, output is FHI-aims input: geo.in."""
         specie, speciedict, symbols = para['specie'], para['speciedict'], \
             para['symbols']
         with open('geometry.in.{}'.format(ibatch), 'w') as fp:
@@ -202,7 +181,7 @@ class FHIaims:
         pass
 
     def read_bandenergy(self, para, nfile, dire, inunit='H', outunit='H'):
-        '''read file bandenergy.dat, which is HOMO and LUMO data'''
+        """Read file bandenergy.dat, which is HOMO and LUMO data."""
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2))
         for ifile in range(0, nfile):
@@ -212,7 +191,7 @@ class FHIaims:
         return t.from_numpy(bandenergy)
 
     def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
-        '''read file dip.dat, which is dipole data'''
+        """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3), dtype=float)
 
@@ -227,7 +206,7 @@ class FHIaims:
         return t.from_numpy(dipole)
 
     def read_energy(self, para, nfile, dire, inunit='H', outunit='H'):
-        '''read file dip.dat, which is dipole data'''
+        """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros((nfile), dtype=float)
 
@@ -238,7 +217,7 @@ class FHIaims:
         return t.from_numpy(energy)
 
     def read_qatom(self, para, nfile, dire, inunit='e', outunit='e'):
-        '''read file dip.dat, which is dipole data'''
+        """Read file dip.dat, which is dipole data."""
         nmaxatom = 10
         qatom = np.zeros((nfile, nmaxatom), dtype=float)
 
@@ -249,6 +228,35 @@ class FHIaims:
             if inunit == outunit:
                 qatom[ifile, :natom] = iqatom[:]
         return t.from_numpy(qatom)
+
+    def read_alpha(self, para, nfile, dire):
+        """Read alpha data.
+
+        Returns:
+            polarizability_MBD.
+
+        """
+        nmaxatom = 10
+        alpha = np.zeros((nfile, nmaxatom), dtype=float)
+
+        fp = open(os.path.join(dire, 'pol.dat'))
+        for ifile in range(nfile):
+            natom = para['coorall'][ifile].shape[0]
+            ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
+            alpha[ifile, :natom] = ial[:]
+        return t.from_numpy(alpha)
+
+    def read_hirshfeld_vol(self, para, nfile, dire):
+        """Read Hirshfeld volume."""
+        nmaxatom = 10
+        vol = np.zeros((nfile, nmaxatom), dtype=float)
+
+        fp = open(os.path.join(dire, 'vol.dat'))
+        for ifile in range(nfile):
+            natom = para['coorall'][ifile].shape[0]
+            ivol = np.fromfile(fp, dtype=float, count=natom, sep=' ')
+            vol[ifile, :natom] = ivol[:]
+        return t.from_numpy(vol)
 
 
 class NWchem:

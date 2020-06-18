@@ -1,7 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-'''this file will conclude mathematical solution needed in dfyb'''
+"""Mathematical libraries for DFTB.
 
+including:
+    Interpolation for SKF
+    Bicubic
+    Spline interpolation
+    Linear Algebra
+    General eigenvalue problem
+
+"""
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import numpy as np
 import torch as t
 import scipy.interpolate
@@ -11,15 +19,30 @@ from torch.autograd import Variable
 
 
 class DFTBmath:
+    """Interpolation method for SKF in DFTB.
+
+    see interpolation.F90 in DFTB+
+    """
 
     def __init__(self, para):
-        '''
-        this class aims to deal with interpolation of intergral tables, tail
-        near the cutoff
-        '''
+        """Deal with interpolation of intergral tables.
+
+        Args:
+            skf tables
+            geometry information
+
+        """
         self.para = para
 
     def sk_interp(self, rr, nameij):
+        """Interpolation SKF according to distance from intergral tables.
+
+        Args:
+            grid distance
+            number of grid points
+            distance between atoms
+
+        """
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
@@ -69,6 +92,12 @@ class DFTBmath:
         return dd
 
     def sk_interp_4d(self, rr, nameij, ncompr):
+        """Interpolation SKF (4D) according to distance from intergral tables.
+
+        the normal SKF interpolation is 2D, here this function is for DFTB
+        with given compression radius, extra dimensions will be for
+        compression radius for atom specie one and atom specie two
+        """
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
@@ -106,9 +135,11 @@ class DFTBmath:
         return dd
 
     def polysk3thsk(self, allarr, darr, dd):
-        '''
-        this function is interpolation mathod with input 2D and output 1D
-        '''
+        """Interpolation SKF for certain orbitals with given distance.
+
+        e.g: interpolation ss0 orbital with given distance from various
+        grid points
+        """
         row, col = np.shape(allarr)
         if type(allarr) is t.Tensor:
             allarr.numpy(), darr.numpy()
@@ -129,12 +160,13 @@ class DFTBmath:
         pass
 
     def polyInter_4d(self, xp, yp, rr):
-        '''
-        this function is for interpolation from DFTB+ (lib_math), assume the
-        grid is uniform
+        """Interpolation from DFTB+ (lib_math) with uniform grid.
+
         Args:
-            x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
-        '''
+            x array, y array
+            the interpolation point rr (x[0]< rr < x[-1])
+
+        """
         icl = 0
         nn = xp.shape[0]
         nn1, nn2, row, col = yp.shape[0], yp.shape[1], yp.shape[2], yp.shape[3]
@@ -170,12 +202,13 @@ class DFTBmath:
         return yy
 
     def polyInter_2d(self, xp, yp, rr):
-        '''
-        this function is for interpolation from DFTB+ (lib_math), assume the
-        grid is uniform
+        """Interpolation from DFTB+ (lib_math) with uniform grid.
+
         Args:
-            x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
-        '''
+            x array, y array
+            the interpolation point rr (x[0]< rr < x[-1])
+
+        """
         '''nn = len(xp)
         delta = t.zeros(nn)
         for ii in range(0, len(xp) - 1):
@@ -232,11 +265,13 @@ class DFTBmath:
         return yy
 
     def polyInter(self, xp, yp, rr, threshold=5E-3):
-        '''
-        this function is for interpolation from DFTB+ (lib_math)
+        """Interpolation from DFTB+ (lib_math).
+
         Args:
-            x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
-        '''
+            x array, y array
+            the interpolation point rr (x[0]< rr < x[-1])
+
+        """
         icl = 0
         nn = xp.shape[0]
         cc = t.zeros(nn)
@@ -271,12 +306,17 @@ class DFTBmath:
 
 
 class Bspline():
+    """Bspline interpolation for DFTB.
+
+    originate from
+    """
 
     def __init__(self):
-        '''
-        this function is revised from:
-        https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/scipy.interpolate.BSpline.html
-        '''
+        """Revised from the following.
+
+        https://docs.scipy.org/doc/scipy-1.0.0/reference/generated/
+        scipy.interpolate.BSpline.html
+        """
         pass
 
     def bspline(self, t, c, k, x):
@@ -299,7 +339,7 @@ class Bspline():
         return c1 + c2
 
     def test(self):
-        '''test function for Bspline'''
+        """Test function for Bspline."""
         tarr = [0, 1, 2, 3, 4, 5, 6]
         carr = [0, -2, -1.5, -1]
         fig, ax = plt.subplots()
@@ -312,17 +352,20 @@ class Bspline():
 
 
 class polySpline():
-    '''
-    This code revised from pycubicspline:
+    """Revised from pycubicspline.
+
     https://github.com/AtsushiSakai/pycubicspline
-    '''
+    """
+
     def __init__(self):
         pass
 
     def linear():
+        """Calculate linear interpolation."""
         pass
 
     def cubic(self, xp, yp, dd):
+        """Calculate a para in spline interpolation."""
         self.xp = xp
         self.yp = yp
         self.dd = dd
@@ -352,7 +395,7 @@ class polySpline():
         return result
 
     def cala(self):
-        '''calculate a para in spline interpolation'''
+        """Calculate a para in spline interpolation."""
         aarr = Variable(t.zeros(self.nx, self.nx))
         aarr[0, 0] = 1.0
         for i in range(self.nx - 1):
@@ -367,7 +410,7 @@ class polySpline():
         return aarr
 
     def calb(self):
-        '''calculate b para in spline interpolation'''
+        """Calculate b para in spline interpolation."""
         barr = Variable(t.zeros(self.nx))
         for i in range(self.nx - 2):
             barr[i + 1] = 3.0 * (self.y[i + 2] - self.y[i + 1]) / \
@@ -376,7 +419,7 @@ class polySpline():
         return barr
 
     def test_spline(self):
-        '''test spline interpolation'''
+        """Test spline interpolation."""
         print("Spline test")
         xarr = np.array([-0.5, 0.0, 0.5, 1.0, 1.5])
         yarr = np.array([3.2, 2.7, 6, 5, 6.5])
@@ -392,7 +435,7 @@ class polySpline():
 
 
 def test_polyInter():
-    '''test function polyInter'''
+    """Test function polyInter."""
     xarr = t.linspace(0, 12, 61)
     yarr = t.tensor([-3.5859E-06, -1.6676E-03, 3.3786E-01, 4.0800E-01,
                      4.3270E-01, 4.3179E-01, 4.1171E-01, 3.8387E-01,
@@ -420,11 +463,12 @@ def test_polyInter():
 
 
 def polyInter(xp, yp, rr, threshold=5E-3):
-    '''
-    this function is for interpolation from DFTB+ (lib_math)
+    """Interpolation from DFTB+ (lib_math).
+
     Args:
         x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
-    '''
+
+    """
     icl = 0
     nn = xp.shape[0]
     cc = Variable(t.zeros(nn))
@@ -488,29 +532,30 @@ def diff(mat, axis=-1):
 
 
 class BicubInterp:
+    """Bicubic interpolation method for DFTB.
+
+    reference: https://en.wikipedia.org/wiki/Bicubic_interpolation
+    """
 
     def __init__(self):
-        '''
-        This class aims to get interpolation with two variables
-        https://en.wikipedia.org/wiki/Bicubic_interpolation
-        '''
+        """Get interpolation with two variables."""
         pass
 
     def bicubic_2d(self, xmesh, ymesh, zmesh, xi, yi):
-        '''
-        famt will be the value of grid point and its derivative:
-            [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
-            [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
-            [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
-            [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
+        """Build fmat.
+
+        [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
+         [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
+         [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
+         [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
         a_mat = coeff * famt * coeff_
-        therefore, this function returns:
+        Then returns:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         Args:
             xmesh, ymesh: x (1D) and y (1D)
             zmesh: z (2D)
             ix, iy: the interpolation point
-        '''
+        """
         # check if xi, yi is out of range of xmesh, ymesh, maybe not good!!!!!
         if xi < xmesh[0]:
             xi = xmesh[0]
@@ -568,7 +613,7 @@ class BicubInterp:
         return t.matmul(t.matmul(xmat, amat), ymat)
 
     def fmat_0(self, fmat, zmesh):
-        '''this function will construct f(0/1, 0/1) in fmat'''
+        """Construct f(0/1, 0/1) in fmat."""
         f00 = zmesh[self.nxi, self.nyi]
         f10 = zmesh[self.nxi + 1, self.nyi]
         f01 = zmesh[self.nxi, self.nyi + 1]
@@ -577,7 +622,7 @@ class BicubInterp:
         return fmat
 
     def fmat_1(self, fmat, zmesh, xmesh, ymesh, ty):
-        '''this function will construct fx(0/1, 0) or fy(0, 0/1) in fmat'''
+        """Construct fx(0/1, 0) or fy(0, 0/1) in fmat."""
         x10 = xmesh[self.nxi + 1] - xmesh[self.nxi]
         y10 = ymesh[self.nyi + 1] - ymesh[self.nyi]
 
@@ -644,7 +689,7 @@ class BicubInterp:
         return fmat
 
     def fmat_xy(self, fmat):
-        '''this function will construct f(0/1, 0/1) in fmat'''
+        """Construct f(0/1, 0/1) in fmat."""
         fmat[2, 2] = fmat[0, 2] * fmat[2, 0]
         fmat[3, 2] = fmat[3, 0] * fmat[1, 2]
         fmat[2, 3] = fmat[2, 1] * fmat[0, 3]
@@ -652,10 +697,7 @@ class BicubInterp:
         return fmat
 
     def get_diff(self, mesh, nxi=None, nyi=None, ty=None):
-        '''
-        this function will get derivative over x and y direction
-        e.g, 10_00 means difference between (1, 0) and (0, 0)
-        '''
+        """Get derivative over x and y direction."""
         if nxi is not None and nyi is not None:
             z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
             z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
@@ -672,10 +714,7 @@ class BicubInterp:
             return y10, y0_1
 
     def get_diff_bound(self, mesh, nxi, nyi, ty):
-        '''
-        this function will get derivative over x and y direction in boundary
-        e.g, 10_00 means difference between (1, 0) and (0, 0)
-        '''
+        """Get derivative over x and y direction in boundary."""
         if ty == 'begx':
             z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
             z2010 = mesh[nxi + 2, nyi] - mesh[nxi + 1, nyi]
@@ -710,6 +749,7 @@ class BicubInterp:
             return z1000, z00_10, z0100, z00_01
 
     def test(self):
+        """Test Bicubic method."""
         xmesh = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
         ymesh = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
         xmesh_ = t.Tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
@@ -753,10 +793,7 @@ class BicubInterp:
         plt.show()
 
     def test_ml(self):
-        '''xmesh = Variable(t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1]),
-                         requires_grad=True)
-        ymesh = Variable(t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1]),
-                         requires_grad=True)'''
+        """Test gradients of bicubic method."""
         xmesh = t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1])
         ymesh = t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1])
         # xin = t.Tensor([2, 3]).clone().detach().requires_grad_()
@@ -783,20 +820,21 @@ class BicubInterp:
             print('loss', loss)
 
     def bicubic_3d(self, xmesh, ymesh, zmesh, xi, yi):
-        '''
-        famt will be the value of grid point and its derivative:
-            [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
-            [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
-            [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
-            [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
+        """Build the following fmat.
+
+        [[f(0, 0),  f(0, 1),   f_y(0, 0),  f_y(0, 1)],
+         [f(1, 0),   f(1, 1),   f_y(1, 0),  f_y(1, 1)],
+         [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
+         [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
         a_mat = coeff * famt * coeff_
-        therefore, this function returns:
+        then returns:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         Args:
             xmesh, ymesh: x (1D) and y (1D)
             zmesh: z (3D)
             ix, iy: the interpolation point
-        '''
+
+        """
         coeff11 = t.Tensor([[1, 0, 0, 0],
                             [0, 0, 1, 0],
                             [-3, 3, -2, -1],
@@ -853,7 +891,7 @@ class BicubInterp:
         return t.matmul(t.matmul(xmat, amat), ymat)
 
     def fmat_03d(self, fmat, zmesh):
-        '''this function will construct f(0/1, 0/1) in fmat'''
+        """Construct f(0/1, 0/1) in fmat."""
         f00 = zmesh[self.nxi, self.nyi, :]
         f10 = zmesh[self.nxi + 1, self.nyi, :]
         f01 = zmesh[self.nxi, self.nyi + 1, :]
@@ -863,7 +901,7 @@ class BicubInterp:
         return fmat
 
     def fmat_13d(self, fmat, zmesh, xmesh, ymesh, ty):
-        '''this function will construct fx(0/1, 0) or fy(0, 0/1) in fmat'''
+        """Construct fx(0/1, 0) or fy(0, 0/1) in fmat."""
         x10 = xmesh[self.nxi + 1] - xmesh[self.nxi]
         y10 = ymesh[self.nyi + 1] - ymesh[self.nyi]
 
@@ -930,7 +968,7 @@ class BicubInterp:
         return fmat
 
     def fmat_xy3d(self, fmat):
-        '''this function will construct f(0/1, 0/1) in fmat'''
+        """Construct f(0/1, 0/1) in fmat."""
         fmat[2, 2] = fmat[0, 2] * fmat[2, 0]
         fmat[3, 2] = fmat[3, 0] * fmat[1, 2]
         fmat[2, 3] = fmat[2, 1] * fmat[0, 3]
@@ -938,10 +976,7 @@ class BicubInterp:
         return fmat
 
     def get_diff3d(self, mesh, nxi=None, nyi=None, ty=None):
-        '''
-        this function will get derivative over x and y direction
-        e.g, 10_00 means difference between (1, 0) and (0, 0)
-        '''
+        """Get derivative over x and y direction."""
         if nxi is not None and nyi is not None:
             z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
             z00_10 = mesh[nxi, nyi] - mesh[nxi - 1, nyi]
@@ -958,10 +993,7 @@ class BicubInterp:
             return y10, y0_1
 
     def get_diff_bound3d(self, mesh, nxi, nyi, ty):
-        '''
-        this function will get derivative over x and y direction in boundary
-        e.g, 10_00 means difference between (1, 0) and (0, 0)
-        '''
+        """Get derivative over x and y direction in boundary."""
         if ty == 'begx':
             z1000 = mesh[nxi + 1, nyi] - mesh[nxi, nyi]
             z2010 = mesh[nxi + 2, nyi] - mesh[nxi + 1, nyi]
@@ -997,15 +1029,14 @@ class BicubInterp:
 
 
 class LinAl:
+    """Linear Algebra."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
 
     def inv33_mat(self, in_):
-        '''
-        return inverse of 3 * 3 matrix
-        out_ = 1 / det(in_) adj(in_)
-        '''
+        """Return inverse of 3 * 3 matrix, out_ = 1 / det(in_) adj(in_)."""
         out_ = t.zeros((3, 3), dtype=t.float64)
         det = self.det33_mat(in_)
 
@@ -1021,9 +1052,7 @@ class LinAl:
         return out_
 
     def det33_mat(self, in_):
-        '''
-        return 3*3 determinant
-        '''
+        """Return 3*3 determinant."""
         det = in_[0, 0] * in_[1, 1] * in_[2, 2] - \
             in_[0, 0] * in_[1, 2] * in_[2, 1] - \
             in_[0, 1] * in_[1, 0] * in_[2, 2] + \

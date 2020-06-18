@@ -1,10 +1,6 @@
-#!/usr/bin/env python3
+"""Read DFTB parameters, SKF files."""
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-This is python code for DFTB method
-This part is for reading all kinds of input data
-"""
-
 import json
 import os
 import numpy as np
@@ -31,19 +27,25 @@ ATOM_NUM = {"H": 1, "C": 6, "N": 7, "O": 8}
 
 
 class ReadInt:
-    """This class will read from .hsd input file, and return these file for
-    further calculations"""
+    """Read from .hsd input file.
+
+    Returns:
+        DFTB parameters for calculations
+
+    """
 
     def __init__(self, para):
+        """Initialize parameters for DFTB."""
         self.para = para
         self.get_constant()
 
     def get_constant(self):
+        """TO DO list!!! move this to a specified code."""
         self.para['boltzmann_constant_H'] = 3.166811429e-6  # Hartree / K
         self.para['t_zero_max'] = 5.0
 
     def get_task(self, para):
-        """this def will read the general information from .json file"""
+        """Read the general information from .json file."""
         filename = para['filename']
         direct = para['direInput']
         with open(os.path.join(direct, filename), 'r') as fp:
@@ -182,9 +184,7 @@ class ReadInt:
         return para
 
     def get_coor(self):
-        '''
-        this function will (read) / process coor info
-        '''
+        """Read / process coor information."""
         filename = self.para['filename']
         direct = self.para['direInput']
         with open(os.path.join(direct, filename), 'r') as f:
@@ -197,17 +197,19 @@ class ReadInt:
         self.para['atomNumber'] = self.para['coor'][:, 0]
 
     def cal_coor(self):
-        '''
-        generate vector, ditance according to input geometry
-        Input:
+        """Generate vector, ditance according to input geometry.
+
+        Args:
             coor: [natom, 4], the first column is atom number
-        Output:
+        Returns:
             natomtype: the type of atom, the 1st is 0, the 2nd different is 1
             atomind: how many orbitals of each atom in DFTB calculations
-        '''
+
+        """
         self.para['coorbohr'] = self.para['coor'][:, 1:] / BOHR
         coor = self.para['coor']
         natom = np.shape(coor)[0]
+        self.para['atomNumber'] = self.para['coor'][:, 0]
         distance = t.zeros((natom, natom), dtype=t.float64)
         dnorm = t.zeros((natom, natom, 3), dtype=t.float64)
         dvec = t.zeros((natom, natom, 3), dtype=t.float64)
@@ -225,7 +227,7 @@ class ReadInt:
                 dd = np.sqrt(xx * xx + yy * yy + zz * zz)
                 distance[iat, jat] = dd
                 if dd > err:
-                    dnorm[iat, jat, :] = t.Tensor([xx,  yy, zz]) / dd
+                    dnorm[iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
                     dvec[iat, jat, :] = t.Tensor([xx, yy, zz])
 
         dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
@@ -240,45 +242,43 @@ class ReadInt:
         self.cal_neighbour()
 
     def cal_neighbour(self):
+        """Get number of neighbours."""
         natom = self.para['natom']
         # cutoff =
         self.para['Nneighbour'] = t.zeros(natom)
 
 
-class ReadSKt:
-    '''
-    this class is to read .skf file
-    Input:
-        namei, namej: name of atom i, j
-        direSK: directory of .skf file
-        '''
-    def __init__(self, para):
-        '''
-        read .skf file and save in dict para
-        '''
-        self.para = para
-        # self.read_sk()
-        # self.get_cutoff()
+class ReadSlaKo:
+    """Read .skf files.
 
-    def read_skf_specie(self):
-        '''
-        read .skf according to atom species and its combinations
+    1. read directly from normal .skf files
+    2. read from a list of files with given geometry, compression radius,
+    onsite, etc.
+    """
+
+    def __init__(self, para):
+        """Read all data from .skf files among different requests.
+
         Args:
-            atom specie
-            directory of .skf and .skf files with format atom-atom.skf
-        Returns (suffix with names of between atoms):
-            grid distance
-            number of total grids
-            onsite, SPE and occupations
-            mass, c, d parameters
-            intergrals
-        '''
-        atomspecie, diresk = self.para['atomspecie'], self.para['direSK']
+            general DFTB parameters
+            geometry
+        Returns:
+            gridDist, nGridPoints
+            onsite, SPE, Hubbard U
+            mass,  polynomial coefficients, cutoff radius
+            integral tables
+
+        """
+        self.para = para
+
+    def read_sk_specie(self):
+        """Read the SKF table raw data according to atom specie."""
+        atomspecie = self.para['atomspecie']
+        diresk = self.para['direSK']
         nspecie = len(atomspecie)
 
-        for iat in range(0, nspecie):
-            for jat in range(0, nspecie):
-
+        for iat in range(nspecie):
+            for jat in range(nspecie):
                 nameij = atomspecie[iat] + atomspecie[jat]
                 skname = atomspecie[iat] + '-' + atomspecie[jat] + '.skf'
                 fp = open(os.path.join(diresk, skname), "r")
@@ -300,50 +300,34 @@ class ReadSKt:
                     hs_all.shape = (int(words[1]), 20)
                     self.para['hs_all' + nameij] = hs_all
 
-                    spline = fp.readline().split()
-                    if 'Spline' in spline:
-                        nInt_cutoff = fp.readline().split()
-                        nint_ = int(nInt_cutoff[0])
-                        self.para['nint_rep' + nameij] = nint_
-                        self.para['cutoff_rep' + nameij] = float(nInt_cutoff[1])
-                        a123 = fp.readline().split()
-                        self.para['a1_rep' + nameij] = float(a123[0])
-                        self.para['a2_rep' + nameij] = float(a123[1])
-                        self.para['a3_rep' + nameij] = float(a123[2])
-                        datarep = np.fromfile(fp, dtype=float,
-                                              count=(nint_-1)*6, sep=' ')
-                        datarep.shape = (nint_ - 1, 6)
-                        self.para['rep' + nameij] = t.from_numpy(datarep)
-                        datarepend = np.fromfile(fp, dtype=float,
-                                                 count=8, sep=' ')
-                        self.para['repend' + nameij] = t.from_numpy(datarepend)
                 else:  # Hetero-nuclear
                     data = np.fromfile(fp, dtype=float, count=20, sep=' ')
                     self.para['mass_cd' + nameij] = t.from_numpy(data)
                     hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
                     self.para['hs_all' + nameij] = hs_all
-                    # self.para['skf_rest' + nameij] = fp.read()
 
-                    spline = fp.readline().split()
-                    if 'Spline' in spline:
-                        nInt_cutoff = fp.readline().split()
-                        nint_ = int(nInt_cutoff[0])
-                        self.para['nint_rep' + nameij] = nint_
-                        self.para['cutoff_rep' + nameij] = float(nInt_cutoff[1])
-                        a123 = fp.readline().split()
-                        self.para['a1_rep' + nameij] = float(a123[0])
-                        self.para['a2_rep' + nameij] = float(a123[1])
-                        self.para['a3_rep' + nameij] = float(a123[2])
-                        datarep = np.fromfile(fp, dtype=float,
-                                              count=(nint_-1)*6, sep=' ')
-                        datarep.shape = (nint_ - 1, 6)
-                        self.para['rep' + nameij] = t.from_numpy(datarep)
-                        datarepend = np.fromfile(fp, dtype=float,
-                                                 count=8, sep=' ')
-                        self.para['repend' + nameij] = t.from_numpy(datarepend)
+                spline = fp.readline().split()
+                if 'Spline' in spline:
+                    nint_cutoff = fp.readline().split()
+                    nint_ = int(nint_cutoff[0])
+                    self.para['nint_rep' + nameij] = nint_
+                    self.para['cutoff_rep' + nameij] = float(nint_cutoff[1])
+                    a123 = fp.readline().split()
+                    self.para['a1_rep' + nameij] = float(a123[0])
+                    self.para['a2_rep' + nameij] = float(a123[1])
+                    self.para['a3_rep' + nameij] = float(a123[2])
+                    datarep = np.fromfile(fp, dtype=float,
+                                          count=(nint_ - 1) * 6, sep=' ')
+                    datarep.shape = (nint_ - 1, 6)
+                    self.para['rep' + nameij] = t.from_numpy(datarep)
+                    datarepend = np.fromfile(fp, dtype=float,
+                                             count=8, sep=' ')
+                    self.para['repend' + nameij] = t.from_numpy(datarepend)
+        self.get_cutoff_all()
 
-    def read_skf_specie_old(self):
+    def read_sk_specie_old(self):
+        """Old code for reading .skf. ATTENTION!!! not maintained."""
         atomspecie, diresk = self.para['atomspecie'], self.para['direSK']
         nspecie = len(atomspecie)
 
@@ -410,9 +394,7 @@ class ReadSKt:
                     self.para['hs_all' + nameji] = hs_ji
 
     def readhs_ij_line(self, iline, skdataij, skdataji, iat, jat, hsij, hsji):
-        '''
-        deal with the integrals each line in .skf
-        '''
+        """Deal with the integrals each line in .skf."""
         lmax = max(VAL_ORB[iat], VAL_ORB[jat])
         lmin = min(VAL_ORB[iat], VAL_ORB[jat])
         if lmax == 1:
@@ -430,8 +412,31 @@ class ReadSKt:
         elif lmax == 2 and lmax == 1:
             pass
 
+    def read_sk_atom(self):
+        """Read SKF table atom by atom, ATTENTION!!! not maintained."""
+        atomname, natom = self.para['atomnameall'], self.para['natom']
+        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['spe'] = t.zeros((natom), dtype=t.float64)
+        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
+
+        icount = 0
+        for namei in atomname:
+            for namej in atomname:
+                self.read_sk(namei, namej)
+                self.get_cutoff(namei, namej)
+            nameii = namei + namei
+            self.para['onsite'][icount, :] = \
+                t.FloatTensor(self.para['onsite' + nameii])
+            self.para['spe'][icount] = self.para['spe' + nameii]
+            self.para['uhubb'][icount, :] = \
+                t.FloatTensor(self.para['uhubb' + nameii])
+            self.para['occ_atom'][icount, :] = t.FloatTensor(
+                self.para['occ_skf' + nameii])
+            icount += 1
+
     def read_sk(self, namei, namej):
-        '''read homo- type .skf file'''
+        """Read homo- type .skf file."""
         nameij = namei + namej
         skfname = namei + '-' + namej + '.skf'
         direc = self.para['direSK']
@@ -468,24 +473,8 @@ class ReadSKt:
         self.para['mass_cd' + nameij] = mass_cd
         self.para['hs_all' + nameij] = hs_all
 
-    def read_sk_(self):
-        '''read homo- type .skf file'''
-        grid_dist = float(self.para['grid_dist' + self.nameij][0])
-        ngridpoint = int(self.para['grid_dist' + self.nameij][1])
-        mass_cd = []
-        if self.namei == self.namej:
-            espd_uspd = []
-            for ispe in self.para['espd_uspd' + self.nameij]:
-                espd_uspd.append(float(ispe))
-            self.para['espd_uspd' + self.nameij] = espd_uspd
-            for imass_cd in self.para['mass_cd' + self.nameij]:
-                mass_cd.append(float(imass_cd))
-        self.para['grid_dist' + self.nameij] = grid_dist
-        self.para['ngridpoint' + self.nameij] = ngridpoint
-        self.para['mass_cd' + self.nameij] = mass_cd
-
     def get_cutoff(self, namei, namej):
-        '''get the cutoff of atomi-atomj in .skf file'''
+        """Get the cutoff of atomi-atomj in .skf file."""
         nameij = namei + namej
         grid = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
@@ -496,7 +485,7 @@ class ReadSKt:
         self.para['lensk' + nameij] = lensk
 
     def get_cutoff_all(self):
-        '''get the cutoff of atomi-atomj in .skf file'''
+        """Get the cutoff of atomi-atomj in .skf file."""
         atomspecie = self.para['atomspecie']
         for iat in range(0, len(atomspecie)):
             for jat in range(0, len(atomspecie)):
@@ -511,35 +500,40 @@ class ReadSKt:
 
 
 class SkInterpolator:
+    """Interpolate SKF from a list of .skf files.
+
+    These files with various compression radius
+    """
 
     def __init__(self, para, gridmesh):
-        """
-        This code aims to generate integrals by interpolation method.
+        """Generate integrals by interpolation method.
+
         For the moment, onsite will be included in machine learning, therefore
-        onsite will be offered in init_parameters!!!
+        onsite will be offered as input!!!
         """
         self.para = para
         self.gridmesh = gridmesh
 
     def readskffile(self, namei, namej, directory):
-        """
-        Namestyle example:
-            C-H.skf.02.77.03.34, compr of C, H are 2.77 and 3.34, respectively
-        You can choose only read the integrals, since if we only tune the
-        compression radius, the onsite remain unchanged.
+        """Read a list of .skf files.
+
         Args:
             all .skf file, atom names, directory
         Returns:
             gridmesh_points, onsite_spe_u, mass_rcut, integrals
+
         """
         nameij = namei + namej
         filenamelist = self.getfilenamelist(namei, namej, directory)
-        nfile, ncompr = len(filenamelist), int(np.sqrt(len(filenamelist)))
-
-        ngridpoint, grid_dist = t.empty(nfile), t.empty(nfile)
-        onsite, spe, uhubb, occ_skf = t.empty(nfile, 3), t.empty(nfile), \
-            t.empty(nfile, 3), t.empty(nfile, 3)
-        mass_rcut = t.empty(nfile, 20)
+        nfile = len(filenamelist)
+        ncompr = int(np.sqrt(len(filenamelist)))
+        ngridpoint = t.empty((nfile), dtype=t.float64)
+        grid_dist = t.empty((nfile), dtype=t.float64)
+        onsite = t.empty((nfile, 3), dtype=t.float64)
+        spe = t.empty((nfile), dtype=t.float64)
+        uhubb = t.empty((nfile, 3), dtype=t.float64)
+        occ_skf = t.empty((nfile, 3), dtype=t.float64)
+        mass_rcut = t.empty((nfile, 20), dtype=t.float64)
         integrals, atomname_filename, self.para['rest'] = [], [], []
 
         icount = 0
@@ -550,29 +544,6 @@ class SkInterpolator:
             ngridpoint[icount] = int(words[1])
             nitem = int(ngridpoint[icount] * 20)
             atomname_filename.append((filename.split('.')[0]).split("-"))
-            split = filename.split('.')
-
-            '''
-            if [namei, split[-1], split[-2]] == [namej, split[-3], split[-4]]:
-                fp_line2 = [float(ii) for ii in fp.readline().split()]
-                fp_line2_ = t.from_numpy(np.asarray(fp_line2))
-                onsite[icount, :] = fp_line2_[0:3]
-                spe[icount] = fp_line2_[3]
-                uhubb[icount, :] = fp_line2_[4:7]
-                occ_skf[icount, :] = fp_line2_[7:10]
-                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
-                mass_rcut[icount, :] = t.from_numpy(data)
-                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
-                data.shape = (int(ngridpoint[icount]), 20)
-                integrals.append(data)
-                self.para['rest'].append(fp.read())
-            else:
-                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
-                mass_rcut[icount, :] = t.from_numpy(data)
-                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
-                data.shape = (int(ngridpoint[icount]), 20)
-                integrals.append(data)
-                self.para['rest'].append(fp.read())'''
             data = np.fromfile(fp, dtype=float, count=20, sep=' ')
             mass_rcut[icount, :] = t.from_numpy(data)
             data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
@@ -582,7 +553,8 @@ class SkInterpolator:
             icount += 1
 
         if self.para['Lrepulsive']:
-            fp = open(os.path.join(directory, namei + '-' + namej + '.rep'), "r")
+            fp = open(os.path.join(
+                directory, namei + '-' + namej + '.rep'), "r")
             first_line = fp.readline().split()
             assert 'Spline' in first_line
             nInt_cutoff = fp.readline().split()
@@ -599,7 +571,7 @@ class SkInterpolator:
             self.para['rep' + nameij] = t.from_numpy(datarep)
             datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
             self.para['repend' + nameij] = t.from_numpy(datarepend)
-        
+
         self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 5)
         superskf = t.zeros(ncompr, ncompr,
                            self.para['skf_line_tail' + nameij], 20)
@@ -640,8 +612,17 @@ class SkInterpolator:
         self.para['atomnameInSkf' + nameij] = atomname_filename
 
     def getfilenamelist(self, namei, namej, directory):
-        """read all the skf files and return lists of skf files according to
-        the types of skf """
+        """Read all the skf files name.
+
+        Returns:
+            lists of skf file names according to sort types, therefore you
+            should follow the name style:
+        Namestyle:
+            e.g: C-H.skf.02.77.03.34, compression radius of C, H are 2.77 and
+            3.34, respectively. You can choose only read the integrals, since
+            if only tune the compression radius, the onsite remains unchanged.
+
+        """
         filename = namei + '-' + namej + '.skf.'
         filenamelist = []
         filenames = os.listdir(directory)
@@ -653,17 +634,17 @@ class SkInterpolator:
 
     def getallgenintegral(self, ninterpfile, skffile, r1, r2, gridarr1,
                           gridarr2):
-        """this function is to generate the whole integrals"""
+        """Generate the whole integrals, an example code."""
         superskf = skffile["intergrals"]
         nfile = skffile["nfilenamelist"]
         row = int(np.sqrt(nfile))
         xneigh = (np.abs(gridarr1 - r1)).argmin()
         yneigh = (np.abs(gridarr2 - r2)).argmin()
-        ninterp = round(xneigh*row + yneigh)
+        ninterp = round(xneigh * row + yneigh)
         ninterpline = int(skffile["gridmeshpoint"][ninterp, 1])
-        hs_skf = np.empty((ninterpline+5, 20))
+        hs_skf = np.empty((ninterpline + 5, 20))
         for lineskf in range(0, ninterpline):
-            distance = lineskf*self.gridmesh + self.grid0
+            distance = lineskf * self.gridmesh + self.grid0
             counti = 0
             for intergrali in intergraltyperef:
                 znew3 = SkInterpolator.getintegral(self, r1, r2, intergrali,
@@ -675,8 +656,7 @@ class SkInterpolator:
 
     def getintegral(self, interpr1, interpr2, integraltype, distance,
                     gridarr1, gridarr2, superskf):
-        """this function is to generate interpolation at given distance and
-        given compression radius"""
+        """Generate interpolation at given distance and compression radius."""
         numgridpoints = len(gridarr1)
         numgridpoints2 = len(gridarr2)
         if numgridpoints != numgridpoints2:
@@ -692,7 +672,7 @@ class SkInterpolator:
         return interporbital
 
     def polytozero(self, hs_skf, ninterpline):
-        """Here, we fit the tail of skf file (5lines, 5th order)"""
+        """Here, we fit the tail of skf file (5lines, 5th order)."""
         ni = ninterpline
         dx = self.gridmesh * 5
         ytail = hs_skf[ni - 1, :]
@@ -716,7 +696,7 @@ class SkInterpolator:
 
     def saveskffile(self, ninterpfile, atomnameall, skffile, hs_skf,
                     ninterpline):
-        """this function is to save all parts in skf file"""
+        """Save all parts in skf file."""
         atomname1 = atomnameall[0]
         atomname2 = atomnameall[1]
         nfile = skffile["nfilenamelist"]

@@ -8,9 +8,14 @@ import dftbtorch.slakot as slakot
 import dftbtorch.dftb_torch as dftb_torch
 from dftb_torch import main
 import test_grad_compr
+import init_parameter as initpara
 
 
-def test_accuracy(para, name, dire, H0=None, S=None, q=None):
+def test_accuracy(para, name, dire,
+                  LH0=False, H0=None,
+                  LS0=False, S=None,
+                  Lq=False, q=None,
+                  Lp=False, p=None):
     '''
     Read the corresponding data from normal DFTB+ code
     Required:
@@ -18,10 +23,10 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         S: CH4_S_half.dat
     '''
     print('-' * 35, 'test accuracy:', name, '-' * 35)
-    read_dftbplus_data(para, dire, H0=H0, S=S, q=q)
+    read_dftbplus_data(para, dire, H0=H0, S=S, q=q, p=None)
     nat = para['natom']
 
-    if H0 is not None:
+    if LH0:
         dataH0 = para['dataH']
         data_ = abs((dataH0 - para['hammat']) / abs(dataH0)).sum()
         if data_ < 1e-8 * nat ** 2:
@@ -37,7 +42,7 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         else:
             print('Warning: average H0 error is larger than 1E-4: {}'.format(
                     abs(dataH0 - para['qatomall']).sum() / nat))
-    if S is not None:
+    if LS0:
         dataS = para['dataS']
         data_ = abs((dataS - para['overmat']) / abs(dataS)).sum()
         if data_ < 1e-8 * nat ** 2:
@@ -53,7 +58,7 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         else:
             print('Warning: average S error is larger than 1E-4: {}'.format(
                     abs(dataS - para['qatomall']).sum() / nat))
-    if q is not None:
+    if Lq:
         dataq = para['dataq']
         data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum()
         if data_ < 1e-8 * nat:
@@ -69,10 +74,42 @@ def test_accuracy(para, name, dire, H0=None, S=None, q=None):
         else:
             print('Warning: average charge error is larger than 1E-4: ',
                   '{}'.format(abs(dataq - para['qatomall']).sum() / nat))
+
+    if Lp:
+        datats = para['datats']
+        data_ = abs((datats - para['alpha_ts']) / abs(datats)).sum()
+        if data_ < 1e-8 * nat:
+            print('average alpha_ts error is smaller than 1E-8')
+        elif data_ < 1e-7 * nat:
+            print('average alpha_ts error is smaller than 1E-7')
+        elif data_ < 1e-6 * nat:
+            print('average alpha_ts error is smaller than 1E-6')
+        elif data_ < 1e-5 * nat:
+            print('average alpha_ts error is smaller than 1E-5')
+        elif data_ < 1e-4 * nat:
+            print('average alpha_ts error is smaller than 1E-4')
+        else:
+            print('Warning: average alpha_ts0 error is larger than 1E-4: ',
+                  '{}'.format(abs(datats - para['alpha_ts']).sum() / nat))
+        datambd = para['datambd']
+        data_ = abs((datambd - para['alpha_mbd']) / abs(datambd)).sum()
+        if data_ < 1e-8 * nat:
+            print('average alpha_mbd error is smaller than 1E-8')
+        elif data_ < 1e-7 * nat:
+            print('average alpha_mbd error is smaller than 1E-7')
+        elif data_ < 1e-6 * nat:
+            print('average alpha_mbd error is smaller than 1E-6')
+        elif data_ < 1e-5 * nat:
+            print('average alpha_mbd error is smaller than 1E-5')
+        elif data_ < 1e-4 * nat:
+            print('average alpha_mbd error is smaller than 1E-4')
+        else:
+            print('Warning: average alpha_mbd error is larger than 1E-4: ',
+                  '{}'.format(abs(datambd - para['alpha_mbd']).sum() / nat))
     print('-' * 35, 'end test accuracy:', name, '-' * 35)
 
 
-def read_dftbplus_data(para, dire, H0=None, S=None, q=None):
+def read_dftbplus_data(para, dire, H0=None, S=None, q=None, p=None):
     '''
     Return according to Input Agrs'''
     natom = para['natom']
@@ -109,24 +146,11 @@ def read_dftbplus_data(para, dire, H0=None, S=None, q=None):
 
 
 def nonscc_CH4(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test CH4 with non-scc DFTB
+
+    What cab be test: dipole, charge, polarizability, H0, S
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -135,29 +159,20 @@ def nonscc_CH4(para):
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CH4', './data', q='CH4_nonscc_sym_q.dat')
+    para['dataq'] = t.tensor([4.44967748, 0.88758063, 0.88758063,
+                              0.88758063, 0.88758063], dtype=t.float64)
+    test_accuracy(para, 'CH4', './data', Lq=True)
 
 
 def scc_CH4(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test CH4 with scc DFTB
+
+    What cab be test: dipole, charge, polarizability, H0, S
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
+    para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -166,28 +181,23 @@ def scc_CH4(para):
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CH4', './data', q='CH4_scc_sym_q.dat')
+    para['dataq'] = t.tensor([4.36460632, 0.90884842, 0.90884842, 0.90884842,
+                              0.90884842], dtype=t.float64)
+    para['datats'] = t.tensor([9.79705420433358, 2.57029836887912,
+                               2.57029836887912, 2.57029836887912,
+                               2.57029836887912], dtype=t.float64)
+    para['datambd'] = t.tensor([10.5834157921756, 1.82998716394802,
+                                1.82998716394802, 1.82998716394802,
+                                1.82998716394802], dtype=t.float64)
+    test_accuracy(para, 'CH4', './data', Lq=True, Lp=True)
 
 
 def nonscc_CH4_nonsym(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test non-symmetric CH4 with non-scc DFTB
+
+    What cab be test: dipole, charge, polarizability, H0, S
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -196,29 +206,21 @@ def nonscc_CH4_nonsym(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
+    para['dataq'] = t.tensor([4.49973615, 0.90054924, 0.89537501,
+                              0.86417155, 0.84016805], dtype=t.float64)
     main(para)
-    test_accuracy(para, 'CH4_nonsym', './data', q='CH4_nonscc_nonsym_q.dat')
+    test_accuracy(para, 'CH4_nonsym', './data', Lq=True)
 
 
 def scc_CH4_nonsym(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test non-symmetric CH4 with scc DFTB
+
+    What cab be test: dipole, charge, polarizability, H0, S
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
+    para['LMBD_DFTB'] = True
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -228,7 +230,15 @@ def scc_CH4_nonsym(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CH4_nonsym', './data', q='CH4_scc_nonsym_q.dat')
+    para['dataq'] = t.tensor([4.40465870, 0.92431392, 0.91890342,
+                              0.88767461, 0.86444935], dtype=t.float64)
+    para['datats'] = t.tensor([9.93812348342835, 2.76774226013437,
+                               2.73426821500725, 2.45225760746137,
+                               2.29442053432681], dtype=t.float64)
+    para['datambd'] = t.tensor([10.6544331300661, 2.13683704440973,
+                                2.15230148694062, 1.63880440230659,
+                                1.42140268339990], dtype=t.float64)
+    test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=True)
 
 
 def nonscc_H2(para):
@@ -237,53 +247,35 @@ def nonscc_H2(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = True
-    para['Lrepulsive'] = True
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'H2', './data', q='H2_nonscc_q.dat')
+    para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
+    test_accuracy(para, 'H2', './data', Lq=True)
 
 
 def scc_H2(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
+    '''Test eigen values, charges of CH4 by using SCC DFTB;
+
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
+    para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'H2', './data', q='H2_scc_q.dat')
+    para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
+    para['datats'] = t.tensor([2.96106578790466, 2.96106578790466],
+                              dtype=t.float64)
+    para['datambd'] = t.tensor([2.66188170934323, 2.66188170934323],
+                               dtype=t.float64)
+    test_accuracy(para, 'H2', './data', Lq=True, Lp=True)
 
 
 def nonscc_CO(para):
@@ -292,26 +284,14 @@ def nonscc_CO(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'O']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CO', './data', q='CO_nonscc_q.dat')
+    para['dataq'] = t.tensor([3.72849700, 6.27150300], dtype=t.float64)
+    test_accuracy(para, 'CO', './data', Lq=True)
 
 
 def scc_CO(para):
@@ -320,27 +300,21 @@ def scc_CO(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'O']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
+    para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CO', './data', q='CO_scc_q.dat')
+    para['dataq'] = t.tensor([3.88266540, 6.11733460], dtype=t.float64)
+    para['datats'] = t.tensor([10.4472195378344, 5.03433839483291],
+                              dtype=t.float64)
+    para['datambd'] = t.tensor([10.0464154654307, 3.75102069485937],
+                               dtype=t.float64)
+    test_accuracy(para, 'CO', './data', Lq=True, Lp=True)
 
 
 def nonscc_CO2(para):
@@ -349,19 +323,6 @@ def nonscc_CO2(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['O', 'C', 'O']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor(([
             [8, -2.0357279573e-03, -1.7878314480e-02, 1.1467019320e+00],
             [6,  5.4268823005e-03,  4.7660354525e-02, 7.7558560297e-03],
@@ -369,7 +330,9 @@ def nonscc_CO2(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CO2', './data', q='CO2_nonscc_q.dat')
+    para['dataq'] = t.tensor([6.61355580, 2.71090713, 6.67553708],
+                             dtype=t.float64)
+    test_accuracy(para, 'CO2', './data', Lq=True)
 
 
 def scc_CO2(para):
@@ -378,19 +341,9 @@ def scc_CO2(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['tElec'] = 0
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['O', 'C', 'O']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
+    para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [8, -2.0357279573e-03, -1.7878314480e-02, 1.1467019320e+00],
             [6,  5.4268823005e-03,  4.7660354525e-02, 7.7558560297e-03],
@@ -398,7 +351,13 @@ def scc_CO2(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'CO2', './data', q='CO2_scc_q.dat')
+    para['dataq'] = t.tensor([6.42707925, 3.12445809, 6.44846266],
+                             dtype=t.float64)
+    para['datats'] = t.tensor([5.29721592768678, 7.83915424274904,
+                               5.32206102771691], dtype=t.float64)
+    para['datambd'] = t.tensor([5.33032172678994, 7.09741229651905,
+                                5.41673616918169], dtype=t.float64)
+    test_accuracy(para, 'CO2', './data', Lq=True, Lp=True)
 
 
 def nonscc_C2H6(para):
@@ -407,20 +366,6 @@ def nonscc_C2H6(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor((
             [[6, 7.8179776669e-01,  1.5335133066e-03, 2.6934888214e-02],
              [6, -7.9243135452e-01, -3.9727156982e-03, -1.3786645606e-02],
@@ -433,7 +378,10 @@ def nonscc_C2H6(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'C2H6', './data', q='C2H6_nonscc_q.dat')
+    para['dataq'] = t.tensor([4.33252930, 4.28299142, 0.88460016, 0.86030025,
+                              0.94836504, 0.89385542, 0.92004628, 0.87731213],
+                             dtype=t.float64)
+    test_accuracy(para, 'C2H6', './data', Lq=True)
 
 
 def scc_C2H6(para):
@@ -442,20 +390,9 @@ def scc_C2H6(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
+    para['LMBD_DFTB'] = True
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor((
             [[6, 7.8179776669e-01,  1.5335133066e-03, 2.6934888214e-02],
              [6, -7.9243135452e-01, -3.9727156982e-03, -1.3786645606e-02],
@@ -468,7 +405,20 @@ def scc_C2H6(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'C2H6', './data', q='C2H6_scc_q.dat')
+    para['dataq'] = t.tensor([4.24124866, 4.19400827, 0.91722161, 0.89639943,
+                              0.96568099, 0.92643924, 0.94624107, 0.91276073],
+                             dtype=t.float64)
+    para['datats'] = t.tensor([9.74943687855973, 9.71254658994863,
+                               2.60683883074831, 2.51041218529889,
+                               3.03792177278874, 2.65582313391292,
+                               2.93939838062613, 2.66016640041776],
+                              dtype=t.float64)
+    para['datambd'] = t.tensor([10.7462967440674, 10.9812609031112,
+                                1.49177182425342, 1.58170558886044,
+                                2.48102887608234, 1.63630423450018,
+                                2.37498195132055, 1.85438880204967],
+                               dtype=t.float64)
+    test_accuracy(para, 'C2H6', './data', Lq=True, Lp=True)
 
 
 def nonscc_C2H6O(para):
@@ -477,20 +427,6 @@ def nonscc_C2H6O(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'C', 'O', 'H', 'H', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor((
             [[6, -1.1924011707, -0.2497887760, -0.0266653895],
              [6,  0.1042943373,  0.5966255069,  0.0842601359],
@@ -504,7 +440,13 @@ def nonscc_C2H6O(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'C2H6O', './data', q='C2H6O_nonscc_q.dat')
+    para['dataq'] = t.tensor([4.24124866, 4.19400827, 0.91722161, 0.89639943,
+                              0.96568099, 0.92643924, 0.94624107, 0.91276073],
+                             dtype=t.float64)
+    para['dataq'] = t.tensor([4.36754301, 3.78261076, 6.76038683, 0.89693636,
+                              0.90218089, 0.89338497, 0.92167158, 0.90619654,
+                              0.56908907], dtype=t.float64)
+    test_accuracy(para, 'C2H6O', './data', Lq=True)
 
 
 def scc_C2H6O(para):
@@ -513,20 +455,9 @@ def scc_C2H6O(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
+    para['LMBD_DFTB'] = True
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'C', 'O', 'H', 'H', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['Lml_skf'] = False
-    para['Lrepulsive'] = False
-    para['direSK'] = '../slko/test'
     para['coor'] = t.tensor((
             [[6, -1.1924011707, -0.2497887760, -0.0266653895],
              [6,  0.1042943373,  0.5966255069,  0.0842601359],
@@ -540,7 +471,20 @@ def scc_C2H6O(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    test_accuracy(para, 'C2H6O', './data', q='C2H6O_scc_q.dat')
+    para['dataq'] = t.tensor([4.30451375, 3.82910185, 6.50280956, 0.92965294,
+                              0.93426888, 0.90367817, 0.94812820, 0.96598390,
+                              0.68186275], dtype=t.float64)
+    para['datats'] = t.tensor([9.84660891982198, 8.98857943866821,
+                               5.35847589393927, 2.70480456707182,
+                               2.72124081467918, 2.56503906488386,
+                               2.77880305439828, 2.88633663053240,
+                               1.76563961688359], dtype=t.float64)
+    para['datambd'] = t.tensor([10.7704481153938, 10.4206620417722,
+                                5.17107415784681, 1.87077049923922,
+                                1.75948649387994, 1.62631948159624,
+                                1.72253860663783, 1.87086245531241,
+                                1.29692091396141], dtype=t.float64)
+    test_accuracy(para, 'C2H6O', './data', Lq=True, Lp=True)
 
 
 def scc_CH4_compr(para):
@@ -548,28 +492,8 @@ def scc_CH4_compr(para):
     Test eigen values, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
+    initpara.init_dftb_interp(para)
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = True  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['interpcutoff'] = 4.0
-    para['Lml_skf'] = True
-    para['Lrepulsive'] = False
-    para['Lml_compr_global'] = False
-    para['LreadSKFinterp'] = True
-    para['Lonsite'] = False
-    para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
-    para['n_dataset'] = 1
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -577,22 +501,6 @@ def scc_CH4_compr(para):
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 2.5
-    para['C_init_compr'] = 3.0
-    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['onsiteH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-    para['onsiteC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-    para['uhubbH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-    para['uhubbC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.RunML(para).get_compr_specie()
@@ -609,28 +517,9 @@ def nonscc_CH4_compr(para):
     Test eigen values, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
+    initpara.init_dftb_interp(para)
+    print('nonSCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = True  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['interpcutoff'] = 4.0
-    para['Lml_skf'] = True
-    para['Lrepulsive'] = False
-    para['Lml_compr_global'] = False
-    para['LreadSKFinterp'] = True
-    para['Lonsite'] = False
-    para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
-    para['n_dataset'] = 1
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -638,22 +527,6 @@ def nonscc_CH4_compr(para):
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 2.5
-    para['C_init_compr'] = 3.0
-    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
-    para['onsiteH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-    para['onsiteC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-    para['uhubbH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-    para['uhubbC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.RunML(para).get_compr_specie()
@@ -670,28 +543,8 @@ def nonscc_CH4_compr_nongrid(para):
     Test eigen values, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
+    initpara.init_dftb_interp(para)
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['Lml'] = True  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['interpcutoff'] = 4.0
-    para['Lml_skf'] = True
-    para['Lrepulsive'] = False
-    para['Lml_compr_global'] = False
-    para['LreadSKFinterp'] = True
-    para['Lonsite'] = False
-    para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
-    para['n_dataset'] = 1
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -700,24 +553,6 @@ def nonscc_CH4_compr_nongrid(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 2.2
-    para['C_init_compr'] = 3.2
-    para['H_compr_grid'] = t.tensor((
-            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
-             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor((
-            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
-             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['onsiteH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-    para['onsiteC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-    para['uhubbH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-    para['uhubbC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.RunML(para).get_compr_specie()
@@ -735,28 +570,8 @@ def scc_CH4_compr_nongrid(para):
     Test eigen values, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
+    initpara.init_dftb_interp(para)
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = True  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
-    para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C', 'H', 'H', 'H', 'H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['interpcutoff'] = 4.0
-    para['Lml_skf'] = True
-    para['Lrepulsive'] = False
-    para['Lml_compr_global'] = False
-    para['LreadSKFinterp'] = True
-    para['Lonsite'] = False
-    para['atomspecie_old'] = []
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
-    para['n_dataset'] = 1
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -765,24 +580,6 @@ def scc_CH4_compr_nongrid(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    para['H_init_compr'] = 2.7
-    para['C_init_compr'] = 3.4
-    para['H_compr_grid'] = t.tensor((
-            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
-             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['C_compr_grid'] = t.tensor((
-            [02.00, 02.19, 02.42, 02.68, 02.98, 03.33, 03.72, 04.18, 04.71,
-             05.31, 06.01, 06.80, 07.72, 08.78, 10.00]), dtype=t.float64)
-    para['onsiteH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-    para['onsiteC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-    para['uhubbH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-    para['uhubbC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-            dtype=t.float64)
     dftb_torch.Initialization(para)
     test_grad_compr.GenMLPara(para).get_spllabel()
     test_grad_compr.RunML(para).get_compr_specie()
@@ -801,20 +598,8 @@ def scc_H(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['Lrepulsive'] = True
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['H']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko/test'
     para['coor'] = t.tensor(([[1, 0.0000000000, 0.0000000000, 0.0000000000]]),
                             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
@@ -827,34 +612,12 @@ def scc_C(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False
-    para['Lrepulsive'] = True
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['tElec'] = 0
     para['maxIter'] = 60
-    para['Ldipole'] = True
-    para['symbols'] = ['C']
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['grid0'] = 0.4
-    para['direSK'] = '/home/gz_fan/Documents/ML/dftb/slko'
     para['coor'] = t.tensor((
             [[6, 0.0000000000, 0.0000000000, 0.0000000000]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-
-
-def test_nonsccCO(para):
-    qatom = t.tensor(([3.7336089389600122, 6.266391061039996]),
-                     dtype=t.float64)
-
-    if t.all(abs(qatom - para['qatomall']) < 1e-4):
-        print('Test: qatomall correct')
-    else:
-        print('Test: qatomall wrong')
 
 
 def generate_compr():
@@ -1051,7 +814,8 @@ def test_compr_para_10points(para):
              label='para 5')
     plt.plot(xx, qdiff2[0, 5, :], color='m', linestyle='-', linewidth=2,
              label='para 6')
-    # plt.plot(xx, qdiff2[0, 6, :], color='0.75', linestyle='-', linewidth=2, label='para 7')
+    # plt.plot(xx, qdiff2[0, 6, :], color='0.75', linestyle='-', linewidth=2,
+    # label='para 7')
     plt.xlabel('different compression radius points')
     plt.ylabel('absolute charge difference (non-SCC)')
     plt.plot(xx, yy, color='k', linestyle='-', linewidth=70, alpha=.15)
@@ -1210,67 +974,75 @@ def test_compr_para_15points(para):
     plt.show()
 
 
-if __name__ == '__main__':
-    '''
-    Attention:
-        if read test H0, S, compression R of H: 3.34, C: 4.07
-    '''
-    print('ddddddddddrfdszgfffffffjjdddddddddddddddd')
-    t.set_printoptions(precision=15)
-    para = {}
+def normal_test(para):
+    """Normal test for DFTB."""
     testlist = ['scc_CH4', 'nonscc_CH4', 'scc_H2', 'nonscc_H2', 'scc_CO',
                 'nonscc_CO', 'scc_CO2', 'nonscc_CO2', 'scc_C2H6',
                 'nonscc_C2H6', 'scc_CH4_nonsym', 'nonscc_CH4_nonsym',
                 'scc_C2H6O', 'nonscc_C2H6O']
-    para['LReadInput'] = False  # define parameters in python, not read input
-    para['Lml_HS'] = False  # donot perform ML process
-    para['scf'] = True
-    para['LMBD_DFTB'] = True
-    if para['LMBD_DFTB']:
-        para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
-        para['vdw_self_consistent'] = False
-        para['beta'] = 1.05
+    initpara.init_dftb(para)
+    if 'nonscc_CH4' in testlist:
+        nonscc_CH4(para)
     if 'scc_CH4' in testlist:
         scc_CH4(para)
-    ''' if 'nonscc_CH4' in testlist:
-        nonscc_CH4(para)
-    if 'scc_H2' in testlist:
-        scc_H2(para)
     if 'nonscc_H2' in testlist:
         nonscc_H2(para)
-    if 'scc_CO' in testlist:
-        scc_CO(para)
+    if 'scc_H2' in testlist:
+        scc_H2(para)
     if 'nonscc_CO' in testlist:
         nonscc_CO(para)
-    if 'scc_CO2' in testlist:
-        scc_CO2(para)
+    if 'scc_CO' in testlist:
+        scc_CO(para)
     if 'nonscc_CO2' in testlist:
         nonscc_CO2(para)
-    if 'scc_C2H6' in testlist:
-        scc_C2H6(para)
+    if 'scc_CO2' in testlist:
+        scc_CO2(para)
     if 'nonscc_C2H6' in testlist:
         nonscc_C2H6(para)
-    if 'scc_CH4_nonsym' in testlist:
-        scc_CH4_nonsym(para)
+    if 'scc_C2H6' in testlist:
+        scc_C2H6(para)
     if 'nonscc_CH4_nonsym' in testlist:
         nonscc_CH4_nonsym(para)
-    if 'scc_C2H6O' in testlist:
-        scc_C2H6O(para)
+    if 'scc_CH4_nonsym' in testlist:
+        scc_CH4_nonsym(para)
     if 'nonscc_C2H6O' in testlist:
         nonscc_C2H6O(para)
+    if 'scc_C2H6O' in testlist:
+        scc_C2H6O(para)
 
+
+def compr_test(para):
+    """Test DFTB with compression radius, but not for ML."""
     testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
                       'scc_CH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
-
-    if 'scc_CH4' in testlist_compr:
-        scc_CH4_compr(para)
     if 'nonscc_CH4' in testlist_compr:
         nonscc_CH4_compr(para)
+    if 'scc_CH4' in testlist_compr:
+        scc_CH4_compr(para)
     if 'nonscc_CH4_compr_nongrid' in testlist_compr:
         nonscc_CH4_compr_nongrid(para)
     if 'scc_CH4_compr_nongrid' in testlist_compr:
-        scc_CH4_compr_nongrid(para)'''
+        scc_CH4_compr_nongrid(para)
 
     # test_compr_para(para)  # common parameters for 10 or 15 points
     # test_compr_para_10points(para)
     # test_compr_para_15points(para)
+
+
+if __name__ == '__main__':
+    """Main test function.
+
+    test normal DFTB, DFTB with interpolation SKF
+    """
+    t.set_printoptions(precision=15)
+    para = {}
+    para["test_target"] = "compr"
+    para['Lml_skf'] = False
+    para['LMBD_DFTB'] = False
+    para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
+    para['vdw_self_consistent'] = False
+    para['beta'] = 1.05
+    if para["test_target"] == "normal":
+        normal_test(para)
+    elif para["test_target"] == "compr":
+        compr_test(para)

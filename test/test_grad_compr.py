@@ -34,11 +34,11 @@ AIMS_ENERGY = {"H": -0.45891649, "C": -37.77330663, "N": -54.46973501,
                "O": -75.03140052}
 DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
                "O": -3.0861916005}
+HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207}
 
 
 def optml(para):
-    '''main function for DFTB-ML'''
-
+    """'main function for DFTB-ML optimization"""
     # get the default para for dftb and ML, these para will maintain unchanged
     initpara.init_dftb_ml(para)
 
@@ -47,6 +47,7 @@ def optml(para):
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
+    para['nfile'] = int(para['n_dataset'][0])
     runml.ref()
 
     # run dftb in ML process
@@ -57,38 +58,32 @@ def optml(para):
 
 
 def testml(para):
-
+    """'main function for testing DFTB-ML"""
     get_env_para(para)
 
-    # get the default para for dftb and ML, these para will maintain unchanged
+    # get the default para for testing DFTB-ML
     initpara.init_dftb_ml(para)
 
     # load dataset, here is hdf type
     LoadData(para)
 
-    # if refrence is not DFTB+, add DFTB+ results
+    # if refrence is not DFTB+, run and add DFTB+ results
     ML(para)
 
     runml = RunML(para)
     if int(para['n_dataset'][0]) < int(para['n_test'][0]):
-        para['n_dataset_'] = []
-        para['n_dataset_'].append(para['n_dataset'][0])
-        para['n_dataset'][0] = para['n_test'][0]
+        para['nfile'] = int(para['n_test'][0])
         runml.ref()
 
     if para['ref'] != 'dftbplus':
         para['ref'] = 'dftbplus'
         if int(para['n_dataset'][0]) == int(para['n_test'][0]):
+            para['nfile'] = int(para['n_test'][0])
             runml.ref()
         elif int(para['n_dataset'][0]) < int(para['n_test'][0]):
-            para['n_dataset_'] = []
-            para['n_dataset_'].append(para['n_dataset'])
-            para['n_dataset'][0] = para['n_test'][0]
+            para['nfile'] = int(para['n_test'][0])
             runml.ref()
 
-    para['n_dataset'] = []
-    para['n_dataset'].append(para['n_dataset_'][0])
-    # runml.test_compr(para)
     runml.test_pred_compr(para)
 
     plot.plot_dip_pred(
@@ -96,9 +91,7 @@ def testml(para):
 
 
 def get_env_para(para):
-    '''
-    this function is to get the environmental parameters
-    '''
+    """get the environmental parameters"""
     dire_ = para['dire_data']
     os.system('rm ' + dire_ + '/env_rad.dat')
     os.system('rm ' + dire_ + '/env_ang.dat')
@@ -130,14 +123,17 @@ def get_env_para(para):
 
 
 class RunML:
-    '''
-    This is class for ML process (loading Ref data and dataset, running
-    calculations of ref method and dftb method, saving ml data).
-    len(para['nfile']) is to get optimize how many dataset.
+    """Perform DFTB-ML optimization.
+
+    loading reference data and dataset
+    running calculations of reference method and DFTB method
+    saving ml data
     Assumption: the atom specie in each dataset maintain unchanged, otherwise
     we have to check for each new moluecle, if there is new atom specie.
-    '''
+    """
+
     def __init__(self, para):
+        """Initialize DFTB-ML optimization"""
         self.para = para
         self.save = SaveData(self.para)
         self.slako = slakot.SlaKo(self.para)
@@ -145,16 +141,12 @@ class RunML:
         self.runcal = RunCalc(self.para)
 
     def ref(self):
-        '''
-        according to reference type, this function will run different
-        reference calculations
-        '''
+        """Run different reference calculations according to reference type"""
+
         os.system('rm .data/*.dat')
 
-        # if run one dataset or multi dataset
-        if len(self.para['n_dataset']) == 1:
-            self.nbatch = int(self.para['n_dataset'][0])
-        self.para['nfile'] = self.nbatch
+        self.nbatch = self.para['nfile']
+        # self.para['nfile'] = self.nbatch
         self.para['refhomo_lumo'] = t.zeros((self.nbatch, 2), dtype=t.float64)
         self.para['refenergy'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['refdipole'] = t.zeros((self.nbatch, 3), dtype=t.float64)
@@ -170,9 +162,8 @@ class RunML:
             self.dftbplus_ref(self.para)
 
     def dftb_ref(self):
-        '''
-        calculate reference for ML according to opt target
-        '''
+        """Calculate reference (DFTB_torch)"""
+
         # self.para['cal_ref'] = True
         os.system('rm *.dat')
 
@@ -226,11 +217,7 @@ class RunML:
                          name='energyref.dat', dire='.data', ty='w')
 
     def aims_ref(self, para):
-        '''
-        FHI-aims as reference, run FHI-aims and data processing
-        You should:
-            declare the unit of calculation results when read ans save files
-        '''
+        """Calculate reference (FHI-aims)"""
         self.pre_aims()
 
         for ibatch in range(0, self.nbatch):
@@ -254,7 +241,7 @@ class RunML:
         self.save_aims()
 
     def pre_aims(self):
-        '''pre-processing aims calculations'''
+        """pre-processing aims calculations"""
         self.direaims = os.getcwd() + '/ref/aims'
         if not os.path.exists(self.direaims):
             print('Warning: please make a folder "aims", prepare input files ',
@@ -263,15 +250,21 @@ class RunML:
         os.system('rm ref/aims/*.dat')
 
     def save_aims(self):
-        '''save files for reference calculations'''
+        """save files for reference calculations"""
         homo_lumo = write.FHIaims(self.para).read_bandenergy(
                 self.para, self.para['nfile'], self.dir_ref)
         dipole = write.FHIaims(self.para).read_dipole(
                 self.para, self.para['nfile'], self.dir_ref, 'eang', 'eang')
+        alpha_mbd = write.FHIaims(self.para).read_alpha(
+                    self.para, self.para['nfile'], self.dir_ref)
+        refvol = write.FHIaims(self.para).read_hirshfeld_vol(
+                    self.para, self.para['nfile'], self.dir_ref)
         '''energy = write.FHIaims(self.para).read_energy(
                  self.para, self.para['nfile'], self.dir_ref)'''
         self.para['refhomo_lumo'] = homo_lumo
         self.para['refdipole'] = dipole
+        self.para['refalpha_mbd'] = alpha_mbd
+        self.para['refvol'] = refvol
 
         if para['task'] == 'optml':
             dire = '.data'
@@ -283,8 +276,12 @@ class RunML:
 
         os.system('mv ' + os.path.join(self.direaims, 'bandenergy.dat') +
                   ' .data/HLaims.dat')
-        os.system('cp ' + os.path.join(self.direaims, 'dip.dat') +
+        os.system('mv ' + os.path.join(self.direaims, 'dip.dat') +
                   ' .data/dipaims.dat')
+        os.system('mv ' + os.path.join(self.direaims, 'pol.dat') +
+                  ' .data/polaims.dat')
+        os.system('mv ' + os.path.join(self.direaims, 'vol.dat') +
+                  ' .data/volaims.dat')
         self.save.save1D(self.para['refdipole'].detach().numpy(),
                          name='dipaims.dat', dire=dire, ty='a')
         self.save.save1D(self.para['refenergy'].detach().numpy(),
@@ -293,6 +290,7 @@ class RunML:
                          name='natom.dat', dire=dire, ty='a')
 
     def cal_for_energy(self, energy, coor):
+        """calculate formation energy for molecule"""
         natom = coor.shape[0]
         if self.para['ref'] == 'aims':
             for iat in range(0, natom):
@@ -307,11 +305,7 @@ class RunML:
         return energy
 
     def dftbplus_ref(self, para):
-        '''
-        DFTB+ as reference, run DFTB+ and data processing
-        You should:
-            declare the unit of calculation results when read ans save files
-        '''
+        """Calculate reference (DFTB+)"""
         self.pre_dftbplus()
 
         for ibatch in range(0, self.nbatch):
@@ -335,7 +329,7 @@ class RunML:
         self.save_dftbplus()
 
     def pre_dftbplus(self):
-        '''pre-processing dftb+ calculations'''
+        """pre-processing DFTB+ calculations"""
         self.diredftbplus = os.getcwd() + '/ref/dftbplus'
         if not os.path.exists(self.diredftbplus):
             print('Warning: please make a folder "dftbplus", prepare input ',
@@ -344,7 +338,7 @@ class RunML:
         os.system('rm ref/dftbplus/*.dat')
 
     def save_dftbplus(self):
-        '''save files for reference calculations'''
+        """Save files for reference calculations"""
         dftb = write.Dftbplus(self.para)
         homo_lumo = dftb.read_bandenergy(
                 self.para, self.para['nfile'], self.dir_ref)
@@ -412,9 +406,8 @@ class RunML:
                             name='hamref.dat', ty='a')
 
     def get_coor(self, ibatch):
-        '''
-        get the ith coor according to data type
-        '''
+        """get the ith coor according to data type"""
+
         if type(self.para['coorall'][ibatch]) is t.Tensor:
             self.para['coor'] = self.para['coorall'][ibatch][:, :]
         elif type(self.para['coorall'][ibatch]) is np.ndarray:
@@ -439,10 +432,11 @@ class RunML:
         self.genml.genml_init_compr()
 
     def mldftb(self, para):
-        '''
-        this function will run ML of DFTB with various targets, such as
-        optimize compression radius, optimize integrals...
-        '''
+        """Run DFTB-ML with various targets, e.g:
+
+            optimize compression radius
+            optimize integrals...
+        """
         os.system('rm .data/*bp.dat')
 
         if para['Lml_HS']:
@@ -507,13 +501,12 @@ class RunML:
                                 name='hambp.dat', ty='a')
 
     def ml_compr(self, para):
-        '''
-        DFTB optimization of compression radius for given dataset
-        '''
+        """DFTB optimization of compression radius for given dataset"""
         # calculate one by one to optimize para
         for ibatch in range(0, self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
+            nat = self.para['coor'].shape[0]
 
             if self.para['atomspecie'] != self.para['atomspecie_old']:
                 self.genml.get_spllabel()
@@ -537,6 +530,10 @@ class RunML:
                 qatomall_ref = para['refqatom'][ibatch]
             elif 'energy' in self.para['target']:
                 energy_ref = self.para['refenergy'][ibatch]
+            elif 'polarizability' in self.para['target']:
+                pol_ref = self.para['refalpha_mbd'][ibatch][:nat]
+            elif 'cpa' in self.para['target']:
+                volref = self.para['refvol'][ibatch][:nat]
 
             if not para['Lml_compr_global']:
                 para['compr_ml'] = \
@@ -581,6 +578,13 @@ class RunML:
                 elif 'energy' in para['target']:
                     energy = para['energy']
                     loss = criterion(energy, energy_ref)
+                elif 'polarizability' in para['target']:
+                    pol = para['alpha_ts']
+                    loss = criterion(pol, pol_ref)
+                elif 'cpa' in para['target']:
+                    cpa = para['OnsitePopulation']
+                    vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
+                    loss = criterion(cpa, vol_ratio_ref)
 
                 # clear gradients and define back propagation
                 optimizer.zero_grad()
@@ -615,6 +619,18 @@ class RunML:
                                      name='qatombp.dat', dire='.data', ty='a')
                     self.save.save1D(para['energy'].detach().numpy(),
                                      name='energybp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['alpha_mbd'].detach().numpy(),
+                                     name='pol.dat', dire='.data', ty='a')
+
+    def get_hirsh_vol_ratio(self, volume):
+        """Get Hirshfeld volume ratio."""
+        natom = self.para["natom"]
+        coor = self.para["coor"]
+        for iat in range(natom):
+            idx = int(coor[iat, 0])
+            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
+            volume[iat] = volume[iat] / HIRSH_VOL[iname]
+        return volume
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
@@ -721,11 +737,13 @@ def readhs_ij_line(iat, jat, para):
 
 
 class GenMLPara:
-    '''
-    this class aims to form parameters for ML
+    """Aims to get parameters for ML.
+
     genenvir: atomic environment parameters
     get_spllabel: get how many row lines of c parameters in bspline
-    '''
+
+    """
+
     def __init__(self, para):
         self.para = para
 
@@ -773,9 +791,7 @@ class GenMLPara:
             self.para['compr_init'] = init_compr
 
     def get_spllabel(self):
-        '''
-        check if atom specie is the same, if not, then update
-        '''
+        """Check if atom specie is the same, if not, then update."""
         if self.para['atomspecie'] != self.para['atomspecie_old']:
             for iatomspecie in self.para['atomspecie']:
                 if iatomspecie not in self.para['atomspecie_old']:
@@ -794,9 +810,7 @@ class GenMLPara:
                 self.para['h_spl_num'] = h_spl_num
 
     def get_specie_label(self):
-        '''
-        check if atom specie is the same, if not, then update
-        '''
+        """Check if atom specie is the same, if not, then update."""
         h_spl_num = 0
         self.para['spl_label'] = []
         for ispecie in self.para['atomspecie']:
@@ -822,6 +836,7 @@ class LoadData:
         specie: the specie in molecule
         speciedict: Counter(symbols)
     '''
+
     def __init__(self, para):
         self.para = para
         if self.para['dataType'] == 'hdf':
@@ -830,6 +845,7 @@ class LoadData:
             self.load_json_data()
 
     def loadhdfdata(self):
+        """"Load the data from hdf type input files."""
         ntype = self.para['hdf_num']
         hdf5filelist = self.para['hdffile']
         icount = 0
@@ -857,6 +873,7 @@ class LoadData:
                     self.para['speciedict'] = speciedict
 
     def load_json_data(self):
+        """"Load the data from json type input files."""
         dire = self.para['pythondata_dire']
         filename = self.para['pythondata_file']
         self.para['coorall'] = []
@@ -878,9 +895,7 @@ class LoadData:
                 self.para['coorall'].append(t.from_numpy(np.asarray(icoor)))
 
     def loadrefdata(self, ref, dire, nfile):
-        '''
-        load the data from DFT calculations
-        '''
+        """"Load the data from DFT calculations."""
         if ref == 'aims':
             newdire = os.path.join(Directory, dire)
             if os.path.exists(os.path.join(newdire,
@@ -907,9 +922,7 @@ class LoadData:
         return refenergy
 
     def loadenv(ref, DireSK, nfile, natom):
-        '''
-        load the data of atomic environment parameters
-        '''
+        """Load the data of atomic environment parameters."""
         if os.path.exists(os.path.join(DireSK, 'rad_para.dat')):
             rad = np.zeros((nfile, natom))
             fprad = open(os.path.join(DireSK, 'rad_para.dat'), 'r')
@@ -926,15 +939,16 @@ class LoadData:
 
 
 class RunCalc:
-    '''
-    this class aims to run different DFT(B) calculations, to write the input,
-    we will use ASE interface
-    '''
+    """Run different DFT(B) calculations.
+
+    with both ASE interface or code in write_output.py
+    """
+
     def __init__(self, para):
         self.para = para
 
     def aims(self, para, ibatch, dire):
-        '''here dft means FHI-aims'''
+        """DFT means FHI-aims here."""
         coor = para['coor']
         self.para['natom'] = coor.shape[0]
         natom = np.shape(coor)[0]
@@ -944,7 +958,7 @@ class RunCalc:
                   ' ' + str(natom))
 
     def dftbplus(self, para, ibatch, dire):
-        '''use dftb+ to calculate'''
+        """Perform DFTB+ to calculate."""
         dftb = write.Dftbplus(para)
         coor = para['coor']
         self.para['natom'] = coor.shape[0]
@@ -956,10 +970,7 @@ class RunCalc:
         os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch))
 
     def dftbtorchrun(self, para, coor, DireSK):
-        '''
-        use dftb_python and read SK from whole .skf file, coor as input and
-        do not have to read coor from geo.gen or other input files
-        '''
+        """Perform DFTB_python with reading SKF."""
         para['coor'] = t.from_numpy(coor)
         dipolemall = para['dipolemall']
         eigvalall = para['eigvalall']
@@ -971,30 +982,27 @@ class RunCalc:
         return para
 
     def idftb_torchspline(self):
-        '''
-        use dftb_python and read SK from whole .skf file, coor as input and
-        do not have to read coor from geo.gen or other input files
-        '''
+        """Perform DFTB_python with integrals."""
         # dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
         slakot.SKTran(self.para)
         dftb_torch.Rundftbpy(self.para)
 
 
 class SaveData:
-    '''
+    """Simple code dor saving data.
+
     data is numpy type matrix
     blank defines where we'll write blank line
     name is the name of the saved file
     save2D will save file line by line
     savetype: 'a': appendix; 'w': save as a new file (replace the old)
-    '''
+    """
+
     def __init__(self, para):
         self.para = para
 
     def save1D(self, data, name, blank='lower', dire=None, ty='w'):
-        '''
-        save 1D numpy array or tensor
-        '''
+        """Save 1D numpy array or tensor."""
         if len(data.shape) == 0:
             data = data.reshape(1)
         if dire is None:
@@ -1010,9 +1018,7 @@ class SaveData:
                 fopen.write('\n')
 
     def save2D(self, data, name, blank='lower', dire=None, ty='w'):
-        '''
-        save 2D numpy array or tensor
-        '''
+        """Save 2D numpy array or tensor."""
         if dire is None:
             newdire = os.getcwd()
         else:
@@ -1027,9 +1033,7 @@ class SaveData:
                     fopen.write('\n')
 
     def save_envir(para, Directory):
-        '''
-        save atomic environment parameters
-        '''
+        """Save atomic environment data."""
         ang_paraall = para['ang_paraall']
         rad_paraall = para['rad_paraall']
         with open(os.path.join(Directory, 'rad_para.dat'), 'w') as fopen:
@@ -1041,6 +1045,9 @@ class SaveData:
 
 
 class Read:
+    """Simple reading code.
+
+    """
 
     def __init__(self, para):
         self.para = para
@@ -1056,12 +1063,18 @@ class Read:
 
 
 class ML:
+    """Machine learning with optimized data.
+
+    process data
+    perform ML prediction
+    """
 
     def __init__(self, para):
-        '''
+        """Initialize ML process.
+
         nfile is the optimization dataset number
         ntest is the test dataset number
-        '''
+        """
         self.para = para
         self.read = Read(para)
         self.nfile = int(para['n_dataset'][0])
@@ -1071,6 +1084,13 @@ class ML:
             self.linearmodel()
 
     def dataprocess(self, diredata):
+        """Process the optimization dataset and data for the following ML.
+
+        Returns:
+            features of ML (X)
+            traing target (Y, e.g, compression radius)
+
+        """
         # dire = self.para['direfeature']
         nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
         self.para['natomall'] = []
@@ -1099,9 +1119,12 @@ class ML:
             self.para['feature_data'] = datafprad
 
     def linearmodel(self):
-        '''
-        use the optimization dataset for training
-        '''
+        """Use the optimization dataset for training.
+
+        Returns:
+            linear ML method predicted DFTB parameters
+
+        """
         reg = linear_model.LinearRegression()
         X = self.para['feature_data'][:self.nfile]
         X_pred = self.para['feature_data']
@@ -1133,23 +1156,13 @@ class ML:
         pass
 
 
-class Net(t.nn.Module):
-    def __init__(self, D_in, H, D_out):
-        super(Net, self).__init__()
-        self.linear1 = t.nn.Linear(D_in, H)
-        self.linear2 = t.nn.Linear(H, D_out)
-
-    def forward(self, x):
-        h_relu = self.linear1(x).clamp(min=0)
-        y_pred = self.linear2(h_relu)
-        return y_pred
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
+    """main function for optimizing DFTB parameters, testing DFTB"""
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'test'
+    para['task'] = 'optml'
+
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':

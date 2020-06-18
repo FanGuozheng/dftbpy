@@ -1,5 +1,5 @@
 *******************************************************************************
-      Density Functional based Tight Binding (DFTB) Pytorch Framework
+         Density Functional Tight Binding (DFTB) Pytorch Framework
 *******************************************************************************
 
 1. What is DFTB-torch framework?

@@ -1,21 +1,26 @@
-#!/usr/bin/env python3
+"""This documents offer parameters definition for DFTB-ML.
+
+What is included:
+    DFTB-ML parameters for optimization
+    Testing parameters for DFTB-ML
+    Only DFTB parameters
+"""
+
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-init the parameters for DFTB-ML optimization and dftb calculation
-normally, you can read this parameters from specified file or define here
-"""
 import torch as t
 import os
 
 
 def init_dftb_ml(para):
-    '''
+    """Initialize the optimization of certain physical properties.
+
     In general, you have to define:
         dataType and related parameters
         DFTB-ML parameters and realted
         DFTB parameters
         Others, such as plotting parameters
-    '''
+    """
     # --------------------------- load data -------------------------------
     para['dataType'] = 'hdf'  # optional datatype: hdf, json
     path = os.getcwd()  # get the current path
@@ -29,8 +34,8 @@ def init_dftb_ml(para):
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
         para['hdf_num'] = 1  # this will determine read which type of molecule
-        para['n_dataset'] = ['100']  # how many molecules used to optimize
-        para['n_test'] = ['200']  # how many used to test
+        para['n_dataset'] = ['1']  # how many molecules used to optimize
+        para['n_test'] = ['8']  # how many used to test
         assert len(para['n_dataset']) == len(para['n_test'])
         # para['dire_interpSK'] = os.path.join(path, '../slko')
     # para['optim_para'] = ['Hamiltonian']
@@ -53,9 +58,10 @@ def init_dftb_ml(para):
     # ----------------------------- DFTB-ML -----------------------------
     # splinetype: Bspline, Polyspline
     para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
-    para['target'] = ['dipole']  # dipole, homo_lumo, gap, eigval, qatomall
-    para['mlsteps'] = 100  # how many steps for optimizing in DFTB-ML
-    para['save_steps'] = 10  # how many steps to save the DFTB-ML data
+    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa
+    para['target'] = ['polarizability']
+    para['mlsteps'] = 4  # how many steps for optimizing in DFTB-ML
+    para['save_steps'] = 1  # how many steps to save the DFTB-ML data
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
     para['lr'] = 1  # 8e-1  # learning rate
 
@@ -127,14 +133,19 @@ def init_dftb_ml(para):
 
     # ----------------------------- DFTB -----------------------------
     para['LReadInput'] = False
-    para['LMBD_DFTB'] = False
-    para['convergenceType'], para['energy_tol'] = 'energy', 1e-6
+
+    para['LMBD_DFTB'] = True
+    para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
+    para['vdw_self_consistent'] = False
+    para['beta'] = 1.05
+
     para['scf'] = True
     para['scc'] = 'scc'
+    para['convergenceType'], para['energy_tol'] = 'energy', 1e-6
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['HSsym'] = 'symall_chol'  # symall, symhalf. important!!!!!!
     para['ninterp'] = 8
     para['dist_tailskf'] = 1.0
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['tElec'] = 0
     para['maxIter'] = 60
     para['Lperiodic'] = False
@@ -151,4 +162,72 @@ def init_dftb_ml(para):
 
 
 def init_dftb(para):
-    pass
+    """Initialize the parameters for DFTB.
+
+    In general, you have to define:
+        Path of input (if you do not offer all in python)
+        DFTB parameters
+        Others, such as plotting parameters
+    """
+    para['LReadInput'] = False  # define parameters in python, not read input
+    para['LreadSKFinterp'] = False
+    para['Lml_HS'] = False  # donot perform ML process
+    para['scf'] = True  # perform scf
+    para['Lml'] = False  # only perform DFTB part without ML
+    para['Lperiodic'] = False  # solid or molecule
+    para['Ldipole'] = True  # if calculate dipole
+    para['Lml_skf'] = False  # ML type SKF or not
+    para['Lrepulsive'] = False  # if calculate repulsive
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['direSK'] = '../slko/test'
+
+
+def init_dftb_interp(para):
+    """Initialize the parameters for DFTB with interpolation of SKF.
+
+    In general, you have to define:
+        Path of input (if you do not offer all in python)
+        DFTB parameters
+        Others, such as plotting parameters
+    """
+    para['Lml'] = False  # only perform DFTB part without ML
+    para['LReadInput'] = False  # define parameters in python, not read input
+    para['LreadSKFinterp'] = True
+    para['Lperiodic'] = False
+    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['tElec'] = 0
+    para['maxIter'] = 60
+    para['Ldipole'] = True
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['dist_tailskf'] = 1.0
+    para['ninterp'] = 8
+    para['interpcutoff'] = 4.0
+    para['Lml_skf'] = True
+    para['Lml_HS'] = False
+    para['Lrepulsive'] = False
+    para['Lml_compr_global'] = False
+    para['Lonsite'] = False
+    para['atomspecie_old'] = []
+    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
+    para['H_init_compr'] = 2.5
+    para['C_init_compr'] = 3.0
+    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
+                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['onsiteH'] = t.tensor((
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+    para['onsiteC'] = t.tensor((
+            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
+            dtype=t.float64)
+    para['uhubbH'] = t.tensor((
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+    para['uhubbC'] = t.tensor((
+            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+            dtype=t.float64)

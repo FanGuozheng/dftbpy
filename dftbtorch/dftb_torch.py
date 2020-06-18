@@ -1,18 +1,17 @@
-#!/usr/bin/env python3
+"""Main DFTB code.
+
+implement pytorch to DFTB
+"""
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-'''
-main DFTB code
-required:
-    numpy, pytorch
-'''
 import argparse
 import os
 import numpy as np
 import torch as t
 import bisect
-from slakot import ReadSlaKo, SlaKo, SKTran
+from slakot import SlaKo, SKTran
 from electront import DFTBelect
-from readt import ReadInt, SkInterpolator
+from readt import ReadSlaKo, ReadInt, SkInterpolator
 from periodic import Periodic
 from mbd import MBD
 GEN_PARA = {"inputfile_name": 'in.ground'}
@@ -22,10 +21,10 @@ ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
 def main(para):
-    '''
-    We have implemented pytorch into this code with different interface,
-    we will_ use different ty values for different interface
-    '''
+    """Run main DFTB code.
+
+    Initialize parameters and then run DFTB
+    """
     # read input construct these data for next DFTB calculations
     Initialization(para)
 
@@ -34,20 +33,24 @@ def main(para):
 
 
 class Initialization:
-    '''
+    """Initialize parameters for DFTB.
+
     this class aims to read input coor, calculation parameters and SK tables;
     Then with SK transformation, construct 1D Hamiltonian and overlap matrice
     for the following DFTB calculations
-    '''
+    """
+
     def __init__(self, para):
-        '''
-        here several steps will_ be easy to have more interface in the future
-        Input:
+        """Interface for different applications.
+
+        Args:
             LCmdArgs (optional): True or False
             LReadInput (optional): True or False
-        '''
+
+        """
         self.para = para
-        self.slako, self.readsk = SlaKo(self.para), ReadSlaKo(self.para)
+        self.slako = SlaKo(self.para)
+        self.readsk = ReadSlaKo(self.para)
         self.readin = ReadInt(para)
 
         # step 1: whether get parameters from command line
@@ -57,33 +60,29 @@ class Initialization:
         elif 'LCmdArgs' not in self.para.keys():  # not define 'LCmdArgs'
             self.parser_cmd_args()
 
-        # step 2: if read para from dftb_in, or define yourself
+        # step 2: if read para from dftb_in, if define yourself, set False
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
                 self.readin.get_task(para)
                 self.readin.get_coor(para)
         elif 'LReadInput' not in self.para.keys():
             self.readin.get_task(para)
-            self.readin.get_coor(para)
+            self.readin.get_coor()
 
         # step 3: generate vector, distance ... from given geometry
         self.readin.cal_coor()
 
-        # step 4: read SKF files
-        if not self.para['Lml']:
-            self.normal_sk()
-        if self.para['Lml']:
-            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
-                self.interpskf()
+        # step 4: read SKF files and run SK transformation
+        self.run_sk()
 
     def parser_cmd_args(self):
-        '''
+        """Interface to command line.
+
         raed some input information, including path, names of files, etc.
-        either from command line or define yourself somewhere
-            default path of input: current path
-            default path of .skf file: ./slko
-            default inout name: dftb_in (json type)
-        '''
+        default path of input: current path
+        default path of .skf file: ./slko
+        default inout name: dftb_in (json type)
+        """
         _description = 'Test script demonstrating argparse'
         parser = argparse.ArgumentParser(description=_description)
         msg = 'Directory (default: .)'
@@ -102,25 +101,25 @@ class Initialization:
         if 'direSK' not in self.para:
             self.para['direSK'] = os.path.join(path, args.directorySK)
 
-    def normal_sk(self):
-        '''
-        This is for normal DFTB calculations, read integrals from .skf
-        '''
-        self.readsk.read_sk_specie()
-        SKTran(self.para)
+    def run_sk(self):
+        """DFTB calculations, read integrals from .skf."""
+        if not self.para['Lml']:
+            if not self.para['LreadSKFinterp']:
+                self.readsk.read_sk_specie()
+                SKTran(self.para)
+            if self.para['LreadSKFinterp']:
+                self.interpskf()
+        if self.para['Lml']:
+            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
+                self.interpskf()
 
     def form_sk_spline(self):
-        '''use SK table data to build spline interpolation'''
+        """Use SK table data to build spline interpolation."""
         self.readsk.read_sk_specie()
         self.slako.get_sk_spldata()
 
-    '''def gen_sk_matrix(self, para):
-        SKTran(para)'''
-
     def interpskf(self):
-        '''
-        read .skf data from skgen with various compR
-        '''
+        """Read .skf data from skgen with various compR."""
         print('** read skf file with all compR **')
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
@@ -128,62 +127,71 @@ class Initialization:
                     dire = self.para['dire_interpSK'] + '/' + namei + \
                         '_' + namej + '_den'
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
-                            namei, namej, dire)
+                        namei, namej, dire)
                 else:
                     dire = self.para['dire_interpSK'] + '/' + namej + \
                         '_' + namei + '_den'
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
-                            namei, namej, dire)
+                        namei, namej, dire)
 
 
 class Rundftbpy:
-    '''
-    According to the input parameters, call different calculation tasks
-    input parameters:
-        Lperiodic: False or True
-        scc: scc, nonscc, xlbomd
-    '''
+    """Run DFTB according to the Initialized parameters.
+
+    DFTB task:
+        solid or molecule
+        SCC, non-SCC or XLBOMD
+
+    """
+
     def __init__(self, para):
-        '''run dftb with multi interface'''
+        """Run DFTB with multi interface.
+
+        you can read from .skf file, or interpolate integrals from a
+        list of .skf files, or directly offer integrals
+        """
         self.para = para
         self.cal_repulsive()
         self.rundftbplus()
         # self.sum_dftb()
 
     def rundftbplus(self):
-        '''run dftb-torch
-        if solid / molecule, scc / nonscc'''
+        """Run DFTB with multi interface.
+
+        solid or molecule
+        SCC, non-SCC or XLBOMD
+        """
         scf = SCF(self.para)
         Print(self.para).print_scf_title()
 
-        if not self.para['Lperiodic'] and self.para['scc'] == 'nonscc':
-            scf.scf_npe_nscc()
-        elif not self.para['Lperiodic'] and self.para['scc'] == 'scc':
-            if self.para['HSsym'] == 'symhalf':
-                scf.scf_npe_scc()
-            elif self.para['HSsym'] in ['symall', 'symall_chol']:
-                scf.scf_npe_scc_symall()
-        elif not self.para['Lperiodic'] and self.para['scc'] == 'xlbomd':
-            scf.scf_npe_xlbomd()
-        elif self.para['Lperiodic'] and self.para['scc'] is 'scc':
-            scf.scf_pe_scc()
-
-    def case_mathod():
-        '''case method'''
-        pass
+        if self.para['Lperiodic']:
+            if self.para['scc'] == 'scc':
+                scf.scf_pe_scc()
+        else:
+            if self.para['scc'] == 'nonscc':
+                scf.scf_npe_nscc()
+            elif self.para['scc'] == 'scc':
+                if self.para['HSsym'] == 'symhalf':
+                    scf.scf_npe_scc()
+                elif self.para['HSsym'] in ['symall', 'symall_chol']:
+                    scf.scf_npe_scc_symall()
+            elif self.para['scc'] == 'xlbomd':
+                scf.scf_npe_xlbomd()
 
     def cal_repulsive(self):
+        """Run DFTB repulsive part."""
         if self.para['Lrepulsive']:
             Repulsive(self.para)
 
     def sum_dftb(self):
+        """Make a summary of DFTB."""
         Analysis(self.para).dftb_energy()
 
 
 class SCF:
-    '''
-    This class is for self-consistent field method
-    input parameters:
+    """For self-consistent field method.
+
+    Args:
         Lperiodic: Ture or False
         scc: scc, nonscc or xlbomd
         hammat: this is H0 after SK transformations
@@ -192,9 +200,11 @@ class SCF:
         atomind: lmax of atoms (valence electrons)
         atomind2: sum of all lamx od atoms (the length of Hamiltonian matrix)
         HSsym: if write all / half of the matrices (due to symmetry)
-    '''
+
+    """
+
     def __init__(self, para):
-        '''different options (scc, periodic) for scf calculations'''
+        """Parameters for SCF."""
         self.para = para
         self.nat = para['natom']
         self.atind = para['atomind']
@@ -203,10 +213,10 @@ class SCF:
         self.smat = para['overmat']
 
     def scf_npe_nscc(self):
-        '''
-        atomind is the number of atom, for C, lmax is 2, therefore
+        """Atomind is the number of atom, for C, lmax is 2, therefore.
+
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        '''
+        """
         analysis, elect = Analysis(self.para), DFTBelect(self.para)
 
         analysis.get_qatom()
@@ -262,11 +272,11 @@ class SCF:
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def scf_npe_scc(self):
-        '''
-        scf for non-periodic-ML system with scc
+        """SCF for non-periodic-ML system with scc.
+
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        '''
+        """
         elect = DFTBelect(self.para)
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
@@ -364,11 +374,11 @@ class SCF:
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def scf_npe_scc_symall(self):
-        '''
-        scf for non-periodic-ML system with scc
+        """SCF for non-periodic-ML system with scc.
+
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        '''
+        """
         elect = DFTBelect(self.para)
         mix = Mixing(self.para)
         elect = DFTBelect(self.para)
@@ -405,8 +415,9 @@ class SCF:
             icount = 0
             for iind in range(0, ind_nat):
                 for j_i in range(0, ind_nat):
-                    fockmat_[iind, j_i] = self.hmat[iind, j_i] + 0.5 * \
-                        self.smat[iind, j_i] * (shiftorb_[iind] + shiftorb_[j_i])
+                    fockmat_[iind, j_i] = \
+                        self.hmat[iind, j_i] + 0.5 * self.smat[iind, j_i] * \
+                        (shiftorb_[iind] + shiftorb_[j_i])
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
@@ -447,18 +458,13 @@ class SCF:
         analysis.sum_property(), print_.print_dftb_caltail()
 
     def scf_pe_scc(self):
-        '''scf for periodic with scc'''
+        """SCF for periodic."""
         pass
 
     def scf_npe_xlbomd(self):
-        '''
-        scf for non-periodic-ML system with scc
-        atomind is the number of atom, for C, lmax is 2, therefore
-        we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        '''
+        """SCF for non-periodic-ML system with scc."""
         elect = DFTBelect(self.para)
         gmat = elect.gmatrix()
-        mix = Mixing(self.para)
         elect = DFTBelect(self.para)
         analysis = Analysis(self.para)
         print_ = Print(self.para)

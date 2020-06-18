@@ -1,15 +1,13 @@
-#!/usr/bin/env python3
+"""Slater-Koster integrals related."""
+# !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
 import numpy as np
 import torch as t
 import matplotlib.pyplot as plt
 import matht
-import time
 from scipy import interpolate
 from matht import Bspline, DFTBmath, BicubInterp
-from readt import ReadSKt
-
-
 nls = 1
 nlp = 3
 nld = 9
@@ -18,89 +16,36 @@ HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
         'OH': 0, 'OO': 4}
 
 
-class ReadSlaKo:
-
-    def __init__(self, para):
-        '''
-        This class will read all data from .skf files among different requests:
-            read .skf for single DFTB calculations (read_sk)
-            read .skf for a ML process (read_sk_list)
-        You should read general DFTB parameters and geometry before this class!
-        '''
-        self.para = para
-        self.readsk = ReadSKt(self.para)
-
-    def read_sk_specie(self):
-        '''
-        1. read the SK table raw data, only for s, p, d oribitals
-        2. read according to atom specie, such as H, C... and its combinations
-        3. Input:
-            atomname
-        4. output:
-            gridDist, nGridPoints
-            onsite, SPE, Hubbard U
-            mass,  polynomial coefficients, cutoff radius
-            Integral table
-        5. call function in readt.py, class ReadSKt
-        '''
-        self.readsk.read_skf_specie()
-        self.readsk.get_cutoff_all()
-
-    def read_sk(self):
-        '''
-        read the SK table raw data, right now only for s, p, d oribitals
-        '''
-        atomname, natom = self.para['atomnameall'], self.para['natom']
-        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['spe'] = t.zeros((natom), dtype=t.float64)
-        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
-        icount = 0
-        for namei in atomname:
-            for namej in atomname:
-                self.readsk.read_sk(namei, namej)
-                self.readsk.get_cutoff(namei, namej)
-            nameii = namei + namei
-            self.para['onsite'][icount, :] = \
-                t.FloatTensor(self.para['onsite' + nameii])
-            self.para['spe'][icount] = self.para['spe' + nameii]
-            self.para['uhubb'][icount, :] = \
-                t.FloatTensor(self.para['uhubb' + nameii])
-            self.para['occ_atom'][icount, :] = t.FloatTensor(
-                    self.para['occ_skf' + nameii])
-            icount += 1
-
-    def read_sk_list():
-        pass
-
-
 class SKTran:
+    """Slater-Koster Transformations."""
 
     def __init__(self, para):
-        '''
+        """Initialize parameters.
+
         get integrals from .skf with given distance, build [natom, natom, 20]
-        SK transformations
-        '''
+        """
         self.para = para
         self.math = DFTBmath(self.para)
 
         if not self.para['Lml']:
-            self.get_sk_all()
-            self.sk_tran_symall_chol()
-        if self.para['Lml'] and self.para['Lml_skf']:
-            if self.para['HSsym'] == 'symall':
-                self.sk_tran_symall()
-            elif self.para['HSsym'] == 'symall_chol':
+            if not self.para['LreadSKFinterp']:
+                self.get_sk_all()
                 self.sk_tran_symall_chol()
-            elif self.para['HSsym'] == 'symhalf':
-                self.sk_tranold(para)
-        if self.para['Lml'] and self.para['Lml_HS']:
-            self.sk_tran_symall()
+            if self.para['LreadSKFinterp']:
+                self.sk_tran_symall_chol()
+        if self.para['Lml']:
+            if self.para['Lml_skf']:
+                if self.para['HSsym'] == 'symall':
+                    self.sk_tran_symall()
+                elif self.para['HSsym'] == 'symall_chol':
+                    self.sk_tran_symall_chol()
+                elif self.para['HSsym'] == 'symhalf':
+                    self.sk_tranold(para)
+            elif self.para['Lml_HS']:
+                self.sk_tran_symall()
 
     def get_sk_all(self):
-        '''
-        according to distance between atom i and j, get integrals from .skf
-        '''
+        """Get integrals from .skf data with given distance."""
         natom = self.para['natom']
         self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
@@ -150,7 +95,7 @@ class SKTran:
                                 t.from_numpy(self.para['hsdata'])
 
     def sk_tranold(self, para):
-        '''transfer H and S according to slater-koster rules'''
+        """Transfer H and S according to slater-koster rules."""
         atomind = para['atomind']
         natom = para['natom']
         atomname = para['atomnameall']
@@ -184,10 +129,11 @@ class SKTran:
         return para
 
     def sk_tran_symall(self):
-        '''
-        transfer H / S according to Slater-Koster rules, writing all the 2D
-        H / S instead of wrting the upper or lower metrice due to symmetry
-        '''
+        """Transfer H / S according to Slater-Koster rules.
+
+        writing all the 2D H / S instead of wrting the upper or lower
+        metrice due to symmetry
+        """
         atomind = self.para['atomind']
         natom = self.para['natom']
         atomname = self.para['atomnameall']
@@ -217,10 +163,11 @@ class SKTran:
                         self.para['overmat'][mm, nn] = self.para['ovrs'][m, n]
 
     def sk_tran_symall_chol(self):
-        '''
-        transfer H / S according to Slater-Koster rules, writing all the 2D
-        H / S instead of wrting the upper or lower metrice due to symmetry
-        '''
+        """Transfer H / S according to Slater-Koster rules.
+
+        writing all the 2D H / S instead of wrting the upper or lower
+        metrice due to symmetry
+        """
         atomind = self.para['atomind']
         natom = self.para['natom']
         norb = atomind[natom]
@@ -261,17 +208,19 @@ class SKTran:
                             self.para['over_'][mm, nn] = \
                                 self.para['ovrs'][m, n]
         self.para['hammat'] = self.para['ham_'] + self.para['h_onsite'].diag()
-        self.para['overmat'] = self.para['over_'] + self.para['s_onsite'].diag()
+        self.para['overmat'] = \
+            self.para['over_'] + self.para['s_onsite'].diag()
 
 
 class SlaKo:
-    '''
-    this class is for slater-koster files (read, processing)
-        read_skdata: read sk data
-        get_sk_spldata: select interpolation type (Bspline, Polyspline)
-        genskf_interp_ij
-        genskf_interp_ij: with compr of i, j atom, interpate sk data
-    '''
+    """Slater-koster files (read, processing).
+
+    read_skdata: read sk data
+    get_sk_spldata: select interpolation type (Bspline, Polyspline)
+    genskf_interp_ij
+    genskf_interp_ij: with compr of i, j atom, interpate sk data
+    """
+
     def __init__(self, para):
         self.para = para
 
@@ -298,9 +247,7 @@ class SlaKo:
             icount += 1
 
     def get_sk_spldata(self):
-        '''
-        according to the type of interpolation, call different function
-        '''
+        """According to the type of interpolation, call different function."""
         print('-' * 35, 'Generating H or S spline data', '-' * 35)
         if self.para['interptype'] == 'Bspline':
             self.gen_bsplpara()
@@ -308,16 +255,17 @@ class SlaKo:
             self.gen_psplpara()
 
     def genskf_interp_ij(self):
-        '''
-        read skf data with various compression radius, then use optimized
-        compression radius to interpolate the sk data for next step
+        """Read skf data with various compression radius.
+
+        then use optimized compression radius to interpolate the sk data
         Args:
             atomnameall (list): all the atom name
             natom (int): number of atom
             distance (2D tensor): distance between all atoms
         Returns:
             hs_compr_all (out): H0 and S of all atoms with given distance
-        '''
+
+        """
         atomname, natom = self.para['atomnameall'], self.para['natom']
         atomspecie = self.para['atomspecie']
 
@@ -365,11 +313,7 @@ class SlaKo:
             self.para['uhubb' + iat + iat] = uhubb
 
     def genskf_interp_ijd_old(self, dij, nameij, rgrid):
-        '''
-        this function aims to interpolate skf of i and j atom with
-        various compression radius at certain distance
-        time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
-        '''
+        """Interpolate skf of i and j atom with various compression radius."""
         cutoff = self.para['interpcutoff']
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         for icompr in range(0, ncompr):
@@ -390,11 +334,7 @@ class SlaKo:
                             matht.polyInter(xp, yp, dij)
 
     def genskf_interp_ijd(self, dij, nameij, rgrid):
-        '''
-        this function aims to interpolate skf of i and j atom with
-        various compression radius at certain distance
-        time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
-        '''
+        """Interpolate skf of i and j atom with various compression radius."""
         cutoff = self.para['interpcutoff']
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         assert self.para['grid_dist_rall' + nameij][0, 0] == \
@@ -421,11 +361,7 @@ class SlaKo:
                             t.from_numpy(func(dij))
 
     def genskf_interp_ijd_(self, dij, nameij, rgrid):
-        '''
-        this function aims to interpolate skf of i and j atom with
-        various compression radius at certain distance
-        time: 3 ~ 5 s (ncompr * ncompr * 20 * 0.008)
-        '''
+        """Interpolate skf of i and j atom with various compression radius."""
         # cutoff = self.para['interpcutoff']
         assert self.para['grid_dist_rall' + nameij][0, 0] == \
             self.para['grid_dist_rall' + nameij][-1, -1]
@@ -443,10 +379,7 @@ class SlaKo:
                     DFTBmath(self.para).sk_interp(dij, nameij)
 
     def genskf_interp_ijd_4d(self, dij, nameij, rgrid):
-        '''
-        this function aims to interpolate skf of i and j atom with
-        various compression radius at certain distance without loops
-        '''
+        """Interpolate skf of i and j atom with various compression radius."""
         # cutoff = self.para['interpcutoff']
         assert self.para['grid_dist_rall' + nameij][0, 0] == \
             self.para['grid_dist_rall' + nameij][-1, -1]
@@ -462,13 +395,15 @@ class SlaKo:
             DFTBmath(self.para).sk_interp_4d(dij, nameij, ncompr)
 
     def genskf_interp_r(self, para):
-        '''
+        """Generate interpolation of SKF with given compression radius.
+
         Args:
             compression R
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
         Return:
             H and S matrice ([natom, natom, 20])
-        '''
+
+        """
         natom = para['natom']
         atomname = para['atomnameall']
         bicubic = BicubInterp()
@@ -476,15 +411,12 @@ class SlaKo:
 
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
-        '''print(para['hs_compr_all'][1][1, 3, :],
-              para['hs_compr_all'][5][1, 3, :],
-              para['hs_compr_all'][5][3, 1, :])'''
 
         icount = 0
-        for iatom in range(0, natom):
+        for iatom in range(natom):
             iname = atomname[iatom]
             xmesh = para[iname + '_compr_grid']
-            for jatom in range(0, natom):
+            for jatom in range(natom):
                 jname = atomname[jatom]
                 ymesh = para[jname + '_compr_grid']
                 icompr = para['compr_ml'][iatom]
@@ -512,13 +444,15 @@ class SlaKo:
         para['hs_all'] = hs_ij
 
     def genskf_interp_compr(self):
-        '''
+        """Generate interpolation of SKF with given compression radius.
+
         Args:
             compression R
             H and S between all atoms ([ncompr, ncompr, 20] * natom * natom)
         Return:
             H and S matrice ([natom, natom, 20])
-        '''
+
+        """
         natom = self.para['natom']
         atomname = self.para['atomnameall']
         bicubic = BicubInterp()
@@ -529,12 +463,11 @@ class SlaKo:
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
         icount = 0
-        print("self.para['compr_ml']", self.para['compr_ml'])
-        for iatom in range(0, natom):
+        for iatom in range(natom):
             iname = atomname[iatom]
             icompr = self.para['compr_ml'][iatom]
             xmesh = self.para[iname + '_compr_grid']
-            for jatom in range(0, natom):
+            for jatom in range(natom):
                 jname = atomname[jatom]
                 ymesh = self.para[jname + '_compr_grid']
                 jcompr = self.para['compr_ml'][jatom]
@@ -554,7 +487,7 @@ class SlaKo:
         print('total time genskf_interp_compr:', timelist[-1] - timelist[1])
 
     def gen_bsplpara(self):
-        '''generate B-spline parameters'''
+        """Generate B-spline parameters."""
         h_spl_num = self.para['h_spl_num']
         lines = int(self.cutoff / self.dist)
         cspline = t.zeros(h_spl_num, lines)
@@ -579,7 +512,7 @@ class SlaKo:
         self.para['tspline'] = tspline
 
     def gen_psplpara(self):
-        '''generate spline interpolation parameters'''
+        """Generate spline parameters."""
         atomspecie = self.para['atomspecie']
         cutoff = self.para['interpcutoff']
         dist = self.para['interpdist']
@@ -612,6 +545,7 @@ class SlaKo:
             t.randn(row, col) * self.para['rand_threshold']
 
     def add_rand(self, tensor_init, tensor_rand, threshold, multi_para):
+        """Add random values."""
         if len(tensor_init.shape) == 1:
             tensor_temp = t.zeros(len(tensor_init))
             tensor_temp[:] = tensor_init[:]
@@ -732,7 +666,7 @@ def spl_ypara(para, nameij, ngridpoint, xp0, lines):
 
 
 def slkode(para, rr, i, j, lmax):
-    '''here we transfer i from ith atom to ith spiece'''
+    """Transfer i from ith atom to ith spiece."""
     nameij = para['nameij']
     dd = t.sqrt((rr[:] ** 2).sum())
     if para['Lml']:
@@ -795,7 +729,7 @@ def slkode(para, rr, i, j, lmax):
 
 
 def slkode_onsite(para, rr, i, j, lmax):
-    '''here we transfer i from ith atom to ith spiece'''
+    """Transfer i from ith atom to ith spiece."""
     skselfnew = t.zeros(3)
     nameij = para['nameij']
     skselfnew[:] = para['onsite' + nameij]
@@ -835,13 +769,16 @@ def slkode_onsite(para, rr, i, j, lmax):
 def slkode_chol(para, rr, i, j, li, lj):
     nameij = para['nameij']
     dd = t.sqrt(t.sum(rr[:] ** 2))
+    if not para['Lml']:
+        if para['LreadSKFinterp']:
+            cutoff = para['interpcutoff']
+        else:
+            cutoff = para['cutoffsk' + nameij]
     if para['Lml']:
         if para['Lml_skf']:
             cutoff = para['interpcutoff']  # may need revise!!!
         elif para['Lml_HS']:
             cutoff = para['interpcutoff']
-    else:
-        cutoff = para['cutoffsk' + nameij]
 
     if dd > cutoff:
         print('{} - {} atom distance out of range'.format(i, j))
@@ -854,9 +791,7 @@ def slkode_chol(para, rr, i, j, li, lj):
 
 
 def getsk_(para, rr, i, j, li, lj):
-    '''
-    read .skf data
-    '''
+    """Read .skf data."""
     dd = t.sqrt(t.sum(rr[:] ** 2))
     namei, namej = para['atomnameall'][i], para['atomnameall'][j]
     nameij, nameji = namei + namej, namej + namei
