@@ -170,8 +170,6 @@ def scc_CH4(para):
     What cab be test: dipole, charge, polarizability, H0, S
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['maxIter'] = 60
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -218,8 +216,6 @@ def scc_CH4_nonsym(para):
     What cab be test: dipole, charge, polarizability, H0, S
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['maxIter'] = 60
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
@@ -267,7 +263,7 @@ def scc_H2(para):
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
+            [1, 6.0000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
@@ -300,8 +296,6 @@ def scc_CO(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['maxIter'] = 60
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -341,8 +335,6 @@ def scc_CO2(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
-    para['maxIter'] = 60
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [8, -2.0357279573e-03, -1.7878314480e-02, 1.1467019320e+00],
@@ -390,9 +382,7 @@ def scc_C2H6(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['LMBD_DFTB'] = True
-    para['maxIter'] = 60
     para['coor'] = t.tensor((
             [[6, 7.8179776669e-01,  1.5335133066e-03, 2.6934888214e-02],
              [6, -7.9243135452e-01, -3.9727156982e-03, -1.3786645606e-02],
@@ -455,9 +445,7 @@ def scc_C2H6O(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['LMBD_DFTB'] = True
-    para['maxIter'] = 60
     para['coor'] = t.tensor((
             [[6, -1.1924011707, -0.2497887760, -0.0266653895],
              [6,  0.1042943373,  0.5966255069,  0.0842601359],
@@ -518,7 +506,6 @@ def nonscc_CH4_compr(para):
     Before DFTB calculations, we will also test H0 and S;
     '''
     initpara.init_dftb_interp(para)
-    print('nonSCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -981,6 +968,7 @@ def normal_test(para):
                 'nonscc_C2H6', 'scc_CH4_nonsym', 'nonscc_CH4_nonsym',
                 'scc_C2H6O', 'nonscc_C2H6O']
     initpara.init_dftb(para)
+    testlist = ['scc_H2']
     if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_CH4' in testlist:
@@ -1036,7 +1024,7 @@ if __name__ == '__main__':
     """
     t.set_printoptions(precision=15)
     para = {}
-    para["test_target"] = "compr"
+    para["test_target"] = "normal"
     para['Lml_skf'] = False
     para['LMBD_DFTB'] = False
     para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']

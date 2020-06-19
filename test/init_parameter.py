@@ -141,7 +141,9 @@ def init_dftb_ml(para):
 
     para['scf'] = True
     para['scc'] = 'scc'
-    para['convergenceType'], para['energy_tol'] = 'energy', 1e-6
+    para['convergenceType'], para['energy_tol'] = 'energy', 1E-7
+    para['delta_r_skf'] = 1E-5
+    para['general_tol'] = 1E-4
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['HSsym'] = 'symall_chol'  # symall, symhalf. important!!!!!!
     para['ninterp'] = 8
@@ -179,6 +181,9 @@ def init_dftb(para):
     para['Lml_skf'] = False  # ML type SKF or not
     para['Lrepulsive'] = False  # if calculate repulsive
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-7
+    para['delta_r_skf'] = 1E-5
+    para['general_tol'] = 1E-4
     para['tElec'] = 0
     para['maxIter'] = 60
     para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
@@ -200,7 +205,9 @@ def init_dftb_interp(para):
     para['LreadSKFinterp'] = True
     para['Lperiodic'] = False
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
+    para['convergenceType'], para['energy_tol'] = 'energy',  1e-7
+    para['general_tol'] = 1E-4
+    para['delta_r_skf'] = 1E-5
     para['tElec'] = 0
     para['maxIter'] = 60
     para['Ldipole'] = True

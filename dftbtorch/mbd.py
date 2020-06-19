@@ -116,6 +116,7 @@ class MBD:
                 alpha_isotropic = self.mbdvdw_screened_pol()
                 self.para['alpha_ts'] = self.para['alpha_tsall'][0]
                 self.para['alpha_mbd'] = alpha_isotropic[:]
+                print(self.para['alpha_ts'], self.para['alpha_mbd'])
 
     def mbdvdw_pbc(self, coor, h_, ainv_, nat):
         pass
@@ -221,32 +222,32 @@ class MBD:
         """
         alpha_isotropic = t.zeros((self.nat), dtype=t.float64)
         A_matrix = self.para['A_matrix']
-        vdw_self_consistent = False
-        do_forces = False
-        mbd_vdw_isolated = True
+        # vdw_self_consistent = False
+        # do_forces = False
+        # mbd_vdw_isolated = True
         for pat in range(self.nat):
             for qat in range(self.nat):
                 for i_idx in range(3):
-                    cnt_v = 1
-                    cnt_h = 1
-                    cnt_f = 1
-                    ind = (3 * pat)
-                    jnd = (3 * qat)
+                    # cnt_v = 1
+                    # cnt_h = 1
+                    # cnt_f = 1
+                    ind = 3 * pat
+                    jnd = 3 * qat
                     for i_idx in range(3):
                         ind = (3 * pat)
                         jnd = (3 * qat)
-                        alpha_isotropic[pat] = alpha_isotropic[pat] + A_matrix[ind + i_idx, jnd + i_idx]
-        alpha_isotropic[:] = alpha_isotropic[:] / 3.0
+                        alpha_isotropic[pat] = alpha_isotropic[pat] + \
+                            A_matrix[ind + i_idx, jnd + i_idx]
+        alpha_isotropic[:] = alpha_isotropic[:] / 3.0 ** 2
         # self.para['alpha_mbd'] = alpha_isotropic
         return alpha_isotropic
 
-
     def mbdvdw_TGG(self, p, q, n, h_in, ainv_in):
-        '''
-        TGG = TSR + TLR
+        """TGG = TSR + TLR.
+
         h_in: normally the latice parameters
         ainv_in: inverse matrix of of 3*3 h_in
-        '''
+        """
         coor = self.para['coorbohr']
         spq = t.zeros((3), dtype=t.float64)
         spq_lat = t.zeros((3), dtype=t.float64)
@@ -346,4 +347,3 @@ class MBD:
         TGG = (Tdip * U + Rmat * W)
         TSR = (1.0 - fermi_fn) * TGG
         return TSR
-

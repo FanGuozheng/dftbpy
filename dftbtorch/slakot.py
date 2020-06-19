@@ -64,7 +64,7 @@ class SKTran:
 
                 dd = t.sqrt(t.sum(self.para['dvec'][i, j, :] ** 2))
                 if dd > cutoff:
-                    print('{} - {} atom distance out of range'.format(i, j))
+                    print('{}atom-{}atom distance out of range'.format(i, j))
                 elif dd < 1E-2:
                     pass
                 else:
@@ -781,13 +781,12 @@ def slkode_chol(para, rr, i, j, li, lj):
             cutoff = para['interpcutoff']
 
     if dd > cutoff:
-        print('{} - {} atom distance out of range'.format(i, j))
-        return para
+        print('{}atom-{}atom distance out of range'.format(i, j))
+        print(dd, cutoff)
     elif dd < 1E-2:
         print("ERROR, distance between", i, "atom and", j, 'is too close')
     else:
         shpar_(para, rr, i, j, dd, li, lj)
-    return para
 
 
 def getsk_(para, rr, i, j, li, lj):

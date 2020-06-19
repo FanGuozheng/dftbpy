@@ -112,7 +112,7 @@ class ReadInt:
             else:
                 para['maxIter'] = 60
 
-            # convergence
+            # convergence for energy, charge ...
             if 'convergenceType' in fpinput['general']:
                 para['convergenceType'] = fpinput['general']['convergenceType']
             else:
@@ -120,7 +120,16 @@ class ReadInt:
             if 'energy_tol' in fpinput['general']:
                 para['energy_tol'] = fpinput['general']['energy_tol']
             else:
-                para['energy_tol'] = 1e-6
+                para['energy_tol'] = 1e-7
+            if 'charge_tol' in fpinput['general']:
+                para['charge_tol'] = fpinput['general']['charge_tol']
+            else:
+                para['charge_tol'] = 1e-7
+
+            if 'general_tol' in fpinput['general']:
+                para['general_tol'] = fpinput['general']['general_tol']
+            else:
+                para['general_tol'] = 1e-4
 
             # --------------------------skf----------------------------
             # ninterp: the number of points for interp when read .skf
@@ -138,6 +147,10 @@ class ReadInt:
                 para['dist_tailskf'] = fpinput['skf']['dist_tailskf']
             else:
                 para['dist_tailskf'] = 1.0
+            if 'delta_r_skf' in fpinput['skf']:
+                para['delta_r_skf'] = fpinput['skf']['delta_r_skf']
+            else:
+                para['delta_r_skf'] = 1E-5
 
             # --------------------------analysis----------------------------
             if 'dipole' in fpinput['analysis']:
@@ -487,13 +500,13 @@ class ReadSlaKo:
     def get_cutoff_all(self):
         """Get the cutoff of atomi-atomj in .skf file."""
         atomspecie = self.para['atomspecie']
+        disttailsk = self.para['dist_tailskf']
         for iat in range(0, len(atomspecie)):
             for jat in range(0, len(atomspecie)):
                 nameij = atomspecie[iat] + atomspecie[jat]
                 grid = self.para['grid_dist' + nameij]
                 ngridpoint = self.para['ngridpoint' + nameij]
-                disttailsk = self.para['dist_tailskf']
-                cutoff = grid * ngridpoint + disttailsk
+                cutoff = grid * ngridpoint + disttailsk - grid
                 lensk = grid * ngridpoint
                 self.para['cutoffsk' + nameij] = cutoff
                 self.para['lensk' + nameij] = lensk

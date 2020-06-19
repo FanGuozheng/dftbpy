@@ -25,70 +25,67 @@ class DFTBmath:
     """
 
     def __init__(self, para):
-        """Deal with interpolation of intergral tables.
-
-        Args:
-            skf tables
-            geometry information
-
-        """
+        """Initialize parameters."""
         self.para = para
 
     def sk_interp(self, rr, nameij):
         """Interpolation SKF according to distance from intergral tables.
 
         Args:
-            grid distance
-            number of grid points
+            incr: grid distance
+            ngridpoint: number of grid points
             distance between atoms
+            ninterp: interpolate from up and lower SKF grid points number
 
         """
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
+        ninterp = self.para['ninterp']
+        delta_r = self.para['delta_r_skf']
+
+        xa = t.zeros((ninterp), dtype=t.float64)
+        yb = t.zeros((ninterp, 20), dtype=t.float64)
+        dd = t.zeros((20), dtype=t.float64)
+
         if type(datalist) is np.ndarray:
             datalist = t.from_numpy(np.asarray(datalist))
 
         # cutoff = self.para['cutoffsk' + nameij]
-        distFudge = 5 * incr  # tail = 5 * incr
-        ninterp = 8  # number of interplation
-        rMax = ngridpoint * incr + distFudge
+        tail = 5 * incr
+        rmax = ngridpoint * incr + tail
         ind = int(rr / incr)
         leng = ngridpoint
-        xa = t.zeros((ninterp), dtype=t.float64)
-        yb = t.zeros((ninterp, 20), dtype=t.float64)
-        dd = t.zeros((20), dtype=t.float64)
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
-        if rr >= rMax:
-            pass
+        if rr >= rmax:
+            dd[:] = 0.0
         elif ind < leng:  # => polynomial fit
-            # iLast = min(leng, ind + nRightInterNew_)
+            print(rr, incr, ind, leng, "Beyond the grid!!!!!!!!!!!!!!!!!!!!")
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
             for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
-            yb[:, :] = datalist[ilast - ninterp - 1:ilast - 1]
+            yb[:, :] = datalist[ilast - ninterp - 1: ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
-            dd = self.polyInter_2d(xa, yb, rr)  # method 2
+            dd = self.poly_interp_2d(xa, yb, rr)  # method 2
             # for ii in range(0, 20):  # method 3
             #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
 
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
-            dr = rr - rMax
+            dr = rr - rmax
             ilast = leng
-            pass
-            '''for ii in range(0, ninterp):
+            for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
-            yb = datalist[ilast - ninterp - 1:ilast - 1]
-            y0 = self.polyInter_u(xa, yb, xa(ninterp) - deltaR_)
-            y2 = self.polyInter_u(xa, yb, xa(ninterp) + deltaR_)
-            for ii in range(0, ):
-                ya[:] = datalist[iLast-ninterp+1:iLast, ii]
-                y1 = ya(ninterp)
-                y1p = (y2[ii] - y0[ii]) / (2.0 * deltaR_)
-                y1pp = (y2[ii] + y0[ii] - 2.0 * y1) / (deltaR_ * deltaR_)
-                dd[ii] = poly5ToZero(y1, y1p, y1pp, dr, -1.0 * distFudge)'''
+            print(xa)
+            yb = datalist[ilast - ninterp - 1: ilast - 1]
+            y0 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] - delta_r)
+            y2 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] + delta_r)
+            ya = datalist[ilast - ninterp - 1: ilast - 1]
+            y1 = ya[ninterp - 1]
+            y1p = (y2 - y0) / (2.0 * delta_r)
+            y1pp = (y2 + y0 - 2.0 * y1) / (delta_r * delta_r)
+            dd = self.poly5_zero(y1, y1p, y1pp, dr, -1.0 * tail)
         return dd
 
     def sk_interp_4d(self, rr, nameij, ncompr):
@@ -101,38 +98,49 @@ class DFTBmath:
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
-        if type(datalist) is np.array:
-            datalist = t.from_numpy(datalist)
-
-        distFudge = 5 * incr  # tail = 5 * incr
-        ninterp = 8  # number of interplation
-        rMax = ngridpoint * incr + distFudge
-        ind = int(rr / incr)
-        leng = ngridpoint
+        ninterp = self.para['ninterp']
         xa = t.zeros(ninterp)
         yb = t.zeros(ncompr, ncompr, ninterp, 20)
         dd = t.zeros(ncompr, ncompr, 20)
+
+        if type(datalist) is np.array:
+            datalist = t.from_numpy(datalist)
+
+        tail = 5 * incr
+        rmax = ngridpoint * incr + tail
+        ind = int(rr / incr)
+        leng = ngridpoint
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
-        if rr >= rMax:
-            pass
+        if rr >= rmax:
+            dd[:] = 0.0
         elif ind < leng:  # => polynomial fit
-            # iLast = min(leng, ind + nRightInterNew_)
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
             for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb = datalist[:, :, ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
-            dd = self.polyInter_4d(xa, yb, rr)  # method 2
+            dd = self.poly_interp_4d(xa, yb, rr)  # method 2
             # for ii in range(0, 20):  # method 3
             #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
 
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
-            dr = rr - rMax
+            dr = rr - rmax
             ilast = leng
             pass
         return dd
+
+    def poly5_zero(self, y0, y0p, y0pp, xx, dx):
+        """Get integrals if beyond the grid range."""
+        dx1 = y0p * dx
+        dx2 = y0pp * dx * dx
+        dd = 10.0 * y0 - 4.0 * dx1 + 0.5 * dx2
+        ee = -15.0 * y0 + 7.0 * dx1 - 1.0 * dx2
+        ff = 6.0 * y0 - 3.0 * dx1 + 0.5 * dx2
+        xr = xx / dx
+        yy = ((ff*xr + ee)*xr + dd)*xr*xr*xr
+        return yy
 
     def polysk3thsk(self, allarr, darr, dd):
         """Interpolation SKF for certain orbitals with given distance.
@@ -156,10 +164,30 @@ class DFTBmath:
             hs = t.from_numpy(hs)
         return hs
 
-    def polysk5thsk(self):
-        pass
+    def polytozero(self, hs_skf, ninterpline, gridmesh):
+        """Fit the tail of skf file (5lines, 5th order)."""
+        ni = ninterpline
+        dx = gridmesh * 5
+        ytail = hs_skf[ni - 1, :]
+        ytailp = (hs_skf[ni - 1, :] - hs_skf[ni - 2, :]) / gridmesh
+        ytailp2 = (hs_skf[ni - 2, :]-hs_skf[ni - 3, :]) / gridmesh
+        ytailpp = (ytailp - ytailp2) / gridmesh
+        xx = np.array([gridmesh * 4, gridmesh * 3, gridmesh * 2,
+                       gridmesh, 0.0])
+        nline = ninterpline
+        for xxi in xx:
+            dx1 = ytailp * dx
+            dx2 = ytailpp * dx * dx
+            dd = 10.0 * ytail - 4.0 * dx1 + 0.5 * dx2
+            ee = -15.0 * ytail + 7.0 * dx1 - 1.0 * dx2
+            ff = 6.0 * ytail - 3.0 * dx1 + 0.5 * dx2
+            xr = xxi / dx
+            yy = ((ff * xr + ee) * xr + dd) * xr * xr * xr
+            hs_skf[nline, :] = yy
+            nline += 1
+        return hs_skf
 
-    def polyInter_4d(self, xp, yp, rr):
+    def poly_interp_4d(self, xp, yp, rr):
         """Interpolation from DFTB+ (lib_math) with uniform grid.
 
         Args:
@@ -201,7 +229,7 @@ class DFTBmath:
             yy = yy + dyy
         return yy
 
-    def polyInter_2d(self, xp, yp, rr):
+    def poly_interp_2d(self, xp, yp, rr):
         """Interpolation from DFTB+ (lib_math) with uniform grid.
 
         Args:
@@ -209,27 +237,6 @@ class DFTBmath:
             the interpolation point rr (x[0]< rr < x[-1])
 
         """
-        '''nn = len(xp)
-        delta = t.zeros(nn)
-        for ii in range(0, len(xp) - 1):
-            delta[ii] = 1.0 / (xp[ii + 1] - xp[0])
-        cc = yp
-        dd = yp
-        iCl = math.ceil(((xx - xp[0]) * delta[0]).numpy())
-        yy = yp[iCl, :]
-        iCl = iCl - 1
-        for mm in range(0, nn - 1):
-            for ii in range(0, nn - mm - 1):
-                r2Tmp = (dd[ii, :] - cc[ii + 1, :]) * delta[mm]
-                cc[ii, :] = (xp[ii] - xx) * r2Tmp
-                dd[ii, :] = (xp[ii + mm] - xx) * r2Tmp
-            if 2 * iCl < nn - mm - 1:
-                dyy = cc[iCl, :]
-            else:
-                dyy = dd[iCl - 1, :]
-                iCl = iCl - 1
-            yy = yy + dyy
-        return yy'''
         icl = 0
         nn = xp.shape[0]
         row, col = yp.shape[0], yp.shape[1]
@@ -305,6 +312,194 @@ class DFTBmath:
         return yy
 
 
+class EigenSolver:
+    """Eigen solver for general eigenvalue problem."""
+
+    def __init__(self, para):
+        """Initialize parameters."""
+        self.para = para
+
+    def cholesky(self, matrixa, matrixb):
+        """Cholesky decomposition.
+
+        Cholesky decomposition of B: B = LL^{T}
+        transfer general eigenvalue problem AX = (lambda)BX ==>
+            (L^{-1}AL^{-T})(L^{T}X) = (lambda)(L^{T}X)
+        matrix_a: here is Fock operator
+        matrix_b: here is overlap
+        """
+        chol_l = t.cholesky(matrixb)
+        # self.para['eigval'] = chol_l
+        linv_a = t.mm(t.inverse(chol_l), matrixa)
+        l_invtran = t.inverse(chol_l.t())
+        linv_a_linvtran = t.mm(linv_a, l_invtran)
+        eigval, eigm = t.symeig(linv_a_linvtran, eigenvectors=True)
+        eigm_ab = t.mm(l_invtran, eigm)
+        return eigval, eigm_ab
+
+    def cholesky_new(self, matrixa, matrixb):
+        """Cholesky decomposition.
+
+        difference from _cholesky is avoiding the use of inverse matrix
+        """
+        chol_l = t.cholesky(matrixb)
+        row = matrixa.shape[1]
+        A1, LU_A = t.solve(matrixa, chol_l)
+        A2, LU_A1 = t.solve(A1.t(), chol_l)
+        A3 = A2.t()
+        eigval, eigm = t.symeig(A3, eigenvectors=True)
+        l_inv, _ = t.solve(t.eye((row), dtype=t.float64), chol_l.t())
+        eigm_ab = t.mm(l_inv, eigm)
+        return eigval, eigm_ab
+
+    def lowdin_symeig(self, matrixa, matrixb):
+        """Use t.symeig to decompose B to realize Löwdin orthonormalization.
+
+        BX = (lambda)X, then omega = lambda.diag()
+        S_{-1/2} = Xomega_{-1/2}X_{T}
+        AX' = (lambda)BX' ==>
+        (S_{-1/2}AS_{-1/2})(S_{1/2}X') = (lambda)(S_{1/2}X')
+        matrix_a: here is Fock operator
+        matrix_b: here is overlap
+        """
+        lam_b, l_b = t.symeig(matrixb, eigenvectors=True)
+        lam_sqrt_inv = t.sqrt(1 / lam_b)
+        S_sym = t.mm(l_b, t.mm(lam_sqrt_inv.diag(), l_b.t()))
+        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
+        eigvec = t.mm(S_sym, eigvec_)
+        # eigval3, eigvec_ = t.symeig(lam_b_2d, eigenvectors=True)
+        return eigval, eigvec
+
+    def lowdin_svd_sym(self, matrixa, matrixb):
+        """Use SVD and sym to decompose B to realize Löwdin orthonormalization.
+
+        B: B = USV_{T}
+        S_{-1/2} = US_{-1/2}V_{T}
+        AX = (lambda)BX ==>
+        (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
+        matrix_a: Fock operator
+        matrix_b: overlap matrix
+        """
+        ub, sb, vb = t.svd(matrixb)
+        sb_sqrt_inv = t.sqrt(1 / sb)
+        S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
+        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
+        eigvec = t.mm(S_sym, eigvec_)
+        return eigval, eigvec
+
+    def lowdin_svd(self, matrixa, matrixb):
+        """Only SVD to decompose B to realize Löwdin orthonormalization.
+
+        SVD decomposition of B: B = USV_{T}
+            S_{-1/2} = US_{-1/2}V_{T}
+            AX = (lambda)BX ==>
+            (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
+        matrix_a: Fock operator
+        matrix_b: overlap matrix
+        """
+        ub, sb, vb = t.svd(matrixb)
+        sb_sqrt_inv = t.sqrt(1 / sb)
+        S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
+        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+
+        ub2, sb2, vb2 = t.svd(SHS)
+        eigvec = t.mm(S_sym, ub2)
+        return sb2, eigvec
+
+    def lowdin_qr_eig(self, matrixa, matrixb):
+        """Use QR to decompose B to realize Löwdin orthonormalization.
+
+        QR decomposition of B: B = USV_{T}
+        S_{-1/2} = US_{-1/2}V_{T}
+        AX = (lambda)BX ==>
+        (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
+        matrix_a: Fock operator
+        matrix_b: overlap matrix
+        """
+        Bval = []
+        rowa = matrixb.shape[0]
+        eigvec_b = t.eye(rowa)
+        Bval.append(matrixb)
+        icount = 0
+        while True:
+            Q_, R_ = t.qr(Bval[-1])
+            eigvec_b = eigvec_b @ Q_
+            Bval.append(R_ @ Q_)
+            icount += 1
+            '''if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
+                break'''
+            if abs((Q_ - Q_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
+                break
+            if icount > 60:
+                print('Warning: QR decomposition do not reach convergence')
+                break
+        eigval_b = Bval[-1]
+        diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
+        S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
+        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
+        eigvec = t.mm(S_sym, eigvec_)
+        return eigval, eigvec
+
+    def lowdin_qr(self, matrixa, matrixb):
+        """Use QR to decompose B to realize Löwdin orthonormalization.
+
+        QR decomposition of B: B = USV_{T}
+        S_{-1/2} = US_{-1/2}V_{T}
+        AX = (lambda)BX ==>
+        (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
+        matrix_a: Fock operator
+        matrix_b: overlap matrix
+        """
+        Bval, ABval = [], []
+        rowb, colb = matrixb.shape[0], matrixb.shape[1]
+        rowa, cola = matrixa.shape[0], matrixa.shape[1]
+        assert rowa == rowb == cola == colb
+        eigvec_b, eigvec_ab = t.eye(rowa), t.eye(rowa)
+        eigval = t.zeros(rowb)
+        eigvec = t.zeros(rowa, rowb)
+        Bval.append(matrixb)
+        icount = 0
+        while True:
+            Q_, R_ = t.qr(Bval[-1])
+            eigvec_b = eigvec_b @ Q_
+            Bval.append(R_ @ Q_)
+            icount += 1
+            '''if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
+                break'''
+            if abs((Q_ - Q_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
+                break
+            if icount > 60:
+                print('Warning: QR decomposition do not reach convergence')
+                break
+        eigval_b = Bval[-1]
+        diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
+        S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
+        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+
+        ABval.append(SHS)
+        icount = 0
+        while True:
+            Q2_, R2_ = t.qr(ABval[-1])
+            eigvec_ab = eigvec_ab @ Q2_
+            ABval.append(R2_ @ Q2_)
+            icount += 1
+            if abs((Q2_ - Q2_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
+                break
+            if icount > 60:
+                print('Warning: QR decomposition do not reach convergence')
+                break
+        eigval_ab = ABval[-1].diag()
+        eigvec_ = t.mm(S_sym, eigvec_ab)
+        sort = eigval_ab.sort()
+        for ii in range(0, matrixb.shape[0]):
+            eigval[ii] = eigval_ab[int(t.tensor(sort[1])[ii])]
+            eigvec[:, ii] = eigvec_[:, int(t.tensor(sort[1])[ii])]
+        return eigval, eigvec
+
+
 class Bspline():
     """Bspline interpolation for DFTB.
 
@@ -371,7 +566,7 @@ class polySpline():
         self.dd = dd
         self.nx = self.xp.shape[0]
         self.linex = len(xp)
-        self.diffx = diff(self.xp)
+        self.diffx = self.diff(self.xp)
         if t.is_tensor(xp):
             xnp = xp.numpy()
             self.ddind = bisect.bisect(xnp, dd) - 1
@@ -433,102 +628,33 @@ class polySpline():
         plt.axis("equal")
         plt.show()
 
-
-def test_polyInter():
-    """Test function polyInter."""
-    xarr = t.linspace(0, 12, 61)
-    yarr = t.tensor([-3.5859E-06, -1.6676E-03, 3.3786E-01, 4.0800E-01,
-                     4.3270E-01, 4.3179E-01, 4.1171E-01, 3.8387E-01,
-                     3.5151E-01, 3.1994E-01, 2.8555E-01, 2.5578E-01,
-                     2.2666E-01, 1.9775E-01, 1.7267E-01, 1.4858E-01,
-                     1.2696E-01, 1.0885E-01, 9.1326E-02, 7.6910E-02,
-                     6.1086E-02, 5.0735E-02, 4.1224E-02, 3.3132E-02,
-                     2.7246E-02, 2.1254E-02, 1.5104E-02, 1.4104E-02,
-                     9.5411E-03, 8.1451E-03, 4.5374E-03, 1.3409E-03,
-                     3.9118E-03, 2.5759E-03, 9.6833E-04, 2.7833E-03,
-                     3.5365E-04, 1.1994E-03, -8.7598E-04, -1.0084E-04,
-                     5.1155E-04, 5.4544E-04, -1.1716E-04, -1.5349E-03,
-                     -3.8741E-04, -4.7522E-04, -8.4352E-04, 3.2984E-04,
-                     -9.7705E-04, 8.5015E-04, -7.5229E-04, -2.3253E-06,
-                     -1.6848E-03, -1.1552E-03, 5.8176E-04, -4.6326E-04,
-                     7.6713E-04, 2.9290E-04, 1.7461E-04, -1.2381E-03,
-                     -2.9332E-04])
-    rx = t.linspace(1, 11, 101)
-    ry = [polyInter(xarr, yarr, i) for i in rx]
-    plt.plot(xarr, yarr, "xb")
-    plt.plot(rx, ry, "-r")
-    plt.grid(True)
-    plt.axis("equal")
-    plt.show()
-
-
-def polyInter(xp, yp, rr, threshold=5E-3):
-    """Interpolation from DFTB+ (lib_math).
-
-    Args:
-        x array, y array, and the interpolation point rr (x[0]< rr < x[-1])
-
-    """
-    icl = 0
-    nn = xp.shape[0]
-    cc = Variable(t.zeros(nn))
-    dd = Variable(t.zeros(nn))
-
-    # if y_m-y_n is small enough, rTmp1 tends to be inf
-    cc[:] = yp[:]
-    dd[:] = yp[:]
-    dxp = abs(rr - xp[icl])
-
-    # this loop is to find the most close point to rr
-    for ii in range(1, nn):
-        dxNew = abs(rr - xp[ii])
-        if dxNew < dxp:
-            icl = ii
-            dxp = dxNew
-    yy = yp[icl]
-
-    for mm in range(0, nn - 1):
-        for ii in range(0, nn - mm - 1):
-            rtmp0 = xp[ii] - xp[ii + mm + 1]
-            rtmp1 = (cc[ii + 1] - dd[ii]) / rtmp0
-            cc[ii] = (xp[ii] - rr) * rtmp1
-            dd[ii] = (xp[ii + mm + 1] - rr) * rtmp1
-        if 2 * icl < nn - mm - 1:
-            dyy = cc[icl]
+    def diff(self, mat, axis=-1):
+        if t.is_tensor(mat):
+            pass
+        elif type(mat) is np.ndarray:
+            mat = t.from_numpy(mat)
         else:
-            dyy = dd[icl - 1]
-            icl = icl - 1
-        yy = yy + dyy
-    return yy
-
-
-def diff(mat, axis=-1):
-    if t.is_tensor(mat):
-        pass
-    elif type(mat) is np.ndarray:
-        mat = t.from_numpy(mat)
-    else:
-        raise ValueError('input matrix is not tensor or numpy')
-    if len(mat.shape) == 1:
-        nmat = len(mat)
-        nmat_out = nmat - 1
-        mat_out = t.zeros(nmat_out)
-        for imat in range(0, nmat_out):
-            mat_out[imat] = mat[imat+1] - mat[imat]
-    elif len(mat.shape) == 2:
-        if axis < 0:
-            row = mat.shape[0]
-            col = mat.shape[1]-1
-            mat_out = t.zeros(row, col)
-            for jmat in range(0, col):
-                mat_out[jmat] = mat[:, jmat+1] - mat[:, jmat]
-        elif axis == 0:
-            row = mat.shape[0]-1
-            col = mat.shape[1]
-            mat_out = t.zeros(row, col)
-            for imat in range(0, row):
-                mat_out[imat, :] = mat[imat+1, :] - mat[imat, :]
-    return mat_out
+            raise ValueError('input matrix is not tensor or numpy')
+        if len(mat.shape) == 1:
+            nmat = len(mat)
+            nmat_out = nmat - 1
+            mat_out = t.zeros(nmat_out)
+            for imat in range(0, nmat_out):
+                mat_out[imat] = mat[imat+1] - mat[imat]
+        elif len(mat.shape) == 2:
+            if axis < 0:
+                row = mat.shape[0]
+                col = mat.shape[1]-1
+                mat_out = t.zeros(row, col)
+                for jmat in range(0, col):
+                    mat_out[jmat] = mat[:, jmat+1] - mat[:, jmat]
+            elif axis == 0:
+                row = mat.shape[0]-1
+                col = mat.shape[1]
+                mat_out = t.zeros(row, col)
+                for imat in range(0, row):
+                    mat_out[imat, :] = mat[imat+1, :] - mat[imat, :]
+        return mat_out
 
 
 class BicubInterp:
@@ -846,7 +972,7 @@ class BicubInterp:
         [nn1, nn2, nn3] = zmesh.shape
         coeff, coeff_ = t.zeros(4, 4, nn3), t.zeros(4, 4, nn3)
         fmat = t.zeros(4, 4, nn3)
-        for ii in  range(nn3):
+        for ii in range(nn3):
             coeff[:, :, ii] = coeff11[:, :]
             coeff_[:, :, ii] = coeff11_[:, :]
 

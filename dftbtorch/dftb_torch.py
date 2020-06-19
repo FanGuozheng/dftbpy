@@ -13,10 +13,12 @@ from slakot import SlaKo, SKTran
 from electront import DFTBelect
 from readt import ReadSlaKo, ReadInt, SkInterpolator
 from periodic import Periodic
+from matht import EigenSolver
+import parameters
 from mbd import MBD
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
-PUBPARA = {"LDIM": 9, "AUEV": 27.2113845, "BOHR": 0.529177249, "tol": 1E-4}
+PUBPARA = {"tol": 1E-4}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
@@ -49,6 +51,7 @@ class Initialization:
 
         """
         self.para = para
+        parameters.dftb_parameter(para)
         self.slako = SlaKo(self.para)
         self.readsk = ReadSlaKo(self.para)
         self.readin = ReadInt(para)
@@ -206,6 +209,7 @@ class SCF:
     def __init__(self, para):
         """Parameters for SCF."""
         self.para = para
+        self.eigen = EigenSolver(self.para)
         self.nat = para['natom']
         self.atind = para['atomind']
         self.atind2 = para['atomind2']
@@ -238,13 +242,13 @@ class SCF:
                     icount += 1
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_ch, eigm_ch = self._cholesky(eigm, overm)
+        eigval_ch, eigm_ch = self.eigen.cholesky(eigm, overm)
 
         # calculate the occupation of electrons
         energy = 0
         occ = elect.fermi(eigval_ch)
         for iind in range(0, int(self.atind[self.nat])):
-            if occ[iind] > PUBPARA['tol']:
+            if occ[iind] > self.para['general_tol']:
                 energy = energy + occ[iind] * eigval_ch[iind]
 
         # density matrix, work controls the unoccupied eigm as 0!!
@@ -269,7 +273,8 @@ class SCF:
         self.para['eigenvalue'], self.para['qatomall'] = eigval_ch, qatom
         self.para['denmat'] = denmat
         analysis.dftb_energy()
-        analysis.sum_property(), print_.print_dftb_caltail()
+        analysis.sum_property()
+        print_.print_dftb_caltail()
 
     def scf_npe_scc(self):
         """SCF for non-periodic-ML system with scc.
@@ -331,13 +336,13 @@ class SCF:
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self._cholesky2(eigm_, oldsmat_)
+            eigval_, eigm_ch = self.eigen.cholesky_new(eigm_, oldsmat_)
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
             occ_ = elect.fermi(eigval_)
             for iind in range(0, int(self.atind[self.nat])):
-                if occ_[iind] > PUBPARA['tol']:
+                if occ_[iind] > self.para['general_tol']:
                     energy[iiter] = energy[iiter] + occ_[iind] * eigval_[iind]
 
             # density matrix, work_ controls the unoccupied eigm as 0!!
@@ -363,7 +368,7 @@ class SCF:
             mix.mix(iiter, qzero, qatom, qmix, qdiff)
 
             # if reached convergence
-            self.print_energy(iiter, energy)
+            self.dE = print_.print_energy(iiter, energy)
             reach_convergence = self.convergence(iiter, maxiter, qdiff)
             if reach_convergence:
                 break
@@ -371,7 +376,8 @@ class SCF:
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
-        analysis.sum_property(), print_.print_dftb_caltail()
+        analysis.sum_property()
+        print_.print_dftb_caltail()
 
     def scf_npe_scc_symall(self):
         """SCF for non-periodic-ML system with scc.
@@ -421,16 +427,13 @@ class SCF:
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self._cholesky2(fockmat_, self.smat)
+            eigval_, eigm_ch = self.eigen.cholesky_new(fockmat_, self.smat)
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
             occ_ = elect.fermi(eigval_)
             self.para['eigenvalue'], self.para['shift_'] = eigval_, shift_
-            '''for iind in range(0, int(self.atind[self.nat])):
-                if occ_[iind] > PUBPARA['tol']:
-                    energy[iiter] = energy[iiter] + occ_[iind] * eigval_[iind]
-            '''
+
             # density matrix, work_ controls the unoccupied eigm as 0!!
             work_ = t.sqrt(occ_)
             for j in range(0, ind_nat):  # n = no. of occupied orbitals
@@ -448,14 +451,15 @@ class SCF:
             # if reached convergence
             analysis.dftb_energy()
             energy[iiter] = self.para['energy']
-            self.print_energy(iiter, energy)
+            self.dE = print_.print_energy(iiter, energy)
             if self.convergence(iiter, maxiter, qdiff):
                 break
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
-        analysis.sum_property(), print_.print_dftb_caltail()
+        analysis.sum_property()
+        print_.print_dftb_caltail()
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -507,7 +511,8 @@ class SCF:
             for iind in range(0, ind_nat):
                 for j_i in range(0, ind_nat):
                     eigm_[iind, j_i] = self.hmat[iind, j_i] + 0.5 * \
-                        self.smat[iind, j_i] * (shiftorb_[iind] + shiftorb_[j_i])
+                        self.smat[iind, j_i] * \
+                        (shiftorb_[iind] + shiftorb_[j_i])
                     icount += 1
             oldsmat_ = self.hmat
         elif self.para['HSsym'] == 'symhalf':
@@ -529,12 +534,12 @@ class SCF:
                     icount += 1
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_, eigm_ch = self._cholesky(eigm_, oldsmat_)
+        eigval_, eigm_ch = self.eigen.cholesky(eigm_, oldsmat_)
 
         # calculate the occupation of electrons
         occ_ = elect.fermi(eigval_)
         for iind in range(0, int(self.atind[self.nat])):
-            if occ_[iind] > PUBPARA['tol']:
+            if occ_[iind] > self.para['general_tol']:
                 energy = energy + occ_[iind] * eigval_[iind]
 
         # density matrix, work_ controls the unoccupied eigm as 0!!
@@ -560,206 +565,25 @@ class SCF:
         self.para['denmat'] = denmat_
         analysis.sum_property(), print_.print_dftb_caltail()
 
-    def _cholesky(self, matrixa, matrixb):
-        '''
-        cholesky decomposition of B: B = LL^{T}
-            AX = (lambda)BX ==> (L^{-1}AL^{-T})(L^{T}X) = (lambda)(L^{T}X)
-        matrix_a: Fock operator
-        matrix_b: overm'''
-
-        chol_l = t.cholesky(matrixb)
-        # self.para['eigval'] = chol_l
-        linv_a = t.mm(t.inverse(chol_l), matrixa)
-        l_invtran = t.inverse(chol_l.t())
-        linv_a_linvtran = t.mm(linv_a, l_invtran)
-        eigval, eigm = t.symeig(linv_a_linvtran, eigenvectors=True)
-        eigm_ab = t.mm(l_invtran, eigm)
-        return eigval, eigm_ab
-
-    def _cholesky2(self, matrixa, matrixb):
-        '''
-        cholesky decomposition of B: B = LL^{T}
-            AX = (lambda)BX ==> (L^{-1}AL^{-T})(L^{T}X) = (lambda)(L^{T}X)
-        matrix_a: Fock operator
-        matrix_b: overm'''
-
-        chol_l = t.cholesky(matrixb)
-        row = matrixa.shape[1]
-        A1, LU_A = t.solve(matrixa, chol_l)
-        A2, LU_A1 = t.solve(A1.t(), chol_l)
-        A3 = A2.t()
-        eigval, eigm = t.symeig(A3, eigenvectors=True)
-        l_inv, _ = t.solve(t.eye((row), dtype=t.float64), chol_l.t())
-        eigm_ab = t.mm(l_inv, eigm)
-        return eigval, eigm_ab
-
-    def lowdin_symeig(self, matrixa, matrixb):
-        '''
-        use t.symeig to decompose B: BX = (lambda)X, then omega = lambda.diag()
-            S_{-1/2} = Xomega_{-1/2}X_{T}
-            AX' = (lambda)BX' ==>
-            (S_{-1/2}AS_{-1/2})(S_{1/2}X') = (lambda)(S_{1/2}X')
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
-        '''
-        lam_b, l_b = t.symeig(matrixb, eigenvectors=True)
-        lam_sqrt_inv = t.sqrt(1 / lam_b)
-        S_sym = t.mm(l_b, t.mm(lam_sqrt_inv.diag(), l_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
-        eigvec = t.mm(S_sym, eigvec_)
-        # eigval3, eigvec_ = t.symeig(lam_b_2d, eigenvectors=True)
-        return eigval, eigvec
-
-    def lowdin_svd_sym(self, matrixa, matrixb):
-        '''
-        SVD decomposition of B: B = USV_{T}
-            S_{-1/2} = US_{-1/2}V_{T}
-            AX = (lambda)BX ==>
-            (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
-        '''
-        ub, sb, vb = t.svd(matrixb)
-        sb_sqrt_inv = t.sqrt(1 / sb)
-        S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
-        eigvec = t.mm(S_sym, eigvec_)
-        return eigval, eigvec
-
-    def lowdin_svd(self, matrixa, matrixb):
-        '''
-        SVD decomposition of B: B = USV_{T}
-            S_{-1/2} = US_{-1/2}V_{T}
-            AX = (lambda)BX ==>
-            (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
-        '''
-        ub, sb, vb = t.svd(matrixb)
-        sb_sqrt_inv = t.sqrt(1 / sb)
-        S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-
-        ub2, sb2, vb2 = t.svd(SHS)
-        eigvec = t.mm(S_sym, ub2)
-        return sb2, eigvec
-
-    def lowdin_qr_eig(self, matrixa, matrixb):
-        '''
-        SVD decomposition of B: B = USV_{T}
-            S_{-1/2} = US_{-1/2}V_{T}
-            AX = (lambda)BX ==>
-            (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
-        '''
-        Bval = []
-        rowa = matrixb.shape[0]
-        eigvec_b = t.eye(rowa)
-        Bval.append(matrixb)
-        icount = 0
-        while True:
-            Q_, R_ = t.qr(Bval[-1])
-            eigvec_b = eigvec_b @ Q_
-            Bval.append(R_ @ Q_)
-            icount += 1
-            '''if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
-                break'''
-            if abs((Q_ - Q_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
-                break
-            if icount > 60:
-                print('Warning: QR decomposition do not reach convergence')
-                break
-        eigval_b = Bval[-1]
-        diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
-        S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
-        eigvec = t.mm(S_sym, eigvec_)
-        return eigval, eigvec
-
-    def lowdin_qr(self, matrixa, matrixb):
-        '''
-        SVD decomposition of B: B = USV_{T}
-            S_{-1/2} = US_{-1/2}V_{T}
-            AX = (lambda)BX ==>
-            (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
-        '''
-        Bval, ABval = [], []
-        rowb, colb = matrixb.shape[0], matrixb.shape[1]
-        rowa, cola = matrixa.shape[0], matrixa.shape[1]
-        assert rowa == rowb == cola == colb
-        eigvec_b, eigvec_ab = t.eye(rowa), t.eye(rowa)
-        eigval = t.zeros(rowb)
-        eigvec = t.zeros(rowa, rowb)
-        Bval.append(matrixb)
-        icount = 0
-        while True:
-            Q_, R_ = t.qr(Bval[-1])
-            eigvec_b = eigvec_b @ Q_
-            Bval.append(R_ @ Q_)
-            icount += 1
-            '''if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
-                break'''
-            if abs((Q_ - Q_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
-                break
-            if icount > 60:
-                print('Warning: QR decomposition do not reach convergence')
-                break
-        eigval_b = Bval[-1]
-        diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
-        S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-
-        ABval.append(SHS)
-        icount = 0
-        while True:
-            Q2_, R2_ = t.qr(ABval[-1])
-            eigvec_ab = eigvec_ab @ Q2_
-            ABval.append(R2_ @ Q2_)
-            icount += 1
-            if abs((Q2_ - Q2_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
-                break
-            if icount > 60:
-                print('Warning: QR decomposition do not reach convergence')
-                break
-        eigval_ab = ABval[-1].diag()
-        eigvec_ = t.mm(S_sym, eigvec_ab)
-        sort = eigval_ab.sort()
-        for ii in range(0, matrixb.shape[0]):
-            eigval[ii] = eigval_ab[int(t.tensor(sort[1])[ii])]
-            eigvec[:, ii] = eigvec_[:, int(t.tensor(sort[1])[ii])]
-        return eigval, eigvec
-
-    def print_energy(self, iiter, energy):
-        if iiter == 0:
-            self.dE = energy[iiter].detach()
-            print('iteration', ' '*8, 'energy', ' '*20, 'dE')
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{self.dE:25}')
-        elif iiter >= 1:
-            self.dE = energy[iiter].detach() - energy[iiter - 1].detach()
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{self.dE:25}')
-
     def convergence(self, iiter, maxiter, qdiff):
+        """Convergence for SCC loops."""
         if self.para['convergenceType'] == 'energy':
             if abs(self.dE) < self.para['energy_tol']:
                 reach_convergence = True
-            elif iiter + 1 >= maxiter and abs(self.dE) > PUBPARA['tol']:
-                print('Warning: SCF donot reach required convergence')
-                reach_convergence = True
+            elif iiter + 1 >= maxiter:
+                if abs(self.dE) > self.para['energy_tol']:
+                    print('Warning: SCF donot reach required convergence')
+                    reach_convergence = True
             else:
                 reach_convergence = False
         elif self.para['convergenceType'] == 'charge':
             qdiff_ = t.sum(qdiff[-1]) / len(qdiff[-1])
-            if abs(qdiff_) < self.para['energy_tol']:
+            if abs(qdiff_) < self.para['charge_tol']:
                 reach_convergence = True
-            elif iiter + 1 >= maxiter and abs(qdiff_) > PUBPARA['tol']:
-                print('Warning: SCF donot reach required convergence')
-                reach_convergence = True
+            elif iiter + 1 >= maxiter:
+                if abs(qdiff_) > PUBPARA['tol']:
+                    print('Warning: SCF donot reach required convergence')
+                    reach_convergence = True
             else:
                 reach_convergence = False
         return reach_convergence
@@ -821,16 +645,17 @@ class Repulsive():
 
 
 class Mixing:
+    """Mixing method."""
 
     def __init__(self, para):
-        '''class for different mixing method'''
+        """Initialize parameters."""
         self.para = para
         if self.para['mixMethod'] == 'broyden':
             self.df, self.uu = [], []
             self.ww = t.zeros((self.para['maxIter']), dtype=t.float64)
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
-        '''calling different mixing methods'''
+        """Call different mixing method."""
         if iiter == 0:
             qmix.append(qzero)
             if self.para['mixMethod'] == 'broyden':
@@ -849,14 +674,14 @@ class Mixing:
         self.para['qatomall'] = qatom
 
     def simple_mix(self, oldqatom, qatom, qdiff):
-        '''this is for simple mixing method'''
+        """Simple mixing method."""
         mixf = self.para['mixFactor']
         qdiff.append(qatom - oldqatom)
         qmix_ = oldqatom + mixf * qdiff[-1]
         return qmix_
 
     def anderson_mix(self, iiter, qmix, qatom, qdiff):
-        '''this is for anderson mixing method'''
+        """Anderson mixing method."""
         mixf = self.para['mixFactor']
         qdiff.append(qatom[-1] - qmix[-1])
         df_iiter, df_prev = qdiff[-1], qdiff[-2]
@@ -869,7 +694,7 @@ class Mixing:
         return qmix_
 
     def broyden_mix(self, iiter, qmix, qatom_, qdiff):
-        '''this is for broyden mixing method'''
+        """Broyden mixing method."""
         aa = t.zeros((iiter, iiter), dtype=t.float64)
         cc = t.zeros((iiter, iiter), dtype=t.float64)
         beta = t.zeros((iiter, iiter), dtype=t.float64)
@@ -911,8 +736,10 @@ class Mixing:
 
 
 class Write:
+    """Write DFTB results."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
 
     def write(self):
@@ -920,21 +747,37 @@ class Write:
 
 
 class Print:
+    """Print DFTB results."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
 
     def print_scf_title(self):
+        """Print DFTB type."""
         if not self.para['Lperiodic'] and self.para['scc'] == 'nonscc':
             print('*' * 35, 'Non-periodic Non-SCC-DFTB', '*' * 35)
         elif not self.para['Lperiodic'] and self.para['scc'] == 'scc':
             print('*' * 35, 'Non-periodic SCC-DFTB', '*' * 35)
         elif not self.para['Lperiodic'] and self.para['scc'] == 'xlbomd':
             print('*' * 35, 'Non-periodic xlbomd-DFTB', '*' * 35)
-        elif self.para['Lperiodic'] and self.para['scc'] is 'scc':
+        elif self.para['Lperiodic'] and self.para['scc'] == 'scc':
             print('*' * 35, 'Periodic SCC-DFTB', '*' * 35)
 
+    def print_energy(self, iiter, energy):
+        """Print energy for SCC loops."""
+        if iiter == 0:
+            dE = energy[iiter].detach()
+            print('iteration', ' '*8, 'energy', ' '*20, 'dE')
+            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
+            return dE
+        elif iiter >= 1:
+            dE = energy[iiter].detach() - energy[iiter - 1].detach()
+            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
+            return dE
+
     def print_dftb_caltail(self):
+        """Print DFTB results."""
         t.set_printoptions(precision=10)
         print('charge (e): \n', self.para['qatomall'].detach())
         print('dipole (eAng): \n', self.para['dipole'].detach())
@@ -949,12 +792,15 @@ class Print:
 
 
 class Analysis:
+    """Analysis of DFTB results, processing DFTB results."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
         self.nat = self.para['natom']
 
     def dftb_energy(self):
+        """Get energy for DFTB with electronic and eigen results."""
         eigval = self.para['eigenvalue']
         occ = self.para['occ']
         if self.para['scc'] == 'nonscc':
@@ -972,7 +818,6 @@ class Analysis:
             ecoul = 0.0
             for i in range(0, self.nat):
                 ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
-            # energy[iiter] = energy[iiter] - 0.5 * ecoul
             self.para['coul_energy'] = ecoul / 2.0
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
@@ -982,17 +827,18 @@ class Analysis:
                     self.para['coul_energy']
 
     def sum_property(self):
+        """Get alternative DFTB results."""
         nocc = self.para['nocc']
         eigval = self.para['eigenvalue']
         qzero, qatom = self.para['qzero'], self.para['qatomall']
         self.para['homo_lumo'] = eigval[int(nocc) - 1:int(nocc) + 1] * \
-            PUBPARA['AUEV']
+            self.para['AUEV']
         self.para['dipole'] = self.get_dipole(qzero, qatom)
         if self.para['LMBD_DFTB']:
             MBD(self.para)
 
     def get_qatom(self):
-        '''get the basic electronic info of each atom'''
+        """Get the basic electronic information of each atom."""
         atomname = self.para['atomnameall']
         num_electrons = 0
         qatom = t.zeros((self.nat), dtype=t.float64)
@@ -1003,7 +849,7 @@ class Analysis:
         self.para['nelectrons'] = num_electrons
 
     def get_dipole(self, qzero, qatom):
-        '''read and process dipole data'''
+        """Read and process dipole data."""
         coor = self.para['coor']
         dipole = t.zeros((3), dtype=t.float64)
         for iatom in range(0, self.nat):
