@@ -103,6 +103,7 @@ class CoulombMatrix(MatrixDescriptor):
         qiqj = q[None, :]*q[:, None]
         idmat = system.get_inverse_distance_matrix()
         np.fill_diagonal(idmat, 0)
+        print('idmat', idmat)
         cmat = qiqj*idmat
 
         # Set diagonal

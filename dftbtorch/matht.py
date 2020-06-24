@@ -1,11 +1,10 @@
-"""Mathematical libraries for DFTB.
+"""Mathematical libraries for DFTB-ML.
 
 including:
     Interpolation for SKF
     Bicubic
     Spline interpolation
-    Linear Algebra
-    General eigenvalue problem
+    Linear Algebra: eigenvalue problem, linear equation...
 
 """
 # !/usr/bin/env python3
@@ -53,7 +52,7 @@ class DFTBmath:
 
         # cutoff = self.para['cutoffsk' + nameij]
         tail = 5 * incr
-        rmax = ngridpoint * incr + tail
+        rmax = (ngridpoint - 1) * incr + tail
         ind = int(rr / incr)
         leng = ngridpoint
         if leng < ninterp + 1:
@@ -61,7 +60,6 @@ class DFTBmath:
         if rr >= rmax:
             dd[:] = 0.0
         elif ind < leng:  # => polynomial fit
-            print(rr, incr, ind, leng, "Beyond the grid!!!!!!!!!!!!!!!!!!!!")
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
             for ii in range(0, ninterp):
@@ -69,15 +67,11 @@ class DFTBmath:
             yb[:, :] = datalist[ilast - ninterp - 1: ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.poly_interp_2d(xa, yb, rr)  # method 2
-            # for ii in range(0, 20):  # method 3
-            #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
-
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
             dr = rr - rmax
             ilast = leng
             for ii in range(0, ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
-            print(xa)
             yb = datalist[ilast - ninterp - 1: ilast - 1]
             y0 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] - delta_r)
             y2 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] + delta_r)
@@ -99,6 +93,7 @@ class DFTBmath:
         incr = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
         ninterp = self.para['ninterp']
+        delta_r = self.para['delta_r_skf']
         xa = t.zeros(ninterp)
         yb = t.zeros(ncompr, ncompr, ninterp, 20)
         dd = t.zeros(ncompr, ncompr, 20)
@@ -107,7 +102,7 @@ class DFTBmath:
             datalist = t.from_numpy(datalist)
 
         tail = 5 * incr
-        rmax = ngridpoint * incr + tail
+        rmax = (ngridpoint - 1) * incr + tail
         ind = int(rr / incr)
         leng = ngridpoint
         if leng < ninterp + 1:
@@ -122,24 +117,31 @@ class DFTBmath:
             yb = datalist[:, :, ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.poly_interp_4d(xa, yb, rr)  # method 2
-            # for ii in range(0, 20):  # method 3
-            #    dd[ii] = self.polyInter(xa, yb[:, ii], rr)
-
         else:  # Beyond the grid => extrapolation with polynomial of 5th order
             dr = rr - rmax
             ilast = leng
-            pass
+            for ii in range(0, ninterp):
+                xa[ii] = (ilast - ninterp + ii) * incr
+            print(xa)
+            yb = datalist[ilast - ninterp - 1: ilast - 1]
+            y0 = self.poly_interp_4d(xa, yb, xa[ninterp - 1] - delta_r)
+            y2 = self.poly_interp_4d(xa, yb, xa[ninterp - 1] + delta_r)
+            ya = datalist[ilast - ninterp - 1: ilast - 1]
+            y1 = ya[ninterp - 1]
+            y1p = (y2 - y0) / (2.0 * delta_r)
+            y1pp = (y2 + y0 - 2.0 * y1) / (delta_r * delta_r)
+            dd = self.poly5_zero(y1, y1p, y1pp, dr, -1.0 * tail)
         return dd
 
     def poly5_zero(self, y0, y0p, y0pp, xx, dx):
-        """Get integrals if beyond the grid range."""
+        """Get integrals if beyond the grid range with 5th polynomial."""
         dx1 = y0p * dx
         dx2 = y0pp * dx * dx
         dd = 10.0 * y0 - 4.0 * dx1 + 0.5 * dx2
         ee = -15.0 * y0 + 7.0 * dx1 - 1.0 * dx2
         ff = 6.0 * y0 - 3.0 * dx1 + 0.5 * dx2
         xr = xx / dx
-        yy = ((ff*xr + ee)*xr + dd)*xr*xr*xr
+        yy = ((ff * xr + ee) * xr + dd) * xr * xr * xr
         return yy
 
     def polysk3thsk(self, allarr, darr, dd):
@@ -199,14 +201,13 @@ class DFTBmath:
         nn = xp.shape[0]
         nn1, nn2, row, col = yp.shape[0], yp.shape[1], yp.shape[2], yp.shape[3]
         assert row == nn
-        cc = t.zeros(nn1, nn2, row, col)
-        dd = t.zeros(nn1, nn2, row, col)
+        cc = t.zeros((nn1, nn2, row, col), dtype=t.float64)
+        dd = t.zeros((nn1, nn2, row, col), dtype=t.float64)
 
         # if y_m-y_n is small enough, rTmp1 tends to be inf
         cc[:, :, :, :] = yp[:, :, :, :]
         dd[:, :, :, :] = yp[:, :, :, :]
         dxp = abs(rr - xp[icl])
-
         # this loop is to find the most close point to rr
         for ii in range(0, nn - 1):
             dxNew = abs(rr - xp[ii])
@@ -214,7 +215,6 @@ class DFTBmath:
                 icl = ii
                 dxp = dxNew
         yy = yp[:, :, icl, :]
-
         for mm in range(0, nn - 1):
             for ii in range(0, nn - mm - 1):
                 rtmp0 = xp[ii] - xp[ii + mm + 1]
@@ -241,14 +241,13 @@ class DFTBmath:
         nn = xp.shape[0]
         row, col = yp.shape[0], yp.shape[1]
         assert row == nn
-        cc = t.zeros(row, col)
-        dd = t.zeros(row, col)
+        cc = t.zeros((row, col), dtype=t.float64)
+        dd = t.zeros((row, col), dtype=t.float64)
 
         # if y_m-y_n is small enough, rTmp1 tends to be inf
         cc[:, :] = yp[:, :]
         dd[:, :] = yp[:, :]
         dxp = abs(rr - xp[icl])
-
         # this loop is to find the most close point to rr
         for ii in range(0, nn - 1):
             dxNew = abs(rr - xp[ii])
@@ -256,7 +255,6 @@ class DFTBmath:
                 icl = ii
                 dxp = dxNew
         yy = yp[icl, :]
-
         for mm in range(0, nn - 1):
             for ii in range(0, nn - mm - 1):
                 rtmp0 = xp[ii] - xp[ii + mm + 1]

@@ -34,16 +34,15 @@ def init_dftb_ml(para):
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
         para['hdf_num'] = 1  # this will determine read which type of molecule
-        para['n_dataset'] = ['1']  # how many molecules used to optimize
+        para['n_dataset'] = ['8']  # how many molecules used to optimize
         para['n_test'] = ['8']  # how many used to test
         assert len(para['n_dataset']) == len(para['n_test'])
         # para['dire_interpSK'] = os.path.join(path, '../slko')
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
-    # ML training
-    para['testMLmodel'] = 'linear'
-    para['feature'] = 'rad'
+    para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn
+    para['featureType'] = 'rad'  # rad, CoulombMatrix, ACSF
     para['direfeature'] = '.'
 
     para['rcut'] = 15

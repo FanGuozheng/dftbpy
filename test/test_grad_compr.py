@@ -22,11 +22,12 @@ import dftbtorch.slakot as slakot
 import plot
 from readt import ReadInt
 import init_parameter as initpara
+import ml.interface as interface
 Directory = '/home/gz_fan/Documents/ML/dftb/ml'
 DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
-HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
+HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
         'OH': 0, 'OO': 4}
 COMP_R = {'H': 3.0, 'C': 3.0}
 VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
@@ -59,8 +60,6 @@ def optml(para):
 
 def testml(para):
     """'main function for testing DFTB-ML"""
-    get_env_para(para)
-
     # get the default para for testing DFTB-ML
     initpara.init_dftb_ml(para)
 
@@ -93,33 +92,40 @@ def testml(para):
 def get_env_para(para):
     """get the environmental parameters"""
     dire_ = para['dire_data']
+    natomall = para['natomall']
+    nmax = int(natomall.max())
     os.system('rm ' + dire_ + '/env_rad.dat')
     os.system('rm ' + dire_ + '/env_ang.dat')
-
     genpara = GenMLPara(para)
     initpara.init_dftb_ml(para)
     load = LoadData(para)
     save = SaveData(para)
+    read = ReadInt(para)
 
-    load.loadhdfdata()
     if len(para['n_dataset']) == 1:
         nbatch = max(int(para['n_dataset'][0]), int(para['n_test'][0]))
+    rad = t.zeros((nbatch, nmax), dtype=t.float64)
+    ang = t.zeros((nbatch, nmax), dtype=t.float64)
+
+    load.loadhdfdata()
     print('begin to calculate environmental parameters')
     symbols = para['symbols']
-    for ibatch in range(0, nbatch):
+    for ibatch in range(nbatch):
         if type(para['coorall'][ibatch]) is np.array:
             coor = t.from_numpy(para['coorall'][ibatch])
         elif type(para['coorall'][ibatch]) is t.Tensor:
             coor = para['coorall'][ibatch]
+        nat_ = int(natomall[ibatch])
         para['coor'] = coor[:]
         genpara.genenvir(nbatch, para, ibatch, coor, symbols)
+        read.cal_coor()
+        ang[ibatch, :nat_] = t.from_numpy(para['ang_paraall'][ibatch])
+        rad[ibatch, :nat_] = t.from_numpy(para['rad_paraall'][ibatch])
 
-        ReadInt(para).cal_coor()
-        iang = para['ang_paraall'][ibatch]
-        irad = para['rad_paraall'][ibatch]
-
-        save.save1D(iang, name='env_ang.dat', dire=dire_, ty='a')
-        save.save1D(irad, name='env_rad.dat', dire=dire_, ty='a')
+        save.save1D(ang[ibatch, :nat_], name='env_ang.dat', dire=dire_, ty='a')
+        save.save1D(rad[ibatch, :nat_], name='env_rad.dat', dire=dire_, ty='a')
+    para['x_rad'] = rad
+    para['x_ang'] = ang
 
 
 class RunML:
@@ -826,16 +832,17 @@ class GenMLPara:
 
 
 class LoadData:
-    '''
-    the input:
+    """Load data.
+    Args:
         dataType: the data type, hdf, json...
         hdf_num: how many dataset in one hdf file
-    the output:
+    Returns:
         coorall: all the coordination of molecule
         symbols: all the atoms in each molecule
         specie: the specie in molecule
         speciedict: Counter(symbols)
-    '''
+
+        """
 
     def __init__(self, para):
         self.para = para
@@ -1050,12 +1057,55 @@ class Read:
     """
 
     def __init__(self, para):
+        """Initialize data."""
         self.para = para
 
     def read1d(self, dire, name, number, outtype='torch'):
+        """Read one dimentional data."""
         fp = open(os.path.join(dire, name), 'r')
-        data = np.zeros(number)
+        data = np.zeros((number), dtype=float)
         data[:] = np.fromfile(fp, dtype=int, count=number, sep=' ')
+        if outtype == 'torch':
+            return t.from_numpy(data)
+        elif outtype == 'numpy':
+            return data
+
+    def read2d(self, dire, name, num1, num2, outtype='torch'):
+        """Read two dimentional data."""
+        data = np.zeros((num1, num2), dtype=float)
+        fp = open(os.path.join(dire, name), 'r')
+        for inum1 in range(0, num1):
+            idata_ = np.fromfile(fp, dtype=float, count=num2, sep=' ')
+            data[inum1, :] = idata_
+        if outtype == 'torch':
+            return t.from_numpy(data)
+        elif outtype == 'numpy':
+            return data
+
+    def read2d_rand(self, dire, name, nall, num1, outtype='torch'):
+        """Read two dimentional data, which may not be all filled."""
+        nmax = int((nall).max())
+        data = np.zeros((num1, nmax), dtype=float)
+        fp = open(os.path.join(dire, name), 'r')
+        for inum1 in range(num1):
+            num_ = int(nall[inum1])
+            idata_ = np.fromfile(fp, dtype=float, count=num_, sep=' ')
+            data[inum1, :num_] = idata_
+        if outtype == 'torch':
+            return t.from_numpy(data)
+        elif outtype == 'numpy':
+            return data
+
+    def read3d_rand(self, dire, name, nall, num1, ntemp, outtype='torch'):
+        """Read three dimentional data, which may not be all filled."""
+        nmax = int((nall).max())
+        data = np.zeros((num1, ntemp, nmax), dtype=float)
+        fp = open(os.path.join(dire, name), 'r')
+        for inum1 in range(num1):
+            num_ = int(nall[inum1])
+            idata_ = np.fromfile(fp, dtype=float, count=num_*ntemp, sep=' ')
+            idata_.shape = (ntemp, num_)
+            data[inum1, :, :num_] = idata_
         if outtype == 'torch':
             return t.from_numpy(data)
         elif outtype == 'numpy':
@@ -1077,11 +1127,10 @@ class ML:
         """
         self.para = para
         self.read = Read(para)
-        self.nfile = int(para['n_dataset'][0])
-        self.ntest = int(para['n_test'][0])
-        self.dataprocess(self.para['dire_data'])
-        if self.para['testMLmodel'] == 'linear':
-            self.linearmodel()
+        self.nfile = int(para['n_dataset'][0])  # molecule number in optml
+        self.ntest = int(para['n_test'][0])  # molecule number in test
+        self.dataprocess(self.para['dire_data'])  # generate ML X, Y data
+        self.ml_compr()
 
     def dataprocess(self, diredata):
         """Process the optimization dataset and data for the following ML.
@@ -1091,32 +1140,30 @@ class ML:
             traing target (Y, e.g, compression radius)
 
         """
-        # dire = self.para['direfeature']
+        dscribe = interface.Dscribe(self.para)
         nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
-        self.para['natomall'] = []
-        [self.para['natomall'].append(len(coor))
-         for coor in self.para['coorall']]
-        # self.para['natomall'] = \
-        #   self.read.read1d(diredata, 'natom.dat', self.nfile)
+        self.para['natomall'] = self.read.read1d(
+            diredata, 'natom.dat', self.ntest)
 
         if self.para['Lml_skf']:
-            natom = int(max(self.para['natomall']))
-            fpcompr = open(os.path.join(diredata, 'comprbp.dat'), 'r')
-            compr = np.zeros((self.nfile, nsteps_, natom))
+            self.para['optRall'] = self.read.read3d_rand(
+                diredata, 'comprbp.dat', self.para['natomall'],
+                self.ntest, nsteps_)
 
-            for ifile in range(0, self.nfile):
-                natom_ = int(self.para['natomall'][ifile])
-                datafpcompr = np.fromfile(fpcompr, dtype=float,
-                                          count=natom_*nsteps_, sep=' ')
-                datafpcompr.shape = (nsteps_, natom_)
-                compr[ifile, :, :natom_] = datafpcompr
-            self.para['optRall'] = compr
-        if self.para['feature'] == 'rad':
-            fprad = open(os.path.join(diredata, 'env_rad.dat'), 'r')
-            datafprad = np.fromfile(fprad, dtype=float,
-                                    count=natom_*self.ntest,  sep=' ')
-            datafprad.shape = (self.ntest, natom_)
-            self.para['feature_data'] = datafprad
+        if self.para['featureType'] == 'rad':
+            get_env_para(self.para)
+            self.para['feature_data'] = self.para['x_rad']
+        elif self.para['featureType'] == 'CoulombMatrix':
+            self.para['feature_data'] = dscribe.pro_()
+        elif self.para['featureType'] == 'ACSF':
+            self.para['feature_data'] = dscribe.pro_()
+
+    def ml_compr(self):
+        """ML process for compression radius."""
+        if self.para['testMLmodel'] == 'linear':
+            self.linearmodel()
+        if self.para['testMLmodel'] == 'schnet':
+            self.schnet()
 
     def linearmodel(self):
         """Use the optimization dataset for training.
@@ -1141,6 +1188,7 @@ class ML:
         plt.xlabel('feature of training dataset')
         plt.ylabel('traning compression radius')
         plt.show()
+        print(X_pred.shape, y_pred.shape)
 
         plt.scatter(X_pred, y_pred,  color='black')
         plt.plot(X_pred, y_pred, 'ob')
@@ -1149,10 +1197,12 @@ class ML:
         plt.show()
         self.para['compr_pred'] = t.from_numpy(y_pred)
 
-    def nnmodel(self):
+    def svm_model(self):
+        """ML process with support vector machine method."""
         pass
 
-    def svm(self):
+    def schnet(self):
+        """ML process with schnetpack."""
         pass
 
 
@@ -1161,7 +1211,7 @@ if __name__ == "__main__":
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'optml'
+    para['task'] = 'test'
 
     if para['task'] == 'optml':
         optml(para)

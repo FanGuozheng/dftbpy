@@ -29,14 +29,14 @@ def test_accuracy(para, name, dire,
     if LH0:
         dataH0 = para['dataH']
         data_ = abs((dataH0 - para['hammat']) / abs(dataH0)).sum()
-        if data_ < 1e-8 * nat ** 2:
-            print('average H0 error is smaller than 1E-8')
-        elif data_ < 1e-7 * nat ** 2:
-            print('average H0 error is smaller than 1E-7')
+        if data_ < 1e-14 * nat ** 2:
+            print('average H0 error is smaller than 1E-14')
+        elif data_ < 1e-12 * nat ** 2:
+            print('average H0 error is smaller than 1E-12')
+        elif data_ < 1e-10 * nat ** 2:
+            print('average H0 error is smaller than 1E-10')
         elif data_ < 1e-6 * nat ** 2:
             print('average H0 error is smaller than 1E-6')
-        elif data_ < 1e-5 * nat ** 2:
-            print('average H0 error is smaller than 1E-5')
         elif data_ < 1e-4 * nat ** 2:
             print('average H0 error is smaller than 1E-4')
         else:
@@ -45,14 +45,14 @@ def test_accuracy(para, name, dire,
     if LS0:
         dataS = para['dataS']
         data_ = abs((dataS - para['overmat']) / abs(dataS)).sum()
-        if data_ < 1e-8 * nat ** 2:
-            print('average S error is smaller than 1E-8')
-        elif data_ < 1e-7 * nat ** 2:
-            print('average S error is smaller than 1E-7')
+        if data_ < 1e-14 * nat ** 2:
+            print('average S error is smaller than 1E-14')
+        elif data_ < 1e-12 * nat ** 2:
+            print('average S error is smaller than 1E-12')
+        elif data_ < 1e-10 * nat ** 2:
+            print('average S error is smaller than 1E-10')
         elif data_ < 1e-6 * nat ** 2:
             print('average S error is smaller than 1E-6')
-        elif data_ < 1e-5 * nat ** 2:
-            print('average S error is smaller than 1E-5')
         elif data_ < 1e-4 * nat ** 2:
             print('average S error is smaller than 1E-4')
         else:
@@ -61,14 +61,14 @@ def test_accuracy(para, name, dire,
     if Lq:
         dataq = para['dataq']
         data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum()
-        if data_ < 1e-8 * nat:
-            print('average charge error is smaller than 1E-8')
-        elif data_ < 1e-7 * nat:
-            print('average charge error is smaller than 1E-7')
+        if data_ < 1e-14 * nat:
+            print('average charge error is smaller than 1E-14')
+        elif data_ < 1e-12 * nat:
+            print('average charge error is smaller than 1E-12')
+        elif data_ < 1e-10 * nat:
+            print('average charge error is smaller than 1E-10')
         elif data_ < 1e-6 * nat:
             print('average charge error is smaller than 1E-6')
-        elif data_ < 1e-5 * nat:
-            print('average charge error is smaller than 1E-5')
         elif data_ < 1e-4 * nat:
             print('average charge error is smaller than 1E-4')
         else:
@@ -78,14 +78,14 @@ def test_accuracy(para, name, dire,
     if Lp:
         datats = para['datats']
         data_ = abs((datats - para['alpha_ts']) / abs(datats)).sum()
-        if data_ < 1e-8 * nat:
-            print('average alpha_ts error is smaller than 1E-8')
-        elif data_ < 1e-7 * nat:
-            print('average alpha_ts error is smaller than 1E-7')
+        if data_ < 1e-14 * nat:
+            print('average alpha_ts error is smaller than 1E-14')
+        elif data_ < 1e-12 * nat:
+            print('average alpha_ts error is smaller than 1E-12')
+        elif data_ < 1e-10 * nat:
+            print('average alpha_ts error is smaller than 1E-10')
         elif data_ < 1e-6 * nat:
             print('average alpha_ts error is smaller than 1E-6')
-        elif data_ < 1e-5 * nat:
-            print('average alpha_ts error is smaller than 1E-5')
         elif data_ < 1e-4 * nat:
             print('average alpha_ts error is smaller than 1E-4')
         else:
@@ -93,14 +93,14 @@ def test_accuracy(para, name, dire,
                   '{}'.format(abs(datats - para['alpha_ts']).sum() / nat))
         datambd = para['datambd']
         data_ = abs((datambd - para['alpha_mbd']) / abs(datambd)).sum()
-        if data_ < 1e-8 * nat:
-            print('average alpha_mbd error is smaller than 1E-8')
-        elif data_ < 1e-7 * nat:
-            print('average alpha_mbd error is smaller than 1E-7')
+        if data_ < 1e-14 * nat:
+            print('average alpha_mbd error is smaller than 1E-14')
+        elif data_ < 1e-12 * nat:
+            print('average alpha_mbd error is smaller than 1E-12')
+        elif data_ < 1e-10 * nat:
+            print('average alpha_mbd error is smaller than 1E-10')
         elif data_ < 1e-6 * nat:
             print('average alpha_mbd error is smaller than 1E-6')
-        elif data_ < 1e-5 * nat:
-            print('average alpha_mbd error is smaller than 1E-5')
         elif data_ < 1e-4 * nat:
             print('average alpha_mbd error is smaller than 1E-4')
         else:
@@ -159,8 +159,9 @@ def nonscc_CH4(para):
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    para['dataq'] = t.tensor([4.44967748, 0.88758063, 0.88758063,
-                              0.88758063, 0.88758063], dtype=t.float64)
+    para['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
+                              0.88758063039831003, 0.88758063039830970,
+                              0.88758063039831003], dtype=t.float64)
     test_accuracy(para, 'CH4', './data', Lq=True)
 
 
@@ -263,7 +264,7 @@ def scc_H2(para):
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 6.0000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
+            [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
@@ -968,7 +969,6 @@ def normal_test(para):
                 'nonscc_C2H6', 'scc_CH4_nonsym', 'nonscc_CH4_nonsym',
                 'scc_C2H6O', 'nonscc_C2H6O']
     initpara.init_dftb(para)
-    testlist = ['scc_H2']
     if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_CH4' in testlist:
