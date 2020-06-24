@@ -1211,7 +1211,7 @@ if __name__ == "__main__":
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'test'
+    para['task'] = 'optml'
 
     if para['task'] == 'optml':
         optml(para)
