@@ -33,20 +33,21 @@ def init_dftb_ml(para):
         hdffilelist = []
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = 1  # this will determine read which type of molecule
-        para['n_dataset'] = ['30']  # how many molecules used to optimize
-        para['n_test'] = ['20']  # how many used to test
+        para['hdf_num'] = 3  # determine the type of molecule!!!!!
+        para['n_dataset'] = ['10']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['10']  # how many used to test!!!!!
         assert len(para['n_dataset']) == len(para['n_test'])
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
-    para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn
-    para['featureType'] = 'cm'  # rad, cm (CoulombMatrix), acsf
+    para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
+    para['featureType'] = 'acsf'  # rad, cm (CoulombMatrix), acsf!!!!!
     if para['featureType'] == 'acsf':
-        para['Lg2'] = True
-        para['Lg3'] = True
-        para['Lg4'] = True
-        para['Lg5'] = True
+        para['Lacsf_g2'] = True
+        para['acsf_g2'] = [[1, 1]]
+        para['Lacsf_g3'] = False
+        para['Lacsf_g4'] = False
+        para['Lacsf_g5'] = False
     para['direfeature'] = '.'
 
     para['rcut'] = 15
@@ -59,12 +60,11 @@ def init_dftb_ml(para):
     para['rad_paraall'] = []
 
     # ----------------------------- DFTB-ML -----------------------------
-    # splinetype: Bspline, Polyspline
-    para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
-    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa
-    para['target'] = ['cpa']
-    para['mlsteps'] = 30  # how many steps for optimizing in DFTB-ML
-    para['save_steps'] = 5  # how many steps to save the DFTB-ML data
+    para['ref'] = 'dftb'  # optional reference: aims, dftbplus, dftb
+    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
+    para['target'] = ['dipole']
+    para['mlsteps'] = 30  # how many steps for optimize in DFTB-ML!!!!!
+    para['save_steps'] = 5  # how many steps to save the DFTB-ML data!!!!!
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
     para['lr'] = 1.5  # learning rate
 

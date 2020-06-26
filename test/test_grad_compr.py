@@ -770,10 +770,6 @@ class GenMLPara:
                                               lamda, tol, symbols)
         para['ang_paraall'].append(ang_para)
         para['rad_paraall'].append(rad_para)
-        '''for ispecie in speciedict:
-            nbatch += speciedict[ispecie]
-            for jspecie in speciedict:
-                nbatch += speciedict[ispecie]*speciedict[jspecie]'''
         natom = len(coor)
         nbatch += natom * (natom+1)
         return para, nbatch
@@ -861,6 +857,7 @@ class LoadData:
         hdf5filelist = self.para['hdffile']
         icount = 0
         self.para['coorall'] = []
+        self.para['natomall'] = []
         for hdf5file in hdf5filelist:
             adl = pya.anidataloader(hdf5file)
             for data in adl:
@@ -872,6 +869,7 @@ class LoadData:
                         for iat in range(0, len(data['species'])):
                             coor[iat, 0] = ATOMNUM[data['species'][iat]]
                             coor[iat, 1:] = t.from_numpy(icoor[iat, :])
+                        self.para['natomall'].append(coor.shape[0])
                         self.para['coorall'].append(coor)
                     symbols = data['species']
                     specie = set(symbols)
@@ -1109,7 +1107,7 @@ class Read:
             ntemp: usually the saved steps for one batch
 
         """
-        nmax = int((nall).max())
+        nmax = int(max(nall))
         data = np.zeros((num1, ntemp, nmax), dtype=float)
         fp = open(os.path.join(dire, name), 'r')
         for inum1 in range(num1):
@@ -1153,13 +1151,16 @@ class ML:
         """
         dscribe = interface.Dscribe(self.para)
         nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
-        self.para['natomall'] = self.read.read1d(
-            diredata, 'natom.dat', self.ntest)
+        '''self.para['natomall'] = self.read.read1d(
+            diredata, 'natom.dat', self.ntest)'''
 
         if self.para['Lml_skf']:
+            if self.ntest < self.nfile:
+                nn_ = self.nfile
+            else:
+                nn_ = self.ntest
             self.para['optRall'] = self.read.read3d_rand(
-                diredata, 'comprbp.dat', self.para['natomall'],
-                self.ntest, nsteps_)
+                diredata, 'comprbp.dat', self.para['natomall'], nn_, nsteps_)
 
         if self.para['featureType'] == 'rad':
             get_env_para(self.para)
@@ -1168,10 +1169,12 @@ class ML:
             self.para['feature_target'] = self.para['optRall'][:, -1, :]
         elif self.para['featureType'] == 'cm':
             dscribe.pro_()
-            self.get_target_to1d(self.para['natomall'], self.para['optRall'])
+            self.get_target_to1d(self.para['natomall'],
+                                 self.para['optRall'], self.nfile)
         elif self.para['featureType'] == 'acsf':
             dscribe.pro_()
-            self.get_target_to1d(self.para['natomall'], self.para['optRall'])
+            self.get_target_to1d(self.para['natomall'],
+                                 self.para['optRall'], self.nfile)
 
     def ml_compr(self):
         """ML process for compression radius."""
@@ -1193,6 +1196,7 @@ class ML:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
+        print('shape', X.shape, y.shape)
         X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.5)
 
@@ -1230,14 +1234,18 @@ class ML:
         """ML process with schnetpack."""
         pass
 
-    def get_target_to1d(self, nall, comprall):
-        """Transfer target fro [nbatch, natom] to [nbatch * natom] type."""
+    def get_target_to1d(self, nall, comprall, ntrain):
+        """Transfer target fro [ntrain, natom] to [ntrain * natom] type.
+
+        ntrain should be equal to the feature size, and smaller than the
+        optimized dataset size.
+        """
         nmax = self.para['natommax']
         comprlast = comprall[:, -1, :]  # only read the last optimized step
-        nbatch, nmax_ = comprlast.shape
+        nmax_ = comprlast.shape[1]
         assert nmax == nmax_
-        feature_target = t.zeros((nbatch * nmax), dtype=t.float64)
-        for ibatch in range(nbatch):
+        feature_target = t.zeros((ntrain * nmax), dtype=t.float64)
+        for ibatch in range(ntrain):
             nat = int(nall[ibatch])
             feature_target[ibatch * nmax: ibatch * nmax + nat] = \
                 comprlast[ibatch, :nat]
@@ -1262,7 +1270,7 @@ if __name__ == "__main__":
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'optml'
+    para['task'] = 'test'
 
     if para['task'] == 'optml':
         optml(para)
