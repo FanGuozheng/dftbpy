@@ -585,10 +585,11 @@ class RunML:
                     energy = para['energy']
                     loss = criterion(energy, energy_ref)
                 elif 'polarizability' in para['target']:
-                    pol = para['alpha_ts']
+                    pol = para['alpha_mbd']
                     loss = criterion(pol, pol_ref)
                 elif 'cpa' in para['target']:
-                    cpa = para['OnsitePopulation']
+                    # cpa = para['OnsitePopulation']
+                    cpa = para['cpa']
                     vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
                     loss = criterion(cpa, vol_ratio_ref)
 
@@ -627,16 +628,19 @@ class RunML:
                                      name='energybp.dat', dire='.data', ty='a')
                     self.save.save1D(para['alpha_mbd'].detach().numpy(),
                                      name='pol.dat', dire='.data', ty='a')
+                    self.save.save1D(para['cpa'].detach().numpy(),
+                                     name='cpa.dat', dire='.data', ty='a')
 
     def get_hirsh_vol_ratio(self, volume):
         """Get Hirshfeld volume ratio."""
         natom = self.para["natom"]
         coor = self.para["coor"]
+        volumeratio = t.zeros((len(volume)), dtype=t.float64)
         for iat in range(natom):
             idx = int(coor[iat, 0])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-            volume[iat] = volume[iat] / HIRSH_VOL[iname]
-        return volume
+            volumeratio[iat] = volume[iat] / HIRSH_VOL[iname]
+        return volumeratio
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
@@ -1097,7 +1101,14 @@ class Read:
             return data
 
     def read3d_rand(self, dire, name, nall, num1, ntemp, outtype='torch'):
-        """Read three dimentional data, which may not be all filled."""
+        """Read three dimentional data, which the out may not be all filled.
+
+        Args:
+            nall: the atom number of all batch
+            num1: the number of batchs
+            ntemp: usually the saved steps for one batch
+
+        """
         nmax = int((nall).max())
         data = np.zeros((num1, ntemp, nmax), dtype=float)
         fp = open(os.path.join(dire, name), 'r')
@@ -1152,11 +1163,15 @@ class ML:
 
         if self.para['featureType'] == 'rad':
             get_env_para(self.para)
-            self.para['feature_data'] = self.para['x_rad']
-        elif self.para['featureType'] == 'CoulombMatrix':
-            self.para['feature_data'] = dscribe.pro_()
-        elif self.para['featureType'] == 'ACSF':
-            self.para['feature_data'] = dscribe.pro_()
+            self.para['feature_data'] = self.para['x_rad'][:self.nfile]
+            self.para['feature_test'] = self.para['x_rad'][:self.ntest]
+            self.para['feature_target'] = self.para['optRall'][:, -1, :]
+        elif self.para['featureType'] == 'cm':
+            dscribe.pro_()
+            self.get_target_to1d(self.para['natomall'], self.para['optRall'])
+        elif self.para['featureType'] == 'acsf':
+            dscribe.pro_()
+            self.get_target_to1d(self.para['natomall'], self.para['optRall'])
 
     def ml_compr(self):
         """ML process for compression radius."""
@@ -1170,12 +1185,14 @@ class ML:
 
         Returns:
             linear ML method predicted DFTB parameters
+        shape[0] of feature_data is defined by the optimized compression R
+        shape[0] of feature_test is the defined by para['n_test']
 
         """
         reg = linear_model.LinearRegression()
-        X = self.para['feature_data'][:self.nfile]
-        X_pred = self.para['feature_data']
-        y = self.para['optRall'][:, -1, :]
+        X = self.para['feature_data']
+        X_pred = self.para['feature_test']
+        y = self.para['feature_target']
         X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.5)
 
@@ -1188,14 +1205,22 @@ class ML:
         plt.xlabel('feature of training dataset')
         plt.ylabel('traning compression radius')
         plt.show()
-        print(X_pred.shape, y_pred.shape)
 
-        plt.scatter(X_pred, y_pred,  color='black')
-        plt.plot(X_pred, y_pred, 'ob')
+        # plt.scatter(X_pred, y_pred,  color='black')
+        if self.para['featureType'] == 'rad':
+            plt.plot(X_pred, y_pred, 'ob')
+            self.para['compr_pred'] = t.from_numpy(y_pred)
+        elif self.para['featureType'] == 'acsf':
+            plt.plot(X_pred[:, 0], y_pred, 'ob')
+            self.para['compr_pred'] = \
+                self.get_target_to2d(self.para['natomall'], y_pred)
+        elif self.para['featureType'] == 'cm':
+            plt.plot(X_pred[:, 0], y_pred, 'ob')
+            self.para['compr_pred'] = \
+                self.get_target_to2d(self.para['natomall'], y_pred)
         plt.xlabel('feature of prediction (tesing)')
         plt.ylabel('testing compression radius')
         plt.show()
-        self.para['compr_pred'] = t.from_numpy(y_pred)
 
     def svm_model(self):
         """ML process with support vector machine method."""
@@ -1204,6 +1229,32 @@ class ML:
     def schnet(self):
         """ML process with schnetpack."""
         pass
+
+    def get_target_to1d(self, nall, comprall):
+        """Transfer target fro [nbatch, natom] to [nbatch * natom] type."""
+        nmax = self.para['natommax']
+        comprlast = comprall[:, -1, :]  # only read the last optimized step
+        nbatch, nmax_ = comprlast.shape
+        assert nmax == nmax_
+        feature_target = t.zeros((nbatch * nmax), dtype=t.float64)
+        for ibatch in range(nbatch):
+            nat = int(nall[ibatch])
+            feature_target[ibatch * nmax: ibatch * nmax + nat] = \
+                comprlast[ibatch, :nat]
+        self.para['feature_target'] = feature_target
+
+    def get_target_to2d(self, nall, comprall):
+        """Transfer target from [nbatch, natom] to [nbatch * natom] type."""
+        nmax = self.para['natommax']
+        nbatch = int(comprall.shape[0] / nmax)
+        if type(comprall) is np.ndarray:
+            comprall = t.from_numpy(comprall)
+        feature_target = t.zeros((nbatch, nmax), dtype=t.float64)
+        for ibatch in range(nbatch):
+            nat = int(nall[ibatch])
+            feature_target[ibatch, :nat] = \
+                comprall[ibatch * nmax: ibatch * nmax + nat]
+        return feature_target
 
 
 if __name__ == "__main__":
@@ -1216,7 +1267,7 @@ if __name__ == "__main__":
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
-        para['dire_data'] = '../data/200609compr_100mol_dip'
+        para['dire_data'] = '../data/200604compr_50mol_dip'
         testml(para)
     elif para['task'] == 'envpara':
         get_env_para()

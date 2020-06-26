@@ -24,28 +24,33 @@ class Dscribe:
     def pro_(self):
         """Process data for Dscribe."""
         nbatch = int(self.para['n_test'][0])
+        ndataset = int(self.para['n_dataset'][0])
+        nfile = max(nbatch, ndataset)
         nmax = int(self.para['natomall'].max())
 
-        if self.para['featureType'] == 'CoulombMatrix':
+        if self.para['featureType'] == 'cm':
             # This requires flatten=True !!!
-            features = t.zeros((nbatch, nmax * nmax), dtype=t.float64)
-        elif self.para['featureType'] == 'ACSF':
-            features = t.zeros((nbatch, nmax), dtype=t.float64)
+            features = t.zeros((nfile * nmax, nmax), dtype=t.float64)
+        elif self.para['featureType'] == 'acsf':
+            features = t.zeros((nfile * nmax, 2), dtype=t.float64)
 
-        for ibatch in range(nbatch):
+        for ibatch in range(nfile):
             if type(self.para['coorall'][ibatch]) is np.array:
                 coor = t.from_numpy(self.para['coorall'][ibatch])
             elif type(self.para['coorall'][ibatch]) is t.Tensor:
                 coor = self.para['coorall'][ibatch]
+
             nat_ = int(self.para['natomall'][ibatch])
             self.para['coor'] = coor[:]
-            if self.para['featureType'] == 'CoulombMatrix':
-                features[ibatch, :nat_ * nat_] = \
-                    self.coulomb()[0, :nat_ * nat_]
-            elif self.para['featureType'] == 'ACSF':
-                print(self.coulomb().shape)
-                features[ibatch, :nat_ ] = self.coulomb()[:nat_]
-        return features
+
+            if self.para['featureType'] == 'cm':
+                features[ibatch * nmax: ibatch * nmax + nat_, :nat_] = \
+                    self.coulomb(n_atoms_max_=nmax)[:nat_, :nat_]
+            elif self.para['featureType'] == 'acsf':
+                features[ibatch * nmax: ibatch * nmax + nat_, :] = self.acsf()
+        self.para['natommax'] = nmax
+        self.para['feature_test'] = features[:nbatch * nmax, :]
+        self.para['feature_data'] = features[:ndataset * nmax, :]
 
     def coulomb(self, rcut=6.0, nmax=8, lmax=6, n_atoms_max_=6):
         """Coulomb method for atomic environment.
@@ -60,7 +65,8 @@ class Dscribe:
             atomspecie.append(
                 list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
         atom = Atoms(atomspecie, positions=coor[:, 1:])
-        return t.from_numpy(cm.create(atom))
+        cm_test = cm.create(atom)
+        return t.from_numpy(cm_test)
 
     def sine(self):
         pass
@@ -79,8 +85,13 @@ class Dscribe:
             idx = int(coor[iat, 0])
             atomspecie.append(
                 list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
-        acsf = ACSF(atomspecie, positions=coor[:, 1:])
-        return t.from_numpy(acsf.create(acsf))
+        test_module = Atoms(atomspecie, positions=coor[:, 1:])
+        acsf = ACSF(species=atomspecie, rcut=6.0,
+                    # g2_params=[[1, 1]],
+                    # g4_params=[[1, 1, 1], [1, 2, 1], [1, 1, -1], [1, 2, -1]],
+                    )
+        acsf_test = acsf.create(test_module)
+        return t.from_numpy(acsf_test)
 
     def soap(self):
         pass

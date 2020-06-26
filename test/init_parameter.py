@@ -34,15 +34,19 @@ def init_dftb_ml(para):
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
         para['hdf_num'] = 1  # this will determine read which type of molecule
-        para['n_dataset'] = ['8']  # how many molecules used to optimize
-        para['n_test'] = ['8']  # how many used to test
+        para['n_dataset'] = ['30']  # how many molecules used to optimize
+        para['n_test'] = ['20']  # how many used to test
         assert len(para['n_dataset']) == len(para['n_test'])
-        # para['dire_interpSK'] = os.path.join(path, '../slko')
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
     para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn
-    para['featureType'] = 'rad'  # rad, CoulombMatrix, ACSF
+    para['featureType'] = 'cm'  # rad, cm (CoulombMatrix), acsf
+    if para['featureType'] == 'acsf':
+        para['Lg2'] = True
+        para['Lg3'] = True
+        para['Lg4'] = True
+        para['Lg5'] = True
     para['direfeature'] = '.'
 
     para['rcut'] = 15
@@ -58,11 +62,11 @@ def init_dftb_ml(para):
     # splinetype: Bspline, Polyspline
     para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa
-    para['target'] = ['polarizability']
-    para['mlsteps'] = 4  # how many steps for optimizing in DFTB-ML
-    para['save_steps'] = 1  # how many steps to save the DFTB-ML data
+    para['target'] = ['cpa']
+    para['mlsteps'] = 30  # how many steps for optimizing in DFTB-ML
+    para['save_steps'] = 5  # how many steps to save the DFTB-ML data
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['lr'] = 1  # 8e-1  # learning rate
+    para['lr'] = 1.5  # learning rate
 
     # the follwing is ML target, if optimize compression radius, integrals...
     para['Lml_skf'] = True  # if use interp to gen .skf with compress_r
@@ -76,6 +80,7 @@ def init_dftb_ml(para):
     para['interpdist'] = 0.4
     para['interpcutoff'] = 10
     para['atomspecie_old'] = []
+
     if para['Lml_skf']:
         para['LreadSKFinterp'] = True
         para['Lonsite'] = False

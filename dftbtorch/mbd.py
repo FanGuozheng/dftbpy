@@ -1,6 +1,6 @@
 """Created on Wed Jun 10 11:01:38 2020.
 
-The code are revised based on MBD-DFTB
+The code are revised based on MBD-DFTB, the name style... will not follow PEP8
 @author: gz_fan
 """
 # !/usr/bin/env python3
@@ -43,8 +43,7 @@ class MBD:
         self.para['alpha_free'] = t.zeros((self.nat), dtype=t.float64)
         self.para['C6_free'] = t.zeros((self.nat), dtype=t.float64)
         self.para['R_vdw_free'] = t.zeros((self.nat), dtype=t.float64)
-        self.para['alpha_tsall'] = t.zeros((ngrid + 1, self.nat),
-                                           dtype=t.float64)
+        self.para['alpha_tsall'] = []
         self.para['R_TS_VdW'] = t.zeros((self.nat), dtype=t.float64)
         self.para['sigma'] = t.zeros((self.nat), dtype=t.float64)
         pairs_scs_p = t.zeros((self.para['num_pairs']), dtype=t.float64)
@@ -122,7 +121,7 @@ class MBD:
         pass
 
     def mbdvdw_effqts(self, ieff, omega):
-        """Calculate R_vdw.
+        """Calculate TS polarizability, R_vdw.
 
         J. Chem. Phys. 140, 18A508 (2014)
         Phys. Rev. Lett. 108, 236402 (2012)
@@ -132,6 +131,7 @@ class MBD:
         R_vdw_free = self.para['R_vdw_free']
         vfree = self.para['atomNumber']
         VefftsvdW = self.para['vefftsvdw']
+        alpha_ts_ = t.zeros((self.nat), dtype=t.float64)
         if self.para['vdw_self_consistent']:
             dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
@@ -154,7 +154,8 @@ class MBD:
 
             # Computes alpha_ts: equation 1 in [PRL 108 236402 (2012)]
             lambda_ = pade_approx * alpha_free[iat] / vfree[iat]
-            self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
+            # self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
+            alpha_ts_[iat] = lambda_ * VefftsvdW[iat]
 
             if self.para['vdw_self_consistent']:
                 for jat in range(self.nat):
@@ -164,6 +165,7 @@ class MBD:
                         dR_TS_VdWdV[iat, jat] = xi / \
                             (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
                         dalpha_tsdV[iat, jat] = lambda_
+            self.para['alpha_tsall'].append(alpha_ts_)
 
     def mbdvdw_SCS(self, ieff):
         r"""Calculate SCS@MBD.
@@ -300,15 +302,18 @@ class MBD:
         rpq_norm = (rpq[:] ** 2.0).sum().sqrt()
         # Computes the effective correlation length of the interaction potential
         # defined from the widths of the QHO Gaussians
-        Sigma_pq = (sigma[p] ** 2.0 + sigma[q] ** 2.0).sqrt()
+        Sigma_pq = (sigma[p].clone() ** 2.0 + sigma[q].clone() ** 2.0).sqrt()
+        # sigma_p, sigma_q = sigma[p].clone(), sigma[q].clone()
+        # Sigma_pq = (sigma_p ** 2.0 + sigma_q ** 2.0) ** (0.5)
         # Computes the damping radius
         R_VdW_pq = R_TS_VdW[p] + R_TS_VdW[q]
         Spq = beta * R_VdW_pq
         Z = 6.0 * (rpq_norm / Spq - 1.0)
-        zeta = rpq_norm / Sigma_pq
         fermi_fn = 1.0
         dfn_pre = 0.0
 
+        
+        # zeta = rpq_norm / Sigma_pq
         # computes the fermi damping function. The latex for this is
         # f_{damp}(R_{pq}) = \frac{1}{ 1 + exp( - Z(R_{pq}) ) }
         # where Z = 6 \left( \frac{R_{pq} }{ S_{pq}} - 1 \right)
@@ -319,6 +324,8 @@ class MBD:
             # Computes the factors for U
             # U = {\rm erf}\left[\zeta\right] -  \frac{2}{\sqrt{\pi}}\zeta \exp\left[-\zeta^2\right]
             zeta = rpq_norm / Sigma_pq
+        else:
+            zeta = rpq_norm / Sigma_pq
 
         if zeta >= 6.0:
             U = 1.0
@@ -326,7 +333,7 @@ class MBD:
             gaussian = 0.0
         else:
             gaussian = t.exp(-zeta * zeta)
-            U = t.erf(zeta)-(2.0 * zeta) / sqrtpi * gaussian
+            U = t.erf(zeta) - (2.0 * zeta) / sqrtpi * gaussian
             # Computes the first half of the factor for W before we multiply by the R^i R^j tensor
             # \mathbf{W}^{ij} &\equiv&   \left(\frac{R^i R^j}{R^5}\right) \, \frac{4}{\sqrt{\pi}}  \zeta^3  \exp\left[-\zeta^2\right]
             W = 4.0 * zeta ** 3.0 / sqrtpi * gaussian

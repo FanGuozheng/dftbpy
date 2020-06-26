@@ -10,7 +10,7 @@ Mixer = Broyden {
  MixingParameter = 0.2 } 
 MaxAngularMomentum { 
 H="s" 
-C="p" 
+O="p" 
 } 
  Charge = 0.0 
  SpinPolarisation {} 
