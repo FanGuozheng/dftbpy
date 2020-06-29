@@ -1,10 +1,10 @@
 #!/bin/bash
-source /opt/repo/lmod/lmod/init/profile
+cd
+source .bashrc
+cd -
 module load scalapack
-module load gcc/6
-
 cd $1
-./dftb+ | tee output
+./dftbmbd | tee output
 
 #echo $2 >> dip.dat
 #grep -A 2 'Dipole moment:' detailed.out | head -n 2 | awk '{print $3}' >> dip.dat
@@ -20,3 +20,4 @@ grep ' 0.00000' band.out | head -n 1 | awk '{print $2}' >> bandenergy.dat
 
 grep  'Total energy:' detailed.out | awk '{print $3}' >> energy.dat
 
+grep 'alpha_mbd' output | awk '{print $2}' >> poldftbplus.dat

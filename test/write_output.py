@@ -38,37 +38,43 @@ class Dftbplus:
                     fp.write('\n')
         return compressr0
 
-    def geo_nonpe(self, dire, coor, specie):
-        """Write geo.gen in a dataset for non-periodic condition."""
-        row, col = np.shape(coor)
-        with open(os.path.join(dire, 'geo.gen'), 'w') as fp:
+    def geo_nonpe(self, dire, coor):
+        """Write geo.gen in a dataset for non-periodic condition.
 
+        Args:
+            coor: first coulumn should be the atom number
+
+        """
+        row, col = np.shape(coor)
+        atname, specie = [], []
+        [atname.append(list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
+         for idx in coor[:, 0]]
+        for iname in atname:
+            if iname not in specie:
+                specie.append(iname)
+
+        with open(os.path.join(dire, 'geo.gen'), 'w') as fp:
             # lst line, number of atoms
             fp.write(str(row) + " " + "C")
             fp.write('\n')
-
-            # 2nd line: atom specie
+            # 2nd line: atom specie name
             for ispe in specie:
                 fp.write(ispe + ' ')
             fp.write('\n')
-
             # coordination
             iatom = 0
-            nspe = 0
-            for ispe in specie:
-                nspe += 1
-                for jatom in range(row):
-                    if ATOMNUM[ispe] == coor[jatom, 0]:
-                        iatom += 1
-                        fp.write(str(iatom) + " " + str(nspe) + " ")
-                        np.savetxt(fp, coor[jatom, 1:], fmt="%s", newline=" ")
-                        fp.write('\n')
+            for jatom in range(row):
+                nspe = specie.index(atname[jatom]) + 1
+                iatom += 1
+                fp.write(str(iatom) + " " + str(nspe) + " ")
+                np.savetxt(fp, coor[jatom, 1:], fmt="%s", newline=" ")
+                fp.write('\n')
 
     def geo_pe():
         """Write geo.gen in a dataset for periodic condition."""
         pass
 
-    def write_dftbin(self, dire, scc, coor, specie):
+    def write_dftbin(self, para, dire, scc, coor, specie):
         """Write dftb_in.hsd."""
         with open(os.path.join(dire, 'dftb_in.hsd'), 'w') as fp:
             fp.write('Geometry = GenFormat { \n')
@@ -97,7 +103,7 @@ class Dftbplus:
             fp.write('Temperature [Kelvin] = 0.0 \n } \n')
             fp.write('SlaterKosterFiles = Type2FileNames { \n')
             fp.write('Separator = "-" \n Suffix = ".skf" \n } \n')
-            if scc == 'mbdscc':
+            if para['LMBD_DFTB']:
                 fp.write('Dispersion = Mbd { \n')
                 fp.write('ReferenceSet = "ts" \n')
                 fp.write('NOmegaGrid = 15 \n')

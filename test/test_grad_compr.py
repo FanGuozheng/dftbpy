@@ -12,7 +12,7 @@ import sys
 from torch.autograd import Variable
 import torch as t
 import data.pyanitools as pya
-from sklearn import linear_model
+from sklearn import linear_model, svm
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import write_output as write
@@ -86,6 +86,8 @@ def testml(para):
     runml.test_pred_compr(para)
 
     plot.plot_dip_pred(
+            para, para['dire_data'], aims='aims', dftbplus='dftbplus')
+    plot.plot_pol_pred(
             para, para['dire_data'], aims='aims', dftbplus='dftbplus')
 
 
@@ -279,6 +281,7 @@ class RunML:
         os.system('rm ' + dire + '/dipaims.dat')
         os.system('rm ' + dire + '/natom.dat')
         os.system('rm ' + dire + '/energyaims.dat')
+        os.system('rm ' + dire + '/polaims.dat')
 
         os.system('mv ' + os.path.join(self.direaims, 'bandenergy.dat') +
                   ' .data/HLaims.dat')
@@ -361,9 +364,14 @@ class RunML:
         os.system('rm ' + dire + '/dipdftbplus.dat')
         os.system('rm ' + dire + '/natom.dat')
         os.system('rm ' + dire + '/energydftbplus.dat')
+        os.system('rm ' + dire + '/poldftbplus.dat')
 
         os.system('cp ' + os.path.join(self.diredftbplus, 'bandenergy.dat ') +
                   dire + '/HLdftbplus.dat')
+        if self.para['LMBD_DFTB']:
+            os.system('cp ' + os.path.join(
+                self.diredftbplus, 'poldftbplus.dat ')
+                + dire + '/poldftbplus.dat')
         '''os.system('cp ' + os.path.join(self.diredftbplus, 'dip.dat ') +
                   dire + '/dipdftbplus.dat')'''
         self.save.save1D(self.para['refdipole'].detach().numpy(),
@@ -525,21 +533,26 @@ class RunML:
             if any(x in para['target'] for x in ['homo_lumo', 'gap']):
                 homo_lumo_ref = t.zeros((2), dtype=t.float64)
                 homo_lumo_ref[:] = para['refhomo_lumo'][ibatch]
-            elif 'dipole' in para['target']:
-                dipref = t.zeros((3), dtype=t.float64)
-                dipref[:] = para['refdipole'][ibatch]
-            elif 'hstable' in para['target']:
-                hatableref = para['refhammat'][ibatch]
-            elif 'eigval' in para['target']:
-                eigvalref = para['refeigval'][ibatch]
-            elif 'qatomall' in para['target']:
-                qatomall_ref = para['refqatom'][ibatch]
-            elif 'energy' in self.para['target']:
-                energy_ref = self.para['refenergy'][ibatch]
-            elif 'polarizability' in self.para['target']:
-                pol_ref = self.para['refalpha_mbd'][ibatch][:nat]
-            elif 'cpa' in self.para['target']:
-                volref = self.para['refvol'][ibatch][:nat]
+            if len(para['target']) == 1:
+                if 'dipole' in para['target']:
+                    dipref = t.zeros((3), dtype=t.float64)
+                    dipref[:] = para['refdipole'][ibatch]
+                elif 'hstable' in para['target']:
+                    hatableref = para['refhammat'][ibatch]
+                elif 'eigval' in para['target']:
+                    eigvalref = para['refeigval'][ibatch]
+                elif 'qatomall' in para['target']:
+                    qatomall_ref = para['refqatom'][ibatch]
+                elif 'energy' in para['target']:
+                    energy_ref = para['refenergy'][ibatch]
+                elif 'polarizability' in para['target']:
+                    pol_ref = para['refalpha_mbd'][ibatch][:nat]
+                elif 'cpa' in para['target']:
+                    volref = para['refvol'][ibatch][:nat]
+            elif len(para['target']) == 2:
+                if 'dipole' in para['target'] and 'polarizability' in para['target']:
+                    dipref = para['refdipole'][ibatch]
+                    pol_ref = para['refalpha_mbd'][ibatch][:nat]
 
             if not para['Lml_compr_global']:
                 para['compr_ml'] = \
@@ -562,36 +575,43 @@ class RunML:
 
                 # define loss function with different traget
                 criterion = t.nn.L1Loss(reduction='sum')
-                homo_lumo = para['homo_lumo']
-                if 'homo_lumo' in para['target']:
-                    loss = criterion(homo_lumo, homo_lumo_ref)
-                if 'gap' in para['target']:
-                    gap = t.abs(homo_lumo[1] - homo_lumo[0])
-                    gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
-                    loss = criterion(gap, gapref)
-                elif 'dipole' in para['target']:
-                    dipole = para['dipole']
-                    loss = criterion(dipole, dipref)
-                elif 'hstable' in para['target']:
-                    hstable = para['hammat']
-                    loss = criterion(hstable, hatableref)
-                elif 'eigval' in para['target']:
-                    eigval = para['eigenvalue']
-                    loss = criterion(eigval, eigvalref)
-                elif 'qatomall' in para['target']:
-                    qatomall = para['qatomall']
-                    loss = criterion(qatomall, qatomall_ref)
-                elif 'energy' in para['target']:
-                    energy = para['energy']
-                    loss = criterion(energy, energy_ref)
-                elif 'polarizability' in para['target']:
-                    pol = para['alpha_mbd']
-                    loss = criterion(pol, pol_ref)
-                elif 'cpa' in para['target']:
-                    # cpa = para['OnsitePopulation']
-                    cpa = para['cpa']
-                    vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
-                    loss = criterion(cpa, vol_ratio_ref)
+                if len(para['target']) == 1:
+                    if 'homo_lumo' in para['target']:
+                        homo_lumo = para['homo_lumo']
+                        loss = criterion(homo_lumo, homo_lumo_ref)
+                    elif 'gap' in para['target']:
+                        gap = t.abs(homo_lumo[1] - homo_lumo[0])
+                        gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
+                        loss = criterion(gap, gapref)
+                    elif 'dipole' in para['target']:
+                        dipole = para['dipole']
+                        loss = criterion(dipole, dipref)
+                    elif 'hstable' in para['target']:
+                        hstable = para['hammat']
+                        loss = criterion(hstable, hatableref)
+                    elif 'eigval' in para['target']:
+                        eigval = para['eigenvalue']
+                        loss = criterion(eigval, eigvalref)
+                    elif 'qatomall' in para['target']:
+                        qatomall = para['qatomall']
+                        loss = criterion(qatomall, qatomall_ref)
+                    elif 'energy' in para['target']:
+                        energy = para['energy']
+                        loss = criterion(energy, energy_ref)
+                    elif 'polarizability' in para['target']:
+                        pol = para['alpha_mbd']
+                        loss = loss + criterion(pol, pol_ref)
+                    elif 'cpa' in para['target']:
+                        cpa = para['cpa']
+                        vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
+                        loss = criterion(cpa, vol_ratio_ref)
+                elif len(para['target']) == 2:
+                    if 'dipole' in para['target'] and 'polarizability' in para['target']:
+                        dipole = para['dipole']
+                        pol = para['alpha_mbd']
+                        print('pol_ref', pol_ref)
+                        loss = criterion(pol, pol_ref) + \
+                            criterion(dipole, dipref)
 
                 # clear gradients and define back propagation
                 optimizer.zero_grad()
@@ -609,7 +629,7 @@ class RunML:
                     if any(x in para['target'] for x in ['homo_lumo', 'gap']):
                         print('homo_lumo: {}, homo_lumo_ref: {}'.format(
                                 homo_lumo, homo_lumo_ref))
-                    self.save.save1D(homo_lumo.detach().numpy(),
+                    self.save.save1D(para['homo_lumo'].detach().numpy(),
                                      name='HLbp.dat', dire='.data', ty='a')
                     if 'dipole' in para['target']:
                         print('dipole: {}, dipref: {}'.format(dipole, dipref))
@@ -649,6 +669,7 @@ class RunML:
         os.system('rm ' + dire + '/eigpred.dat')
         os.system('rm ' + dire + '/dippred.dat')
         os.system('rm ' + dire + '/qatompred.dat')
+        os.system('rm ' + dire + '/polpred.dat')
 
         for ibatch in range(0, self.nbatch):
             para['ibatch'] = ibatch
@@ -676,6 +697,8 @@ class RunML:
                     dipole.numpy(), name='dippred.dat', dire=dire, ty='a')
             self.save.save1D(para['qatomall'].numpy(),
                              name='qatompred.dat', dire=dire, ty='a')
+            self.save.save1D(self.para['alpha_mbd'].numpy(),
+                             name='polpred.dat', dire=dire, ty='a')
 
     def ml_compr_interp(self, para):
         '''test the interpolation gradients'''
@@ -686,7 +709,7 @@ class RunML:
         elif type(para['coorall'][0]) is np.ndarray:
             para['coor'] = t.from_numpy(para['coorall'][0][:, :])
         dftb_torch.Initialization(para)
-        interpskf(para)
+        # interpskf(para)
         self.genml.genml_init_compr()
         para['compr_ml'] = para['compr_init'] + 1
         self.slako.genskf_interp_ij(para)
@@ -974,8 +997,8 @@ class RunCalc:
         specie = para['specie']
         scc = para['scc']
 
-        dftb.geo_nonpe(dire, coor, specie)
-        dftb.write_dftbin(dire, scc, coor, specie)
+        dftb.geo_nonpe(dire, coor)
+        dftb.write_dftbin(self.para, dire, scc, coor, specie)
         os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch))
 
     def dftbtorchrun(self, para, coor, DireSK):
@@ -1180,8 +1203,10 @@ class ML:
         """ML process for compression radius."""
         if self.para['testMLmodel'] == 'linear':
             self.linearmodel()
-        if self.para['testMLmodel'] == 'schnet':
+        elif self.para['testMLmodel'] == 'schnet':
             self.schnet()
+        elif self.para['testMLmodel'] == 'svm':
+            self.svm_model()
 
     def linearmodel(self):
         """Use the optimization dataset for training.
@@ -1196,7 +1221,6 @@ class ML:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
-        print('shape', X.shape, y.shape)
         X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.5)
 
@@ -1228,7 +1252,38 @@ class ML:
 
     def svm_model(self):
         """ML process with support vector machine method."""
-        pass
+        reg = svm.SVR()
+        X = self.para['feature_data']
+        X_pred = self.para['feature_test']
+        y = self.para['feature_target']
+        X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.5)
+
+        reg.fit(X_train, y_train)
+
+        y_pred = reg.predict(X_pred)
+
+        plt.scatter(X_train, X_train,  color='black')
+        plt.plot(X_train, y_train, 'ob')
+        plt.xlabel('feature of training dataset')
+        plt.ylabel('traning compression radius')
+        plt.show()
+
+        # plt.scatter(X_pred, y_pred,  color='black')
+        if self.para['featureType'] == 'rad':
+            plt.plot(X_pred, y_pred, 'ob')
+            self.para['compr_pred'] = t.from_numpy(y_pred)
+        elif self.para['featureType'] == 'acsf':
+            plt.plot(X_pred[:, 0], y_pred, 'ob')
+            self.para['compr_pred'] = \
+                self.get_target_to2d(self.para['natomall'], y_pred)
+        elif self.para['featureType'] == 'cm':
+            plt.plot(X_pred[:, 0], y_pred, 'ob')
+            self.para['compr_pred'] = \
+                self.get_target_to2d(self.para['natomall'], y_pred)
+        plt.xlabel('feature of prediction (tesing)')
+        plt.ylabel('testing compression radius')
+        plt.show()
 
     def schnet(self):
         """ML process with schnetpack."""
@@ -1275,7 +1330,7 @@ if __name__ == "__main__":
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
-        para['dire_data'] = '../data/200604compr_50mol_dip'
+        para['dire_data'] = '../data/200628compr_30mol_pol_dip'
         testml(para)
     elif para['task'] == 'envpara':
         get_env_para()

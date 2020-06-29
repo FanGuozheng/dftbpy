@@ -10,7 +10,7 @@ Mixer = Broyden {
  MixingParameter = 0.2 } 
 MaxAngularMomentum { 
 H="s" 
-O="p" 
+C="p" 
 } 
  Charge = 0.0 
  SpinPolarisation {} 
@@ -21,6 +21,13 @@ Temperature [Kelvin] = 0.0
 SlaterKosterFiles = Type2FileNames { 
 Separator = "-" 
  Suffix = ".skf" 
+ } 
+Dispersion = Mbd { 
+ReferenceSet = "ts" 
+NOmegaGrid = 15 
+Beta = 1.05 
+ KGrid = 3 3 3 
+VacuumAxis = Yes Yes Yes 
  } 
 } 
 Analysis { 

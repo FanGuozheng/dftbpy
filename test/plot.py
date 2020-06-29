@@ -331,6 +331,86 @@ def plot_dip_pred(para, dire,  aims=None, dftbplus=None):
     plt.show()
 
 
+def plot_pol_pred(para, dire,  aims=None, dftbplus=None):
+    '''plot dipole with various results'''
+    nfile = int(para['n_dataset'][0])
+    ntest = int(para['n_test'][0])
+    nsteps = int(para['mlsteps'] / para['save_steps'])
+    natommax = para['natommax']
+
+    if aims is not None:
+        fpref = open(os.path.join(dire, 'polaims.dat'), 'r')
+    if dftbplus is not None:
+        fpdftbplus = open(os.path.join(dire, 'poldftbplus.dat'), 'r')
+    fppred = open(os.path.join(dire, 'polpred.dat'), 'r')
+    fpinit = open(os.path.join(dire, 'pol.dat'), 'r')
+    dinit = np.zeros((nfile, natommax), dtype=float)
+    diff_init = np.zeros((nfile), dtype=float)
+
+    dref = np.zeros((ntest, natommax), dtype=float)
+    dpred = np.zeros((ntest, natommax), dtype=float)
+    ddftbplus = np.zeros((ntest, natommax), dtype=float)
+    diff_pred = np.zeros((ntest), dtype=float)
+    diff_dftbplus = np.zeros((ntest), dtype=float)
+
+    print('plot polarizability values')
+    for ifile in range(nfile):
+        infile = int(para['natomall'][ifile])
+        dinit_ = np.fromfile(fpinit, dtype=float, count=infile*nsteps, sep=' ')
+        dinit[ifile, :infile] = dinit_[:infile]
+
+    for ifile in range(ntest):
+        dref[ifile, :infile] = np.fromfile(fpref, dtype=float, count=infile, sep=' ')
+        dpred[ifile, :infile] = np.fromfile(fppred, dtype=float, count=infile, sep=' ')
+        ddftbplus[ifile, :infile] = np.fromfile(
+                fpdftbplus, dtype=float, count=infile, sep=' ')
+
+    min_ = min(nfile, ntest)
+    for ii in range(min_):
+        diff_init[ii] = sum(abs(dref[ii, :] - dinit[ii, :]))
+        p1, = plt.plot(dref[ii, :], dinit[ii, :], 'xr')
+
+    for ii in range(ntest):
+        diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
+        p2, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
+
+    if aims is not None:
+        for ii in range(ntest):
+            diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
+            p3, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
+
+    if aims is not None:
+        plt.legend([p1, p2, p3],
+                   ['polarizability-init', 'polarizability-pred', 'polarizability-DFTB+'])
+    else:
+        # p1, = plt.plot(dref[: min_], dinit[: min_], 'xr')
+        # p2, = plt.plot(dref, dpred, 'ob')
+        plt.legend([p1, p2], ['polarizability-init', 'polarizability-pred'])
+    plt.xlabel('reference polarizability')
+    plt.ylabel('polarizability with initial r vs. predict r')
+
+    minref, maxref = np.min(dref), np.max(dref)
+    refrange = np.linspace(minref, maxref)
+    plt.plot(refrange, refrange, 'k')
+    plt.show()
+
+    p1 = plt.plot(np.arange(1, min_ + 1, 1), diff_init[: min_], marker='x',
+                  color='r', label='polarizability-init')
+    p2 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
+                  color='b', label='polarizability-pred')
+    if aims is not None:
+        p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
+                      color='y', label='polarizability-dftbplus')
+        print('(prediction -reference) / (DFTB+ - reference):',
+              sum(diff_pred) / sum(diff_dftbplus))
+    plt.xlabel('molecule number')
+    plt.ylabel('polarizability difference between DFTB and aims')
+    plt.legend()
+    print('(prediction -reference) / (initial - reference):',
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
+    plt.show()
+
+
 def plot_compr(para):
     nfile = int(para['n_dataset'][0])
     fpr = open('.data/comprbp.dat', 'r')

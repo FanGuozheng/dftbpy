@@ -94,9 +94,13 @@ class Dscribe:
             g2_params_ = self.para['acsf_g2']
         else:
             g2_params_ = None
+        if self.para['Lacsf_g4']:
+            g4_params_ = self.para['acsf_g4']
+        else:
+            g4_params_ = None
         acsf = ACSF(species=atomspecie, rcut=6.0,
                     g2_params=g2_params_,
-                    # g4_params=[[1, 1, 1], [1, 2, 1], [1, 1, -1], [1, 2, -1]],
+                    g4_params=g4_params_,
                     )
         acsf_test = acsf.create(test_module)
         return t.from_numpy(acsf_test)

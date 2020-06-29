@@ -27,26 +27,27 @@ def init_dftb_ml(para):
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = ['2']
+        para['n_dataset'] = ['30']
         para['dire_interpSK'] = os.path.join(path, '../slko')
     elif para['dataType'] == 'hdf':
         hdffilelist = []
         hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = 3  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['10']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['10']  # how many used to test!!!!!
+        para['hdf_num'] = 1  # determine the type of molecule!!!!!
+        para['n_dataset'] = ['30']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['30']  # how many used to test!!!!!
         assert len(para['n_dataset']) == len(para['n_test'])
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
-    para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
+    para['testMLmodel'] = 'svm'  # linear, svm, schnet, nn...!!!!!
     para['featureType'] = 'acsf'  # rad, cm (CoulombMatrix), acsf!!!!!
     if para['featureType'] == 'acsf':
         para['Lacsf_g2'] = True
         para['acsf_g2'] = [[1, 1]]
         para['Lacsf_g3'] = False
-        para['Lacsf_g4'] = False
+        para['Lacsf_g4'] = True
+        para['acsf_g4'] = [[0.02, 2, 1]]
         para['Lacsf_g5'] = False
     para['direfeature'] = '.'
 
@@ -60,9 +61,9 @@ def init_dftb_ml(para):
     para['rad_paraall'] = []
 
     # ----------------------------- DFTB-ML -----------------------------
-    para['ref'] = 'dftb'  # optional reference: aims, dftbplus, dftb
+    para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
-    para['target'] = ['dipole']
+    para['target'] = ['dipole', 'polarizability']
     para['mlsteps'] = 30  # how many steps for optimize in DFTB-ML!!!!!
     para['save_steps'] = 5  # how many steps to save the DFTB-ML data!!!!!
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
