@@ -1,114 +1,158 @@
-'''this file is for plot different data'''
+"""Plot with different options."""
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 
 
-def plot_main(para):
-    if 'hstable' not in para['target']:
-        plot_eig(para)
-    # plot_ham(para)
-    if 'dipole' in para['target']:
-        plot_dip(para)
-    if 'energy' in para['target']:
-        plot_energy(para)
+def plot_dftbml(para):
+    """Plot for DFTB-ML optimization."""
+    plot_humolumo(para)
+    plot_dip(para)
+    plot_pol(para)
+    plot_energy(para)
     if para['Lml_HS']:
         plot_spl(para)
-    elif para['Lml_skf']:
+    if para['Lml_skf']:
         plot_compr(para)
 
 
-def plot_eig(para):
-    '''
-    the directory will store data is fixed, in .data
-    '''
+def plot_humolumo(para):
+    """Plot eigenvalues [nfile, nsteps, 2] in .data."""
     nfile = int(para['n_dataset'][0])
     if para['ref'] == 'aims':
         eigref = '.data/HLaims.dat'
     elif para['ref'] == 'dftbplus':
         eigref = '.data/HLdftbplus.dat'
     elif para['ref'] == 'dftb':
-        eigref = '.data/HLref.dat'
+        eigref = '.data/HLdftb.dat'
     fpopt, fpref = open('.data/HLbp.dat', 'r'), open(eigref, 'r')
-    nsteps = int(para['mlsteps'] / para['save_steps'])
-    datref = np.zeros((nfile, 2))
-    datopt = np.zeros((nfile, nsteps, 2))
+    nsteps = int(para['mlsteps'] / para['save_steps'])  # save steps
+    datref = np.zeros((nfile, 2), dtype=float)
+    gapref = np.zeros((nfile), dtype=float)
+    datopt = np.zeros((nfile, nsteps, 2), dtype=float)
+    gapopt = np.zeros((nfile, nsteps), dtype=float)
 
     print('plot HOMO-LUMO values')
-    for ifile in range(0, nfile):
-        datref[ifile, :] = np.fromfile(fpref, dtype=float, count=2, sep=' ')
-        for istep in range(0, nsteps):
-            datopt[ifile, istep, :] = np.fromfile(
-                   fpopt, dtype=float, count=2, sep=' ')
-
+    for ifile in range(nfile):
+        datref[ifile] = np.fromfile(fpref, dtype=float, count=2, sep=' ')
+        gapref[ifile] = abs(datref[ifile][1] - datref[ifile][0])
+        datopt[ifile, :, :] = np.fromfile(
+            fpopt, dtype=float, count=2*nsteps, sep=' ').reshape(nsteps, 2)
+        gapopt[ifile, :] = abs(datopt[ifile, :, 1] - datopt[ifile, :, 0])
     icount = 1
-    for ifile in range(0, nfile):
-        for istep in range(0, nsteps):
-            plt.plot(icount, datref[ifile, 0] - datopt[ifile, istep, 0], 'xr')
-            plt.plot(icount, datref[ifile, 1] - datopt[ifile, istep, 1], 'ob')
-            icount += 1
+    for ifile in range(nfile):
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        p1, = plt.plot(count, abs(datref[ifile, 0] - datopt[ifile, :, 0]), 'r')
+        p2, = plt.plot(count, abs(datref[ifile, 1] - datopt[ifile, :, 1]), 'b')
+        icount += nsteps
+    plt.xlabel('steps * molecules')
+    plt.ylabel('eigenvalue absolute difference')
+    plt.legend([p1, p2], ['HOMO-diff', 'LUMO-diff'])
+    plt.show()
+    icount = 1
+    for ifile in range(nfile):
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        p1, = plt.plot(count, abs(gapref[ifile] - gapopt[ifile, :]), 'r')
+        icount += nsteps
+    plt.xlabel('steps * molecules')
+    plt.ylabel('gap absolute difference')
+    plt.legend([p1], ['gap-diff'])
     plt.show()
 
 
 def plot_dip(para):
+    """Plot dipole [nfile, nsteps, 3] in .data."""
     if para['ref'] == 'aims':
         dipref = '.data/dipaims.dat'
     elif para['ref'] == 'dftbplus':
         dipref = '.data/dipdftbplus.dat'
     elif para['ref'] == 'dftb':
-        dipref = '.data/dipref.dat'
+        dipref = '.data/dipdftb.dat'
     nfile = int(para['n_dataset'][0])
     fpopt, fpref = open('.data/dipbp.dat', 'r'), open(dipref, 'r')
     nsteps = int(para['mlsteps'] / para['save_steps'])
-    dref = np.zeros((nfile, 3))
-    dopt = np.zeros((nfile, nsteps, 3))
+    dref = np.zeros((nfile, 3), dtype=float)
+    dopt = np.zeros((nfile, nsteps, 3), dtype=float)
 
     print('plot dipole values')
-    for ifile in range(0, nfile):
+    for ifile in range(nfile):
         dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
-        for istep in range(0, nsteps):
-            dopt[ifile, istep, :] = np.fromfile(
-                    fpopt, dtype=float, count=3, sep=' ')
-
+        dopt[ifile, :, :] = np.fromfile(
+            fpopt, dtype=float, count=3*nsteps, sep=' ').reshape(nsteps, 3)
     icount = 1
-    for ifile in range(0, nfile):
-        for istep in range(0, nsteps):
-            plt.plot(icount, abs(dref[ifile, 0] - dopt[ifile, istep, 0]), 'xr')
-            plt.plot(icount, abs(dref[ifile, 1] - dopt[ifile, istep, 1]), 'ob')
-            plt.plot(icount, abs(dref[ifile, 2] - dopt[ifile, istep, 2]), 'vy')
-            icount += 1
+    for ifile in range(nfile):
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        p1, = plt.plot(count, abs(dref[ifile, 0] - dopt[ifile, :, 0]))
+        p2, = plt.plot(count, abs(dref[ifile, 1] - dopt[ifile, :, 1]))
+        p3, = plt.plot(count, abs(dref[ifile, 2] - dopt[ifile, :, 2]))
+        icount += nsteps
     plt.xlabel('steps * molecules')
     plt.ylabel('dipole absolute difference')
+    plt.legend([p1, p2, p3],
+               ['diff_dipole_x', 'diff_dipole_y', 'diff_dipole_z'])
+    plt.show()
+
+
+def plot_pol(para):
+    """Plot polarizability [nfile, nsteps, natom] in .data."""
+    if para['ref'] == 'aims':
+        polref = '.data/polaims.dat'
+    elif para['ref'] == 'dftbplus':
+        polref = '.data/poldftbplus.dat'
+    elif para['ref'] == 'dftb':
+        polref = '.data/poldftb.dat'
+    nfile = int(para['n_dataset'][0])
+    fpopt, fpref = open('.data/polbp.dat', 'r'), open(polref, 'r')
+    nsteps = int(para['mlsteps'] / para['save_steps'])
+    natommax = int(max(para['natomall']))
+    dref = np.zeros((nfile, natommax), dtype=float)
+    dopt = np.zeros((nfile, nsteps, natommax), dtype=float)
+
+    print('plot dipole values')
+    for ifile in range(nfile):
+        nat = int(para['natomall'][ifile])
+        dref[ifile, :] = np.fromfile(fpref, dtype=float, count=nat, sep=' ')
+        dopt[ifile, :, :] = np.fromfile(
+            fpopt, dtype=float, count=nat*nsteps, sep=' ').reshape(nsteps, nat)
+    icount = 1
+    for ifile in range(nfile):
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        for iat in range(int(para['natomall'][ifile])):
+            plt.plot(count, abs(dref[ifile, iat] - dopt[ifile, :, iat]))
+        icount += nsteps
+    plt.xlabel('steps * molecules')
+    plt.ylabel('polarizability absolute difference')
+    plt.legend()
     plt.show()
 
 
 def plot_energy(para):
+    """Plot energy [nfile, nsteps] in .data."""
     if para['ref'] == 'aims':
         enerref = '.data/energyaims.dat'
     elif para['ref'] == 'dftbplus':
         enerref = '.data/energydftbplus.dat'
     elif para['ref'] == 'dftb':
-        enerref = '.data/energyref.dat'
+        enerref = '.data/energydftb.dat'
     nfile = int(para['n_dataset'][0])
-    fpopt, fpref = open('energybp.dat', 'r'), open(enerref, 'r')
+    fpopt, fpref = open('.data/energybp.dat', 'r'), open(enerref, 'r')
     nsteps = int(para['mlsteps'] / para['save_steps'])
-    dataref = np.zeros((nfile))
-    dataopt = np.zeros((nfile, nsteps))
+    dataref = np.zeros((nfile), dtype=float)
+    dataopt = np.zeros((nfile, nsteps), dtype=float)
 
     print('plot energy values')
     for ifile in range(0, nfile):
         dataref[ifile] = np.fromfile(fpref, dtype=float, count=1, sep=' ')
-        for istep in range(0, nsteps):
-            dataopt[ifile, istep] = np.fromfile(
-                    fpopt, dtype=float, count=1, sep=' ')
-
+        dataopt[ifile, :] = np.fromfile(
+            fpopt, dtype=float, count=nsteps, sep=' ')
     icount = 1
     for ifile in range(0, nfile):
-        for istep in range(0, nsteps):
-            plt.plot(istep, abs(dataref[ifile] - dataopt[ifile, istep]), 'xr')
-            icount += 1
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        plt.plot(count, abs(dataref[ifile] - dataopt[ifile, :]))
+        icount += nsteps
     plt.xlabel('steps * molecules')
     plt.ylabel('energy absolute difference')
+    plt.legend()
     plt.show()
 
 
@@ -253,21 +297,19 @@ def plot_dip_(para, dire, ty):
     plt.show()
 
 
-def plot_dip_pred(para, dire,  aims=None, dftbplus=None):
-    '''plot dipole with various results'''
+def plot_dip_pred(para, dire, ref=None, dftbplus=None):
+    """Plot dipole with various results.
+
+    This is for test, will plot, DFTB+, DFT, DFTB-pred dipoles together.
+    """
     nfile = int(para['n_dataset'][0])
     ntest = int(para['n_test'][0])
     nsteps = int(para['mlsteps'] / para['save_steps'])
 
-    if aims is not None:
-        fpref = open(os.path.join(dire, 'dipaims.dat'), 'r')
-    if dftbplus is not None:
-        fpdftbplus = open(os.path.join(dire, 'dipdftbplus.dat'), 'r')
-    fppred = open(os.path.join(dire, 'dippred.dat'), 'r')
-    fpinit = open(os.path.join(dire, 'dipbp.dat'), 'r')
     dinit = np.zeros((nfile, 3), dtype=float)
+    dopt = np.zeros((nfile, 3), dtype=float)
     diff_init = np.zeros((nfile), dtype=float)
-
+    diff_opt = np.zeros((nfile), dtype=float)
     dref = np.zeros((ntest, 3), dtype=float)
     dpred = np.zeros((ntest, 3), dtype=float)
     ddftbplus = np.zeros((ntest, 3), dtype=float)
@@ -275,78 +317,95 @@ def plot_dip_pred(para, dire,  aims=None, dftbplus=None):
     diff_dftbplus = np.zeros((ntest), dtype=float)
 
     print('plot dipole values')
+    fppred = open(os.path.join(dire, 'dippred.dat'), 'r')
+    fpinit = open(os.path.join(dire, 'dipbp.dat'), 'r')
+    print('ref', ref, dftbplus, ref == 'aims')
+    if ref == 'aims':
+        fpref = open(os.path.join(dire, 'dipaims.dat'), 'r')
+    if dftbplus is not None:
+        fpdftbplus = open(os.path.join(dire, 'dipdftbplus.dat'), 'r')
+
     for ifile in range(nfile):
         dinit_ = np.fromfile(fpinit, dtype=float, count=3*nsteps, sep=' ')
         dinit[ifile, :] = dinit_[:3]
-
+        dopt[ifile, :] = dinit_[-3:]
     for ifile in range(ntest):
-        dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
         dpred[ifile, :] = np.fromfile(fppred, dtype=float, count=3, sep=' ')
-        ddftbplus[ifile, :] = np.fromfile(
-                fpdftbplus, dtype=float, count=3, sep=' ')
+        if ref == 'aims':
+            dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
+            print('aims', dref[ifile, :])
+        if dftbplus is not None:
+            ddftbplus[ifile, :] = np.fromfile(
+                    fpdftbplus, dtype=float, count=3, sep=' ')
 
     min_ = min(nfile, ntest)
-    for ii in range(min_):
+    for ii in range(nfile):
         diff_init[ii] = sum(abs(dref[ii, :] - dinit[ii, :]))
+        diff_opt[ii] = sum(abs(dref[ii, :] - dopt[ii, :]))
         p1, = plt.plot(dref[ii, :], dinit[ii, :], 'xr')
-
-    for ii in range(ntest):
-        diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
-        p2, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
-
-    if aims is not None:
+        p2, = plt.plot(dref[ii, :], dopt[ii, :], 'vc')
+    if ref == 'aims':
         for ii in range(ntest):
+            diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
+            p3, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
             diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
-            p3, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
-
-    if aims is not None:
-        plt.legend([p1, p2, p3],
-                   ['dipole-init', 'dipole-pred', 'dipole-DFTB+'])
+            p4, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
+        plt.legend([p1, p2, p3, p4],
+                   ['dipole-init', 'dipole-opt',
+                    'dipole-pred', 'dipole-DFTB+'])
+        plt.xlabel('reference dipole')
+        plt.ylabel('dipole with initial r vs. predict r')
+        minref, maxref = np.min(dref), np.max(dref)
+        refrange = np.linspace(minref, maxref)
+        plt.plot(refrange, refrange, 'k')
+        plt.show()
     else:
-        # p1, = plt.plot(dref[: min_], dinit[: min_], 'xr')
-        # p2, = plt.plot(dref, dpred, 'ob')
-        plt.legend([p1, p2], ['dipole-init', 'dipole-pred'])
-    plt.xlabel('reference dipole')
-    plt.ylabel('dipole with initial r vs. predict r')
-
-    minref, maxref = np.min(dref), np.max(dref)
-    refrange = np.linspace(minref, maxref)
-    plt.plot(refrange, refrange, 'k')
-    plt.show()
+        for ii in range(min_):
+            p1, = plt.plot(ddftbplus[ii], dinit[ii], 'xr')
+            p2, = plt.plot(ddftbplus[ii], dpred[ii], 'ob')
+            plt.legend([p1, p2], ['dipole-init', 'dipole-pred'])
+        plt.xlabel('reference dipole')
+        plt.ylabel('dipole with initial r vs. predict r')
+        plt.show()
 
     p1 = plt.plot(np.arange(1, min_ + 1, 1), diff_init[: min_], marker='x',
-                  color='r', label='dipole-init')
-    p2 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
-                  color='b', label='dipole-pred')
-    if aims is not None:
-        p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
-                      color='y', label='dipole-dftbplus')
+                  color='r', label='difference-init')
+    p2 = plt.plot(np.arange(1, min_ + 1, 1), diff_opt[: min_], marker='v',
+                  color='c', label='difference-opt')
+    p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
+                  color='b', label='difference-pred')
+    if dftbplus is not None:
+        p4 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
+                      color='y', label='difference-dftbplus')
         print('(prediction -reference) / (DFTB+ - reference):',
               sum(diff_pred) / sum(diff_dftbplus))
+    print('(prediction -reference) / (initial - reference):',
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
+    print('(prediction -reference) / (opt - reference):',
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_opt) / (min_ + 1))))
     plt.xlabel('molecule number')
     plt.ylabel('dipole difference between DFTB and aims')
     plt.legend()
-    print('(prediction -reference) / (initial - reference):',
-          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
     plt.show()
 
 
-def plot_pol_pred(para, dire,  aims=None, dftbplus=None):
-    '''plot dipole with various results'''
+def plot_pol_pred(para, dire, ref=None, dftbplus=None):
+    """Plot dipole with various results."""
     nfile = int(para['n_dataset'][0])
     ntest = int(para['n_test'][0])
     nsteps = int(para['mlsteps'] / para['save_steps'])
     natommax = para['natommax']
 
-    if aims is not None:
+    if ref == 'aims':
         fpref = open(os.path.join(dire, 'polaims.dat'), 'r')
     if dftbplus is not None:
         fpdftbplus = open(os.path.join(dire, 'poldftbplus.dat'), 'r')
     fppred = open(os.path.join(dire, 'polpred.dat'), 'r')
-    fpinit = open(os.path.join(dire, 'pol.dat'), 'r')
+    fpinit = open(os.path.join(dire, 'polbp.dat'), 'r')
     dinit = np.zeros((nfile, natommax), dtype=float)
+    dopt = np.zeros((nfile, natommax), dtype=float)
     diff_init = np.zeros((nfile), dtype=float)
-
+    diff_opt = np.zeros((nfile), dtype=float)
     dref = np.zeros((ntest, natommax), dtype=float)
     dpred = np.zeros((ntest, natommax), dtype=float)
     ddftbplus = np.zeros((ntest, natommax), dtype=float)
@@ -358,85 +417,94 @@ def plot_pol_pred(para, dire,  aims=None, dftbplus=None):
         infile = int(para['natomall'][ifile])
         dinit_ = np.fromfile(fpinit, dtype=float, count=infile*nsteps, sep=' ')
         dinit[ifile, :infile] = dinit_[:infile]
+        dopt[ifile, :infile] = dinit_[-infile:]
 
     for ifile in range(ntest):
-        dref[ifile, :infile] = np.fromfile(fpref, dtype=float, count=infile, sep=' ')
-        dpred[ifile, :infile] = np.fromfile(fppred, dtype=float, count=infile, sep=' ')
+        if ref == 'aims':
+            dref[ifile, :infile] = np.fromfile(
+                fpref, dtype=float, count=infile, sep=' ')
+        dpred[ifile, :infile] = np.fromfile(
+            fppred, dtype=float, count=infile, sep=' ')
         ddftbplus[ifile, :infile] = np.fromfile(
                 fpdftbplus, dtype=float, count=infile, sep=' ')
 
     min_ = min(nfile, ntest)
-    for ii in range(min_):
+    for ii in range(nfile):
         diff_init[ii] = sum(abs(dref[ii, :] - dinit[ii, :]))
         p1, = plt.plot(dref[ii, :], dinit[ii, :], 'xr')
-
-    for ii in range(ntest):
-        diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
-        p2, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
-
-    if aims is not None:
+        diff_opt[ii] = sum(abs(dref[ii, :] - dopt[ii, :]))
+        p2, = plt.plot(dref[ii, :], dopt[ii, :], 'vc')
+    if ref == 'aims':
         for ii in range(ntest):
+            diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
+            p3, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
             diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
-            p3, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
-
-    if aims is not None:
-        plt.legend([p1, p2, p3],
-                   ['polarizability-init', 'polarizability-pred', 'polarizability-DFTB+'])
+            p4, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
+        plt.legend([p1, p2, p3, p4],
+                   ['polarizability-init', 'polarizability-opt',
+                    'polarizability-pred', 'polarizability-DFTB+'])
+        plt.xlabel('reference polarizability')
+        plt.ylabel('polarizability with initial r vs. predict r')
+        minref, maxref = np.min(dref), np.max(dref)
+        refrange = np.linspace(minref, maxref)
+        plt.plot(refrange, refrange, 'k')
+        plt.show()
     else:
-        # p1, = plt.plot(dref[: min_], dinit[: min_], 'xr')
-        # p2, = plt.plot(dref, dpred, 'ob')
-        plt.legend([p1, p2], ['polarizability-init', 'polarizability-pred'])
-    plt.xlabel('reference polarizability')
-    plt.ylabel('polarizability with initial r vs. predict r')
-
-    minref, maxref = np.min(dref), np.max(dref)
-    refrange = np.linspace(minref, maxref)
-    plt.plot(refrange, refrange, 'k')
-    plt.show()
+        for ii in range(min_):
+            plt.plot(ddftbplus[ii], ddftbplus[ii])
+            p1, = plt.plot(ddftbplus[ii], dinit[ii], 'xr')
+            p2, = plt.plot(ddftbplus[ii], dpred[ii], 'ob')
+            plt.legend([p1, p2],
+                       ['polarizability-init', 'polarizability-pred'])
+        plt.xlabel('reference dipole')
+        plt.ylabel('dipole with initial r vs. predict r')
+        plt.show()
 
     p1 = plt.plot(np.arange(1, min_ + 1, 1), diff_init[: min_], marker='x',
                   color='r', label='polarizability-init')
-    p2 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
+    p2 = plt.plot(np.arange(1, min_ + 1, 1), diff_opt[: min_], marker='v',
+                  color='c', label='polarizability-opt')
+    p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_pred, marker='o',
                   color='b', label='polarizability-pred')
-    if aims is not None:
-        p3 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
+    if ref == 'aims':
+        p4 = plt.plot(np.arange(1, ntest + 1, 1), diff_dftbplus, marker='*',
                       color='y', label='polarizability-dftbplus')
         print('(prediction -reference) / (DFTB+ - reference):',
               sum(diff_pred) / sum(diff_dftbplus))
+    print('(prediction -reference) / (opt - reference):',
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_opt) / (min_ + 1))))
+    print('(prediction -reference) / (initial - reference):',
+          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
     plt.xlabel('molecule number')
     plt.ylabel('polarizability difference between DFTB and aims')
     plt.legend()
-    print('(prediction -reference) / (initial - reference):',
-          (sum(diff_pred) / (ntest + 1) / (sum(diff_init) / (min_ + 1))))
     plt.show()
 
 
 def plot_compr(para):
+    """Plot compression radius [nfile, nstep, natom]."""
     nfile = int(para['n_dataset'][0])
     fpr = open('.data/comprbp.dat', 'r')
     nsteps = int(para['mlsteps'] / para['save_steps'])
-    max_natom = 10
-    datafpr = np.zeros((nfile, nsteps, max_natom))
-    icount = 0
+    natommax = int(max(para['natomall']))
+    datafpr = np.zeros((nfile, nsteps, natommax), dtype=float)
+
     print('plot compression R')
     for ifile in range(0, nfile):
-        natom = para['coorall'][ifile].shape[0]
-        for istep in range(0, nsteps):
-            datafpr[ifile, istep, :natom] = np.fromfile(
-                    fpr, dtype=float, count=natom, sep=' ')
+        natom = int(para['natomall'][ifile])
+        datafpr[ifile, :, :natom] = \
+            np.fromfile(fpr, dtype=float, count=natom*nsteps,
+                        sep=' ').reshape(nsteps, natom)
 
+    icount = 1
+    for ifile in range(nfile):
+        count = np.linspace(icount, icount + nsteps, nsteps)
+        natom = para['coorall'][ifile].shape[0]
+        for iatom in range(0, natom):
+            plt.plot(count, datafpr[ifile, :, iatom])
+        icount += nsteps
     plt.ylabel('compression radius of each atom')
     plt.xlabel('steps * molecule')
-    for ifile in range(0, nfile):
-        for istep in range(0, nsteps):
-            natom = para['coorall'][ifile].shape[0]
-            for iatom in range(0, natom):
-                if iatom == 0:
-                    p1, = plt.plot(icount, datafpr[ifile, istep, iatom], 'xb')
-                else:
-                    p2, = plt.plot(icount, datafpr[ifile, istep, iatom], 'or')
-            icount += 1
-    plt.legend([p1, p2], ['C during optmization', 'H during optmization'])
     plt.show()
 
 

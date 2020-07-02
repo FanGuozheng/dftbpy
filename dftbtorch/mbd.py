@@ -115,7 +115,7 @@ class MBD:
                 alpha_isotropic = self.mbdvdw_screened_pol()
                 self.para['alpha_ts'] = self.para['alpha_tsall'][0]
                 self.para['alpha_mbd'] = alpha_isotropic[:]
-                print(self.para['alpha_ts'], self.para['alpha_mbd'])
+                print(self.para['alpha_ts'], '\n', self.para['alpha_mbd'])
 
     def mbdvdw_pbc(self, coor, h_, ainv_, nat):
         pass

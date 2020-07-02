@@ -160,6 +160,23 @@ class Dftbplus:
             hstable_ref[:] = ibandenergy[:]
         return t.from_numpy(hstable_ref)
 
+    def read_alpha(self, para, nfile, dire):
+        """Read alpha data.
+
+        Returns:
+            polarizability_MBD.
+
+        """
+        nmaxatom = int(max(para['natomall']))
+        alpha = np.zeros((nfile, nmaxatom), dtype=float)
+
+        fp = open(os.path.join(dire, 'poldftbplus.dat'))
+        for ifile in range(nfile):
+            natom = para['coorall'][ifile].shape[0]
+            ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
+            alpha[ifile, :natom] = ial[:]
+        return t.from_numpy(alpha)
+
 
 class FHIaims:
     """Interface to FHI-aims."""
@@ -224,7 +241,7 @@ class FHIaims:
 
     def read_qatom(self, para, nfile, dire, inunit='e', outunit='e'):
         """Read file dip.dat, which is dipole data."""
-        nmaxatom = 10
+        nmaxatom = int(max(para['natomall']))
         qatom = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'qatomref.dat'))
@@ -242,7 +259,7 @@ class FHIaims:
             polarizability_MBD.
 
         """
-        nmaxatom = 10
+        nmaxatom = int(max(para['natomall']))
         alpha = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'pol.dat'))
@@ -254,7 +271,7 @@ class FHIaims:
 
     def read_hirshfeld_vol(self, para, nfile, dire):
         """Read Hirshfeld volume."""
-        nmaxatom = 10
+        nmaxatom = int(max(para['natomall']))
         vol = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'vol.dat'))

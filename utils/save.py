@@ -17,10 +17,11 @@ class SaveData:
     """
 
     def __init__(self, para):
+        """Initialize data."""
         self.para = para
 
     def save1D(self, data, name, blank='lower', dire=None, ty='w'):
-        """Save 1D numpy array or tensor."""
+        """Save 0D/1D numpy array or tensor."""
         if len(data.shape) == 0:
             data = data.reshape(1)
         if dire is None:

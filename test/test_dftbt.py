@@ -969,6 +969,7 @@ def normal_test(para):
                 'nonscc_C2H6', 'scc_CH4_nonsym', 'nonscc_CH4_nonsym',
                 'scc_C2H6O', 'nonscc_C2H6O']
     initpara.init_dftb(para)
+    testlist = ['scc_CH4']
     if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_CH4' in testlist:

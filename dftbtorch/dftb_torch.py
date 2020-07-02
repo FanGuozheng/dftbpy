@@ -124,16 +124,20 @@ class Initialization:
     def interpskf(self):
         """Read .skf data from skgen with various compR."""
         print('** read skf file with all compR **')
+        if self.para['typeSKinterpR'] == 'wavefunction':
+            nametail = '_wav'
+        elif self.para['typeSKinterpR'] == 'density':
+            nametail = '_den'
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
                 if ATOMNUM[namei] <= ATOMNUM[namej]:  # this is just nanestyle
                     dire = self.para['dire_interpSK'] + '/' + namei + \
-                        '_' + namej + '_den'
+                        '_' + namej + nametail
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
                         namei, namej, dire)
                 else:
                     dire = self.para['dire_interpSK'] + '/' + namej + \
-                        '_' + namei + '_den'
+                        '_' + namei + nametail
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
                         namei, namej, dire)
 
@@ -779,6 +783,7 @@ class Print:
     def print_dftb_caltail(self):
         """Print DFTB results."""
         t.set_printoptions(precision=10)
+        print('CPA: \n', self.para['cpa'].detach())
         print('charge (e): \n', self.para['qatomall'].detach())
         print('dipole (eAng): \n', self.para['dipole'].detach())
         print('energy (Hartree): \n', self.para['energy'].detach())

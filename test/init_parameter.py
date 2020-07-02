@@ -1,11 +1,10 @@
 """This documents offer parameters definition for DFTB-ML.
 
 What is included:
-    DFTB-ML parameters for optimization
-    Testing parameters for DFTB-ML
-    Only DFTB parameters
+    init_dftb_ml: DFTB-ML parameters for optimization and testing
+    init_dftb: only DFTB parameters
+    init_dftb_interp: DFTB with SKF interpolation
 """
-
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import torch as t
@@ -40,7 +39,7 @@ def init_dftb_ml(para):
     # para['optim_para'] = ['Hamiltonian']
 
     # ------------------  ML and environment parameters -------------------
-    para['testMLmodel'] = 'svm'  # linear, svm, schnet, nn...!!!!!
+    para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
     para['featureType'] = 'acsf'  # rad, cm (CoulombMatrix), acsf!!!!!
     if para['featureType'] == 'acsf':
         para['Lacsf_g2'] = True
@@ -61,13 +60,13 @@ def init_dftb_ml(para):
     para['rad_paraall'] = []
 
     # ----------------------------- DFTB-ML -----------------------------
-    para['ref'] = 'aims'  # optional reference: aims, dftbplus, dftb
+    para['reference'] = 'aims'  # optional reference: aims, dftbplus, dftb!!!!!
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
-    para['target'] = ['dipole', 'polarizability']
-    para['mlsteps'] = 30  # how many steps for optimize in DFTB-ML!!!!!
+    para['target'] = ['polarizability']
+    para['mlsteps'] = 50  # how many steps for optimize in DFTB-ML!!!!!
     para['save_steps'] = 5  # how many steps to save the DFTB-ML data!!!!!
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['lr'] = 1.5  # learning rate
+    para['lr'] = 5E-1  # learning rate
 
     # the follwing is ML target, if optimize compression radius, integrals...
     para['Lml_skf'] = True  # if use interp to gen .skf with compress_r
@@ -87,6 +86,7 @@ def init_dftb_ml(para):
         para['Lonsite'] = False
 
         para['typeSKinterp'] = 'uniform'  # if the grid of compr is uniform
+        para['typeSKinterpR'] = 'wavefunction'  # wavefunction, density...
         if para['typeSKinterp'] == 'nonuniform':
             para['dire_interpSK'] = os.path.join(path, '../slko/nonuniform')
         elif para['typeSKinterp'] == 'uniform':
