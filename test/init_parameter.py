@@ -21,22 +21,29 @@ def init_dftb_ml(para):
         Others, such as plotting parameters
     """
     # --------------------------- load data -------------------------------
-    para['dataType'] = 'hdf'  # optional datatype: hdf, json
+    para['dataType'] = 'ani'  # optional datatype: ANI, json
     path = os.getcwd()  # get the current path
+    path_data = '../data/dataset/'
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
         para['n_dataset'] = ['30']
         para['dire_interpSK'] = os.path.join(path, '../slko')
-    elif para['dataType'] == 'hdf':
+    elif para['dataType'] == 'ani':
         hdffilelist = []
-        hdffilelist.append(os.path.join(path, 'data/an1/ani_gdb_s01.h5'))
+        hdffilelist.append(os.path.join(path_data, 'an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = 1  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['30']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['30']  # how many used to test!!!!!
+        para['hdf_num'] = '1'  # determine the type of molecule!!!!!
+        para['n_dataset'] = ['5']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['50']  # how many used to test!!!!!
         assert len(para['n_dataset']) == len(para['n_test'])
-    # para['optim_para'] = ['Hamiltonian']
+    elif para['dataType'] == 'qm7':
+        hdffilelist = []
+        hdffilelist.append(os.path.join(path_data, 'qm7.mat'))
+        para['train_specie'] = ['C', 'O', 'H']
+        para['n_dataset'] = ['50']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['50']  # how many used to test!!!!!
+        assert len(para['n_dataset']) == len(para['n_test'])
 
     # ------------------  ML and environment parameters -------------------
     para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
@@ -63,8 +70,8 @@ def init_dftb_ml(para):
     para['reference'] = 'aims'  # optional reference: aims, dftbplus, dftb!!!!!
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
     para['target'] = ['polarizability']
-    para['mlsteps'] = 50  # how many steps for optimize in DFTB-ML!!!!!
-    para['save_steps'] = 5  # how many steps to save the DFTB-ML data!!!!!
+    para['mlsteps'] = 5  # how many steps for optimize in DFTB-ML!!!!!
+    para['save_steps'] = 1  # how many steps to save the DFTB-ML data!!!!!
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
     para['lr'] = 5E-1  # learning rate
 

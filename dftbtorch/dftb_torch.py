@@ -128,6 +128,8 @@ class Initialization:
             nametail = '_wav'
         elif self.para['typeSKinterpR'] == 'density':
             nametail = '_den'
+        elif self.para['typeSKinterpR'] == 'all':
+            nametail = '_all'
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
                 if ATOMNUM[namei] <= ATOMNUM[namej]:  # this is just nanestyle

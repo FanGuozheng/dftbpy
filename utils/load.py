@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import scipy
 import numpy as np
 import torch as t
 from torch.autograd import Variable
@@ -28,12 +29,58 @@ class LoadData:
     def __init__(self, para):
         """Initialize parameters."""
         self.para = para
-        if self.para['dataType'] == 'hdf':
-            self.loadhdfdata()
+        if self.para['dataType'] == 'ani':
+            self.load_ani()
         if self.para['dataType'] == 'json':
             self.load_json_data()
 
-    def loadhdfdata(self):
+    def load_ani(self):
+        """Load the data from hdf type input files."""
+        ntype = self.para['hdf_num']
+        hdf5filelist = self.para['hdffile']
+        icount = 0
+        self.para['coorall'] = []
+        self.para['natomall'] = []
+        for hdf5file in hdf5filelist:
+            adl = pya.anidataloader(hdf5file)
+            if ntype == 'all':
+                for data in adl:
+                    # Extract the data
+                    P = data['path']
+                    X = data['coordinates']
+                    E = data['energies']
+                    S = data['species']
+                    sm = data['smiles']
+                    # Print the data
+                    print("Path:   ", P)
+                    print("  Smiles:      ","".join(sm))
+                    print("  Symbols:     ", S)
+                    print("  Coordinates: ", X)
+                    print("  Energies:    ", E, "\n")
+            else:
+                ntype = int(ntype[0])
+                for data in adl:
+                    icount += 1
+                    if icount == ntype:
+                        for icoor in data['coordinates']:
+                            row, col = np.shape(icoor)[0], np.shape(icoor)[1]
+                            coor = t.zeros((row, col + 1), dtype=t.float64)
+                            for iat in range(0, len(data['species'])):
+                                coor[iat, 0] = ATOMNUM[data['species'][iat]]
+                                coor[iat, 1:] = t.from_numpy(icoor[iat, :])
+                            self.para['natomall'].append(coor.shape[0])
+                            self.para['coorall'].append(coor)
+                        symbols = data['species']
+                        specie = set(symbols)
+                        speciedict = Counter(symbols)
+                        self.para['symbols'] = symbols
+                        self.para['specie'] = specie
+                        self.para['atomspecie'] = []
+                        [self.para['atomspecie'].append(ispecie) for
+                         ispecie in specie]
+                        self.para['speciedict'] = speciedict
+
+    def load_ani_old(self):
         """Load the data from hdf type input files."""
         ntype = self.para['hdf_num']
         hdf5filelist = self.para['hdffile']
@@ -127,3 +174,9 @@ class LoadData:
                 iang = np.fromfile(fpang, dtype=float, count=natom, sep=' ')
                 ang[ifile, :] = iang[:]
         return rad, ang
+
+    def loadqm7(self):
+        """Load QM7 type data."""
+        dataset = scipy.io.loadmat('qm7.mat')
+        coor_ = dataset['R']
+        qatom_ = dataset['T']

@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import scipy
 import numpy as np
 import torch as t
 err = 1E-4

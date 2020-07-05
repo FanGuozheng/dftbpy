@@ -43,6 +43,7 @@ def optml(para):
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
+    para['ref'] = para['reference']
     para['nfile'] = int(para['n_dataset'][0])
     runml.ref()
 
@@ -858,12 +859,12 @@ if __name__ == "__main__":
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'test'
+    para['task'] = 'optml'
 
     if para['task'] == 'optml':
         optml(para)
     elif para['task'] == 'test':
-        para['dire_data'] = '../data/200701compr_30mol_pol'
+        para['dire_data'] = '../data/results/200703compr_50mol_pol'
         testml(para)
     elif para['task'] == 'envpara':
         initpara.init_dftb_ml(para)
