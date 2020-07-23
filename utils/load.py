@@ -4,6 +4,7 @@
 import json
 import os
 import scipy
+import scipy.io
 import numpy as np
 import torch as t
 from torch.autograd import Variable
@@ -31,54 +32,95 @@ class LoadData:
         self.para = para
         if self.para['dataType'] == 'ani':
             self.load_ani()
-        if self.para['dataType'] == 'json':
+        elif self.para['dataType'] == 'qm7':
+            self.loadqm7()
+        elif self.para['dataType'] == 'json':
             self.load_json_data()
 
     def load_ani(self):
         """Load the data from hdf type input files."""
         ntype = self.para['hdf_num']
         hdf5filelist = self.para['hdffile']
+        nfile = int(self.para['n_dataset'][0])
+        ntest = int(self.para['n_test'][0])
+        assert ntest >= nfile
+        ntrain = 0
+        npred = 0
         icount = 0
         self.para['coorall'] = []
         self.para['natomall'] = []
+        self.para['symbols'] = []
+        self.para['specie'] = []
+        self.para['specie_global'] = []
+        self.para['speciedict'] = []
         for hdf5file in hdf5filelist:
             adl = pya.anidataloader(hdf5file)
             if ntype == 'all':
                 for data in adl:
-                    # Extract the data
-                    P = data['path']
-                    X = data['coordinates']
-                    E = data['energies']
-                    S = data['species']
-                    sm = data['smiles']
-                    # Print the data
-                    print("Path:   ", P)
-                    print("  Smiles:      ","".join(sm))
-                    print("  Symbols:     ", S)
-                    print("  Coordinates: ", X)
-                    print("  Energies:    ", E, "\n")
+                    for ifile in range(nfile):
+                        # for icoor in data['coordinates']:
+                        ntrain += 1
+                        npred += 1
+                        icoor = data['coordinates'][ifile]
+                        row, col = np.shape(icoor)[0], np.shape(icoor)[1]
+                        coor = t.zeros((row, col + 1), dtype=t.float64)
+                        for iat in range(len(data['species'])):
+                            coor[iat, 0] = ATOMNUM[data['species'][iat]]
+                            coor[iat, 1:] = t.from_numpy(icoor[iat, :])
+                            ispe = data['species'][iat]
+                            if ispe not in self.para['specie_global']:
+                                self.para['specie_global'].append(ispe)
+                        self.para['natomall'].append(coor.shape[0])
+                        self.para['coorall'].append(coor)
+                        self.para['symbols'].append(data['species'])
+                        self.para['specie'].append(set(data['species']))
+                        speciedict = Counter(data['species'])
+                        self.para['speciedict'].append(speciedict)
+                for data in adl:
+                    for ifile in range(nfile, ntest):
+                        npred += 1
+                        icoor = data['coordinates'][ifile]
+                        row, col = np.shape(icoor)[0], np.shape(icoor)[1]
+                        coor = t.zeros((row, col + 1), dtype=t.float64)
+                        for iat in range(len(data['species'])):
+                            coor[iat, 0] = ATOMNUM[data['species'][iat]]
+                            coor[iat, 1:] = t.from_numpy(icoor[iat, :])
+                            ispe = data['species'][iat]
+                            if ispe not in self.para['specie_global']:
+                                self.para['specie_global'].append(ispe)
+                        self.para['natomall'].append(coor.shape[0])
+                        self.para['coorall'].append(coor)
+                        self.para['symbols'].append(data['species'])
+                        self.para['specie'].append(set(data['species']))
+                        speciedict = Counter(data['species'])
+                        self.para['speciedict'].append(speciedict)
             else:
                 ntype = int(ntype[0])
                 for data in adl:
                     icount += 1
                     if icount == ntype:
-                        for icoor in data['coordinates']:
+                        # for icoor in data['coordinates']:
+                        for ifile in range(nfile):
+                            ntrain += 1
+                            icoor = data['coordinates'][ifile]
                             row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                             coor = t.zeros((row, col + 1), dtype=t.float64)
-                            for iat in range(0, len(data['species'])):
+
+                            for iat in range(len(data['species'])):
                                 coor[iat, 0] = ATOMNUM[data['species'][iat]]
                                 coor[iat, 1:] = t.from_numpy(icoor[iat, :])
+                                ispe = data['species'][iat]
+                                if ispe not in self.para['specie_global']:
+                                    self.para['specie_global'].append(ispe)
+
                             self.para['natomall'].append(coor.shape[0])
                             self.para['coorall'].append(coor)
-                        symbols = data['species']
-                        specie = set(symbols)
-                        speciedict = Counter(symbols)
-                        self.para['symbols'] = symbols
-                        self.para['specie'] = specie
-                        self.para['atomspecie'] = []
-                        [self.para['atomspecie'].append(ispecie) for
-                         ispecie in specie]
-                        self.para['speciedict'] = speciedict
+                            self.para['symbols'].append(data['species'])
+                            self.para['specie'].append(set(data['species']))
+                            speciedict = Counter(data['species'])
+                            self.para['speciedict'].append(speciedict)
+        self.para['ntrain'] = ntrain
+        self.para['npred'] = npred
 
     def load_ani_old(self):
         """Load the data from hdf type input files."""
@@ -177,6 +219,44 @@ class LoadData:
 
     def loadqm7(self):
         """Load QM7 type data."""
-        dataset = scipy.io.loadmat('qm7.mat')
+        dataset = scipy.io.loadmat(self.para['qm7_data'])
+        n_dataset_ = int(self.para['n_dataset'][0])
         coor_ = dataset['R']
-        qatom_ = dataset['T']
+        qatom_ = dataset['Z']
+        train_specie = self.para['train_specie']  # not training all species
+        n_dataset = 0
+        self.para['coorall'] = []
+        self.para['natomall'] = []
+        self.para['specie'] = []
+        self.para['symbols'] = []
+        self.para['specie_global'] = []
+        self.para['speciedict'] = []
+        for idata in range(n_dataset_):
+            icoor = coor_[idata]
+            natom_ = 0
+            train_ = 'yes'
+            symbols_ = []
+            for iat in qatom_[idata]:
+                if iat > 0.0:
+                    natom_ += 1
+                    idx = int(iat)
+                    ispe = \
+                        list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
+                    symbols_.append(ispe)
+                    if iat in train_specie:
+                        if ispe not in self.para['specie_global']:
+                            self.para['specie_global'].append(ispe)
+                    else:
+                        train_ = 'no'
+            if train_ == 'yes':
+                n_dataset += 1
+                row, col = natom_, 4
+                coor = t.zeros((row, col), dtype=t.float64)
+                coor[:, 0] = t.from_numpy(qatom_[idata][:natom_])
+                coor[:, 1:] = t.from_numpy(icoor[:natom_, :])
+                self.para['natomall'].append(coor.shape[0])
+                self.para['coorall'].append(coor)
+                self.para['symbols'].append(symbols_)
+                self.para['specie'].append(set(symbols_))
+                self.para['speciedict'].append(Counter(symbols_))
+        self.para['n_dataset'][0] = str(n_dataset)

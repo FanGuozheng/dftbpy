@@ -87,11 +87,13 @@ class DFTBmath:
 
         the normal SKF interpolation is 2D, here this function is for DFTB
         with given compression radius, extra dimensions will be for
-        compression radius for atom specie one and atom specie two
+        compression radius for atom specie one and atom specie two.
         """
         datalist = self.para['hs_all' + nameij]
         incr = self.para['grid_dist' + nameij]
-        ngridpoint = self.para['ngridpoint' + nameij]
+        ngridpoint = self.para['ngridpoint_rall' + nameij]
+        ngridmin = int(ngridpoint.min())
+        ngridmax = int(ngridpoint.max())
         ninterp = self.para['ninterp']
         delta_r = self.para['delta_r_skf']
         xa = t.zeros(ninterp)
@@ -102,35 +104,58 @@ class DFTBmath:
             datalist = t.from_numpy(datalist)
 
         tail = 5 * incr
-        rmax = (ngridpoint - 1) * incr + tail
+        rmaxmin = (ngridmin - 1) * incr + tail
+        rmaxmax = (ngridmax - 1) * incr + tail
         ind = int(rr / incr)
-        leng = ngridpoint
+        leng = ngridmin  # the smallest grid point among all compression r
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
-        if rr >= rmax:
+        if rr >= rmaxmax:
             dd[:] = 0.0
-        elif ind < leng:  # => polynomial fit
+        elif ind < ngridmin:  # => polynomial fit
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
-            for ii in range(0, ninterp):
-                xa[ii] = (ilast - ninterp + ii) * incr
+            xii = t.linspace(0, ninterp - 1, ninterp)
+            # for ii in range(ninterp):
+            xa = (ilast - ninterp + xii) * incr
             yb = datalist[:, :, ilast - ninterp - 1:ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.poly_interp_4d(xa, yb, rr)  # method 2
-        else:  # Beyond the grid => extrapolation with polynomial of 5th order
-            dr = rr - rmax
-            ilast = leng
-            for ii in range(0, ninterp):
-                xa[ii] = (ilast - ninterp + ii) * incr
-            print(xa)
-            yb = datalist[ilast - ninterp - 1: ilast - 1]
-            y0 = self.poly_interp_4d(xa, yb, xa[ninterp - 1] - delta_r)
-            y2 = self.poly_interp_4d(xa, yb, xa[ninterp - 1] + delta_r)
-            ya = datalist[ilast - ninterp - 1: ilast - 1]
-            y1 = ya[ninterp - 1]
-            y1p = (y2 - y0) / (2.0 * delta_r)
-            y1pp = (y2 + y0 - 2.0 * y1) / (delta_r * delta_r)
-            dd = self.poly5_zero(y1, y1p, y1pp, dr, -1.0 * tail)
+        else:
+            # Beyond the grid => extrapolation with polynomial of 5th order
+            # here, it may appears some larger, some smaller because of compR
+            for icompr in range(ngridpoint.shape[0]):
+                for jcompr in range(ngridpoint.shape[0]):
+                    ngrid_ = int(ngridpoint[icompr, jcompr])
+                    rmax_ = (ngrid_ - 1) * incr + tail
+                    if rr > rmax_:
+                        dd[icompr, jcompr] = 0.0
+                    elif ind < ngrid_:
+                        ilast = min(ngrid_, int(ind + ninterp / 2 + 1))
+                        ilast = max(ninterp, ilast)
+                        for ii in range(ninterp):
+                            xa[ii] = (ilast - ninterp + ii) * incr
+                        yb = datalist[icompr, jcompr,
+                                      ilast - ninterp - 1:ilast - 1]
+                        dd[icompr, jcompr] = self.poly_interp_2d(xa, yb, rr)
+                    else:
+                        dr = rr - rmax_
+                        ilast = ngrid_
+                        xii = t.linspace(0, ninterp - 1, ninterp)
+                        xa = (ilast - ninterp + xii) * incr
+                        yb = datalist[icompr, jcompr,
+                                      ilast - ninterp - 1: ilast - 1]
+                        y0 = self.poly_interp_2d(
+                            xa, yb, xa[ninterp - 1] - delta_r)
+                        y2 = self.poly_interp_2d(
+                            xa, yb, xa[ninterp - 1] + delta_r)
+                        ya = datalist[icompr, jcompr,
+                                      ilast - ninterp - 1: ilast - 1]
+                        y1 = ya[ninterp - 1]
+                        y1p = (y2 - y0) / (2.0 * delta_r)
+                        y1pp = (y2 + y0 - 2.0 * y1) / (delta_r * delta_r)
+                        dd[icompr, jcompr] = self.poly5_zero(
+                            y1, y1p, y1pp, dr, -1.0 * tail)
         return dd
 
     def poly5_zero(self, y0, y0p, y0pp, xx, dx):
@@ -317,6 +342,14 @@ class EigenSolver:
         """Initialize parameters."""
         self.para = para
 
+    def eigen(self, matrixa, matrixb):
+        """Choose different mothod for general eigenvalue problem."""
+        if self.para['eigenmethod'] == 'cholesky':
+            eigval, eigm_ab = self.cholesky_new(matrixa, matrixb)
+        elif self.para['eigenmethod'] == 'lowdin_qr':
+            eigval, eigm_ab = self.lowdin_qr(matrixa, matrixb)
+        return eigval, eigm_ab
+
     def cholesky(self, matrixa, matrixb):
         """Cholesky decomposition.
 
@@ -426,8 +459,8 @@ class EigenSolver:
             eigvec_b = eigvec_b @ Q_
             Bval.append(R_ @ Q_)
             icount += 1
-            '''if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
-                break'''
+            if abs(Bval[-1].sum() - Bval[-2].sum()) < rowa ** 2 * 1e-6:
+                break
             if abs((Q_ - Q_.diag().diag()).sum()) < rowa ** 2 * 1e-6:
                 break
             if icount > 60:
@@ -455,9 +488,10 @@ class EigenSolver:
         rowb, colb = matrixb.shape[0], matrixb.shape[1]
         rowa, cola = matrixa.shape[0], matrixa.shape[1]
         assert rowa == rowb == cola == colb
-        eigvec_b, eigvec_ab = t.eye(rowa), t.eye(rowa)
-        eigval = t.zeros(rowb)
-        eigvec = t.zeros(rowa, rowb)
+        eigvec_b = t.eye((rowa), dtype=t.float64)
+        eigvec_ab = t.eye((rowa), dtype=t.float64)
+        eigval = t.zeros((rowb), dtype=t.float64)
+        eigvec = t.zeros((rowa, rowb), dtype=t.float64)
         Bval.append(matrixb)
         icount = 0
         while True:

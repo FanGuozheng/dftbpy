@@ -114,6 +114,12 @@ class Initialization:
                 self.interpskf()
         if self.para['Lml']:
             if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
+                # replace local specie with global specie
+                self.para['atomspecie'] = self.para['specie_global']
+                self.interpskf()
+            elif self.para['Lml_acsf'] and self.para['LreadSKFinterp']:
+                # replace local specie with global specie
+                self.para['atomspecie'] = self.para['specie_global']
                 self.interpskf()
 
     def form_sk_spline(self):
@@ -248,7 +254,7 @@ class SCF:
                     icount += 1
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_ch, eigm_ch = self.eigen.cholesky(eigm, overm)
+        eigval_ch, eigm_ch = self.eigen.eigen(eigm, overm)
 
         # calculate the occupation of electrons
         energy = 0
@@ -342,7 +348,7 @@ class SCF:
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self.eigen.cholesky_new(eigm_, oldsmat_)
+            eigval_, eigm_ch = self.eigen.eigen(eigm_, oldsmat_)
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
@@ -433,7 +439,7 @@ class SCF:
                     icount += 1
 
             # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self.eigen.cholesky_new(fockmat_, self.smat)
+            eigval_, eigm_ch = self.eigen.eigen(fockmat_, self.smat)
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
@@ -540,7 +546,7 @@ class SCF:
                     icount += 1
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_, eigm_ch = self.eigen.cholesky(eigm_, oldsmat_)
+        eigval_, eigm_ch = self.eigen.eigen(eigm_, oldsmat_)
 
         # calculate the occupation of electrons
         occ_ = elect.fermi(eigval_)
@@ -785,11 +791,13 @@ class Print:
     def print_dftb_caltail(self):
         """Print DFTB results."""
         t.set_printoptions(precision=10)
-        print('CPA: \n', self.para['cpa'].detach())
         print('charge (e): \n', self.para['qatomall'].detach())
         print('dipole (eAng): \n', self.para['dipole'].detach())
         print('energy (Hartree): \n', self.para['energy'].detach())
         print('TS energy (Hartree): \n', self.para['H0_energy'].detach())
+        if self.para['LMBD_DFTB']:
+            print('CPA: \n', self.para['cpa'].detach())
+            print('polarizability: \n', self.para['alpha_mbd'].detach())
         if self.para['scc'] == 'scc':
             print('Coulomb energy (Hartree): \n',
                   -self.para['coul_energy'].detach())

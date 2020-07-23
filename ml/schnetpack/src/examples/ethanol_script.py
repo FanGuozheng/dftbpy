@@ -13,7 +13,8 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 # basic settings
 model_dir = "ethanol_model"  # directory that will be created for storing model
-os.makedirs(model_dir)
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 properties = ["energy", "forces"]  # properties used for training
 
 # data preparation
@@ -21,8 +22,8 @@ logging.info("get dataset")
 dataset = spk.datasets.MD17("data/ethanol.db", load_only=properties, molecule="ethanol")
 train, val, test = spk.train_test_split(
     data=dataset,
-    num_train=1000,
-    num_val=100,
+    num_train=100,
+    num_val=20,
     split_file=os.path.join(model_dir, "split.npz"),
 )
 train_loader = spk.AtomsLoader(train, batch_size=64)

@@ -11,15 +11,17 @@ import matplotlib.pyplot as plt
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import CoulombMatrix
 from readt import ReadInt
-from test.test_grad_compr import LoadData, SaveData, GenMLPara
+from ml.feature import ACSF as acsfml
+from utils.load import LoadData
+from utils.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
 class ML:
     """Machine learning with optimized data.
 
-    process data
-    perform ML prediction
+    process data.
+    perform ML prediction.
     """
 
     def __init__(self, para):
@@ -30,10 +32,9 @@ class ML:
         """
         self.para = para
         self.read = Read(para)
-        self.nfile = int(para['n_dataset'][0])  # molecule number in optml
-        self.ntest = int(para['n_test'][0])  # molecule number in test
-        self.dataprocess(self.para['dire_data'])  # generate ML X, Y data
-        self.ml_compr()
+        self.dscribe = Dscribe(self.para)
+        # self.dataprocess(self.para['dire_data'])  # generate ML X, Y data
+        # self.ml_compr()
 
     def dataprocess(self, diredata):
         """Process the optimization dataset and data for the following ML.
@@ -43,32 +44,38 @@ class ML:
             traing target (Y, e.g, compression radius)
 
         """
-        dscribe = Dscribe(self.para)
-        nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
-        '''self.para['natomall'] = self.read.read1d(
-            diredata, 'natom.dat', self.ntest)'''
+        ntrain = self.para['ntrain']  # training number
+        ntest = self.para['npred']  # number for prediction
+        if self.para['Lopt_step']:
+            fp = open(os.path.join(self.para['dire_data'], 'nsave.dat'), 'r')
+            self.para['nsteps'] = np.fromfile(fp, dtype=float, count=-1,
+                                              sep=' ')
+            nsteps_ = self.para['nsteps']
+        else:
+            nsteps_ = int(self.para['mlsteps'] / self.para['save_steps'])
 
         if self.para['Lml_skf']:
-            if self.ntest < self.nfile:
-                nn_ = self.nfile
-            else:
-                nn_ = self.ntest
             self.para['optRall'] = self.read.read3d_rand(
-                diredata, 'comprbp.dat', self.para['natomall'], nn_, nsteps_)
+                diredata, 'comprbp.dat', self.para['natomall'], nsteps_)
 
         if self.para['featureType'] == 'rad':
             get_env_para(self.para)
-            self.para['feature_data'] = self.para['x_rad'][:self.nfile]
-            self.para['feature_test'] = self.para['x_rad'][:self.ntest]
+            self.para['feature_data'] = self.para['x_rad'][:ntrain]
+            self.para['feature_test'] = self.para['x_rad'][:ntest]
             self.para['feature_target'] = self.para['optRall'][:, -1, :]
         elif self.para['featureType'] == 'cm':
-            dscribe.pro_()
+            self.dscribe.pro_()
             self.get_target_to1d(self.para['natomall'],
-                                 self.para['optRall'], self.nfile)
+                                 self.para['optRall'], ntrain)
         elif self.para['featureType'] == 'acsf':
-            dscribe.pro_()
+            self.dscribe.pro_()
             self.get_target_to1d(self.para['natomall'],
-                                 self.para['optRall'], self.nfile)
+                                 self.para['optRall'], ntrain)
+
+    def dataprocess_atom(self):
+        """ML process for compression radius."""
+        if self.para['featureType'] == 'acsf':
+            self.para['acsf_mlpara'] = self.dscribe.pro_molecule()
 
     def ml_compr(self):
         """ML process for compression radius."""
@@ -78,6 +85,27 @@ class ML:
             self.schnet()
         elif self.para['testMLmodel'] == 'svm':
             self.svm_model()
+
+    def ml_acsf(self):
+        """Generate opreeR with optimized ML parameters and fingerprint."""
+        weight = self.para['test_weight']
+        bias = self.para['test_bias']
+        return self.para['acsf_mlpara'] @ weight + bias
+
+    def get_test_para(self):
+        """Read optimized parameters(wieght, bias...) with given ratio."""
+        dire = self.para['dire_data']
+        ratio = self.para['opt_para_test']
+        fpw = open(os.path.join(dire, 'weight.dat'))
+        fpb = open(os.path.join(dire, 'bias.dat'))
+        dim = self.para['acsf_dim']
+        bias = t.from_numpy(np.fromfile(fpb, dtype=float, count=-1, sep=' '))
+        nbatch_step = bias.shape[0]
+        weight = t.from_numpy(np.fromfile(
+            fpw, dtype=float, count=-1, sep=' ').reshape(nbatch_step, dim))
+        num = int(ratio * (nbatch_step - 1))
+        self.para['test_weight'] = weight[num]
+        self.para['test_bias'] = bias[num]
 
     def linearmodel(self):
         """Use the optimization dataset for training.
@@ -96,30 +124,32 @@ class ML:
                 X, y, test_size=0.5)
 
         reg.fit(X_train, y_train)
-
         y_pred = reg.predict(X_pred)
-
-        plt.scatter(X_train, X_train,  color='black')
-        plt.plot(X_train, y_train, 'ob')
-        plt.xlabel('feature of training dataset')
-        plt.ylabel('traning compression radius')
-        plt.show()
-
-        # plt.scatter(X_pred, y_pred,  color='black')
         if self.para['featureType'] == 'rad':
-            plt.plot(X_pred, y_pred, 'ob')
             self.para['compr_pred'] = t.from_numpy(y_pred)
         elif self.para['featureType'] == 'acsf':
-            plt.plot(X_pred[:, 0], y_pred, 'ob')
             self.para['compr_pred'] = \
                 self.get_target_to2d(self.para['natomall'], y_pred)
         elif self.para['featureType'] == 'cm':
-            plt.plot(X_pred[:, 0], y_pred, 'ob')
             self.para['compr_pred'] = \
                 self.get_target_to2d(self.para['natomall'], y_pred)
-        plt.xlabel('feature of prediction (tesing)')
-        plt.ylabel('testing compression radius')
-        plt.show()
+
+        if self.para['Lplot_feature']:
+            plt.scatter(X_train, X_train,  color='black')
+            plt.plot(X_train, y_train, 'ob')
+            plt.xlabel('feature of training dataset')
+            plt.ylabel('traning compression radius')
+            plt.show()
+            # plt.scatter(X_pred, y_pred,  color='black')
+            if self.para['featureType'] == 'rad':
+                plt.plot(X_pred, y_pred, 'ob')
+            elif self.para['featureType'] == 'acsf':
+                plt.plot(X_pred[:, 0], y_pred, 'ob')
+            elif self.para['featureType'] == 'cm':
+                plt.plot(X_pred[:, 0], y_pred, 'ob')
+            plt.xlabel('feature of prediction (tesing)')
+            plt.ylabel('testing compression radius')
+            plt.show()
 
     def svm_model(self):
         """ML process with support vector machine method."""
@@ -131,30 +161,32 @@ class ML:
                 X, y, test_size=0.5)
 
         reg.fit(X_train, y_train)
-
         y_pred = reg.predict(X_pred)
-
-        plt.scatter(X_train, X_train,  color='black')
-        plt.plot(X_train, y_train, 'ob')
-        plt.xlabel('feature of training dataset')
-        plt.ylabel('traning compression radius')
-        plt.show()
-
-        # plt.scatter(X_pred, y_pred,  color='black')
         if self.para['featureType'] == 'rad':
-            plt.plot(X_pred, y_pred, 'ob')
             self.para['compr_pred'] = t.from_numpy(y_pred)
         elif self.para['featureType'] == 'acsf':
-            plt.plot(X_pred[:, 0], y_pred, 'ob')
             self.para['compr_pred'] = \
                 self.get_target_to2d(self.para['natomall'], y_pred)
         elif self.para['featureType'] == 'cm':
-            plt.plot(X_pred[:, 0], y_pred, 'ob')
             self.para['compr_pred'] = \
                 self.get_target_to2d(self.para['natomall'], y_pred)
-        plt.xlabel('feature of prediction (tesing)')
-        plt.ylabel('testing compression radius')
-        plt.show()
+
+        if self.para['Lplot_feature']:
+            plt.scatter(X_train, X_train,  color='black')
+            plt.plot(X_train, y_train, 'ob')
+            plt.xlabel('feature of training dataset')
+            plt.ylabel('traning compression radius')
+            plt.show()
+            # plt.scatter(X_pred, y_pred,  color='black')
+            if self.para['featureType'] == 'rad':
+                plt.plot(X_pred, y_pred, 'ob')
+            elif self.para['featureType'] == 'acsf':
+                plt.plot(X_pred[:, 0], y_pred, 'ob')
+            elif self.para['featureType'] == 'cm':
+                plt.plot(X_pred[:, 0], y_pred, 'ob')
+            plt.xlabel('feature of prediction (tesing)')
+            plt.ylabel('testing compression radius')
+            plt.show()
 
     def schnet(self):
         """ML process with schnetpack."""
@@ -167,14 +199,15 @@ class ML:
         optimized dataset size.
         """
         nmax = self.para['natommax']
-        comprlast = comprall[:, -1, :]  # only read the last optimized step
-        nmax_ = comprlast.shape[1]
-        assert nmax == nmax_
+        nsteps = self.para["nsteps"]
+        # nmax_ = comprlast.shape[1]
+        # assert nmax == nmax_
         feature_target = t.zeros((ntrain * nmax), dtype=t.float64)
         for ibatch in range(ntrain):
+            comprlast = comprall[ibatch, int(nsteps[ibatch]) - 1, :]
             nat = int(nall[ibatch])
             feature_target[ibatch * nmax: ibatch * nmax + nat] = \
-                comprlast[ibatch, :nat]
+                comprlast[:nat]
         self.para['feature_target'] = feature_target
 
     def get_target_to2d(self, nall, comprall):
@@ -205,16 +238,17 @@ class Dscribe:
 
     def pro_(self):
         """Process data for Dscribe."""
-        nbatch = int(self.para['n_test'][0])
-        ndataset = int(self.para['n_dataset'][0])
+        nbatch = self.para['npred']
+        ndataset = self.para['ntrain']
         nfile = max(nbatch, ndataset)
         nmax = int(max(self.para['natomall']))
 
         if self.para['featureType'] == 'cm':  # flatten=True for all!!!!!
             features = t.zeros((nfile * nmax, nmax), dtype=t.float64)
         elif self.para['featureType'] == 'acsf':
-            atomspecie = self.get_specie_all(nfile)
-
+            self.get_acsf_dim()
+            col = self.para['acsf_dim']  # get ACSF feature dimension
+            features = t.zeros((nfile * nmax, col), dtype=t.float64)
         for ibatch in range(nfile):
             if type(self.para['coorall'][ibatch]) is np.array:
                 self.para['coor'] = t.from_numpy(self.para['coorall'][ibatch])
@@ -226,16 +260,52 @@ class Dscribe:
                 features[ibatch * nmax: ibatch * nmax + nat_, :nat_] = \
                     self.coulomb(n_atoms_max_=nmax)[:nat_, :nat_]
             elif self.para['featureType'] == 'acsf':
-                if ibatch == 0:
-                    acsf_0 = self.acsf()
-                    row, col = acsf_0.shape
-                    features = t.zeros((nfile * nmax, col), dtype=t.float64)
-                else:
-                    features[ibatch * nmax: ibatch * nmax + nat_, :] = \
-                        self.acsf()
+                features[ibatch * nmax: ibatch * nmax + nat_, :] = self.acsf()
         self.para['natommax'] = nmax
         self.para['feature_test'] = features[:nbatch * nmax, :]
         self.para['feature_data'] = features[:ndataset * nmax, :]
+
+    def pro_molecule(self):
+        """Get atomic environment parameter only for single molecule."""
+        nmax = int(max(self.para['natomall']))
+        if self.para['featureType'] == 'cm':  # flatten=True for all!!!!!
+            features = t.zeros((nmax, nmax), dtype=t.float64)
+        elif self.para['featureType'] == 'acsf':
+            col = self.para['acsf_dim']
+            features = t.zeros((nmax, col), dtype=t.float64)
+        if type(self.para['coor']) is np.array:
+            self.para['coor'] = t.from_numpy(self.para['coor'])
+        elif type(self.para['coor']) is t.Tensor:
+            pass
+        nat_ = self.para['coor'].shape[0]
+
+        if self.para['featureType'] == 'cm':
+            features[:nat_, :nat_] = \
+                self.coulomb(n_atoms_max_=nmax)[:nat_, :nat_]
+        elif self.para['featureType'] == 'acsf':
+            features[:nat_, :] = self.acsf()
+        return features
+
+    def get_acsf_dim(self):
+        """Get the dimension (column) of ACSF method."""
+        nspecie = len(self.para['specie_all'])
+        col = 0
+        if nspecie == 1:
+            n_types, n_type_pairs = 1, 1
+        elif nspecie == 2:
+            n_types, n_type_pairs = 2, 3
+        elif nspecie == 3:
+            n_types, n_type_pairs = 3, 6
+        elif nspecie == 4:
+            n_types, n_type_pairs = 4, 10
+        elif nspecie == 5:
+            n_types, n_type_pairs = 5, 15
+        col += n_types  # G0
+        if self.para['Lacsf_g2']:
+            col += len(self.para['acsf_g2']) * n_types  # G2
+        if self.para['Lacsf_g4']:
+            col += (len(self.para['acsf_g4'])) * n_type_pairs  # G4
+        self.para['acsf_dim'] = col
 
     def coulomb(self, rcut=6.0, nmax=8, lmax=6, n_atoms_max_=6):
         """Coulomb method for atomic environment.
@@ -266,12 +336,8 @@ class Dscribe:
         You should define all the atom species to fix the feature dimension!
         """
         coor = self.para['coor']
-        atomspecie = []
-        for iat in range(coor.shape[0]):
-            idx = int(coor[iat, 0])
-            atomspecie.append(
-                list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
-        test_module = Atoms(atomspecie, positions=coor[:, 1:])
+        rcut_ = self.para['acsf_rcut']
+        specie_global = self.para['specie_all']
         if self.para['Lacsf_g2']:
             g2_params_ = self.para['acsf_g2']
         else:
@@ -280,10 +346,18 @@ class Dscribe:
             g4_params_ = self.para['acsf_g4']
         else:
             g4_params_ = None
-        acsf = ACSF(species=atomspecie, rcut=6.0,
+        acsf = ACSF(species=specie_global,
+                    rcut=rcut_,
                     g2_params=g2_params_,
                     g4_params=g4_params_,
                     )
+
+        atomspecie = []
+        for iat in range(coor.shape[0]):
+            idx = int(coor[iat, 0])
+            atomspecie.append(
+                list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
+        test_module = Atoms(atomspecie, positions=coor[:, 1:])
         acsf_test = acsf.create(test_module)
         return t.from_numpy(acsf_test)
 
@@ -298,18 +372,6 @@ class Dscribe:
 
     def kernels(self):
         pass
-
-    def get_specie_all(self, nfile):
-        """Get all the atom species in dataset before running Dscribe."""
-        atomspecieall = []
-        for ifile in range(nfile):
-            coor = self.para['coorall'][ifile]
-            for iat in range(coor.shape[0]):
-                idx = int(coor[iat, 0])
-                ispe = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-                if ispe not in atomspecieall:
-                    atomspecieall.append(ispe)
-        return atomspecieall
 
 
 class Schnetpack:
@@ -364,23 +426,33 @@ class Read:
         elif outtype == 'numpy':
             return data
 
-    def read3d_rand(self, dire, name, nall, num1, ntemp, outtype='torch'):
+    def read3d_rand(self, dire, name, nall, ntemp, outtype='torch'):
         """Read three dimentional data, which the out may not be all filled.
 
         Args:
             nall: the atom number of all batch
-            num1: the number of batchs
-            ntemp: usually the saved steps for one batch
+            ntemp: usually the saved steps for one batch, this can be fixed or
+            not depends on Lopt_step parameter
 
         """
         nmax = int(max(nall))
-        data = np.zeros((num1, ntemp, nmax), dtype=float)
+        ntrain = self.para['ntrain']
+        if self.para['Lopt_step']:
+            nstepmax = int(max(ntemp))
+            data = np.zeros((ntrain, nstepmax, nmax), dtype=float)
+        else:
+            ntemp_ = ntemp
+            data = np.zeros((ntrain, ntemp, nmax), dtype=float)
+
+        # read data
         fp = open(os.path.join(dire, name), 'r')
-        for inum1 in range(num1):
+        for inum1 in range(ntrain):
             num_ = int(nall[inum1])
-            idata_ = np.fromfile(fp, dtype=float, count=num_*ntemp, sep=' ')
-            idata_.shape = (ntemp, num_)
-            data[inum1, :, :num_] = idata_
+            ntemp_ = int(ntemp[inum1])
+            idata_ = np.fromfile(fp, dtype=float, count=num_*ntemp_, sep=' ')
+            idata_.shape = (ntemp_, num_)
+            data[inum1, :ntemp_, :num_] = idata_
+
         if outtype == 'torch':
             return t.from_numpy(data)
         elif outtype == 'numpy':
@@ -394,13 +466,12 @@ def get_env_para(para):
     nmax = int(natomall.max())
     os.system('rm ' + dire_ + '/env_rad.dat')
     os.system('rm ' + dire_ + '/env_ang.dat')
-    genpara = GenMLPara(para)
     load = LoadData(para)
     save = SaveData(para)
     read = ReadInt(para)
 
     if len(para['n_dataset']) == 1:
-        nbatch = max(int(para['n_dataset'][0]), int(para['n_test'][0]))
+        nbatch = max(para['ntrain'], para['npred'])
     rad = t.zeros((nbatch, nmax), dtype=t.float64)
     ang = t.zeros((nbatch, nmax), dtype=t.float64)
 
@@ -414,7 +485,7 @@ def get_env_para(para):
             coor = para['coorall'][ibatch]
         nat_ = int(natomall[ibatch])
         para['coor'] = coor[:]
-        genpara.genenvir(nbatch, para, ibatch, coor, symbols)
+        genenvir(nbatch, para, ibatch, coor, symbols)
         read.cal_coor()
         ang[ibatch, :nat_] = t.from_numpy(para['ang_paraall'][ibatch])
         rad[ibatch, :nat_] = t.from_numpy(para['rad_paraall'][ibatch])
@@ -423,3 +494,20 @@ def get_env_para(para):
         save.save1D(rad[ibatch, :nat_], name='env_rad.dat', dire=dire_, ty='a')
     para['x_rad'] = rad
     para['x_ang'] = ang
+
+def genenvir(nbatch, para, ifile, coor, symbols):
+    rcut = para['rcut']
+    r_s = para['r_s']
+    eta = para['eta']
+    tol = para['tol']
+    zeta = para['zeta']
+    lamda = para['lambda']
+    rad_para = lattice_cell.rad_molecule2(coor, rcut, r_s, eta, tol,
+                                          symbols)
+    ang_para = lattice_cell.ang_molecule2(coor, rcut, r_s, eta, zeta,
+                                          lamda, tol, symbols)
+    para['ang_paraall'].append(ang_para)
+    para['rad_paraall'].append(rad_para)
+    natom = len(coor)
+    nbatch += natom * (natom+1)
+    return para, nbatch

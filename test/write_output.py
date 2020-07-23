@@ -74,8 +74,15 @@ class Dftbplus:
         """Write geo.gen in a dataset for periodic condition."""
         pass
 
-    def write_dftbin(self, para, dire, scc, coor, specie):
+    def write_dftbin(self, para, dire, scc, coor):
         """Write dftb_in.hsd."""
+        atname, specie = [], []
+        [atname.append(list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
+         for idx in coor[:, 0]]
+        for iname in atname:
+            if iname not in specie:
+                specie.append(iname)
+
         with open(os.path.join(dire, 'dftb_in.hsd'), 'w') as fp:
             fp.write('Geometry = GenFormat { \n')
             fp.write('  <<< "geo.gen" \n } \n')
@@ -172,7 +179,7 @@ class Dftbplus:
 
         fp = open(os.path.join(dire, 'poldftbplus.dat'))
         for ifile in range(nfile):
-            natom = para['coorall'][ifile].shape[0]
+            natom = int(para['natomall'][ifile])
             ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             alpha[ifile, :natom] = ial[:]
         return t.from_numpy(alpha)
@@ -182,25 +189,28 @@ class FHIaims:
     """Interface to FHI-aims."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
 
     def geo_nonpe_hdf(self, para, ibatch, coor):
         """Input is from hdf data, output is FHI-aims input: geo.in."""
-        specie, speciedict, symbols = para['specie'], para['speciedict'], \
-            para['symbols']
+        specie = para['specie'][ibatch]
+        speciedict = para['speciedict'][ibatch]
+        symbols = para['symbols'][ibatch]
         with open('geometry.in.{}'.format(ibatch), 'w') as fp:
             ispecie = 0
             iatom = 0
             for atom in specie:
                 ispecie += 1
-                for natom in range(0, speciedict[atom]):
-                    iatom += 1
+                for natom in range(speciedict[atom]):
                     fp.write('atom ')
+                    iatom += 1
                     np.savetxt(fp, coor[iatom - 1], fmt='%s', newline=' ')
                     fp.write(symbols[iatom - 1])
                     fp.write('\n')
 
     def geo_pe():
+        """Generate periodic coordinate input."""
         pass
 
     def read_bandenergy(self, para, nfile, dire, inunit='H', outunit='H'):
@@ -246,7 +256,7 @@ class FHIaims:
 
         fp = open(os.path.join(dire, 'qatomref.dat'))
         for ifile in range(0, nfile):
-            natom = para['coorall'][ifile].shape[0]
+            natom = int(para['natomall'][ifile])
             iqatom = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             if inunit == outunit:
                 qatom[ifile, :natom] = iqatom[:]
@@ -264,7 +274,7 @@ class FHIaims:
 
         fp = open(os.path.join(dire, 'pol.dat'))
         for ifile in range(nfile):
-            natom = para['coorall'][ifile].shape[0]
+            natom = int(para['natomall'][ifile])
             ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             alpha[ifile, :natom] = ial[:]
         return t.from_numpy(alpha)
@@ -276,7 +286,7 @@ class FHIaims:
 
         fp = open(os.path.join(dire, 'vol.dat'))
         for ifile in range(nfile):
-            natom = para['coorall'][ifile].shape[0]
+            natom = int(para['natomall'][ifile])
             ivol = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             vol[ifile, :natom] = ivol[:]
         return t.from_numpy(vol)

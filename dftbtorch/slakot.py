@@ -34,7 +34,7 @@ class SKTran:
             if self.para['LreadSKFinterp']:
                 self.sk_tran_symall_chol()
         if self.para['Lml']:
-            if self.para['Lml_skf']:
+            if self.para['Lml_skf'] or self.para['Lml_acsf']:
                 if self.para['HSsym'] == 'symall':
                     self.sk_tran_symall()
                 elif self.para['HSsym'] == 'symall_chol':
@@ -57,7 +57,7 @@ class SKTran:
                     self.para['atomnameall'][i], self.para['atomnameall'][j]
                 nameij = namei + namej
                 if self.para['Lml']:
-                    if self.para['Lml_skf']:
+                    if self.para['Lml_skf'] or self.para['Lml_acsf']:
                         cutoff = self.para['interpcutoff']
                 else:
                     cutoff = self.para['cutoffsk' + nameij]
@@ -217,7 +217,6 @@ class SlaKo:
 
     read_skdata: read sk data
     get_sk_spldata: select interpolation type (Bspline, Polyspline)
-    genskf_interp_ij
     genskf_interp_ij: with compr of i, j atom, interpate sk data
     """
 
@@ -225,10 +224,7 @@ class SlaKo:
         self.para = para
 
     def read_skdata(self, para):
-        '''
-        read and store the SK table raw data, right now only for
-        s, p and d oribitals
-        '''
+        """Read and store the SK table raw data for s, p and d oribitals."""
         atomname = para['atomnameall']
         para['onsite'] = t.zeros(len(atomname), 3)
         para['spe'] = t.zeros(len(atomname))
@@ -263,7 +259,7 @@ class SlaKo:
             natom (int): number of atom
             distance (2D tensor): distance between all atoms
         Returns:
-            hs_compr_all (out): H0 and S of all atoms with given distance
+            hs_compr_all (out): [natom, natom, ncompr, ncompr, 20]
 
         """
         atomname, natom = self.para['atomnameall'], self.para['natom']
@@ -390,7 +386,6 @@ class SlaKo:
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         self.para['hs_all' + nameij] = \
             self.para['hs_all_rall' + nameij][:, :, :, :]
-        # col = skfijd.shape[1]
         self.para['hs_ij'][:, :, :] = \
             DFTBmath(self.para).sk_interp_4d(dij, nameij, ncompr)
 
@@ -775,7 +770,7 @@ def slkode_chol(para, rr, i, j, li, lj):
         else:
             cutoff = para['cutoffsk' + nameij]
     if para['Lml']:
-        if para['Lml_skf']:
+        if para['Lml_skf']  or para['Lml_acsf']:
             cutoff = para['interpcutoff']  # may need revise!!!
         elif para['Lml_HS']:
             cutoff = para['interpcutoff']
@@ -810,7 +805,7 @@ def getsk_(para, rr, i, j, li, lj):
         para['hsdataji'] = para['hsdata']
 
 
-def getsk(para, nameij, dd):
+'''def getsk(para, nameij, dd):
     # ninterp is the num of points for interpolation, here is 8
     ninterp = para['ninterp']
     datalist = para['hs_all' + nameij]
@@ -843,7 +838,7 @@ def getsk(para, nameij, dd):
         para['hsdata'] = DFTBmath(para).polysk5thsk(datainterp, ddinterp, dd)
     else:
         print('Error: the {} distance > cutoff'.format(nameij))
-    return para
+    return para'''
 
 
 def shpar_(para, xyz, i, j, dd, li, lj):

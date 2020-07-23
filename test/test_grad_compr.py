@@ -7,18 +7,18 @@ Created on Thu Aug  8 10:59:55 2019
 import os
 import numpy as np
 import sys
+import argparse
 from torch.autograd import Variable
 import torch as t
 import write_output as write
-import lattice_cell
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.slakot as slakot
 import plot
 import init_parameter as initpara
 import ml.interface as interface
+from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
-Directory = '/home/gz_fan/Documents/ML/dftb/ml'
 DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
@@ -33,8 +33,8 @@ DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
 HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207}
 
 
-def optml(para):
-    """'main function for DFTB-ML optimization"""
+def opt(para):
+    """'DFTB-ML optimization."""
     # get the default para for dftb and ML, these para will maintain unchanged
     initpara.init_dftb_ml(para)
 
@@ -44,49 +44,75 @@ def optml(para):
     # run reference calculations, either dft or dftb
     runml = RunML(para)
     para['ref'] = para['reference']
-    para['nfile'] = int(para['n_dataset'][0])
+    para['nfile'] = para['nhdf_max']
     runml.ref()
 
     # run dftb in ML process
     runml.mldftb(para)
 
     # plot data from ML
-    plot.plot_dftbml(para)
+    if para['Lml_acsf']:
+        plot.plot_ml_feature(para)
+    else:
+        plot.plot_ml_compr(para)
 
 
 def testml(para):
     """'main function for testing DFTB-ML"""
     # get the default para for testing DFTB-ML
     initpara.init_dftb_ml(para)
+    ml = interface.ML(para)
+    runml = RunML(para)
 
     # load dataset, here is hdf type
+    ntrain = int(para['n_dataset'][0])
+    npred = int(para['n_test'][0])
     LoadData(para)
+    if ntrain >= npred:
+        para['ntrain'] = para['nhdf_max']
+        para['npred'] = para['nhdf_min']
+    else:
+        para['npred'] = para['nhdf_max']
+        para['ntrain'] = para['nhdf_min']
 
-    # if refrence is not DFTB+, run and add DFTB+ results
-    interface.ML(para)
+    dscribe = interface.Dscribe(para)
+    if para['Lml_skf']:
+        ml.dataprocess(para['dire_data'])
+        ml.ml_compr()  # ML predict compression radius with optimized data
+    elif para['Lml_acsf']:
+        para['compr_pred'] = []
+        dscribe.get_acsf_dim()  # get the dimension of features
+        ml.get_test_para()  # get optimized weight parameter to predict compR
+        for ibatch in range(para['npred']):
+            para['coor'] = para['coorall'][ibatch]
+            para['ibatch'] = ibatch
+            ml.dataprocess_atom()
+            para['compr_pred'].append(ml.ml_acsf())
 
-    runml = RunML(para)
-    if int(para['n_dataset'][0]) < int(para['n_test'][0]):
+    # if ntest > training dataset, recalculate reference
+    if ntrain < npred:
         para['ref'] = para['reference']
-        para['nfile'] = int(para['n_test'][0])
+        para['nfile'] = para['npred']
         runml.ref()
-
+    # if refrence is not DFTB+, run and add DFTB+ results
     if para['reference'] != 'dftbplus':
         para['ref'] = 'dftbplus'
-        if int(para['n_dataset'][0]) == int(para['n_test'][0]):
-            para['nfile'] = int(para['n_test'][0])
-            runml.ref()
-        elif int(para['n_dataset'][0]) < int(para['n_test'][0]):
-            para['ref'] = para['reference']
-            para['nfile'] = int(para['n_test'][0])
-            runml.ref()
+        para['nfile'] = para['npred']
+        runml.ref()
 
     runml.test_pred_compr(para)
 
-    if para['reference'] == 'aims':
+    if para['reference'] == 'aims' and para['Lml_skf']:
         plot.plot_dip_pred(
                 para, para['dire_data'], ref='aims', dftbplus='dftbplus')
         plot.plot_pol_pred(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')
+    elif para['reference'] == 'aims' and para['Lml_acsf']:
+        plot.plot_homolumo_pred_weight(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')
+        plot.plot_dip_pred_weight(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')
+        plot.plot_pol_pred_weight(
                 para, para['dire_data'], ref='aims', dftbplus='dftbplus')
     else:
         plot.plot_dip_pred(
@@ -121,7 +147,6 @@ class RunML:
         self.para['refhomo_lumo'] = t.zeros((self.nbatch, 2), dtype=t.float64)
         self.para['refenergy'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['refdipole'] = t.zeros((self.nbatch, 3), dtype=t.float64)
-        self.para['natomall'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['specieall'] = []
         self.para['refeigval'] = []
 
@@ -140,17 +165,19 @@ class RunML:
             dire = para['dire_data']
         os.system('rm ' + dire + '/*dftb.dat')
 
-        for ibatch in range(0, self.para['nfile']):
+        for ibatch in range(self.nbatch):
             self.get_coor(ibatch)
 
             if self.para['Lml_skf']:
                 # if read all .skf and build [N_ij, N_R1, N_R2, 20] matrix
-                if self.para['atomspecie'] != self.para['atomspecie_old']:
+                '''if self.para['atomspecie'] != self.para['atomspecie_old']:
                     self.genml.get_spllabel()
                 else:
-                    self.para['LreadSKFinterp'] = False
+                    self.para['LreadSKFinterp'] = False'''
                 dftb_torch.Initialization(self.para)
-                self.get_compr_specie()
+                self.slako.genskf_interp_ij()
+                self.genml.genml_init_compr()
+                self.para['LreadSKFinterp'] = False  # read SKF list only once
 
                 self.para['compr_ml'] = self.para['compr_init'] - 1
                 self.slako.genskf_interp_compr()
@@ -175,13 +202,12 @@ class RunML:
             self.para['refeigval'].append(self.para['eigenvalue'])
             self.para['refenergy'][ibatch] = self.para['energy']
             self.para['refdipole'][ibatch] = self.para['dipole'][:]
-            self.para['natomall'][ibatch] = self.para['natom']
             self.save.save1D(self.para['eigenvalue'].detach().numpy(),
                              name='eigvaldftb.dat', dire=dire, ty='a')
             self.save.save1D(self.para['alpha_mbd'].detach().numpy(),
                              name='poldftb.dat', dire=dire, ty='a')
-        self.save.save1D(self.para['natomall'].detach().numpy(),
-                         name='natomdftb.dat', dire=dire, ty='a')
+            self.save.save1D(self.para['natom'].numpy(),
+                             name='natomdftb.dat', dire=dire, ty='a')
         self.save.save2D(self.para['refhomo_lumo'].detach().numpy(),
                          name='HLdftb.dat', dire=dire, ty='w')
         self.save.save2D(self.para['refdipole'].detach().numpy(),
@@ -193,7 +219,7 @@ class RunML:
         """Calculate reference (FHI-aims)"""
         self.pre_aims()
 
-        for ibatch in range(0, self.nbatch):
+        for ibatch in range(self.nbatch):
             if 'eigval' in self.para['target']:
                 print('Error: FHI-aims do not support eigenvalue optimization')
                 sys.exit()
@@ -210,7 +236,6 @@ class RunML:
                     self.para, ibatch + 1, self.dir_ref)
             self.para['refenergy'][ibatch] = self.cal_for_energy(
                     energy[-1], para['coor'])
-            self.para['natomall'][ibatch] = self.para['natom']
         self.save_aims()
 
     def pre_aims(self):
@@ -225,19 +250,19 @@ class RunML:
     def save_aims(self):
         """save files for reference calculations"""
         homo_lumo = write.FHIaims(self.para).read_bandenergy(
-                self.para, self.para['nfile'], self.dir_ref)
+                self.para, self.nbatch, self.dir_ref)
         dipole = write.FHIaims(self.para).read_dipole(
-                self.para, self.para['nfile'], self.dir_ref, 'eang', 'eang')
+                self.para, self.nbatch, self.dir_ref, 'eang', 'eang')
         alpha_mbd = write.FHIaims(self.para).read_alpha(
-                    self.para, self.para['nfile'], self.dir_ref)
+                    self.para, self.nbatch, self.dir_ref)
         refvol = write.FHIaims(self.para).read_hirshfeld_vol(
-                    self.para, self.para['nfile'], self.dir_ref)
+                    self.para, self.nbatch, self.dir_ref)
         self.para['refhomo_lumo'] = homo_lumo
         self.para['refdipole'] = dipole
         self.para['refalpha_mbd'] = alpha_mbd
         self.para['refvol'] = refvol
 
-        if para['task'] == 'optml':
+        if para['task'] == 'opt':
             dire = '.data'
         elif para['task'] == 'test':
             dire = para['dire_data']
@@ -252,7 +277,7 @@ class RunML:
                          name='volaims.dat', dire=dire, ty='a')
         self.save.save1D(self.para['refenergy'].detach().numpy(),
                          name='energyaims.dat', dire=dire, ty='a')
-        self.save.save1D(self.para['natomall'].detach().numpy(),
+        self.save.save1D(np.asarray(self.para['natomall']),
                          name='natomaims.dat', dire=dire, ty='a')
 
     def cal_for_energy(self, energy, coor):
@@ -290,8 +315,6 @@ class RunML:
                     self.para, ibatch + 1, self.dir_ref)
             self.para['refenergy'][ibatch] = self.cal_for_energy(
                     energy[-1], para['coor'])
-            self.para['natomall'][ibatch] = self.para['natom']
-
         self.save_dftbplus()
 
     def pre_dftbplus(self):
@@ -316,10 +339,10 @@ class RunML:
         self.para['refdipole'] = dipole
         self.para['refalpha_mbd'] = alpha_mbd
 
-        if para['task'] == 'optml':
+        if self.para['task'] == 'optml':
             dire = '.data'
-        elif para['task'] == 'test':
-            dire = para['dire_data']
+        elif self.para['task'] == 'test':
+            dire = self.para['dire_data']
         os.system('rm ' + dire + '/*dftbplus.dat')
         self.save.save2D(self.para['refhomo_lumo'].detach().numpy(),
                          name='HLdftbplus.dat', dire=dire, ty='a')
@@ -329,7 +352,7 @@ class RunML:
                          name='poldftbplus.dat', dire=dire, ty='a')
         self.save.save1D(self.para['refenergy'].detach().numpy(),
                          name='energydftbplus.dat', dire=dire, ty='a')
-        self.save.save1D(self.para['natomall'].detach().numpy(),
+        self.save.save1D(np.asarray(self.para['natomall']),
                          name='natomdftbplus.dat', dire=dire, ty='a')
 
     '''def dftb(self, para):
@@ -371,7 +394,6 @@ class RunML:
 
     def get_coor(self, ibatch):
         """get the ith coor according to data type"""
-
         if type(self.para['coorall'][ibatch]) is t.Tensor:
             self.para['coor'] = self.para['coorall'][ibatch][:, :]
         elif type(self.para['coorall'][ibatch]) is np.ndarray:
@@ -385,15 +407,6 @@ class RunML:
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             energy = energy - DFTB_ENERGY[iname]
         return energy
-
-    def get_compr_specie(self):
-        '''
-        1. read all .skf with various compR for all apecie
-        2. get the itegrals matrix: natom * natom * [ncompr, ncompr, 20]
-        3. get the initial compR
-        '''
-        self.slako.genskf_interp_ij()
-        self.genml.genml_init_compr()
 
     def mldftb(self, para):
         """Run DFTB-ML with various targets, e.g:
@@ -409,6 +422,8 @@ class RunML:
             self.ml_compr(para)
         elif para['Lml_compr']:
             self.ml_compr_interp(para)
+        elif para['Lml_acsf']:
+            self.ml_acsf(para)
 
     def ml_interp_hs(self, para):
         '''DFTB optimization for given dataset'''
@@ -465,44 +480,54 @@ class RunML:
                                 name='hambp.dat', ty='a')
 
     def ml_compr(self, para):
-        """DFTB optimization of compression radius for given dataset"""
+        """DFTB optimization of compression radius for given dataset."""
         # calculate one by one to optimize para
-        for ibatch in range(0, self.nbatch):
+        para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
+
+        for ibatch in range(self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
             nat = self.para['coor'].shape[0]
-
-            if self.para['atomspecie'] != self.para['atomspecie_old']:
-                self.genml.get_spllabel()
-            else:
-                self.para['LreadSKFinterp'] = False
             dftb_torch.Initialization(self.para)
-            self.get_compr_specie()
+            # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
+            self.slako.genskf_interp_ij()
 
-            # build the ref data
-            if any(x in para['target'] for x in ['homo_lumo', 'gap']):
-                homo_lumo_ref = t.zeros((2), dtype=t.float64)
-                homo_lumo_ref[:] = para['refhomo_lumo'][ibatch]
-            if len(para['target']) == 1:
-                if 'dipole' in para['target']:
-                    dipref = t.zeros((3), dtype=t.float64)
-                    dipref[:] = para['refdipole'][ibatch]
-                elif 'hstable' in para['target']:
-                    hatableref = para['refhammat'][ibatch]
-                elif 'eigval' in para['target']:
-                    eigvalref = para['refeigval'][ibatch]
-                elif 'qatomall' in para['target']:
-                    qatomall_ref = para['refqatom'][ibatch]
-                elif 'energy' in para['target']:
-                    energy_ref = para['refenergy'][ibatch]
-                elif 'polarizability' in para['target']:
-                    pol_ref = para['refalpha_mbd'][ibatch][:nat]
-                elif 'cpa' in para['target']:
-                    volref = para['refvol'][ibatch][:nat]
-            elif len(para['target']) == 2:
-                if 'dipole' in para['target'] and 'polarizability' in para['target']:
-                    dipref = para['refdipole'][ibatch]
-                    pol_ref = para['refalpha_mbd'][ibatch][:nat]
+            # if use ML predict initial compression radius from optimized data
+            if para['Lopt_ml_compr']:
+                nbatchml_ = int(para['opt_ml_step'] * self.nbatch)
+                if ibatch == 0:
+                    if para['opt_ml_all']:  # use training compR from beginning
+                        npred_ = min(ibatch + int(nbatchml_), self.nbatch)
+                        self.para['ntrain'] = ibatch
+                        self.para['npred'] = npred_
+                        interface.ML(para)
+                    else:
+                        self.genml.genml_init_compr()
+                elif ibatch % nbatchml_ == 0:
+                    self.para['dire_data'] = '.data'
+                    npred_ = min(ibatch + int(nbatchml_), self.nbatch)
+                    self.para['ntrain'] = ibatch
+                    self.para['npred'] = npred_
+                    interface.ML(para)
+                elif ibatch > nbatchml_:
+                    para['compr_init'] = self.para['compr_pred'][ibatch]
+            else:
+                self.genml.genml_init_compr()
+            self.para['LreadSKFinterp'] = False  # read SKF list only once
+
+            homo_lumo_ref = para['refhomo_lumo'][ibatch]
+            dipref = para['refdipole'][ibatch]
+            if para['LMBD_DFTB']:
+                pol_ref = para['refalpha_mbd'][ibatch][:nat]
+                volref = para['refvol'][ibatch][:nat]
+            if 'hstable' in para['target']:
+                hatableref = para['refhammat'][ibatch]
+            elif 'eigval' in para['target']:
+                eigvalref = para['refeigval'][ibatch]
+            elif 'qatomall' in para['target']:
+                qatomall_ref = para['refqatom'][ibatch]
+            elif 'energy' in para['target']:
+                energy_ref = para['refenergy'][ibatch]
 
             if not para['Lml_compr_global']:
                 para['compr_ml'] = \
@@ -512,52 +537,54 @@ class RunML:
                 optimizer = t.optim.SGD([para['compr_all']], lr=para['lr'])
 
             # for each molecule we will run mlsteps
-            for it in range(0, para['mlsteps']):
+            savestep_ = 0
+            for it in range(para['mlsteps']):
                 if para['Lml_compr_global']:
                     self.genml.genml_init_compr()
 
                 # dftb calculations (choose scc or nonscc)
-                # slako.genskf_interp_r(para)
                 self.slako.genskf_interp_compr()
                 self.runcal.idftb_torchspline()
                 self.para['energy'] = self.cal_optfor_energy(
                         self.para['energy'], self.para['coor'])
 
-                # define loss function with different traget
-                criterion = t.nn.MSELoss(reduction='sum')
+                if self.para['loss_function'] == 'MSELoss':
+                    criterion = t.nn.MSELoss(reduction='sum')
+                elif self.para['loss_function'] == 'L1Loss':
+                    criterion = t.nn.L1Loss(reduction='sum')
+
                 if len(para['target']) == 1:
+                    homo_lumo = para['homo_lumo']
+                    dipole = para['dipole']
+                    gap = t.abs(homo_lumo[1] - homo_lumo[0])
+                    gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
+                    eigval = para['eigenvalue']
+                    qatomall = para['qatomall']
+                    energy = para['energy']
                     if 'homo_lumo' in para['target']:
-                        homo_lumo = para['homo_lumo']
                         loss = criterion(homo_lumo, homo_lumo_ref)
                     elif 'gap' in para['target']:
-                        gap = t.abs(homo_lumo[1] - homo_lumo[0])
-                        gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
                         loss = criterion(gap, gapref)
                     elif 'dipole' in para['target']:
-                        dipole = para['dipole']
                         loss = criterion(dipole, dipref)
                     elif 'hstable' in para['target']:
                         hstable = para['hammat']
                         loss = criterion(hstable, hatableref)
                     elif 'eigval' in para['target']:
-                        eigval = para['eigenvalue']
                         loss = criterion(eigval, eigvalref)
                     elif 'qatomall' in para['target']:
-                        qatomall = para['qatomall']
                         loss = criterion(qatomall, qatomall_ref)
                     elif 'energy' in para['target']:
-                        energy = para['energy']
                         loss = criterion(energy, energy_ref)
                     elif 'polarizability' in para['target']:
                         pol = para['alpha_mbd']
-                        print('pol_ref', pol_ref)
                         loss = criterion(pol, pol_ref)
                     elif 'cpa' in para['target']:
                         cpa = para['cpa']
                         vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
                         loss = criterion(cpa, vol_ratio_ref)
                 elif len(para['target']) == 2:
-                    if 'dipole' in para['target'] and 'polarizability' in para['target']:
+                    if 'dipole' and 'polarizability' in para['target']:
                         dipole = para['dipole']
                         pol = para['alpha_mbd']
                         loss = 2 * criterion(pol, pol_ref) + \
@@ -567,18 +594,24 @@ class RunML:
                 optimizer.zero_grad()
                 # loss.requres_grad = True
                 loss.backward(retain_graph=True)
-                print('compr_ml.grad', para['compr_ml'].grad)
                 optimizer.step()
 
                 # save and print information
-                if it % para['save_steps'] == 0:
-                    print('-' * 50)
-                    print('ibatch: {} steps: {} loss: {} target: {}'.format(
-                              ibatch, it, loss.item(), para['target']))
+                if (it + 1) % para['save_steps'] == 0 or it == 0:
+                    savestep_ += 1
+                    if self.para['loss_function'] == 'MSELoss':
+                        loss_ = t.sqrt(loss.detach()) / nat
+                    elif self.para['loss_function'] == 'L1Loss':
+                        loss_ = loss.detach() / nat
+                    para["nsteps"][ibatch] = savestep_
+                    print('-' * 100)
+                    print('ibatch: {} steps: {} target: {}'.format(
+                              ibatch + 1, it + 1, para['target']))
+                    print('average loss: {}'.format(loss_))
+                    print('compr_ml.grad', para['compr_ml'].grad.detach())
                     print("para['compr_ml']", para['compr_ml'])
-                    if any(x in para['target'] for x in ['homo_lumo', 'gap']):
-                        print('homo_lumo: {}, homo_lumo_ref: {}'.format(
-                                homo_lumo, homo_lumo_ref))
+                    print('homo_lumo: {}, homo_lumo_ref: {}'.format(
+                        homo_lumo, homo_lumo_ref))
                     self.save.save1D(para['homo_lumo'].detach().numpy(),
                                      name='HLbp.dat', dire='.data', ty='a')
                     if 'dipole' in para['target']:
@@ -600,6 +633,173 @@ class RunML:
                                      name='polbp.dat', dire='.data', ty='a')
                     self.save.save1D(para['cpa'].detach().numpy(),
                                      name='cpa.dat', dire='.data', ty='a')
+                    self.save.save1D(loss_,
+                                     name='lossbp.dat', dire='.data', ty='a')
+                    print('-' * 100)
+                # convergence or break condition
+                if para['Lopt_step'] and it > para['opt_step_min']:
+                    if loss_ < para['opt_ml_tol']:
+                        print('loss is < {}'.format(para['opt_ml_tol']))
+                        break
+                if t.lt(para['compr_ml'], para['compr_min']).all():
+                    print("there is compression R smaller than {}".format(
+                        para['compr_min']))
+                    break
+                if t.gt(para['compr_ml'], para['compr_max']).all():
+                    print("there is compression larger than {}".format(
+                        para['compr_max']))
+                    break
+        self.save.save1D(para['nsteps'].detach().numpy(),
+                         name='nsave.dat', dire='.data', ty='a')
+
+    def ml_acsf(self, para):
+        """DFTB optimization of ACSF parameters radius for given dataset."""
+        # calculate one by one to optimize para
+        ml = interface.ML(para)
+        acsfml(self.para)  # get acsf_dim
+        acsf_dim = self.para['acsf_dim']
+        # define linear ML weight parameters
+        acsf_w = t.ones((acsf_dim), dtype=t.float64) / 5
+        bias_ = t.Tensor([2])
+        bias = bias_.cpu().requires_grad_(True)
+        acsf_weight = acsf_w.cpu().requires_grad_(True)
+        optimizer = t.optim.SGD([acsf_weight, bias], lr=para['lr'])
+
+        for it in range(para['mlsteps']):
+            for ibatch in range(self.nbatch):
+                para['ibatch'] = ibatch
+                self.get_coor(ibatch)
+                nat = self.para['coor'].shape[0]
+                dftb_torch.Initialization(self.para)
+                # get natom * natom * [ncompr, ncompr, 20] by interpolation
+                self.slako.genskf_interp_ij()
+                self.para['LreadSKFinterp'] = False  # read SKF list only once
+
+                # get compr by weight parameter and atomic structure parameter
+                ml.dataprocess_atom()  # get atomic structure parameter
+                para['compr_ml'] = (para['acsf_mlpara'] @ acsf_weight) + bias
+
+                homo_lumo_ref = para['refhomo_lumo'][ibatch]
+                dipref = para['refdipole'][ibatch]
+                if para['LMBD_DFTB']:
+                    pol_ref = para['refalpha_mbd'][ibatch][:nat]
+                    volref = para['refvol'][ibatch][:nat]
+                if 'hstable' in para['target']:
+                    hatableref = para['refhammat'][ibatch]
+                elif 'eigval' in para['target']:
+                    eigvalref = para['refeigval'][ibatch]
+                elif 'qatomall' in para['target']:
+                    qatomall_ref = para['refqatom'][ibatch]
+                elif 'energy' in para['target']:
+                    energy_ref = para['refenergy'][ibatch]
+
+                # dftb calculations (choose scc or nonscc)
+                self.slako.genskf_interp_compr()
+                self.runcal.idftb_torchspline()
+                self.para['energy'] = self.cal_optfor_energy(
+                        self.para['energy'], self.para['coor'])
+
+                if self.para['loss_function'] == 'MSELoss':
+                    criterion = t.nn.MSELoss(reduction='sum')
+                elif self.para['loss_function'] == 'L1Loss':
+                    criterion = t.nn.L1Loss(reduction='sum')
+
+                homo_lumo = para['homo_lumo']
+                dipole = para['dipole']
+                gap = t.abs(homo_lumo[1] - homo_lumo[0])
+                gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
+                eigval = para['eigenvalue']
+                qatomall = para['qatomall']
+                energy = para['energy']
+                if len(para['target']) == 1:
+                    if 'homo_lumo' in para['target']:
+                        loss = criterion(homo_lumo, homo_lumo_ref)
+                    elif 'gap' in para['target']:
+                        loss = criterion(gap, gapref)
+                    elif 'dipole' in para['target']:
+                        loss = criterion(dipole, dipref)
+                    elif 'hstable' in para['target']:
+                        hstable = para['hammat']
+                        loss = criterion(hstable, hatableref)
+                    elif 'eigval' in para['target']:
+                        loss = criterion(eigval, eigvalref)
+                    elif 'qatomall' in para['target']:
+                        loss = criterion(qatomall, qatomall_ref)
+                    elif 'energy' in para['target']:
+                        loss = criterion(energy, energy_ref)
+                    elif 'polarizability' in para['target']:
+                        pol = para['alpha_mbd']
+                        loss = criterion(pol, pol_ref)
+                    elif 'cpa' in para['target']:
+                        cpa = para['cpa']
+                        vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
+                        loss = criterion(cpa, vol_ratio_ref)
+                elif len(para['target']) == 2:
+                    pol_ratio = para['polarizability_loss_ratio']
+                    dip_ratio = para['polarizability_loss_ratio']
+                    if 'dipole' and 'polarizability' in para['target']:
+                        dipole = para['dipole']
+                        pol = para['alpha_mbd']
+                        loss = pol_ratio * criterion(pol, pol_ref) + \
+                            criterion(dipole, dipref) * dip_ratio
+
+                # clear gradients and define back propagation
+                optimizer.zero_grad()
+                # loss.requres_grad = True
+                loss.backward(retain_graph=True)
+                optimizer.step()
+
+                # save and print information
+                if (it + 1) % para['save_steps'] == 0 or it == 0:
+                    if self.para['loss_function'] == 'MSELoss':
+                        loss_ = t.sqrt(loss.detach()) / nat
+                    elif self.para['loss_function'] == 'L1Loss':
+                        loss_ = loss.detach() / nat
+                    print('-' * 100)
+                    print('ibatch: {} steps: {} target: {}'.format(
+                              ibatch + 1, it + 1, para['target']))
+                    print('average loss: {}'.format(loss_))
+                    print('acsf_weight', acsf_weight.detach().numpy())
+                    print('acsf_bias', bias.detach().numpy())
+                    print("para['compr_ml']", para['compr_ml'].detach().numpy())
+                    print('homo_lumo: {}, homo_lumo_ref: {}'.format(
+                        homo_lumo.detach().numpy(), homo_lumo_ref))
+                    self.save.save1D(homo_lumo.detach().numpy(),
+                                     name='HLbp.dat', dire='.data', ty='a')
+                    print('dipole: {}, dipref: {}'.format(dipole, dipref))
+                    if 'energy' in para['target']:
+                        print('energy: {}, energyref: {}'.format(
+                                energy, energy_ref))
+                    self.save.save1D(para['dipole'].detach().numpy(),
+                                     name='dipbp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['hammat'].detach().numpy(),
+                                     name='hambp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['compr_ml'].detach().numpy()[:nat],
+                                     name='comprbp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['qatomall'].detach().numpy(),
+                                     name='qatombp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['energy'].detach().numpy(),
+                                     name='energybp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['alpha_mbd'].detach().numpy(),
+                                     name='polbp.dat', dire='.data', ty='a')
+                    self.save.save1D(para['cpa'].detach().numpy(),
+                                     name='cpabp.dat', dire='.data', ty='a')
+                    self.save.save1D(loss_,
+                                     name='lossbp.dat', dire='.data', ty='a')
+                    self.save.save1D(acsf_weight.detach().numpy(),
+                                     name='weight.dat', dire='.data', ty='a')
+                    self.save.save1D(bias.detach().numpy(),
+                                     name='bias.dat', dire='.data', ty='a')
+                    print('-' * 100)
+                # convergence or break condition
+                if t.lt(para['compr_ml'], para['compr_min']).all():
+                    print("there is compression R smaller than {}".format(
+                        para['compr_min']))
+                    break
+                if t.gt(para['compr_ml'], para['compr_max']).all():
+                    print("there is compression larger than {}".format(
+                        para['compr_max']))
+                    break
 
     def get_hirsh_vol_ratio(self, volume):
         """Get Hirshfeld volume ratio."""
@@ -614,14 +814,11 @@ class RunML:
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
-        self.nbatch = int(self.para['n_test'][0])
         dire = self.para['dire_data']
-        os.system('rm ' + dire + '/eigpred.dat')
-        os.system('rm ' + dire + '/dippred.dat')
-        os.system('rm ' + dire + '/qatompred.dat')
-        os.system('rm ' + dire + '/polpred.dat')
+        os.system('rm ' + dire + '/*pred.dat')
+        self.nbatch = self.para['npred']
 
-        for ibatch in range(0, self.nbatch):
+        for ibatch in range(self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
             dftb_torch.Initialization(self.para)
@@ -631,7 +828,8 @@ class RunML:
             else:
                 self.para['LreadSKFinterp'] = False
             dftb_torch.Initialization(self.para)
-            self.get_compr_specie()
+            self.slako.genskf_interp_ij()
+            self.genml.genml_init_compr()
 
             para['compr_ml'] = self.para['compr_pred'][ibatch]
 
@@ -641,6 +839,7 @@ class RunML:
             self.runcal.idftb_torchspline()
             homo_lumo = para['homo_lumo']
             dipole = para['dipole']
+            gap = t.abs(homo_lumo[1] - homo_lumo[0])
             self.save.save1D(
                     homo_lumo.numpy(), name='eigpred.dat', dire=dire, ty='a')
             self.save.save1D(
@@ -649,9 +848,15 @@ class RunML:
                              name='qatompred.dat', dire=dire, ty='a')
             self.save.save1D(self.para['alpha_mbd'].numpy(),
                              name='polpred.dat', dire=dire, ty='a')
+            self.save.save1D(homo_lumo.numpy(),
+                             name='HLpred.dat', dire=dire, ty='a')
+            self.save.save1D(gap.numpy(),
+                             name='gappred.dat', dire=dire, ty='a')
+            self.save.save1D(para['compr_ml'].numpy(),
+                             name='comprpred.dat', dire=dire, ty='a')
 
     def ml_compr_interp(self, para):
-        '''test the interpolation gradients'''
+        """Test the interpolation gradients."""
 
         # select the first molecule
         if type(para['coorall'][0]) is t.Tensor:
@@ -730,23 +935,6 @@ class GenMLPara:
     def __init__(self, para):
         self.para = para
 
-    def genenvir(self, nbatch, para, ifile, coor, symbols):
-        rcut = para['rcut']
-        r_s = para['r_s']
-        eta = para['eta']
-        tol = para['tol']
-        zeta = para['zeta']
-        lamda = para['lambda']
-        rad_para = lattice_cell.rad_molecule2(coor, rcut, r_s, eta, tol,
-                                              symbols)
-        ang_para = lattice_cell.ang_molecule2(coor, rcut, r_s, eta, zeta,
-                                              lamda, tol, symbols)
-        para['ang_paraall'].append(ang_para)
-        para['rad_paraall'].append(rad_para)
-        natom = len(coor)
-        nbatch += natom * (natom+1)
-        return para, nbatch
-
     def genmlpara0(self, para):
         pass
 
@@ -816,23 +1004,20 @@ class RunCalc:
     def aims(self, para, ibatch, dire):
         """DFT means FHI-aims here."""
         coor = para['coor']
-        self.para['natom'] = coor.shape[0]
-        natom = np.shape(coor)[0]
+        self.para['natom'] = int(self.para['natomall'][ibatch])
         write.FHIaims(para).geo_nonpe_hdf(para, ibatch, coor[:, 1:])
         os.rename('geometry.in.{}'.format(ibatch), 'ref/aims/geometry.in')
         os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch) +
-                  ' ' + str(natom))
+                  ' ' + str(self.para['natom']))
 
     def dftbplus(self, para, ibatch, dire):
         """Perform DFTB+ to calculate."""
         dftb = write.Dftbplus(para)
         coor = para['coor']
-        self.para['natom'] = coor.shape[0]
-        specie = para['specie']
+        self.para['natom'] = int(self.para['natomall'][ibatch])
         scc = para['scc']
-
         dftb.geo_nonpe(dire, coor)
-        dftb.write_dftbin(self.para, dire, scc, coor, specie)
+        dftb.write_dftbin(self.para, dire, scc, coor)
         os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch))
 
     def dftbtorchrun(self, para, coor, DireSK):
@@ -854,17 +1039,40 @@ class RunCalc:
         dftb_torch.Rundftbpy(self.para)
 
 
+def parser_cmd_args(para):
+    """Interface to command line.
+
+    raed some input information, including path, names of files, etc.
+    default path of input: current path
+    default path of .skf file: ./slko
+    default inout name: dftb_in (json type)
+    """
+    _description = 'argparse for DFTB-pytorch optimization and test'
+    parser = argparse.ArgumentParser(description=_description)
+    msg = 'Directory (default: .)'
+    parser.add_argument('-d', '--directory', default='../data', help=msg)
+    msg = 'Task'
+    parser.add_argument('-t', '--task', type=str, default='opt', help=msg)
+    args = parser.parse_args()
+    path = os.getcwd()
+    if 'dire_data' not in para:
+        para['dire_data'] = args.directory
+    if 'task' not in para:
+        para['task'] = args.task
+
+
 if __name__ == "__main__":
     """main function for optimizing DFTB parameters, testing DFTB"""
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    para['task'] = 'optml'
-
-    if para['task'] == 'optml':
-        optml(para)
+    parser_cmd_args(para)
+    # para['task'] = 'opt'
+    if para['task'] == 'opt':
+        para['dire_data'] = '.data'
+        opt(para)
     elif para['task'] == 'test':
-        para['dire_data'] = '../data/results/200703compr_50mol_pol'
+        # para['dire_data'] = '../data/results/test_CH4_dip_pol_para/dire7'
         testml(para)
     elif para['task'] == 'envpara':
         initpara.init_dftb_ml(para)

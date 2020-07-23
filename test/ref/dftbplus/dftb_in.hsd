@@ -9,8 +9,9 @@ SccTolerance = 1e-8
 Mixer = Broyden { 
  MixingParameter = 0.2 } 
 MaxAngularMomentum { 
+N="p" 
+C="p" 
 H="s" 
-O="p" 
 } 
  Charge = 0.0 
  SpinPolarisation {} 

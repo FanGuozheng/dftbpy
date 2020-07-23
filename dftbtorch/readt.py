@@ -624,6 +624,7 @@ class SkInterpolator:
         self.para['ngridpoint_rall' + nameij] = ngridpoint_
         self.para['hs_all_rall' + nameij] = superskf
         self.para['atomnameInSkf' + nameij] = atomname_filename
+        self.para['interpcutoff'] = int(ngridpoint_.max())
 
     def getfilenamelist(self, namei, namej, directory):
         """Read all the skf files name.
