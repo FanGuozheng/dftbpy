@@ -4,8 +4,6 @@ implement pytorch to DFTB
 """
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import argparse
-import os
 import numpy as np
 import torch as t
 import bisect
@@ -15,6 +13,7 @@ from readt import ReadSlaKo, ReadInt, SkInterpolator
 from periodic import Periodic
 from matht import EigenSolver
 import parameters
+import dftbtorch.parser as parser
 from mbd import MBD
 GEN_PARA = {"inputfile_name": 'in.ground'}
 VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
@@ -59,9 +58,9 @@ class Initialization:
         # step 1: whether get parameters from command line
         if 'LCmdArgs' in self.para.keys():
             if self.para['LCmdArgs']:  # define 'LCmdArgs' True
-                self.parser_cmd_args()
+                parser.parser_cmd_args(self.para)
         elif 'LCmdArgs' not in self.para.keys():  # not define 'LCmdArgs'
-            self.parser_cmd_args()
+            parser.parser_cmd_args(self.para)
 
         # step 2: if read para from dftb_in, if define yourself, set False
         if 'LReadInput' in self.para.keys():
@@ -77,32 +76,6 @@ class Initialization:
 
         # step 4: read SKF files and run SK transformation
         self.run_sk()
-
-    def parser_cmd_args(self):
-        """Interface to command line.
-
-        raed some input information, including path, names of files, etc.
-        default path of input: current path
-        default path of .skf file: ./slko
-        default inout name: dftb_in (json type)
-        """
-        _description = 'Test script demonstrating argparse'
-        parser = argparse.ArgumentParser(description=_description)
-        msg = 'Directory (default: .)'
-        parser.add_argument('-d', '--directory', default='.', help=msg)
-        msg = 'Directory_SK (default: .)'
-        parser.add_argument('-sk', '--directorySK', default='slko', help=msg)
-        msg = 'input filename'
-        parser.add_argument('-fn', '--filename', type=str, default='dftb_in',
-                            metavar='NAME', help=msg)
-        args = parser.parse_args()
-        path = os.getcwd()
-        if 'filename' not in self.para:
-            self.para['filename'] = args.filename
-        if 'direInput' not in self.para:
-            self.para['direInput'] = os.path.join(path, args.directory)
-        if 'direSK' not in self.para:
-            self.para['direSK'] = os.path.join(path, args.directorySK)
 
     def run_sk(self):
         """DFTB calculations, read integrals from .skf."""

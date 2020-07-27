@@ -1030,6 +1030,7 @@ if __name__ == '__main__':
     para['LMBD_DFTB'] = False
     para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
     para['vdw_self_consistent'] = False
+    para['eigenmethod'] = 'cholesky'
     para['beta'] = 1.05
     if para["test_target"] == "normal":
         normal_test(para)

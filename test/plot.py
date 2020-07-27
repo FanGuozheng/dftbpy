@@ -683,16 +683,18 @@ def plot_pol_pred(para, dire, ref=None, dftbplus=None):
                 fpdftbplus, dtype=float, count=iat, sep=' ')
 
     for ii in range(nmin):
-        diff_init[ii] = sum(abs(dref[ii, :] - dinit[ii, :]))
-        p1, = plt.plot(dref[ii, :], dinit[ii, :], 'xr')
-        diff_opt[ii] = sum(abs(dref[ii, :] - dopt[ii, :]))
-        p2, = plt.plot(dref[ii, :], dopt[ii, :], 'vc')
+        iat = int(para['natomall'][ii])
+        diff_init[ii] = sum(abs(dref[ii, :iat] - dinit[ii, :iat]))
+        p1, = plt.plot(dref[ii, :iat], dinit[ii, :iat], 'xr')
+        diff_opt[ii] = sum(abs(dref[ii, :iat] - dopt[ii, :iat]))
+        p2, = plt.plot(dref[ii, :iat], dopt[ii, :iat], 'vc')
     if ref == 'aims':
         for ii in range(npred):
-            diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
-            p3, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
-            diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
-            p4, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
+            iat = int(para['natomall'][ii])
+            diff_pred[ii] = sum(abs(dref[ii, :iat] - dpred[ii, :iat]))
+            p3, = plt.plot(dref[ii, :iat], dpred[ii, :iat], 'ob')
+            diff_dftbplus[ii] = sum(abs(dref[ii, :iat] - ddftbplus[ii, :iat]))
+            p4, = plt.plot(dref[ii, :iat], ddftbplus[ii, :iat], '*y')
         plt.legend([p1, p2, p3, p4],
                    ['polarizability-init', 'polarizability-opt',
                     'polarizability-pred', 'polarizability-DFTB+'])
@@ -765,12 +767,12 @@ def plot_pol_pred_weight(para, dire, ref=None, dftbplus=None):
     for ifile in range(npred):
         iat = int(para['natomall'][ifile])
         if ref == 'aims':
-            dref[ifile, :iat] = np.fromfile(
-                fpref, dtype=float, count=iat, sep=' ')
+            dref[ifile, :] = np.fromfile(
+                fpref, dtype=float, count=natommax, sep=' ')
         dpred[ifile, :iat] = np.fromfile(
             fppred, dtype=float, count=iat, sep=' ')
-        ddftbplus[ifile, :iat] = np.fromfile(
-                fpdftbplus, dtype=float, count=iat, sep=' ')
+        ddftbplus[ifile, :] = np.fromfile(
+                fpdftbplus, dtype=float, count=natommax, sep=' ')
 
     if ref == 'aims':
         for ii in range(npred):
@@ -778,12 +780,12 @@ def plot_pol_pred_weight(para, dire, ref=None, dftbplus=None):
             if ii < nmin:
                 p1, = plt.plot(dref[ii, :iat], dinit[0, ii, :iat], 'xr')
                 p2, = plt.plot(dref[ii, :iat], dinit[-1, ii, :iat], 'vc')
-                diff_opt[ii] = sum(abs(dinit[-1, ii, :] - dref[ii, :]))
-            diff_pred[ii] = sum(abs(dref[ii, :] - dpred[ii, :]))
-            p3, = plt.plot(dref[ii, :], dpred[ii, :], 'ob')
-            diff_dftbplus[ii] = sum(abs(dref[ii, :] - ddftbplus[ii, :]))
-            p4, = plt.plot(dref[ii, :], ddftbplus[ii, :], '*y')
-        plt.legend([p1, p3, p4], [
+                diff_opt[ii] = sum(abs(dinit[-1, ii, :iat] - dref[ii, :iat]))
+            diff_pred[ii] = sum(abs(dref[ii, :iat] - dpred[ii, :iat]))
+            p3, = plt.plot(dref[ii, :iat], dpred[ii, :iat], 'ob')
+            diff_dftbplus[ii] = sum(abs(dref[ii, :iat] - ddftbplus[ii, :iat]))
+            p4, = plt.plot(dref[ii, :iat], ddftbplus[ii, :iat], '*y')
+        plt.legend([p1, p2, p3, p4], [
             'polarizability-init', 'polarizability-opt',
             'polarizability-pred', 'polarizability-DFTB+'])
         plt.xlabel('reference polarizability')
@@ -1082,12 +1084,11 @@ if __name__ == '__main__':
     para = {}
     task = 'dftbml_bp'
     if task == 'dftbml_bp':
-        para['dire_data'] = '../data/results/200718compr_300mol_dip'
+        para['dire_data'] = '../../dftbpy/data/results/test_CH4_dip_pol_para/dire11'
         initpara.init_dftb_ml(para)
-        LoadData(para)
+        LoadData(para, int(para['n_dataset'][0]), int(para['n_test'][0]))
         ntrain = int(para['n_dataset'][0])
         npred = int(para['n_test'][0])
-        LoadData(para)
         if ntrain >= npred:
             para['ntrain'] = para['nhdf_max']
             para['npred'] = para['nhdf_min']
@@ -1095,8 +1096,10 @@ if __name__ == '__main__':
             para['npred'] = para['nhdf_max']
             para['ntrain'] = para['nhdf_min']
         para['ref'] = para['reference']
-        read_nstep(para)
-    if para['Lml_acsf']:
-        plot_ml_feature(para)
-    else:
-        plot_ml_compr(para)
+        # read_nstep(para)
+        plot_homolumo_pred_weight(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')
+        plot_dip_pred_weight(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')
+        plot_pol_pred_weight(
+                para, para['dire_data'], ref='aims', dftbplus='dftbplus')

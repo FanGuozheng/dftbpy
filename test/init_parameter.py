@@ -33,10 +33,10 @@ def init_dftb_ml(para):
         hdffilelist = []
         hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = [['1']]  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['10']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['100']  # used to test!!!!! n_test >= n_dataset!!!!!
-        para['hdf_mixture'] = False  # mix different molecule type
+        para['hdf_num'] = [['all']]  # determine the type of molecule!!!!!
+        para['n_dataset'] = ['500']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['500']  # used to test!!!!! n_test >= n_dataset!!!!!
+        para['hdf_mixture'] = True  # mix different molecule type
         assert len(para['n_dataset']) == len(para['n_test'])
     elif para['dataType'] == 'qm7':
         para['qm7_data'] = os.path.join(dire_data, 'qm7.mat')
@@ -73,13 +73,13 @@ def init_dftb_ml(para):
     # ----------------------------- DFTB-ML -----------------------------
     para['reference'] = 'aims'  # optional reference: aims, dftbplus, dftb!!!!!
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
-    para['target'] = ['dipole', 'polarizability']
+    para['target'] = ['dipole']
     para['dipole_loss_ratio'] = 1
-    para['polarizability_loss_ratio'] = 0.15
+    para['polarizability_loss_ratio'] = 0.25
     para['mlsteps'] = 2  # how many steps for optimize in DFTB-ML!!!!!
     para['save_steps'] = 1  # how many steps to save the DFTB-ML data!!!!!
     para['opt_step_min'] = 2
-    para['lr'] = 4E-2  # learning rate !!!!!
+    para['lr'] = 5E-3  # learning rate !!!!!
     para['loss_function'] = 'MSELoss'  # MSELoss, L1Loss
 
     para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
@@ -100,7 +100,7 @@ def init_dftb_ml(para):
         para['LreadSKFinterp'] = True
         para['Lonsite'] = False  # if optimize onsite in DFTB-ML
         para['typeSKinterp'] = 'uniform'  # grid of compr is uniform or ?!!!!!
-        para['typeSKinterpR'] = 'wavefunction'  # all, wavefunction, density...
+        para['typeSKinterpR'] = 'all'  # all, wavefunction, density...
         if para['typeSKinterp'] == 'nonuniform':
             para['dire_interpSK'] = os.path.join(path, '../slko/nonuniform')
         elif para['typeSKinterp'] == 'uniform':

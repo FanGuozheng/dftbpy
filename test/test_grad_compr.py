@@ -7,7 +7,6 @@ Created on Thu Aug  8 10:59:55 2019
 import os
 import numpy as np
 import sys
-import argparse
 from torch.autograd import Variable
 import torch as t
 import write_output as write
@@ -19,6 +18,7 @@ import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
+import dftbtorch.parser as parser
 DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
@@ -39,12 +39,13 @@ def opt(para):
     initpara.init_dftb_ml(para)
 
     # load dataset, here is hdf type
-    LoadData(para)
+    LoadData(para, int(para['n_dataset'][0]))
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
     para['ref'] = para['reference']
     para['nfile'] = para['nhdf_max']
+    print("para['nfile']", para['nfile'])
     runml.ref()
 
     # run dftb in ML process
@@ -67,7 +68,7 @@ def testml(para):
     # load dataset, here is hdf type
     ntrain = int(para['n_dataset'][0])
     npred = int(para['n_test'][0])
-    LoadData(para)
+    LoadData(para, int(para['n_dataset'][0]), int(para['n_test'][0]))
     if ntrain >= npred:
         para['ntrain'] = para['nhdf_max']
         para['npred'] = para['nhdf_min']
@@ -1039,37 +1040,14 @@ class RunCalc:
         dftb_torch.Rundftbpy(self.para)
 
 
-def parser_cmd_args(para):
-    """Interface to command line.
-
-    raed some input information, including path, names of files, etc.
-    default path of input: current path
-    default path of .skf file: ./slko
-    default inout name: dftb_in (json type)
-    """
-    _description = 'argparse for DFTB-pytorch optimization and test'
-    parser = argparse.ArgumentParser(description=_description)
-    msg = 'Directory (default: .)'
-    parser.add_argument('-d', '--directory', default='../data', help=msg)
-    msg = 'Task'
-    parser.add_argument('-t', '--task', type=str, default='opt', help=msg)
-    args = parser.parse_args()
-    path = os.getcwd()
-    if 'dire_data' not in para:
-        para['dire_data'] = args.directory
-    if 'task' not in para:
-        para['task'] = args.task
-
-
 if __name__ == "__main__":
-    """main function for optimizing DFTB parameters, testing DFTB"""
+    """Main function for optimizing DFTB parameters, testing DFTB."""
     t.autograd.set_detect_anomaly(True)
     t.set_printoptions(precision=15)
     para = {}
-    parser_cmd_args(para)
-    # para['task'] = 'opt'
+    parser.parser_cmd_args(para)
+    print("para['dire_data']", para['dire_data'])
     if para['task'] == 'opt':
-        para['dire_data'] = '.data'
         opt(para)
     elif para['task'] == 'test':
         # para['dire_data'] = '../data/results/test_CH4_dip_pol_para/dire7'

@@ -9,8 +9,7 @@ SccTolerance = 1e-8
 Mixer = Broyden { 
  MixingParameter = 0.2 } 
 MaxAngularMomentum { 
-N="p" 
-C="p" 
+O="p" 
 H="s" 
 } 
  Charge = 0.0 
