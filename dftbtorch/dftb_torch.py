@@ -88,11 +88,11 @@ class Initialization:
         if self.para['Lml']:
             if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
                 # replace local specie with global specie
-                self.para['atomspecie'] = self.para['specie_global']
+                self.para['atomspecie'] = self.para['specie_all']
                 self.interpskf()
             elif self.para['Lml_acsf'] and self.para['LreadSKFinterp']:
                 # replace local specie with global specie
-                self.para['atomspecie'] = self.para['specie_global']
+                self.para['atomspecie'] = self.para['specie_all']
                 self.interpskf()
 
     def form_sk_spline(self):
@@ -218,8 +218,8 @@ class SCF:
         elif self.para['HSsym'] == 'symhalf':
             eigm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             overm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            for iind in range(0, ind_nat):
-                for jind in range(0, iind + 1):
+            for iind in range(ind_nat):
+                for jind in range(iind + 1):
                     eigm[jind, iind] = self.hmat[icount]
                     overm[jind, iind] = self.smat[icount]
                     eigm[iind, jind] = self.hmat[icount]
@@ -304,8 +304,8 @@ class SCF:
             # Hamiltonian = H0 + H2, where
             # H2 = 0.5 * sum(overlap * (gamma_IK + gamma_JK))
             icount = 0
-            for iind in range(0, int(self.atind[self.nat])):
-                for j_i in range(0, iind + 1):
+            for iind in range(int(self.atind[self.nat])):
+                for j_i in range(iind + 1):
                     fockmat_[icount] = self.hmat[icount] + 0.5 * \
                         self.smat[icount] * (shiftorb_[iind] + shiftorb_[j_i])
                     icount += 1

@@ -21,13 +21,13 @@ def init_dftb_ml(para):
         Others, such as plotting parameters
     """
     # --------------------------- load data -------------------------------
-    para['dataType'] = 'ani'  # optional datatype: ANI, json
+    para['dataType'] = 'json'  # optional datatype: ANI, json
     path = os.getcwd()  # get the current path
     dire_data = '../data/dataset/'
     if para['dataType'] == 'json':
-        para['pythondata_dire'] = '../data'  # path of data
+        para['pythondata_dire'] = '../data/json'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = ['30']
+        para['n_dataset'] = [1]
         para['dire_interpSK'] = os.path.join(path, '../slko')
     elif para['dataType'] == 'ani':
         hdffilelist = []
@@ -210,13 +210,14 @@ def init_dftb(para):
     para['Ldipole'] = True  # if calculate dipole
     para['Lml_skf'] = False  # ML type SKF or not
     para['Lrepulsive'] = False  # if calculate repulsive
+    para['HS_spline'] = False
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-7
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
     para['tElec'] = 0
     para['maxIter'] = 60
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['HSsym'] = 'symhalf'  # symhalf, symall, symall_chol
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
     para['direSK'] = '../slko/test'

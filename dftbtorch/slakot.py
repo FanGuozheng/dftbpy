@@ -30,9 +30,15 @@ class SKTran:
         if not self.para['Lml']:
             if not self.para['LreadSKFinterp']:
                 self.get_sk_all()
-                self.sk_tran_symall_chol()
+                if self.para['HSsym'] == 'symall_chol':
+                    self.sk_tran_symall_chol()
+                elif self.para['HSsym'] == 'symhalf':
+                    self.sk_tranold(para)
             if self.para['LreadSKFinterp']:
-                self.sk_tran_symall_chol()
+                if self.para['HSsym'] == 'symall_chol':
+                    self.sk_tran_symall_chol()
+                elif self.para['HSsym'] == 'symhalf':
+                    self.sk_tranold(para)
         if self.para['Lml']:
             if self.para['Lml_skf'] or self.para['Lml_acsf']:
                 if self.para['HSsym'] == 'symall':
@@ -101,15 +107,16 @@ class SKTran:
         atomname = para['atomnameall']
         dvec = para['dvec']
         atomind2 = para['atomind2']
-        para['hammat'] = t.zeros(atomind2)
-        para['overmat'] = t.zeros(atomind2)
-        rr = t.zeros(3)
+        para['hammat'] = t.zeros((atomind2), dtype=t.float64)
+        para['overmat'] = t.zeros((atomind2), dtype=t.float64)
+        rr = t.zeros((3), dtype=t.float64)
         for i in range(0, natom):
             lmaxi = para['lmaxall'][i]
             for j in range(0, i + 1):
                 lmaxj = para['lmaxall'][j]
                 lmax = max(lmaxi, lmaxj)
-                para['hams'], para['ovrs'] = t.zeros(9, 9), t.zeros(9, 9)
+                para['hams'] = t.zeros((9, 9), dtype=t.float64)
+                para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
                 para['nameij'] = atomname[i] + atomname[j]
                 rr[:] = dvec[i, j, :]
 
@@ -117,7 +124,7 @@ class SKTran:
                 slkode(para, rr, i, j, lmax)
 
                 # transfer ham and ovr matrice to whole matrice
-                for n in range(0, atomind[j + 1] - atomind[j]):
+                for n in range(atomind[j + 1] - atomind[j]):
                     nn = atomind[j] + n
                     for m in range(0, atomind[i + 1] - atomind[i]):
                         mm = atomind[i] + m
@@ -193,15 +200,15 @@ class SKTran:
                 # generate ham, over only for atomi-atomj(non f orbital)
                 if i == j:
                     slkode_onsite(self.para, rr, i, j, lmaxi)
-                    for m in range(0, atomind[i + 1] - atomind[i]):
+                    for m in range(atomind[i + 1] - atomind[i]):
                         mm = atomind[i] + m
                         self.para['h_onsite'][mm] = self.para['h_o'][m]
                         self.para['s_onsite'][mm] = self.para['s_o'][m]
                 else:
                     slkode_chol(self.para, rr, i, j, lmaxi, lmaxj)
-                    for n in range(0, atomind[j + 1] - atomind[j]):
+                    for n in range(atomind[j + 1] - atomind[j]):
                         nn = atomind[j] + n
-                        for m in range(0, atomind[i + 1] - atomind[i]):
+                        for m in range(atomind[i + 1] - atomind[i]):
                             mm = atomind[i] + m
                             self.para['ham_'][mm, nn] = \
                                 self.para['hams'][m, n]
@@ -673,7 +680,7 @@ def slkode(para, rr, i, j, lmax):
     else:
         getsk(para, nameij, dd)
         cutoff = para['cutoffsk' + nameij]
-    skselfnew = t.zeros(3)
+    skselfnew = t.zeros((3), dtype=t.float64)
     if dd > cutoff:
         return para
     if dd < 1E-4:
@@ -716,7 +723,7 @@ def slkode(para, rr, i, j, lmax):
             para['hams'][8, 8] = skselfnew[0]
             para['ovrs'][8, 8] = 1.0
     else:
-        if not para['LReadInput'] and not para['Lml_skf']:
+        if para['HS_spline']:
             shparspline(para, rr, i, j, dd)
         else:
             shpar(para, para['hs_all'][i, j], rr, i, j, dd)
@@ -805,7 +812,7 @@ def getsk_(para, rr, i, j, li, lj):
         para['hsdataji'] = para['hsdata']
 
 
-'''def getsk(para, nameij, dd):
+def getsk(para, nameij, dd):
     # ninterp is the num of points for interpolation, here is 8
     ninterp = para['ninterp']
     datalist = para['hs_all' + nameij]
@@ -838,7 +845,7 @@ def getsk_(para, rr, i, j, li, lj):
         para['hsdata'] = DFTBmath(para).polysk5thsk(datainterp, ddinterp, dd)
     else:
         print('Error: the {} distance > cutoff'.format(nameij))
-    return para'''
+    return para
 
 
 def shpar_(para, xyz, i, j, dd, li, lj):

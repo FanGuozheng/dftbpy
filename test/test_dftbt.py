@@ -1000,6 +1000,12 @@ def normal_test(para):
         scc_C2H6O(para)
 
 
+def single_test(para):
+    """test for DFTB."""
+    initpara.init_dftb(para)
+    nonscc_CH4(para)
+
+
 def compr_test(para):
     """Test DFTB with compression radius, but not for ML."""
     testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
@@ -1025,13 +1031,16 @@ if __name__ == '__main__':
     """
     t.set_printoptions(precision=15)
     para = {}
-    para["test_target"] = "normal"
+    para["test_target"] = "single"
     para['Lml_skf'] = False
     para['LMBD_DFTB'] = False
     para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
     para['vdw_self_consistent'] = False
     para['eigenmethod'] = 'cholesky'
     para['beta'] = 1.05
+
+    if para["test_target"] == "single":
+        single_test(para)
     if para["test_target"] == "normal":
         normal_test(para)
     elif para["test_target"] == "compr":

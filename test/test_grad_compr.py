@@ -40,12 +40,14 @@ def opt(para):
 
     # load dataset, here is hdf type
     LoadData(para, int(para['n_dataset'][0]))
+    if para['dataType'] == 'ani':
+        para['nfile'] = para['nhdf_max']
+    elif para['dataType'] == 'json':
+        para['nfile'] = para['n_dataset'][0]
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
     para['ref'] = para['reference']
-    para['nfile'] = para['nhdf_max']
-    print("para['nfile']", para['nfile'])
     runml.ref()
 
     # run dftb in ML process
@@ -1046,7 +1048,6 @@ if __name__ == "__main__":
     t.set_printoptions(precision=15)
     para = {}
     parser.parser_cmd_args(para)
-    print("para['dire_data']", para['dire_data'])
     if para['task'] == 'opt':
         opt(para)
     elif para['task'] == 'test':

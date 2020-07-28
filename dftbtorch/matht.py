@@ -1,10 +1,11 @@
 """Mathematical libraries for DFTB-ML.
 
 including:
-    Interpolation for SKF
-    Bicubic
+    Interpolation for a list of SK files with:
+        Bicubic interpolation
     Spline interpolation
-    Linear Algebra: eigenvalue problem, linear equation...
+    Linear Algebra:
+        eigenvalue problem, linear equation...
 
 """
 # !/usr/bin/env python3
@@ -336,7 +337,14 @@ class DFTBmath:
 
 
 class EigenSolver:
-    """Eigen solver for general eigenvalue problem."""
+    """Eigen solver for general eigenvalue problem.
+
+    In current DFTB-ML framework, general eigenvalue problems can not be
+    solved directly with pytorch, therefore we have to transfer to normal
+    eigenvalue problem, we include two method:
+        cholesky decomposition
+
+    """
 
     def __init__(self, para):
         """Initialize parameters."""
@@ -1207,6 +1215,7 @@ class LinAl:
         out_[2, 0] = (in_[1, 0] * in_[2, 1] - in_[1, 1] * in_[2, 0]) / det
         out_[2, 1] = -(in_[0, 0] * in_[2, 1] - in_[0, 1] * in_[2, 0]) / det
         out_[2, 2] = (in_[0, 0] * in_[1, 1] - in_[0, 1] * in_[1, 0]) / det
+
         return out_
 
     def det33_mat(self, in_):
@@ -1217,4 +1226,5 @@ class LinAl:
             in_[0, 1] * in_[1, 2] * in_[2, 0] + \
             in_[0, 2] * in_[1, 0] * in_[2, 1] - \
             in_[0, 2] * in_[1, 1] * in_[2, 0]
+
         return det

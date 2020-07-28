@@ -39,6 +39,7 @@ class LoadData:
             self.loadqm7()
         elif self.para['dataType'] == 'json':
             self.load_json_data()
+            self.get_specie_all()
 
     def load_ani(self):
         """Load the data from hdf type input files."""
@@ -116,11 +117,11 @@ class LoadData:
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    for iat in range(len(ispecie)):
+                    '''for iat in range(len(ispecie)):
                         coor[iat, 0] = ATOMNUM[ispecie[iat]]
                         ispe = ispecie[iat]
                         if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)
+                            self.para['specie_global'].append(ispe)'''
                     self.para['natomall'].append(coor.shape[0])
                     self.para['coorall'].append(coor)
                     self.para['symbols'].append(ispecie)
@@ -134,11 +135,11 @@ class LoadData:
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    for iat in range(len(ispecie)):
+                    '''for iat in range(len(ispecie)):
                         coor[iat, 0] = ATOMNUM[ispecie[iat]]
                         ispe = ispecie[iat]
                         if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)
+                            self.para['specie_global'].append(ispe)'''
                     self.para['natomall'].append(coor.shape[0])
                     self.para['coorall'].append(coor)
                     self.para['symbols'].append(ispecie)
@@ -183,22 +184,28 @@ class LoadData:
         dire = self.para['pythondata_dire']
         filename = self.para['pythondata_file']
         self.para['coorall'] = []
+        self.para['natomall'] = []
+        self.para['specie'] = []
+        self.para['speciedict'] = []
 
         with open(os.path.join(dire, filename), 'r') as fp:
             fpinput = json.load(fp)
 
             if 'symbols' in fpinput['general']:
                 self.para['symbols'] = fpinput['general']['symbols'].split()
-                self.para['speciedict'] = Counter(self.para['symbols'])
+                # self.para['speciedict'] = Counter(self.para['symbols'])
 
-            specie = set(self.para['symbols'])
+            specie = list(set(self.para['symbols']))
             self.para['specie'] = specie
             self.para['atomspecie'] = []
             [self.para['atomspecie'].append(ispe) for ispe in specie]
+            self.para['specie'].append(self.para['atomspecie'])
+            self.para['speciedict'].append(Counter(self.para['atomspecie']))
 
             for iname in fpinput['geometry']:
                 icoor = fpinput['geometry'][iname]
                 self.para['coorall'].append(t.from_numpy(np.asarray(icoor)))
+                self.para['natomall'].append(len(icoor))
 
     def loadrefdata(self, ref, Directory, dire, nfile):
         """Load the data from DFT calculations."""
@@ -283,7 +290,7 @@ class LoadData:
                 self.para['natomall'].append(coor.shape[0])
                 self.para['coorall'].append(coor)
                 self.para['symbols'].append(symbols_)
-                self.para['specie'].append(set(symbols_))
+                self.para['specie'].append(list(set(symbols_)))
                 self.para['speciedict'].append(Counter(symbols_))
         self.para['n_dataset'][0] = str(n_dataset)
 
