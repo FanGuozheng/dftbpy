@@ -2,6 +2,7 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import time
+import sys
 import numpy as np
 import torch as t
 import matplotlib.pyplot as plt
@@ -22,40 +23,71 @@ class SKTran:
     def __init__(self, para):
         """Initialize parameters.
 
-        get integrals from .skf with given distance, build [natom, natom, 20]
+        Required args:
+            integral
+            distance
+        Returns:
+            [natom, natom, 20] matrix
+
         """
         self.para = para
         self.math = DFTBmath(self.para)
 
+        # if machine learning or not
         if not self.para['Lml']:
+
+            # directly get integrals from .skf or offer integrals
             if not self.para['LreadSKFinterp']:
                 self.get_sk_all()
-                if self.para['HSsym'] == 'symall_chol':
-                    self.sk_tran_symall_chol()
-                elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tranold(para)
-            if self.para['LreadSKFinterp']:
-                if self.para['HSsym'] == 'symall_chol':
-                    self.sk_tran_symall_chol()
-                elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tranold(para)
-        if self.para['Lml']:
-            if self.para['Lml_skf'] or self.para['Lml_acsf']:
+
+                # build H0 and S with full, symmetric matrices
                 if self.para['HSsym'] == 'symall':
                     self.sk_tran_symall()
-                elif self.para['HSsym'] == 'symall_chol':
-                    self.sk_tran_symall_chol()
+
+                # build H0 and S with only half matrices
                 elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tranold(para)
+                    self.sk_tran_half(para)
+
+            # use interpolation to get integrals with various compression radius
+            if self.para['LreadSKFinterp']:
+
+                # build H0 and S with full, symmetric matrices
+                if self.para['HSsym'] == 'symall':
+                    self.sk_tran_symall()
+
+                # build H0 and S with only half matrices
+                elif self.para['HSsym'] == 'symhalf':
+                    self.sk_tran_half(para)
+
+        # machine learning is True, some method only apply in this case
+        if self.para['Lml']:
+
+            # use ACSF to generate compression radius and then, SK transformations
+            if self.para['Lml_skf'] or self.para['Lml_acsf']:
+
+                # build H0 and S with full, symmetric matrices
+                if self.para['HSsym'] == 'symall':
+                    self.sk_tran_symall()
+
+                # build H0, S with half matrices
+                elif self.para['HSsym'] == 'symhalf':
+                    self.sk_tran_half(para)
+
+            # directly get integrals with spline, or some other method
             elif self.para['Lml_HS']:
                 self.sk_tran_symall()
 
     def get_sk_all(self):
         """Get integrals from .skf data with given distance."""
+        # number of atom in each calculation
         natom = self.para['natom']
+
+        # build H0 or S
         self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
-        for i in range(0, natom):
+        for i in range(natom):
+
+            # get the largest l of all atom
             lmaxi = self.para['lmaxall'][i]
             for j in range(0, natom):
                 lmaxj = self.para['lmaxall'][j]
@@ -100,127 +132,222 @@ class SKTran:
                             self.para['hs_all'][i, j, :] = \
                                 t.from_numpy(self.para['hsdata'])
 
-    def sk_tranold(self, para):
+    def sk_tran_half(self):
         """Transfer H and S according to slater-koster rules."""
-        atomind = para['atomind']
-        natom = para['natom']
-        atomname = para['atomnameall']
-        dvec = para['dvec']
-        atomind2 = para['atomind2']
-        para['hammat'] = t.zeros((atomind2), dtype=t.float64)
-        para['overmat'] = t.zeros((atomind2), dtype=t.float64)
+        # index of the orbitals
+        atomind = self.para['atomind']
+
+        # number of atom
+        natom = self.para['natom']
+
+        # name of all atom in each calculation
+        atomname = self.para['atomnameall']
+
+        # vectors between different atoms (Bohr)
+        dvec = self.para['dvec']
+
+        # the sum of orbital index, equal to dimension of H0 and S
+        atomind2 = self.para['atomind2']
+
+        # build 1D, half H0, S matrices
+        self.para['hammat'] = t.zeros((atomind2), dtype=t.float64)
+        self.para['overmat'] = t.zeros((atomind2), dtype=t.float64)
+
+        # temporary distance matrix
         rr = t.zeros((3), dtype=t.float64)
-        for i in range(0, natom):
+
+        for iat in range(natom):
+
+            # l of i atom
             lmaxi = para['lmaxall'][i]
-            for j in range(0, i + 1):
-                lmaxj = para['lmaxall'][j]
+
+            for jat in range(iat + 1):
+
+                # l of j atom
+                lmaxj = para['lmaxall'][jat]
                 lmax = max(lmaxi, lmaxj)
-                para['hams'] = t.zeros((9, 9), dtype=t.float64)
-                para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
-                para['nameij'] = atomname[i] + atomname[j]
-                rr[:] = dvec[i, j, :]
 
-                # generate ham, over only for atomi-atomj(non f orbital)
-                slkode(para, rr, i, j, lmax)
+                # temporary H, S with dimension 9 (s, p, d orbitals)
+                self.para['hams'] = t.zeros((9, 9), dtype=t.float64)
+                self.para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
 
-                # transfer ham and ovr matrice to whole matrice
-                for n in range(atomind[j + 1] - atomind[j]):
-                    nn = atomind[j] + n
-                    for m in range(0, atomind[i + 1] - atomind[i]):
-                        mm = atomind[i] + m
+                # atom name of i and j
+                self.para['nameij'] = atomname[iat] + atomname[jat]
+
+                # coordinate vector between ia
+                rr[:] = dvec[iat, jat, :]
+
+                # generate ham, over only between i, j (no f orbital)
+                slkode(self.para, rr, iat, jat, lmax)
+
+                # transfer temporary ham and ovr matrices to final H0, S
+                for n in range(atomind[jat + 1] - atomind[jat]):
+                    nn = atomind[jat] + n
+                    for m in range(atomind[iat + 1] - atomind[iat]):
+                        mm = atomind[iat] + m
                         idx = int(mm * (mm + 1) / 2 + nn)
                         if nn <= mm:
                             idx = int(mm * (mm + 1) / 2 + nn)
-                            para['hammat'][idx] = para['hams'][m, n]
-                            para['overmat'][idx] = para['ovrs'][m, n]
-        return para
+                            self.para['hammat'][idx] = self.para['hams'][m, n]
+                            self.para['overmat'][idx] = self.para['ovrs'][m, n]
 
     def sk_tran_symall(self):
-        """Transfer H / S according to Slater-Koster rules.
+        """Transfer H0, S according to Slater-Koster rules.
 
-        writing all the 2D H / S instead of wrting the upper or lower
-        metrice due to symmetry
+        writing the symmetric, full 2D H0, S.
+
         """
+        # index of atom orbital
         atomind = self.para['atomind']
+
+        # number of atom
         natom = self.para['natom']
-        atomname = self.para['atomnameall']
-        dvec = self.para['dvec']
-        self.para['hammat'] = t.zeros(atomind[natom], atomind[natom])
-        self.para['overmat'] = t.zeros(atomind[natom], atomind[natom])
-        rr = t.zeros(3)
-        for i in range(0, natom):
-            lmaxi = self.para['lmaxall'][i]
-            for j in range(0, natom):
-                lmaxj = self.para['lmaxall'][j]
-                lmax = max(lmaxi, lmaxj)
-                self.para['hams'], self.para['ovrs'] = \
-                    t.zeros(9, 9), t.zeros(9, 9)
-                self.para['nameij'] = atomname[i] + atomname[j]
-                rr[:] = dvec[i, j, :]
 
-                # generate ham, over only for atomi-atomj(non f orbital)
-                slkode(self.para, rr, i, j, lmax)
-
-                # transfer ham and ovr matrice to whole matrice
-                for n in range(0, atomind[j + 1] - atomind[j]):
-                    nn = atomind[j] + n
-                    for m in range(0, atomind[i + 1] - atomind[i]):
-                        mm = atomind[i] + m
-                        self.para['hammat'][mm, nn] = self.para['hams'][m, n]
-                        self.para['overmat'][mm, nn] = self.para['ovrs'][m, n]
-
-    def sk_tran_symall_chol(self):
-        """Transfer H / S according to Slater-Koster rules.
-
-        writing all the 2D H / S instead of wrting the upper or lower
-        metrice due to symmetry
-        """
-        atomind = self.para['atomind']
-        natom = self.para['natom']
+        # total orbitals, equal to dimension of H0, S
         norb = atomind[natom]
+
+        # atom name
         atomname = self.para['atomnameall']
+
+        # atom coordinate vector (Bohr)
         dvec = self.para['dvec']
+
+        # build H0, S
         self.para['hammat'] = t.zeros((norb, norb), dtype=t.float64)
         self.para['overmat'] = t.zeros((norb, norb), dtype=t.float64)
-        self.para['ham_'] = t.zeros((norb, norb), dtype=t.float64)
-        self.para['over_'] = t.zeros((norb, norb), dtype=t.float64)
-        self.para['h_onsite'] = t.zeros((norb), dtype=t.float64)
-        self.para['s_onsite'] = t.zeros((norb), dtype=t.float64)
+
+        # build temporary distance vector for each atom pair
         rr = t.zeros(3)
-        for i in range(0, natom):
-            lmaxi = self.para['lmaxall'][i]
-            for j in range(0, natom):
-                lmaxj = self.para['lmaxall'][j]
-                self.para['hams'], self.para['ovrs'] = \
-                    t.zeros(9, 9), t.zeros(9, 9)
-                self.para['h_o'], self.para['s_o'] = t.zeros(9), t.zeros(9)
-                self.para['nameij'] = atomname[i] + atomname[j]
-                rr[:] = dvec[i, j, :]
 
-                # generate ham, over only for atomi-atomj(non f orbital)
-                if i == j:
-                    slkode_onsite(self.para, rr, i, j, lmaxi)
-                    for m in range(atomind[i + 1] - atomind[i]):
-                        mm = atomind[i] + m
-                        self.para['h_onsite'][mm] = self.para['h_o'][m]
-                        self.para['s_onsite'][mm] = self.para['s_o'][m]
+        for iat in range(natom):
+
+            # l of i atom
+            lmaxi = self.para['lmaxall'][iat]
+
+            for jat in range(natom):
+
+                # l of j atom
+                lmaxj = self.para['lmaxall'][jat]
+
+                # temporary H, S between i and j atom
+                self.para['hams'] = t.zeros((9, 9), dtype=t.float64)
+                self.para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
+
+                # temporary on-site
+                self.para['h_o'] = t.zeros((9), dtype=t.float64)
+                self.para['s_o'] = t.zeros((9), dtype=t.float64)
+
+                # name of i and j atom pair
+                self.para['nameij'] = atomname[iat] + atomname[jat]
+
+                # distance vector between i and j atom
+                rr[:] = dvec[iat, jat, :]
+
+                # for the same atom, where on-site should be construct
+                if iat == jat:
+
+                    # get on-site between i and j atom
+                    self.slkode_onsite(rr, iat, jat, lmaxi)
+
+                    # write on-site between i and j to final on-site matrix
+                    for m in range(atomind[iat + 1] - atomind[iat]):
+                        mm = atomind[iat] + m
+                        self.para['hammat'][mm, mm] = self.para['h_o'][m]
+                        self.para['overmat'][mm, mm] = self.para['s_o'][m]
+
+                # build H0, S with integrals for i, j atom pair
                 else:
-                    slkode_chol(self.para, rr, i, j, lmaxi, lmaxj)
-                    for n in range(atomind[j + 1] - atomind[j]):
-                        nn = atomind[j] + n
-                        for m in range(atomind[i + 1] - atomind[i]):
-                            mm = atomind[i] + m
-                            self.para['ham_'][mm, nn] = \
-                                self.para['hams'][m, n]
-                            self.para['over_'][mm, nn] = \
-                                self.para['ovrs'][m, n]
-        self.para['hammat'] = self.para['ham_'] + self.para['h_onsite'].diag()
-        self.para['overmat'] = \
-            self.para['over_'] + self.para['s_onsite'].diag()
 
+                    # get H, S with distance, initial integrals
+                    self.slkode_ij(rr, iat, jat, lmaxi, lmaxj)
+
+                    # write H0, S of i, j to final H0, S
+                    for n in range(atomind[jat + 1] - atomind[jat]):
+                        nn = atomind[jat] + n
+                        for m in range(atomind[iat + 1] - atomind[iat]):
+                            mm = atomind[iat] + m
+                            self.para['hammat'][mm, nn] = \
+                                self.para['hams'][m, n]
+                            self.para['overmat'][mm, nn] = \
+                                self.para['ovrs'][m, n]
+
+    def slkode_onsite(self, rr, i, j, lmax):
+        """Transfer i from ith atom to ith spiece."""
+        # name of i and i atom
+        nameij = self.para['nameij']
+
+        # s, p, d orbitals onsite
+        do, po, so = self.para['onsite' + nameij][:]
+
+        # max(l) is 1, only s orbitals is included in system
+        if lmax == 1:
+            self.para['h_o'][0] = so
+            self.para['s_o'][0] = 1.0
+
+        # max(l) is 2, including p orbitals
+        elif lmax == 2:
+            self.para['h_o'][0] = so
+            self.para['h_o'][1: 4] = po
+            self.para['s_o'][: 4] = 1.0
+
+        # max(l) is 3, including d orbital
+        else:
+            self.para['h_o'][0] = so
+            self.para['h_o'][1: 4] = po
+            self.para['h_o'][4: 9] = do
+            self.para['s_o'][:] = 1.0
+
+    def slkode_ij(self, rr, iat, jat, li, lj):
+        """Transfer integrals according to SK rules."""
+        # name of i, j atom
+        nameij = self.para['nameij']
+
+        # distance between atom i, j
+        dd = t.sqrt(t.sum(rr[:] ** 2))
+
+        if not self.para['Lml']:
+            if self.para['LreadSKFinterp']:
+                cutoff = self.para['interpcutoff']
+            else:
+                cutoff = self.para['cutoffsk' + nameij]
+        if self.para['Lml']:
+            if self.para['Lml_skf'] or self.para['Lml_acsf']:
+                cutoff = self.para['interpcutoff']  # may need revise!!!
+            elif self.para['Lml_HS']:
+                cutoff = self.para['interpcutoff']
+
+        if dd > cutoff:
+            print('{}atom-{}atom distance out of range'.format(iat, jat))
+            print(dd, cutoff)
+        elif dd < 1E-1:
+            print("ERROR, distance between", i, "atom and", j, 'is too close')
+            sys.exit()
+        else:
+            self.sk_(rr, iat, jat, dd, li, lj)
+
+    def sk_(self, xyz, iat, jat, dd, li, lj):
+        """SK transformations with defined parameters."""
+        # get the temporary H, S for i, j atom pair
+        hams = self.para['hams']
+        ovrs = self.para['ovrs']
+
+        # get the maximum and minimum of l
+        lmax, lmin = max(li, lj), min(li, lj)
+
+        # get distance along x, y, z
+        xx, yy, zz = xyz[:] / dd
+
+        # SK transformation according to parameter l
+        if lmax == 1:
+            skss_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+        elif lmin == 1 and lmax == 2:
+            sksp_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+        elif lmin == 2 and lmax == 2:
+            skpp_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+        return hams, ovrs
 
 class SlaKo:
-    """Slater-koster files (read, processing).
+    """Read Slater-koster files and processing data.
 
     read_skdata: read sk data
     get_sk_spldata: select interpolation type (Bspline, Polyspline)
@@ -730,67 +857,6 @@ def slkode(para, rr, i, j, lmax):
     return para
 
 
-def slkode_onsite(para, rr, i, j, lmax):
-    """Transfer i from ith atom to ith spiece."""
-    skselfnew = t.zeros(3)
-    nameij = para['nameij']
-    skselfnew[:] = para['onsite' + nameij]
-    if lmax == 1:
-        para['h_o'][0] = skselfnew[2]
-        para['s_o'][0] = 1.0
-    elif lmax == 2:
-        para['h_o'][0] = skselfnew[2]
-        para['s_o'][0] = 1.0
-        para['h_o'][1] = skselfnew[1]
-        para['s_o'][1] = 1.0
-        para['h_o'][2] = skselfnew[1]
-        para['s_o'][2] = 1.0
-        para['h_o'][3] = skselfnew[1]
-        para['s_o'][3] = 1.0
-    else:
-        para['h_o'][0] = skselfnew[2]
-        para['s_o'][0] = 1.0
-        para['h_o'][1] = skselfnew[1]
-        para['s_o'][1] = 1.0
-        para['h_o'][2] = skselfnew[1]
-        para['s_o'][2] = 1.0
-        para['h_o'][3] = skselfnew[1]
-        para['s_o'][3] = 1.0
-        para['h_o'][4] = skselfnew[0]
-        para['s_o'][4] = 1.0
-        para['h_o'][5] = skselfnew[0]
-        para['s_o'][5] = 1.0
-        para['h_o'][6] = skselfnew[0]
-        para['s_o'][6] = 1.0
-        para['h_o'][7] = skselfnew[0]
-        para['s_o'][7] = 1.0
-        para['h_o'][8] = skselfnew[0]
-        para['s_o'][8] = 1.0
-
-
-def slkode_chol(para, rr, i, j, li, lj):
-    nameij = para['nameij']
-    dd = t.sqrt(t.sum(rr[:] ** 2))
-    if not para['Lml']:
-        if para['LreadSKFinterp']:
-            cutoff = para['interpcutoff']
-        else:
-            cutoff = para['cutoffsk' + nameij]
-    if para['Lml']:
-        if para['Lml_skf']  or para['Lml_acsf']:
-            cutoff = para['interpcutoff']  # may need revise!!!
-        elif para['Lml_HS']:
-            cutoff = para['interpcutoff']
-
-    if dd > cutoff:
-        print('{}atom-{}atom distance out of range'.format(i, j))
-        print(dd, cutoff)
-    elif dd < 1E-2:
-        print("ERROR, distance between", i, "atom and", j, 'is too close')
-    else:
-        shpar_(para, rr, i, j, dd, li, lj)
-
-
 def getsk_(para, rr, i, j, li, lj):
     """Read .skf data."""
     dd = t.sqrt(t.sum(rr[:] ** 2))
@@ -846,21 +912,6 @@ def getsk(para, nameij, dd):
     else:
         print('Error: the {} distance > cutoff'.format(nameij))
     return para
-
-
-def shpar_(para, xyz, i, j, dd, li, lj):
-    hams, ovrs = para['hams'], para['ovrs']
-    lmax, lmin = max(li, lj), min(li, lj)
-    xx = xyz[0] / dd
-    yy = xyz[1] / dd
-    zz = xyz[2] / dd
-    if lmax == 1:
-        skss_(xx, yy, zz, i, j, para['hs_all'], hams, ovrs, li, lj)
-    elif lmin == 1 and lmax == 2:
-        sksp_(xx, yy, zz, i, j, para['hs_all'], hams, ovrs, li, lj)
-    elif lmin == 2 and lmax == 2:
-        skpp_(xx, yy, zz, i, j, para['hs_all'], hams, ovrs, li, lj)
-    return hams, ovrs
 
 
 def shpar(para, hs_data, xyz, i, j, dd):

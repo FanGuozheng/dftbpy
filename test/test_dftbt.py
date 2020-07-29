@@ -16,12 +16,13 @@ def test_accuracy(para, name, dire,
                   LS0=False, S=None,
                   Lq=False, q=None,
                   Lp=False, p=None):
-    '''
-    Read the corresponding data from normal DFTB+ code
+    """Read the corresponding data from normal DFTB+ code
+
     Required:
         H0: CH4_H0_half.dat
         S: CH4_S_half.dat
-    '''
+
+    """
     print('-' * 35, 'test accuracy:', name, '-' * 35)
     read_dftbplus_data(para, dire, H0=H0, S=S, q=q, p=None)
     nat = para['natom']
@@ -379,7 +380,7 @@ def nonscc_C2H6(para):
 
 def scc_C2H6(para):
     '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
+    Test eigenvalue, charges of CH4 by using SCC DFTB;
     Before DFTB calculations, we will also test H0 and S;
     '''
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
@@ -1003,7 +1004,7 @@ def normal_test(para):
 def single_test(para):
     """test for DFTB."""
     initpara.init_dftb(para)
-    nonscc_CH4(para)
+    scc_CH4(para)
 
 
 def compr_test(para):
@@ -1025,16 +1026,20 @@ def compr_test(para):
 
 
 if __name__ == '__main__':
-    """Main test function.
+    """Test function.
 
     test normal DFTB, DFTB with interpolation SKF
     """
+
+    # set the precision = 15
     t.set_printoptions(precision=15)
     para = {}
     para["test_target"] = "single"
     para['Lml_skf'] = False
+
+    # The following is for MBD-DFTB
     para['LMBD_DFTB'] = False
-    para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
+    para['n_omega_grid'] = 15
     para['vdw_self_consistent'] = False
     para['eigenmethod'] = 'cholesky'
     para['beta'] = 1.05

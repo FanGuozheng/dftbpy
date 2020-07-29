@@ -36,17 +36,19 @@ def main(para):
 class Initialization:
     """Initialize parameters for DFTB.
 
-    this class aims to read input coor, calculation parameters and SK tables;
-    Then with SK transformation, construct 1D Hamiltonian and overlap matrice
-    for the following DFTB calculations
+    this class aims to read input coordinates, calculation parameters and SK tables;
+    Then with SK transformation, construct 1D Hamiltonian and overlap matrices if
+    symmetry is defined as half, otherwise build 2D, symmetric matrices for the
+    following DFTB calculations.
+
     """
 
     def __init__(self, para):
         """Interface for different applications.
 
         Args:
-            LCmdArgs (optional): True or False
-            LReadInput (optional): True or False
+            LCmdArgs (optional): Get information from command line
+            LReadInput (optional): Get information form a defined file
 
         """
         self.para = para
@@ -361,6 +363,7 @@ class SCF:
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
+        analysis.dftb_energy()
         analysis.sum_property()
         print_.print_dftb_caltail()
 

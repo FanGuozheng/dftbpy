@@ -20,9 +20,13 @@ def init_dftb_ml(para):
         DFTB parameters
         Others, such as plotting parameters
     """
-    # --------------------------- load data -------------------------------
-    para['dataType'] = 'json'  # optional datatype: ANI, json
-    path = os.getcwd()  # get the current path
+    # ************************** load data **************************
+
+    # optional datatype: ani, json, qm7
+    para['dataType'] = 'json'
+
+    # get the current path
+    path = os.getcwd()
     dire_data = '../data/dataset/'
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data/json'  # path of data
@@ -174,7 +178,7 @@ def init_dftb_ml(para):
     para['general_tol'] = 1E-4
     para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     # if build half H0, S or build whole H0, S: symall, symhalf.. !!!!!
-    para['HSsym'] = 'symall_chol'
+    para['HSsym'] = 'symall'
     para['ninterp'] = 8  # interpolation integrals when read SKF with distance
     para['dist_tailskf'] = 1.0  # smooth tail of SKF
     para['tElec'] = 0
@@ -217,7 +221,7 @@ def init_dftb(para):
     para['general_tol'] = 1E-4
     para['tElec'] = 0
     para['maxIter'] = 60
-    para['HSsym'] = 'symhalf'  # symhalf, symall, symall_chol
+    para['HSsym'] = 'symall'  # symhalf, symall
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
     para['direSK'] = '../slko/test'
@@ -242,7 +246,7 @@ def init_dftb_interp(para):
     para['tElec'] = 0
     para['maxIter'] = 60
     para['Ldipole'] = True
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
+    para['HSsym'] = 'symall'  # symhalf, symall
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
     para['interpcutoff'] = 4.0
