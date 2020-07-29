@@ -4,6 +4,7 @@ implement pytorch to DFTB
 """
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
 import numpy as np
 import torch as t
 import bisect
@@ -15,10 +16,6 @@ from matht import EigenSolver
 import parameters
 import dftbtorch.parser as parser
 from mbd import MBD
-GEN_PARA = {"inputfile_name": 'in.ground'}
-VAL_ELEC = {"H": 1, "C": 4, "N": 5, "O": 6, "Ti": 4}
-PUBPARA = {"tol": 1E-4}
-ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
 def main(para):
@@ -29,7 +26,7 @@ def main(para):
     # read input construct these data for next DFTB calculations
     Initialization(para)
 
-    # with all necessary data, run dftb calculation
+    # with all necessary data, run DFTB calculation
     Rundftbpy(para)
 
 
@@ -52,31 +49,31 @@ class Initialization:
 
         """
         self.para = para
-        parameters.dftb_parameter(para)
+
+        # call all necessary classes for following calculations
         self.slako = SlaKo(self.para)
         self.readsk = ReadSlaKo(self.para)
         self.readin = ReadInt(para)
 
-        # step 1: whether get parameters from command line
-        if 'LCmdArgs' in self.para.keys():
-            if self.para['LCmdArgs']:  # define 'LCmdArgs' True
-                parser.parser_cmd_args(self.para)
-        elif 'LCmdArgs' not in self.para.keys():  # not define 'LCmdArgs'
-            parser.parser_cmd_args(self.para)
+        # get the constant parameters for DFTB
+        parameters.dftb_parameter(self.para)
 
-        # step 2: if read para from dftb_in, if define yourself, set False
+        # check parameters from command line
+        parser.parser_cmd_args(self.para)
+
+        # if define input file
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
-                self.readin.get_task(para)
+                self.readin.read_input(para)
                 self.readin.get_coor(para)
         elif 'LReadInput' not in self.para.keys():
-            self.readin.get_task(para)
+            self.readin.read_input(para)
             self.readin.get_coor()
 
-        # step 3: generate vector, distance ... from given geometry
+        # generate vector, distance ... from coordinate
         self.readin.cal_coor()
 
-        # step 4: read SKF files and run SK transformation
+        # deal with integrals and SK transformation
         self.run_sk()
 
     def run_sk(self):
@@ -113,7 +110,7 @@ class Initialization:
             nametail = '_all'
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
-                if ATOMNUM[namei] <= ATOMNUM[namej]:  # this is just nanestyle
+                if self.para['atomno_' + namei] <= self.para['atomno_' + namej]:
                     dire = self.para['dire_interpSK'] + '/' + namei + \
                         '_' + namej + nametail
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
@@ -834,7 +831,7 @@ class Analysis:
         num_electrons = 0
         qatom = t.zeros((self.nat), dtype=t.float64)
         for i in range(0, self.nat):
-            qatom[i] = VAL_ELEC[atomname[i]]
+            qatom[i] = self.para['val_' + atomname[i]]
             num_electrons += qatom[i]
         self.para['qatom'] = qatom
         self.para['nelectrons'] = num_electrons

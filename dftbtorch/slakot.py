@@ -9,12 +9,6 @@ import matplotlib.pyplot as plt
 import matht
 from scipy import interpolate
 from matht import Bspline, DFTBmath, BicubInterp
-nls = 1
-nlp = 3
-nld = 9
-VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
-HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
-        'OH': 0, 'OO': 4}
 
 
 class SKTran:
@@ -355,15 +349,22 @@ class SlaKo:
     """
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
 
-    def read_skdata(self, para):
-        """Read and store the SK table raw data for s, p and d oribitals."""
-        atomname = para['atomnameall']
-        para['onsite'] = t.zeros(len(atomname), 3)
-        para['spe'] = t.zeros(len(atomname))
-        para['uhubb'] = t.zeros(len(atomname), 3)
-        para['occ_atom'] = t.zeros(len(atomname), 3)
+    def read_skdata(self):
+        """Read SK table raw data for s, p and d orbitals."""
+        # atom name for all atoms
+        atomname = self.para['atomnameall']
+
+        # number of atom
+        natom = self.para['natom']
+
+        # onsite for all atoms
+        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['spe'] = t.zeros((natom), dtype=t.float64)
+        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
+        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
         icount = 0
         for namei in atomname:
             for namej in atomname:

@@ -249,7 +249,7 @@ class MBD:
         h_in: normally the latice parameters
         ainv_in: inverse matrix of of 3*3 h_in
         """
-        coor = self.para['coorbohr']
+        coor = self.para['coor']
         spq = t.zeros((3), dtype=t.float64)
         spq_lat = t.zeros((3), dtype=t.float64)
         rpq_lat = t.zeros((3), dtype=t.float64)

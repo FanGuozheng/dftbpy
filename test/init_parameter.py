@@ -23,7 +23,7 @@ def init_dftb_ml(para):
     # ************************** load data **************************
 
     # optional datatype: ani, json, qm7
-    para['dataType'] = 'json'
+    para['dataType'] = 'ani'
 
     # get the current path
     path = os.getcwd()
@@ -38,8 +38,8 @@ def init_dftb_ml(para):
         hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s01.h5'))
         para['hdffile'] = hdffilelist
         para['hdf_num'] = [['all']]  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['500']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['500']  # used to test!!!!! n_test >= n_dataset!!!!!
+        para['n_dataset'] = ['2']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['2']  # used to test!!!!! n_test >= n_dataset!!!!!
         para['hdf_mixture'] = True  # mix different molecule type
         assert len(para['n_dataset']) == len(para['n_test'])
     elif para['dataType'] == 'qm7':
@@ -183,6 +183,7 @@ def init_dftb_ml(para):
     para['dist_tailskf'] = 1.0  # smooth tail of SKF
     para['tElec'] = 0
     para['maxIter'] = 60  # max of SCF loop
+    para['t_zero_max'] = 5
     para['Lperiodic'] = False
     para['Ldipole'] = True
     para['Lrepulsive'] = False
@@ -221,6 +222,7 @@ def init_dftb(para):
     para['general_tol'] = 1E-4
     para['tElec'] = 0
     para['maxIter'] = 60
+    para['t_zero_max'] = 5
     para['HSsym'] = 'symall'  # symhalf, symall
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
@@ -245,6 +247,7 @@ def init_dftb_interp(para):
     para['delta_r_skf'] = 1E-5
     para['tElec'] = 0
     para['maxIter'] = 60
+    para['t_zero_max'] = 5
     para['Ldipole'] = True
     para['HSsym'] = 'symall'  # symhalf, symall
     para['dist_tailskf'] = 1.0

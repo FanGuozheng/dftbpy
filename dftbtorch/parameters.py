@@ -1,16 +1,76 @@
-"""Definition of parameters for DFTB and Machine Learning."""
+"""Definition of constant parameters for DFTB and Machine Learning."""
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import torch as t
 
 
 def dftb_parameter(para):
-    """Parameters for ML and DFTB."""
+    """Constant parameters for ML and DFTB."""
+    # unit between Hartree and eV
     para["AUEV"] = 27.2113845
 
+    # unit of bohr and angstrom
+    para['BOHR'] = 0.529177249
+
+    # Boltzmann parameter
+    para['boltzmann_constant_H'] = 3.166811429E-6
+
+    # number of valence electrons
+    para.update({"val_H": 1,
+                 "val_C": 4,
+                 "val_N": 5,
+                 "val_O": 6,
+                 "val_Ti": 4})
+
+    # number of atom
+    para.update({'atomno_H': 1,
+                 'atomno_C': 6,
+                 'atomno_N': 7,
+                 'atomno_O': 8})
+
+    # number of temporary orbital dimension with different l
+    para['nls'] = 1
+    para['nlp'] = 3
+    para['nld'] = 9
+
+    # l value of different elements
+    para.update({"l_H": 1,
+                 "l_C": 2,
+                 "l_N": 2,
+                 "l_O": 2,
+                 "l_Ti": 3})
+
+    HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
+        'OH': 0, 'OO': 4}
+
+    para.update({"atom_periodic_table": ["H", "He", "Li", "Be", "B", "C",
+                                         "N", "O", "F", "Ne", "Na", "Mg",
+                                         "Al", "Si", "P", "S", "Cl", "Ar",
+                                         "K", "Ca", "Sc", "Ti", "V", "Cr",
+                                         "Mn", "Fe", "Co", "Ni", "Cu",
+                                         "Zn", "Ga", "Ge", "As", "Se", "Br",
+                                         "Kr", "Rb", "Sr", "Y", "Zr", "Nb",
+                                         "Mo", "Tc", "Ru", "Rh", "Pd",
+                                         "Ag", "Cd", "In", "Sn", "Sb",
+                                         "Te", "I", "Xe", "Cs", "Ba", "La",
+                                         "Ce", "Pr", "Nd", "Pm", "Sm",
+                                         "Eu", "Gd", "Tb", "Dy", "Ho", "Er",
+                                         "Tm", "Yb", "Lu", "Hf", "Ta", "W ",
+                                         "Re", "Os", "Ir", "Pt", "Au",
+                                         "Hg", "Tl", "Pb", "Bi", "Po", "At"]})
+
+    # the first and second value means l value, the third is number itself
+    # the last if 0, means H0, if 1, means S. [2, 2, 0, 0] is: H_dd0
+    para.update({'[2, 2, 0, 0]': 0, '[2, 2, 1, 0]': 1, '[2, 2, 2, 0]': 2,
+                 '[1, 2, 0, 0]': 3, '[1, 2, 1, 0]': 4, '[1, 1, 0, 0]': 5,
+                 '[1, 1, 1, 0]': 6, '[0, 2, 0, 0]': 7, '[0, 1, 0, 0]': 8,
+                 '[0, 0, 0, 0]': 9, '[2, 2, 0, 1]': 10, '[2, 2, 1, 1]': 11,
+                 '[2, 2, 2, 1]': 12, '[1, 2, 0, 1]': 13, '[1, 2, 1, 1]': 14,
+                 '[1, 1, 0, 1]': 15, '[1, 1, 1, 1]': 16, '[0, 2, 0, 1]': 17,
+                 '[0, 1, 0, 1]': 18, '[0, 0, 0, 1]': 19})
 
 def mbd_parameter(para):
-    """Parameters are from MBD-DFTB+."""
+    """Constant parameters for MBD-DFTB+."""
     if para['n_omega_grid'] == 15:
         gauss_legendre_grid15(para)
 

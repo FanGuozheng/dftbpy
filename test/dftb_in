@@ -1,7 +1,6 @@
 {
 "general": 
   {
-  "scf": "true",
   "scc": "scc",
   "periodic": "false",
   "task": "ground",

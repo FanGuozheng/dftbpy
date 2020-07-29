@@ -253,7 +253,7 @@ class LoadData:
     def loadqm7(self):
         """Load QM7 type data."""
         dataset = scipy.io.loadmat(self.para['qm7_data'])
-        n_dataset_ = int(self.para['n_dataset'][0])
+        n_dataset_ = self.para['n_dataset'][0]
         coor_ = dataset['R']
         qatom_ = dataset['Z']
         train_specie = self.para['train_specie']  # not training all species

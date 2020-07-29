@@ -1048,6 +1048,7 @@ if __name__ == "__main__":
     t.set_printoptions(precision=15)
     para = {}
     parser.parser_cmd_args(para)
+    print("task", para['task'])
     if para['task'] == 'opt':
         opt(para)
     elif para['task'] == 'test':
