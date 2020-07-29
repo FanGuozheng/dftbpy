@@ -30,6 +30,10 @@ class ReadInt:
 
     Returns:
         DFTB parameters for calculations
+    Contains:
+        read_input: read json type input file
+        get_coor: read coor from json type input file
+        cal_coor: calculate input coordinate, return distance, atom specie...
 
     """
 
@@ -437,73 +441,6 @@ class ReadSlaKo:
                     self.para['repend' + nameij] = t.from_numpy(datarepend)
         self.get_cutoff_all()
 
-    '''def read_sk_specie_old(self):
-        """Old code for reading .skf. ATTENTION!!! not maintained."""
-        atomspecie, diresk = self.para['atomspecie'], self.para['direSK']
-        nspecie = len(atomspecie)
-
-        for iat in range(0, nspecie):
-            for jat in range(0, iat + 1):
-                nameij = atomspecie[iat] + atomspecie[jat]
-                if atomspecie[iat] == atomspecie[jat]:   # Homo-nuclear
-                    skname = atomspecie[iat] + '-' + atomspecie[jat] + '.skf'
-                    fp = open(os.path.join(diresk, skname))
-                    skdata = []
-                    try:
-                        for line in fp:
-                            each_line = line.strip().split()
-                            skdata.append(each_line)
-                    except IOError:
-                        print('failed to open Slater-Koster file')
-                    self.para['grid_dist' + nameij] = float(skdata[0][0])
-                    self.para['ngridpoint' + nameij] = int(skdata[0][1])
-                    line1_temp, hs_all = [], []
-                    self.para['mass_cd' + nameij] = []
-                    [line1_temp.append(float(ix)) for ix in skdata[1]]
-                    self.para['onsite' + nameij] = line1_temp[0:3]
-                    self.para['spe' + nameij] = line1_temp[3]
-                    self.para['uhubb' + nameij] = line1_temp[4:7]
-                    self.para['occ_skf' + nameij] = line1_temp[7:10]
-                    for imass_cd in skdata[2]:
-                        self.para['mass_cd' + nameij].append(float(imass_cd))
-                    for iline in range(0, int(skdata[0][1])):
-                        hs_all.append([float(ij) for ij in skdata[iline + 3]])
-                    self.para['hs_all' + nameij] = hs_all
-
-                else:  # Hetero-nuclear
-                    nameji = atomspecie[jat] + atomspecie[iat]
-                    self.para['mass_cd' + nameij] = []
-                    self.para['mass_cd' + nameji] = []
-                    sknameij = atomspecie[iat] + '-' + atomspecie[jat] + '.skf'
-                    sknameji = atomspecie[jat] + '-' + atomspecie[iat] + '.skf'
-                    fp_ij = open(os.path.join(diresk, sknameij))
-                    fp_ji = open(os.path.join(diresk, sknameji))
-                    skdataij, skdataji, hs_ij, hs_ji = [], [], [], []
-                    try:
-                        for line in fp_ij:
-                            each_line = line.strip().split()
-                            skdataij.append(each_line)
-                        for line in fp_ji:
-                            each_line = line.strip().split()
-                            skdataji.append(each_line)
-                    except IOError:
-                        print('failed to open Slater-Koster file')
-                    self.para['grid_dist' + nameij] = float(skdataij[0][0])
-                    self.para['ngridpoint' + nameij] = int(skdataij[0][1])
-                    self.para['grid_dist' + nameji] = float(skdataji[0][0])
-                    self.para['ngridpoint' + nameji] = int(skdataji[0][1])
-                    for imass_cdij in skdataij[1]:
-                        self.para['mass_cd' + nameij].append(float(imass_cdij))
-                    for imass_cdji in skdataji[1]:
-                        self.para['mass_cd' + nameji].append(float(imass_cdji))
-                    assert int(skdataij[0][1]) == int(skdataji[0][1])
-                    for iline in range(0, int(skdataij[0][1])):
-                        self.readhs_ij_line(
-                            iline, skdataij, skdataji, atomspecie[iat],
-                            atomspecie[jat], hs_ij, hs_ji)
-                    self.para['hs_all' + nameij] = hs_ij
-                    self.para['hs_all' + nameji] = hs_ji'''
-
     def readhs_ij_line(self, iline, skdataij, skdataji, iat, jat, hsij, hsji):
         """Deal with the integrals each line in .skf."""
         lmax = max(VAL_ORB[iat], VAL_ORB[jat])
@@ -634,32 +571,56 @@ class SkInterpolator:
             gridmesh_points, onsite_spe_u, mass_rcut, integrals
 
         """
+        # atom name pair
         nameij = namei + namej
+
+        # get skf file list
         filenamelist = self.getfilenamelist(namei, namej, directory)
         nfile = len(filenamelist)
+
+        # get number of compression radius grid point
         ncompr = int(np.sqrt(len(filenamelist)))
+
+        # build grid distance, integral point number matrices for all skf files
         ngridpoint = t.empty((nfile), dtype=t.float64)
         grid_dist = t.empty((nfile), dtype=t.float64)
+
+        # build onsite, spe... matrices for all skf files, second line in skf
         onsite = t.empty((nfile, 3), dtype=t.float64)
         spe = t.empty((nfile), dtype=t.float64)
         uhubb = t.empty((nfile, 3), dtype=t.float64)
         occ_skf = t.empty((nfile, 3), dtype=t.float64)
+
+        # build matrices for third line in skf file
         mass_rcut = t.empty((nfile, 20), dtype=t.float64)
         integrals, atomname_filename, self.para['rest'] = [], [], []
 
+        # number for skf files
         icount = 0
         for filename in filenamelist:
+
+            # open all the files one by one
             fp = open(os.path.join(directory, filename), 'r')
+
+            # read first line
             words = fp.readline().split()
             grid_dist[icount] = float(words[0])
             ngridpoint[icount] = int(words[1])
+
+            # read second line
             nitem = int(ngridpoint[icount] * 20)
             atomname_filename.append((filename.split('.')[0]).split("-"))
+
+            # read third line
             data = np.fromfile(fp, dtype=float, count=20, sep=' ')
             mass_rcut[icount, :] = t.from_numpy(data)
+
+            # read all the integrals
             data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
             data.shape = (int(ngridpoint[icount]), 20)
             integrals.append(data)
+
+            # the rest part in skf file
             self.para['rest'].append(fp.read())
             icount += 1
 

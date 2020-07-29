@@ -17,9 +17,7 @@ class SKTran:
     def __init__(self, para):
         """Initialize parameters.
 
-        Required args:
-            integral
-            distance
+        Required args: integral, distance
         Returns:
             [natom, natom, 20] matrix
 
@@ -42,7 +40,7 @@ class SKTran:
                 elif self.para['HSsym'] == 'symhalf':
                     self.sk_tran_half(para)
 
-            # use interpolation to get integrals with various compression radius
+            # use interpolation to get integral with various compression radius
             if self.para['LreadSKFinterp']:
 
                 # build H0 and S with full, symmetric matrices
@@ -56,7 +54,7 @@ class SKTran:
         # machine learning is True, some method only apply in this case
         if self.para['Lml']:
 
-            # use ACSF to generate compression radius and then, SK transformations
+            # use ACSF to generate compression radius, then SK transformation
             if self.para['Lml_skf'] or self.para['Lml_acsf']:
 
                 # build H0 and S with full, symmetric matrices
@@ -153,12 +151,12 @@ class SKTran:
         for iat in range(natom):
 
             # l of i atom
-            lmaxi = para['lmaxall'][i]
+            lmaxi = self.para['lmaxall'][iat]
 
             for jat in range(iat + 1):
 
                 # l of j atom
-                lmaxj = para['lmaxall'][jat]
+                lmaxj = self.para['lmaxall'][jat]
                 lmax = max(lmaxi, lmaxj)
 
                 # temporary H, S with dimension 9 (s, p, d orbitals)
@@ -172,7 +170,7 @@ class SKTran:
                 rr[:] = dvec[iat, jat, :]
 
                 # generate ham, over only between i, j (no f orbital)
-                slkode(self.para, rr, iat, jat, lmax)
+                self.slkode(rr, iat, jat, lmax, lmaxi, lmaxj)
 
                 # transfer temporary ham and ovr matrices to final H0, S
                 for n in range(atomind[jat + 1] - atomind[jat]):
@@ -314,7 +312,7 @@ class SKTran:
             print('{}atom-{}atom distance out of range'.format(iat, jat))
             print(dd, cutoff)
         elif dd < 1E-1:
-            print("ERROR, distance between", i, "atom and", j, 'is too close')
+            print("ERROR, distance between", iat, "and", jat, 'is too close')
             sys.exit()
         else:
             self.sk_(rr, iat, jat, dd, li, lj)
@@ -333,12 +331,69 @@ class SKTran:
 
         # SK transformation according to parameter l
         if lmax == 1:
-            skss_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+            skss(self.para, xx, yy, zz, iat, jat, hams, ovrs, li, lj)
         elif lmin == 1 and lmax == 2:
-            sksp_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+            sksp(self.para, xx, yy, zz, iat, jat, hams, ovrs, li, lj)
         elif lmin == 2 and lmax == 2:
-            skpp_(xx, yy, zz, iat, jat, self.para['hs_all'], hams, ovrs, li, lj)
+            skpp(self.para, xx, yy, zz, iat, jat, hams, ovrs, li, lj)
         return hams, ovrs
+
+    def slkode(self, rr, iat, jat, lmax, li, lj):
+        """Transfer i from ith atom to ith spiece."""
+        nameij = self.para['nameij']
+        dd = t.sqrt((rr[:] ** 2).sum())
+        xx, yy, zz = rr / dd
+
+        # get the maximum and minimum of l
+        lmax, lmin = max(li, lj), min(li, lj)
+
+        if self.para['Lml']:
+            cutoff = self.para['interpcutoff']  # may need revise!!!
+            if self.para['Lml_skf']:
+                self.para['hsdata'] = self.para['hs_all'][iat, jat]
+            else:
+                getsk(self.para, nameij, dd)
+        else:
+            getsk(self.para, nameij, dd)
+            cutoff = self.para['cutoffsk' + nameij]
+        skselfnew = t.zeros((3), dtype=t.float64)
+        if dd > cutoff:
+            return self.para
+        if dd < 1E-4:
+            if iat != jat:
+                print("ERROR, distance between", iat, "and", jat, "atom is 0")
+            else:
+                if type(self.para['onsite' + nameij]) is t.Tensor:
+                    skselfnew[:] = self.para['onsite' + nameij]
+                elif type(self.para['coorall'][0]) is np.ndarray:
+                    skselfnew[:] = t.FloatTensor(self.para['onsite' + nameij])
+            if lmax == 1:
+                self.para['hams'][0, 0] = skselfnew[2]
+                self.para['ovrs'][0, 0] = 1.0
+            elif lmax == 2:
+                self.para['hams'][0, 0] = skselfnew[2]
+                t.diag(self.para['hams'])[1: 4, 1: 4] = skselfnew[1]
+                t.diag(self.para['ovrs'])[: 4, : 4] = 1.0
+            else:
+                self.para['hams'][0, 0] = skselfnew[2]
+                t.diag(self.para['hams'])[1: 4, 1: 4] = skselfnew[1]
+                t.diag(self.para['hams'])[4: 9, 4: 9] = skselfnew[0]
+                t.diag(self.para['ovrs'])[:, :] = 1.0
+        else:
+            if self.para['HS_spline']:
+                shparspline(self.para, rr, iat, jat, dd)
+            else:
+                # shpar(para, para['hs_all'][i, j], rr, i, j, dd)
+                if lmax == 1:
+                    skss(self.para, xx, yy, zz, iat, jat,
+                         self.para['hams'], self.para['ovrs'], li, lj)
+                elif lmin == 1 and lmax == 2:
+                    sksp(self.para, xx, yy, zz, iat, jat,
+                         self.para['hams'], self.para['ovrs'], li, lj)
+                elif lmin == 2 and lmax == 2:
+                    skpp(self.para, xx, yy, zz, iat, jat,
+                         self.para['hams'], self.para['ovrs'], li, lj)
+
 
 class SlaKo:
     """Read Slater-koster files and processing data.
@@ -795,69 +850,6 @@ def spl_ypara(para, nameij, ngridpoint, xp0, lines):
     return para
 
 
-def slkode(para, rr, i, j, lmax):
-    """Transfer i from ith atom to ith spiece."""
-    nameij = para['nameij']
-    dd = t.sqrt((rr[:] ** 2).sum())
-    if para['Lml']:
-        cutoff = para['interpcutoff']  # may need revise!!!
-        if para['Lml_skf']:
-            para['hsdata'] = para['hs_all'][i, j]
-        else:
-            getsk(para, nameij, dd)
-    else:
-        getsk(para, nameij, dd)
-        cutoff = para['cutoffsk' + nameij]
-    skselfnew = t.zeros((3), dtype=t.float64)
-    if dd > cutoff:
-        return para
-    if dd < 1E-4:
-        if i != j:
-            print("ERROR, distance between", i, "atom and", j, "atom is 0")
-        else:
-            if type(para['onsite' + nameij]) is t.Tensor:
-                skselfnew[:] = para['onsite' + nameij]
-            elif type(para['coorall'][0]) is np.ndarray:
-                skselfnew[:] = t.FloatTensor(para['onsite' + nameij])
-        if lmax == 1:
-            para['hams'][0, 0] = skselfnew[2]
-            para['ovrs'][0, 0] = 1.0
-        elif lmax == 2:
-            para['hams'][0, 0] = skselfnew[2]
-            para['ovrs'][0, 0] = 1.0
-            para['hams'][1, 1] = skselfnew[1]
-            para['ovrs'][1, 1] = 1.0
-            para['hams'][2, 2] = skselfnew[1]
-            para['ovrs'][2, 2] = 1.0
-            para['hams'][3, 3] = skselfnew[1]
-            para['ovrs'][3, 3] = 1.0
-        else:
-            para['hams'][0, 0] = skselfnew[2]
-            para['ovrs'][0, 0] = 1.0
-            para['hams'][1, 1] = skselfnew[1]
-            para['ovrs'][1, 1] = 1.0
-            para['hams'][2, 2] = skselfnew[1]
-            para['ovrs'][2, 2] = 1.0
-            para['hams'][3, 3] = skselfnew[1]
-            para['ovrs'][3, 3] = 1.0
-            para['hams'][4, 4] = skselfnew[0]
-            para['ovrs'][4, 4] = 1.0
-            para['hams'][5, 5] = skselfnew[0]
-            para['ovrs'][5, 5] = 1.0
-            para['hams'][6, 6] = skselfnew[0]
-            para['ovrs'][6, 6] = 1.0
-            para['hams'][7, 7] = skselfnew[0]
-            para['ovrs'][7, 7] = 1.0
-            para['hams'][8, 8] = skselfnew[0]
-            para['ovrs'][8, 8] = 1.0
-    else:
-        if para['HS_spline']:
-            shparspline(para, rr, i, j, dd)
-        else:
-            shpar(para, para['hs_all'][i, j], rr, i, j, dd)
-    return para
-
-
 def getsk_(para, rr, i, j, li, lj):
     """Read .skf data."""
     dd = t.sqrt(t.sum(rr[:] ** 2))
@@ -915,7 +907,7 @@ def getsk(para, nameij, dd):
     return para
 
 
-def shpar(para, hs_data, xyz, i, j, dd):
+'''def shpar(para, hs_data, xyz, i, j, dd):
     hams = para['hams']
     ovrs = para['ovrs']
     xx = xyz[0] / dd
@@ -937,7 +929,7 @@ def shpar(para, hs_data, xyz, i, j, dd):
         skpd(xx, yy, zz, i, j, hs_data, hams, ovrs)
     elif maxmax == 3 and minmax == 3:
         skdd(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    return hams, ovrs
+    return hams, ovrs'''
 
 
 def shparspline(para, xyz, i, j, dd):
@@ -1006,17 +998,13 @@ def shparspline(para, xyz, i, j, dd):
     return para
 
 
-def skss_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
+def skss(para, xx, yy, zz, i, j, ham, ovr, li, lj):
     """slater-koster transfermaton for s orvitals"""
+    hs_all = para['hs_all']
     ham[0, 0], ovr[0, 0] = hs_s_s(
             xx, yy, zz, hs_all[i, j, 9], hs_all[i, j, 19])
     return ham, ovr
 
-
-def skss(xx, yy, zz, i, j, data, ham, ovr):
-    """slater-koster transfermaton for s orvitals"""
-    ham[0, 0], ovr[0, 0] = hs_s_s(xx, yy, zz, data[9], data[19])
-    return ham, ovr
 
 
 def skssbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
@@ -1037,19 +1025,10 @@ def skss_spline(para, xx, yy, zz, dd):
     return para
 
 
-def sksp(xx, yy, zz, i, j, data, ham, ovr):
-    ham, ovr = skss(xx, yy, zz, i, j, data, ham, ovr)
-    ham[0, 1], ovr[0, 1] = hs_s_x(xx, yy, zz, data[8], data[18])
-    ham[0, 2], ovr[0, 2] = hs_s_y(xx, yy, zz, data[8], data[18])
-    ham[0, 3], ovr[0, 3] = hs_s_z(xx, yy, zz, data[8], data[18])
-    for ii in range(nls, nlp + nls):
-        ham[ii, 0] = ham[0, ii]
-        ovr[ii, 0] = ovr[0, ii]
-    return ham, ovr
-
-
-def sksp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
-    ham, ovr = skss_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj)
+def sksp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
+    """SK tranformation of s and p orbitals."""
+    hs_all = para['hs_all']
+    ham, ovr = skss(para, xx, yy, zz, i, j, ham, ovr, li, lj)
     if li == lj:
         ham[0, 1], ovr[0, 1] = hs_s_x(
                 xx, yy, zz, hs_all[i, j, 8], hs_all[i, j, 18])
@@ -1136,29 +1115,18 @@ def sksd(xx, yy, zz, data, ham, ovr):
     return ham, ovr
 
 
-def skpp(xx, yy, zz, data, ham, ovr):
-    ham, ovr = sksp(xx, yy, zz, data, ham, ovr)
-    ham[1, 1], ovr[1, 1] = hs_x_x(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    ham[1, 2], ovr[1, 2] = hs_x_y(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    ham[1, 3], ovr[1, 3] = hs_x_z(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    ham[2, 2], ovr[2, 2] = hs_y_y(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    ham[2, 3], ovr[2, 3] = hs_y_z(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    ham[3, 3], ovr[3, 3] = hs_z_z(
-        xx, yy, zz, data[5], data[15], data[6], data[16])
-    for ii in range(nls, nlp + nls):
-        for jj in range(nls, ii + nls):
-            ham[ii, jj] = -ham[jj, ii]
-            ovr[ii, jj] = -ovr[jj, ii]
-    return ham, ovr
+def skpp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
+    """SK tranformation of p and p orbitals."""
+    # hs_all is a matrix with demension [natom, natom, 20]
+    hs_all = para['hs_all']
 
+    # parameter control the orbital number
+    nls = para['nls']
+    nlp = para['nlp']
 
-def skpp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
-    ham, ovr = sksp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj)
+    # call sksp_ to build sp, ss orbital integral matrix
+    ham, ovr = sksp(para, xx, yy, zz, i, j, ham, ovr, li, lj)
+
     ham[1, 1], ovr[1, 1] = hs_x_x(
             xx, yy, zz, hs_all[i, j, 5], hs_all[i, j, 15],
             hs_all[i, j, 6], hs_all[i, j, 16])
@@ -1177,6 +1145,8 @@ def skpp_(xx, yy, zz, i, j, hs_all, ham, ovr, li, lj):
     ham[3, 3], ovr[3, 3] = hs_z_z(
             xx, yy, zz, hs_all[i, j, 5], hs_all[i, j, 15],
             hs_all[i, j, 6], hs_all[i, j, 16])
+
+    # the pp orbital, the transpose is the same
     for ii in range(nls, nlp + nls):
         for jj in range(nls, ii + nls):
             ham[ii, jj] = ham[jj, ii]

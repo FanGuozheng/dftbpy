@@ -12,7 +12,7 @@ import torch as t
 import write_output as write
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.slakot as slakot
-import plot
+import utils.plot as plot
 import init_parameter as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml

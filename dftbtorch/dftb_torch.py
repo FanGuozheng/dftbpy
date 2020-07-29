@@ -33,10 +33,11 @@ def main(para):
 class Initialization:
     """Initialize parameters for DFTB.
 
-    this class aims to read input coordinates, calculation parameters and SK tables;
-    Then with SK transformation, construct 1D Hamiltonian and overlap matrices if
-    symmetry is defined as half, otherwise build 2D, symmetric matrices for the
-    following DFTB calculations.
+    this class aims to read input coordinates, calculation parameters and SK
+    tables;
+    Then with SK transformation, construct 1D Hamiltonian and overlap matrices
+    if symmetry is defined as half, otherwise build 2D, symmetric matrices for
+    the following DFTB calculations.
 
     """
 
@@ -61,11 +62,12 @@ class Initialization:
         # check parameters from command line
         parser.parser_cmd_args(self.para)
 
-        # if define input file
+        # if define input file, right now is json type file
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
                 self.readin.read_input(para)
                 self.readin.get_coor(para)
+
         elif 'LReadInput' not in self.para.keys():
             self.readin.read_input(para)
             self.readin.get_coor()
