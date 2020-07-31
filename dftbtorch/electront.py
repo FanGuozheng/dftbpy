@@ -202,6 +202,9 @@ class DFTBelect:
                             val21 = self.gamsub(a2, a1, rr, rrc)
                             gval = rrc - fhbond * val12 - fhbond * val21
                     gmat[iatom, jatom] = gval
+
+
+            FWHM = np.sqrt(8. * np.log(8) / np.pi) / U
         return gmat
 
     def gamsub(self, a, b, rr, rrc):
@@ -223,6 +226,7 @@ class DFTBelect:
         natom = para['natom']
         shift = t.zeros(natom)
         qdiff = t.zeros(natom)
+        # No need to slice
         qdiff[:] = qatom[:] - qzero[:]
         if self.para['HSsym'] == 'symhalf':
             for iat in range(0, natom):
@@ -237,12 +241,8 @@ class DFTBelect:
                     shifti = shifti + qdiff[jat] * gamma
                 shift[iat] = shifti
         elif self.para['HSsym'] in ['symall', 'symall_chol']:
-            for iat in range(0, natom):
-                shifti = 0
-                for jat in range(0, natom):
-                    gamma = gmat[iat, jat]
-                    shifti = shifti + qdiff[jat] * gamma
-                shift[iat] = shifti
+            # The ".double()" can be removed once dtyping has been fixed
+            shift = qdiff @ gmat.double()
         return shift
 
     def mulliken(self, sym, overmat, denmat):
