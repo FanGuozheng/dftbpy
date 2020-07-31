@@ -377,7 +377,7 @@ class SCF:
         # A lot of information here is being stored to a dictionary, it is likely
         # more efficient to assign these to a class using __slots__ to help with
         # speed and memory. This might help compartmentalise the code a little more.
-        from mixer import Anderson
+        from dftbmalt.dftb.mixer import Anderson
         mixer = Anderson(mix_param=0.2, init_mix_param=0.2, generations=2)
 
         # Looks as if we are assuming there is not orbital resolved DFTB

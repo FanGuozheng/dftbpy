@@ -1,0 +1,3 @@
+[submodule "DFTBMaLT"]
+	path = DFTBMaLT
+	url = https://github.com/DFTBMaLT/DFTBMaLT.git
