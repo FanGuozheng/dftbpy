@@ -60,13 +60,11 @@ class DFTBelect:
 
     def gmatrix(self):
         """Build the gamma (2D) in second-order term.
-
         Args:
             distance
             Uhubbert
         Returns:
             Gamma matrix in second order
-
         """
         # get distance
         distance = self.para['distance']

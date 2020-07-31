@@ -246,6 +246,8 @@ def init_dftb(para):
     para['LreadSKFinterp'] = False
 
     # skf file tail distance
+    para['HSsym'] = 'symall'  # symhalf, symall
+
     para['dist_tailskf'] = 1.0
 
     # skf interpolation number
