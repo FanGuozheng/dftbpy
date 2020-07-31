@@ -298,7 +298,7 @@ class ReadInt:
                 [xx, yy, zz] = coor[jat, 1:] - coor[iat, 1:]
 
                 # distance between atom and atom
-                dd = np.sqrt(xx * xx + yy * yy + zz * zz)
+                dd = t.sqrt(xx * xx + yy * yy + zz * zz)
                 distance[iat, jat] = dd
 
                 if dd > err:

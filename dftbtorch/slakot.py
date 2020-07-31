@@ -1,6 +1,7 @@
 """Slater-Koster integrals related."""
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import time
 import sys
 import numpy as np
@@ -19,7 +20,7 @@ class SKTran:
 
         Required args: integral, distance
         Returns:
-            [natom, natom, 20] matrix
+            [natom, natom, 20] matrix for each calculation
 
         """
         self.para = para
@@ -77,52 +78,46 @@ class SKTran:
         # build H0 or S
         self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
-        for i in range(natom):
+        for iat in range(natom):
 
-            # get the largest l of all atom
-            lmaxi = self.para['lmaxall'][i]
-            for j in range(0, natom):
-                lmaxj = self.para['lmaxall'][j]
-                namei, namej = \
-                    self.para['atomnameall'][i], self.para['atomnameall'][j]
+            for jat in range(natom):
+
+                # get the name of i, j atom pair
+                namei = self.para['atomnameall'][iat]
+                namej = self.para['atomnameall'][jat]
                 nameij = namei + namej
-                if self.para['Lml']:
-                    if self.para['Lml_skf'] or self.para['Lml_acsf']:
-                        cutoff = self.para['interpcutoff']
-                else:
-                    cutoff = self.para['cutoffsk' + nameij]
 
-                dd = t.sqrt(t.sum(self.para['dvec'][i, j, :] ** 2))
+                # the cutoff is from former step when reading skf file
+                cutoff = self.para['cutoffsk' + nameij]
+
+                # the distance is from cal_coor
+                dd = self.para['distance'][iat, jat]
+
+                # if distance larger than cutoff, return zero
                 if dd > cutoff:
-                    print('{}atom-{}atom distance out of range'.format(i, j))
-                elif dd < 1E-2:
-                    pass
+                    print('{} - {} distance out of range'.format(iat, jat))
+
+                elif dd < 1E-1:
+
+                    # two atom are too close, exit
+                    if iat != jat:
+                        sys.exit()
                 else:
-                    lmax, lmin = max(lmaxi, lmaxj), min(lmaxi, lmaxj)
-                    if lmax == 1:
-                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
-                        # getsk(self.para, nameij, dd)
-                        if type(self.para['hsdata']) is t.Tensor:
-                            self.para['hs_all'][i, j, :] = self.para['hsdata']
-                        else:
-                            self.para['hs_all'][i, j, :] = \
-                                t.from_numpy(self.para['hsdata'])
-                    elif lmin == 1 and lmax == 2:
-                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
-                        # getsk(self.para, nameij, dd)
-                        if type(self.para['hsdata']) is t.Tensor:
-                            self.para['hs_all'][i, j, :] = self.para['hsdata']
-                        else:
-                            self.para['hs_all'][i, j, :] = \
-                                t.from_numpy(self.para['hsdata'])
-                    elif lmin == 2 and lmax == 2:
-                        self.para['hsdata'] = self.math.sk_interp(dd, nameij)
-                        # getsk(self.para, nameij, dd)
-                        if type(self.para['hsdata']) is t.Tensor:
-                            self.para['hs_all'][i, j, :] = self.para['hsdata']
-                        else:
-                            self.para['hs_all'][i, j, :] = \
-                                t.from_numpy(self.para['hsdata'])
+
+                    # get the integral by interpolation from integral table
+                    self.para['hsdata'] = self.math.sk_interp(dd, nameij)
+
+                    # make sure type is tensor
+                    self.para['hs_all'][iat, jat, :] = \
+                        self.data_type(self.para['hsdata'])
+
+    def data_type(self, in_):
+        """Make sure the output is tensor type."""
+        if type(self.para['hsdata']) is t.Tensor:
+            out_ = in_
+        else:
+            out_ = t.from_numpy(in_)
+        return out_
 
     def sk_tran_half(self):
         """Transfer H and S according to slater-koster rules."""
@@ -176,8 +171,12 @@ class SKTran:
                 for n in range(atomind[jat + 1] - atomind[jat]):
                     nn = atomind[jat] + n
                     for m in range(atomind[iat + 1] - atomind[iat]):
+
+                        # calculate the orbital index in the 1D H0, S matrices
                         mm = atomind[iat] + m
                         idx = int(mm * (mm + 1) / 2 + nn)
+
+                        # controls only half H0, S will be written
                         if nn <= mm:
                             idx = int(mm * (mm + 1) / 2 + nn)
                             self.para['hammat'][idx] = self.para['hams'][m, n]
@@ -257,6 +256,8 @@ class SKTran:
                     for n in range(atomind[jat + 1] - atomind[jat]):
                         nn = atomind[jat] + n
                         for m in range(atomind[iat + 1] - atomind[iat]):
+
+                            # calculate the off-diagonal orbital index
                             mm = atomind[iat] + m
                             self.para['hammat'][mm, nn] = \
                                 self.para['hams'][m, n]
@@ -395,55 +396,16 @@ class SKTran:
                          self.para['hams'], self.para['ovrs'], li, lj)
 
 
-class SlaKo:
-    """Read Slater-koster files and processing data.
-
-    read_skdata: read sk data
-    get_sk_spldata: select interpolation type (Bspline, Polyspline)
-    genskf_interp_ij: with compr of i, j atom, interpate sk data
-    """
+class SKinterp:
+    """Get integral from interpolation."""
 
     def __init__(self, para):
         """Initialize parameters."""
         self.para = para
 
-    def read_skdata(self):
-        """Read SK table raw data for s, p and d orbitals."""
-        # atom name for all atoms
-        atomname = self.para['atomnameall']
-
-        # number of atom
-        natom = self.para['natom']
-
-        # onsite for all atoms
-        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['spe'] = t.zeros((natom), dtype=t.float64)
-        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
-        icount = 0
-        for namei in atomname:
-            for namej in atomname:
-                ReadSKt(para, namei, namej)
-            nameii = namei + namei
-            para['onsite'][icount, :] = t.FloatTensor(para['onsite' + nameii])
-            para['spe'][icount] = para['spe' + nameii]
-            para['uhubb'][icount, :] = t.FloatTensor(para['uhubb' + nameii])
-            para['occ_atom'][icount, :] = t.FloatTensor(
-                    para['occ_skf' + nameii])
-            icount += 1
-
-    def get_sk_spldata(self):
-        """According to the type of interpolation, call different function."""
-        print('-' * 35, 'Generating H or S spline data', '-' * 35)
-        if self.para['interptype'] == 'Bspline':
-            self.gen_bsplpara()
-        elif self.para['interptype'] == 'Polyspline':
-            self.gen_psplpara()
-
     def genskf_interp_ij(self):
-        """Read skf data with various compression radius.
+        """Generate sk integral with various compression radius.
 
-        then use optimized compression radius to interpolate the sk data
         Args:
             atomnameall (list): all the atom name
             natom (int): number of atom
@@ -452,28 +414,27 @@ class SlaKo:
             hs_compr_all (out): [natom, natom, ncompr, ncompr, 20]
 
         """
-        atomname, natom = self.para['atomnameall'], self.para['natom']
+        # all atom name for current calculation
+        atomname = self.para['atomnameall']
+
+        # number of atom
+        natom = self.para['natom']
+
+        # atom specie
         atomspecie = self.para['atomspecie']
 
-        name_init = atomname[0] + atomname[0]
-        for iat in range(0, natom):
-            for jat in range(0, natom):
-                assert self.para['nfile_rall' + name_init] == \
-                    self.para['nfile_rall' + atomname[iat] + atomname[jat]]
+        # number of compression radius grid points
+        ncompr = self.para['ncompr']
 
-        ncompr = int(np.sqrt(self.para['nfile_rall' + name_init]))
+        # build integral with various compression radius
         self.para['hs_compr_all'] = t.zeros(natom, natom, ncompr, ncompr, 20)
 
         # get i and j atom with various compression radius at certain dist
-        print('Getting HS table according to compression R and distance',
-              'build matrix: [N_ij, N_R1, N_R2, 20]')
-        print('N_ij is number of atom pairs, N_R1(2) is number of compression',
-              'R, 20 is the number of integral each line in skf file')
-        timelist = [0]
-        for iatom in range(0, natom):
-            for jatom in range(0, natom):
-                timelist.append(time.time())
-                # print('timeij:', timelist[-1] - timelist[-2])
+        print('build matrix: [N, N, N_R, N_R, 20]')
+        print('N is number of atom, N_R is number of compression')
+
+        for iatom in range(natom):
+            for jatom in range(natom):
                 dij = self.para['distance'][iatom, jatom]
                 namei, namej = atomname[iatom], atomname[jatom]
                 nameij = namei + namej
@@ -484,17 +445,14 @@ class SlaKo:
                     self.genskf_interp_ijd_4d(dij, nameij, compr_grid)
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
-        print('total time init:', timelist[-1] - timelist[1])
+
         for iat in atomspecie:
-            # onsite is not in ML, therefore read [0, 0] here is correct!!!
+
+            # onsite is the same, therefore read [0, 0] instead
             onsite = t.zeros((3), dtype=t.float64)
             uhubb = t.zeros((3), dtype=t.float64)
-            if self.para['Lonsite']:
-                onsite[:] = self.para['onsite_rall' + iat + iat][0, 0]
-                uhubb[:] = self.para['uhubb_rall' + iat + iat][0, 0]
-            else:
-                onsite[:] = self.para['onsite' + iat]
-                uhubb[:] = self.para['uhubb' + iat]
+            onsite[:] = self.para['onsite' + iat]
+            uhubb[:] = self.para['uhubb' + iat]
             self.para['onsite' + iat + iat] = onsite
             self.para['uhubb' + iat + iat] = uhubb
 
@@ -670,6 +628,21 @@ class SlaKo:
         self.para['hs_all'] = hs_ij
         timelist.append(time.time())
         print('total time genskf_interp_compr:', timelist[-1] - timelist[1])
+
+class SKspline:
+    """Get integral from spline."""
+
+    def __init__(self, para):
+        """Initialize parameters."""
+        self.para = para
+
+    def get_sk_spldata(self):
+        """According to the type of interpolation, call different function."""
+        print('-' * 35, 'Generating H or S spline data', '-' * 35)
+        if self.para['interptype'] == 'Bspline':
+            self.gen_bsplpara()
+        elif self.para['interptype'] == 'Polyspline':
+            self.gen_psplpara()
 
     def gen_bsplpara(self):
         """Generate B-spline parameters."""

@@ -1,4 +1,4 @@
-"""This documents offer parameters definition for DFTB-ML.
+"""Example of defining parameters for DFTB-ML by python code.
 
 What is included:
     init_dftb_ml: DFTB-ML parameters for optimization and testing
@@ -20,26 +20,25 @@ def init_dftb_ml(para):
         DFTB parameters
         Others, such as plotting parameters
     """
-    # ************************** load data **************************
-
-    # optional datatype: ani, json, qm7
+    # **************************** load data *******************************
+    # optional datatype: ANI, json
     para['dataType'] = 'ani'
 
     # get the current path
     path = os.getcwd()
     dire_data = '../data/dataset/'
     if para['dataType'] == 'json':
-        para['pythondata_dire'] = '../data/json'  # path of data
+        para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = [1]
+        para['n_dataset'] = ['50']
         para['dire_interpSK'] = os.path.join(path, '../slko')
     elif para['dataType'] == 'ani':
         hdffilelist = []
-        hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s01.h5'))
+        hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s03.h5'))
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = [['all']]  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['2']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['2']  # used to test!!!!! n_test >= n_dataset!!!!!
+        para['hdf_num'] = [['1']]  # determine the type of molecule!!!!!
+        para['n_dataset'] = ['1']  # how many molecules used to optimize!!!!!
+        para['n_test'] = ['1']  # used to test!!!!! n_test >= n_dataset!!!!!
         para['hdf_mixture'] = True  # mix different molecule type
         assert len(para['n_dataset']) == len(para['n_test'])
     elif para['dataType'] == 'qm7':
@@ -79,7 +78,7 @@ def init_dftb_ml(para):
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
     para['target'] = ['dipole']
     para['dipole_loss_ratio'] = 1
-    para['polarizability_loss_ratio'] = 0.25
+    para['polarizability_loss_ratio'] = 0.15
     para['mlsteps'] = 2  # how many steps for optimize in DFTB-ML!!!!!
     para['save_steps'] = 1  # how many steps to save the DFTB-ML data!!!!!
     para['opt_step_min'] = 2
@@ -206,27 +205,70 @@ def init_dftb(para):
         DFTB parameters
         Others, such as plotting parameters
     """
-    para['LReadInput'] = False  # define parameters in python, not read input
-    para['LreadSKFinterp'] = False
-    para['Lml_HS'] = False  # donot perform ML process
-    para['scf'] = True  # perform scf
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['Lperiodic'] = False  # solid or molecule
-    para['Ldipole'] = True  # if calculate dipole
-    para['Lml_skf'] = False  # ML type SKF or not
-    para['Lrepulsive'] = False  # if calculate repulsive
-    para['HS_spline'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-7
+    # get parameters from input file, or from python code
+    para['LReadInput'] = False
+
+    # system perodic condition
+    para['Lperiodic'] = False
+
+    # calculate dipole
+    para['Ldipole'] = True
+
+    # calculate repulsive term or not
+    para['Lrepulsive'] = False
+
+    # mixing method: simple. anderson, broyden
+    para['mixMethod'] = 'anderson'
+
+    # mixing factor
+    para['mixFactor'] = 0.2
+
+    # convergence method: energy, charge
+    para['convergenceType'] = 'energy'
+
+    # convergence precision
+    para['energy_tol'] = 1e-6
+
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
     para['tElec'] = 0
+
+    # max interation of SCC loop
     para['maxIter'] = 60
+
+    # if smaller than t_zero_max, temperature treated as zero
     para['t_zero_max'] = 5
-    para['HSsym'] = 'symall'  # symhalf, symall
+
+    # how to write H0, S: symhalf, symall
+    para['HSsym'] = 'symall'
+
+    # skf: directly read or interpolate from a list of skf files
+    para['LreadSKFinterp'] = False
+
+    # skf file tail distance
     para['dist_tailskf'] = 1.0
+
+    # skf interpolation number
     para['ninterp'] = 8
+
+    # skfdirectory
     para['direSK'] = '../slko/test'
+
+    # The following is for MBD-DFTB
+    para['LMBD_DFTB'] = False
+    para['n_omega_grid'] = 15
+    para['vdw_self_consistent'] = False
+    para['eigenmethod'] = 'cholesky'
+    para['beta'] = 1.05
+
+    # machine learning
+    para['Lml'] = False
+
+    # machine learning optimize SKF parameters (compression radius...)
+    para['Lml_skf'] = False
+
+    # machine learning optimize integral
+    para['Lml_HS'] = False
 
 
 def init_dftb_interp(para):
@@ -247,15 +289,22 @@ def init_dftb_interp(para):
     para['delta_r_skf'] = 1E-5
     para['tElec'] = 0
     para['maxIter'] = 60
-    para['t_zero_max'] = 5
     para['Ldipole'] = True
-    para['HSsym'] = 'symall'  # symhalf, symall
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
     para['interpcutoff'] = 4.0
     para['Lml_skf'] = True
     para['Lml_HS'] = False
     para['Lrepulsive'] = False
+
+    # The following is for MBD-DFTB
+    para['LMBD_DFTB'] = False
+    para['n_omega_grid'] = 15
+    para['vdw_self_consistent'] = False
+    para['eigenmethod'] = 'cholesky'
+    para['beta'] = 1.05
+
     para['Lml_compr_global'] = False
     para['Lonsite'] = False
     para['atomspecie_old'] = []

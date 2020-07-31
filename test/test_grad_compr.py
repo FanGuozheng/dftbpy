@@ -138,7 +138,7 @@ class RunML:
         """Initialize DFTB-ML optimization"""
         self.para = para
         self.save = SaveData(self.para)
-        self.slako = slakot.SlaKo(self.para)
+        self.slako = slakot.SKinterp(self.para)
         self.genml = GenMLPara(self.para)
         self.runcal = RunCalc(self.para)
 
@@ -189,7 +189,7 @@ class RunML:
             elif self.para['Lml_HS']:
                 dftb_torch.Initialization(self.para)
                 self.genml.get_specie_label()
-                dftb_torch.Initialization(self.para).form_sk_spline()
+                dftb_torch.Initialization(self.para)
                 self.runcal.idftb_torchspline()
                 if self.para['interptype'] == 'Polyspline':
                     self.save.save2D(self.para['splyall'],

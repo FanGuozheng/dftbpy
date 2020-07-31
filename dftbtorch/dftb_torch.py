@@ -4,11 +4,12 @@ implement pytorch to DFTB
 """
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import time
 import numpy as np
 import torch as t
 import bisect
-from slakot import SlaKo, SKTran
+from slakot import SKspline, SKTran
 from electront import DFTBelect
 from readt import ReadSlaKo, ReadInt, SkInterpolator
 from periodic import Periodic
@@ -16,6 +17,8 @@ from matht import EigenSolver
 import parameters
 import dftbtorch.parser as parser
 from mbd import MBD
+from utils.save import SaveData
+from write import Print
 
 
 def main(para):
@@ -51,10 +54,17 @@ class Initialization:
         """
         self.para = para
 
-        # call all necessary classes for following calculations
-        self.slako = SlaKo(self.para)
+        # Read, process SK integral
+        self.slako = SKspline(self.para)
+
+        # read
         self.readsk = ReadSlaKo(self.para)
-        self.readin = ReadInt(para)
+
+        # read input
+        self.readin = ReadInt(self.para)
+
+        # save data
+        self.save = SaveData(self.para)
 
         # get the constant parameters for DFTB
         parameters.dftb_parameter(self.para)
@@ -62,12 +72,14 @@ class Initialization:
         # check parameters from command line
         parser.parser_cmd_args(self.para)
 
-        # if define input file, right now is json type file
+        # if define input file, now only support json
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
                 self.readin.read_input(para)
                 self.readin.get_coor(para)
 
+        # default is from input file, otherwise set LReadInput as False, and
+        # you can offer parameters in python code
         elif 'LReadInput' not in self.para.keys():
             self.readin.read_input(para)
             self.readin.get_coor()
@@ -75,106 +87,173 @@ class Initialization:
         # generate vector, distance ... from coordinate
         self.readin.cal_coor()
 
-        # deal with integrals and SK transformation
+        # deal with reading integrals and SK transformation
         self.run_sk()
 
     def run_sk(self):
-        """DFTB calculations, read integrals from .skf."""
+        """Read integrals and perform SK transformations.
+
+        Read integrals from .skf
+        direct offer integral
+        get integrals by interpolation from a list of skf files.
+
+        """
+        # do not perform machine learning
         if not self.para['Lml']:
+
+            # get integral from directly reading skf file
             if not self.para['LreadSKFinterp']:
+
+                # read skf file by atom specie
                 self.readsk.read_sk_specie()
+
+                # SK transformations
                 SKTran(self.para)
+
+            # get integral from a list of skf file by interpolation
             if self.para['LreadSKFinterp']:
-                self.interpskf()
-        if self.para['Lml']:
-            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
-                # replace local specie with global specie
-                self.para['atomspecie'] = self.para['specie_all']
-                self.interpskf()
-            elif self.para['Lml_acsf'] and self.para['LreadSKFinterp']:
-                # replace local specie with global specie
-                self.para['atomspecie'] = self.para['specie_all']
+
+                # read all corresponding skf files by defined parameters
                 self.interpskf()
 
-    def form_sk_spline(self):
-        """Use SK table data to build spline interpolation."""
-        self.readsk.read_sk_specie()
-        self.slako.get_sk_spldata()
+        # perform machine learning
+        if self.para['Lml']:
+
+            # ML variables is skf parameters (compression radius)
+            # read all corresponding skf files by defined parameters
+            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
+
+                # replace local specie with global specie
+                self.para['atomspecie'] = self.para['specie_all']
+
+                # read all corresponding skf files by defined parameters
+                self.interpskf()
+
+            # ML variables is ACSF parameters
+            # read all corresponding skf files by defined parameters
+            elif self.para['Lml_acsf'] and self.para['LreadSKFinterp']:
+
+                # replace local specie with global specie
+                self.para['atomspecie'] = self.para['specie_all']
+
+                # read all corresponding skf files by defined parameters
+                self.interpskf()
+
+            # get integrals directly from spline interpolation
+            elif self.para['Lml_HS'] and self.para['LreadSKFinterp']:
+
+                self.readsk.read_sk_specie()
+                self.slako.get_sk_spldata()
 
     def interpskf(self):
         """Read .skf data from skgen with various compR."""
-        print('** read skf file with all compR **')
+        time0 = time.time()
+
+        # optimize wavefunction compression radius
         if self.para['typeSKinterpR'] == 'wavefunction':
             nametail = '_wav'
+
+        # optimize density compression radius
         elif self.para['typeSKinterpR'] == 'density':
             nametail = '_den'
+
+        # optimize all the compression radius and keep all the same
         elif self.para['typeSKinterpR'] == 'all':
             nametail = '_all'
+
+        # read skf according to atom specie
         for namei in self.para['atomspecie']:
             for namej in self.para['atomspecie']:
-                if self.para['atomno_' + namei] <= self.para['atomno_' + namej]:
+
+                # get atom number and read corresponding directory
+                if self.para['atomno_' + namei] < self.para['atomno_' + namej]:
+
+                    # generate folder name
                     dire = self.para['dire_interpSK'] + '/' + namei + \
                         '_' + namej + nametail
+
+                    # get integral by interpolation
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
                         namei, namej, dire)
                 else:
+
+                    # generate folder name
                     dire = self.para['dire_interpSK'] + '/' + namej + \
                         '_' + namei + nametail
+
+                    # get integral by interpolation
                     SkInterpolator(self.para, gridmesh=0.2).readskffile(
                         namei, namej, dire)
+
+        # get total time
+        time1 = time.time()
+        time_ = time1 - time0
+        dire_ = self.para['dire_data']
+
+        # save to log
+        with open(os.path.join(dire_, 'log.dat'), 'a') as fp:
+            fp.write('Reading all the SKF files time is: ' + str(time_) + '\n')
+            fp.close
 
 
 class Rundftbpy:
     """Run DFTB according to the Initialized parameters.
 
     DFTB task:
-        solid or molecule
-        SCC, non-SCC or XLBOMD
-
+        solid or molecule;
+        SCC, non-SCC or XLBOMD;
     """
 
     def __init__(self, para):
-        """Run DFTB with multi interface.
-
-        you can read from .skf file, or interpolate integrals from a
-        list of .skf files, or directly offer integrals
-        """
+        """Run (SCC-) DFTB."""
         self.para = para
-        self.cal_repulsive()
-        self.rundftbplus()
-        # self.sum_dftb()
 
-    def rundftbplus(self):
+        # print title before DFTB calculations
+        Print(self.para).print_scf_title()
+
+        # calculate (SCC-) DFTB
+        self.runscf()
+
+        # calculate repulsive term
+        self.run_repulsive()
+
+        # make a summary of DFTB
+        Analysis(self.para).dftb_energy()
+
+    def runscf(self):
         """Run DFTB with multi interface.
 
         solid or molecule
         SCC, non-SCC or XLBOMD
         """
         scf = SCF(self.para)
-        Print(self.para).print_scf_title()
 
+        # calculate solid
         if self.para['Lperiodic']:
+
+            # SCC-DFTB
             if self.para['scc'] == 'scc':
                 scf.scf_pe_scc()
+
+        # calculate molecule
         else:
+
+            # non-SCC-DFTB
             if self.para['scc'] == 'nonscc':
                 scf.scf_npe_nscc()
+
+            # SCC-DFTB
             elif self.para['scc'] == 'scc':
-                if self.para['HSsym'] == 'symhalf':
-                    scf.scf_npe_scc()
-                elif self.para['HSsym'] in ['symall', 'symall_chol']:
-                    scf.scf_npe_scc_symall()
+                scf.scf_npe_scc()
+
+            # XLBOMD-DFTB
             elif self.para['scc'] == 'xlbomd':
                 scf.scf_npe_xlbomd()
 
-    def cal_repulsive(self):
-        """Run DFTB repulsive part."""
+    def run_repulsive(self):
+        """Calculate repulsive term."""
         if self.para['Lrepulsive']:
             Repulsive(self.para)
-
-    def sum_dftb(self):
-        """Make a summary of DFTB."""
-        Analysis(self.para).dftb_energy()
 
 
 class SCF:
@@ -195,23 +274,44 @@ class SCF:
     def __init__(self, para):
         """Parameters for SCF."""
         self.para = para
-        self.eigen = EigenSolver(self.para)
+
+        # number of atom in molecule
         self.nat = para['natom']
+
+        # number of orbital of each atom
         self.atind = para['atomind']
+
+        # number of total orbital number
         self.atind2 = para['atomind2']
+
+        # H0 after SK transformation
         self.hmat = para['hammat']
+
+        # S after SK transformation
         self.smat = para['overmat']
 
+        # eigen solver
+        self.eigen = EigenSolver(self.para)
+
+        # analyze DFTB result
+        self.analysis = Analysis(self.para)
+
+        # electronic DFTB calculation
+        self.elect = DFTBelect(self.para)
+
+        # mixing of charge
+        self.mix = Mixing(self.para)
+
+        # print DFTB calculation information
+        self.print_ = Print(self.para)
+
+        # get electron information, such as initial charge
+        self.analysis.get_qatom()
+
     def scf_npe_nscc(self):
-        """Atomind is the number of atom, for C, lmax is 2, therefore.
-
-        we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        """
-        analysis, elect = Analysis(self.para), DFTBelect(self.para)
-
-        analysis.get_qatom()
-        print_ = Print(self.para)
-        self.para['qzero'], ind_nat = self.para['qatom'], self.atind[self.nat]
+        """DFTB for non-SCC, non-perodic calculation."""
+        self.para['qzero'] = self.para['qatom']
+        ind_nat = self.atind[self.nat]
 
         icount = 0
         if self.para['HSsym'] in ['symall', 'symall_chol']:
@@ -231,14 +331,11 @@ class SCF:
         eigval_ch, eigm_ch = self.eigen.eigen(eigm, overm)
 
         # calculate the occupation of electrons
-        energy = 0
-        occ = elect.fermi(eigval_ch)
-        for iind in range(0, int(self.atind[self.nat])):
-            if occ[iind] > self.para['general_tol']:
-                energy = energy + occ[iind] * eigval_ch[iind]
+        self.elect.fermi(eigval_ch)
+        energy = self.para['occ'][self.para['occ'] > 1E-1] @ eigval_ch[self.para['occ'] > 1E-1]
 
         # density matrix, work controls the unoccupied eigm as 0!!
-        work = t.sqrt(occ)
+        work = t.sqrt(self.para['occ'])
         for jind in range(0, ind_nat):  # n = no. of occupied orbitals
             for iind in range(0, ind_nat):
                 eigm_ch[iind, jind] = eigm_ch[iind, jind] * work[jind]
@@ -251,32 +348,25 @@ class SCF:
                 for j_i in range(0, iind + 1):
                     inum = int(iind * (iind + 1) / 2 + j_i)
                     denmat_[inum] = denmat[j_i, iind]
-            qatom = elect.mulliken(self.para['HSsym'], self.smat, denmat_)
+            qatom = self.elect.mulliken(self.para['HSsym'], self.smat, denmat_)
         elif self.para['HSsym'] in ['symall', 'symall_chol']:
-            qatom = elect.mulliken(self.para['HSsym'], self.smat, denmat)
+            qatom = self.elect.mulliken(self.para['HSsym'], self.smat, denmat)
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_ch, qatom
         self.para['denmat'] = denmat
-        analysis.dftb_energy()
-        analysis.sum_property()
-        print_.print_dftb_caltail()
+        self.analysis.dftb_energy()
+        self.analysis.sum_property()
+        self.print_.print_dftb_caltail()
 
-    def scf_npe_scc(self):
+    def scf_npe_scc_(self):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         """
-        elect = DFTBelect(self.para)
-        mix = Mixing(self.para)
-        elect = DFTBelect(self.para)
-        analysis = Analysis(self.para)
-
-        print_ = Print(self.para)
         maxiter = self.para['maxIter']
-        analysis.get_qatom()
-        gmat = elect.gmatrix()
+        gmat = self.elect.gmatrix()
 
         energy = t.zeros((maxiter), dtype=t.float64)
         self.para['qzero'] = qzero = self.para['qatom']
@@ -297,7 +387,7 @@ class SCF:
             work_ = t.zeros((ind_nat), dtype=t.float64)
 
             if iiter > 0:
-                shift_ = elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
+                shift_ = self.elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
             for iat in range(0, self.nat):
                 for jind in range(self.atind[iat], self.atind[iat + 1]):
                     shiftorb_[jind] = shift_[iat]
@@ -326,7 +416,7 @@ class SCF:
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
-            occ_ = elect.fermi(eigval_)
+            occ_ = self.elect.fermi(eigval_)
             for iind in range(0, int(self.atind[self.nat])):
                 if occ_[iind] > self.para['general_tol']:
                     energy[iiter] = energy[iiter] + occ_[iind] * eigval_[iind]
@@ -345,16 +435,16 @@ class SCF:
             denmat.append(denmat_)
 
             # calculate mulliken charges
-            qatom_ = elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
+            qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
             qatom.append(qatom_)
             ecoul = 0.0
             for i in range(0, self.nat):
                 ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
             energy[iiter] = energy[iiter] - 0.5 * ecoul
-            mix.mix(iiter, qzero, qatom, qmix, qdiff)
+            self.mix.mix(iiter, qzero, qatom, qmix, qdiff)
 
             # if reached convergence
-            self.dE = print_.print_energy(iiter, energy)
+            self.dE = self.print_.print_energy(iiter, energy)
             reach_convergence = self.convergence(iiter, maxiter, qdiff)
             if reach_convergence:
                 break
@@ -362,25 +452,18 @@ class SCF:
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
-        analysis.dftb_energy()
-        analysis.sum_property()
-        print_.print_dftb_caltail()
+        self.analysis.dftb_energy()
+        self.analysis.sum_property()
+        self.print_.print_dftb_caltail()
 
-    def scf_npe_scc_symall(self):
+    def scf_npe_scc(self):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         """
-        elect = DFTBelect(self.para)
-        mix = Mixing(self.para)
-        elect = DFTBelect(self.para)
-        analysis = Analysis(self.para)
-
-        print_ = Print(self.para)
         maxiter = self.para['maxIter']
-        analysis.get_qatom()
-        gmat = elect.gmatrix()
+        gmat = self.elect.gmatrix()
 
         energy = t.zeros((maxiter), dtype=t.float64)
         self.para['qzero'] = qzero = self.para['qatom']
@@ -394,11 +477,10 @@ class SCF:
             fockmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             shift_ = t.zeros((self.nat), dtype=t.float64)
             shiftorb_ = t.zeros((ind_nat), dtype=t.float64)
-            occ_ = t.zeros((ind_nat), dtype=t.float64)
             work_ = t.zeros((ind_nat), dtype=t.float64)
 
             if iiter > 0:
-                shift_ = elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
+                shift_ = self.elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
             for iat in range(0, self.nat):
                 for jind in range(self.atind[iat], self.atind[iat + 1]):
                     shiftorb_[jind] = shift_[iat]
@@ -418,11 +500,11 @@ class SCF:
             eigval.append(eigval_), eigm.append(eigm_ch)
 
             # calculate the occupation of electrons
-            occ_ = elect.fermi(eigval_)
+            self.elect.fermi(eigval_)
             self.para['eigenvalue'], self.para['shift_'] = eigval_, shift_
 
             # density matrix, work_ controls the unoccupied eigm as 0!!
-            work_ = t.sqrt(occ_)
+            work_ = t.sqrt(self.para['occ'])
             for j in range(0, ind_nat):  # n = no. of occupied orbitals
                 for i in range(0, self.atind[self.nat]):
                     eigm_ch[i, j] = eigm_ch[i, j].clone() * work_[j]
@@ -430,23 +512,23 @@ class SCF:
             denmat.append(denmat_)
 
             # calculate mulliken charges
-            qatom_ = elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
+            qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
             qatom.append(qatom_)
-            mix.mix(iiter, qzero, qatom, qmix, qdiff)
+            self.mix.mix(iiter, qzero, qatom, qmix, qdiff)
             self.para['qatom_'] = qatom_
 
             # if reached convergence
-            analysis.dftb_energy()
+            self.analysis.dftb_energy()
             energy[iiter] = self.para['energy']
-            self.dE = print_.print_energy(iiter, energy)
+            self.dE = self.print_.print_energy(iiter, energy)
             if self.convergence(iiter, maxiter, qdiff):
                 break
 
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
-        analysis.sum_property()
-        print_.print_dftb_caltail()
+        self.analysis.sum_property()
+        self.print_.print_dftb_caltail()
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -454,12 +536,7 @@ class SCF:
 
     def scf_npe_xlbomd(self):
         """SCF for non-periodic-ML system with scc."""
-        elect = DFTBelect(self.para)
-        gmat = elect.gmatrix()
-        elect = DFTBelect(self.para)
-        analysis = Analysis(self.para)
-        print_ = Print(self.para)
-        analysis.get_qatom()
+        gmat = self.elect.gmatrix()
 
         energy = 0
         self.para['qzero'] = qzero = self.para['qatom']
@@ -471,7 +548,7 @@ class SCF:
         shift_, shiftorb_ = t.zeros(self.nat), t.zeros(ind_nat)
         occ_, work_ = t.zeros(ind_nat), t.zeros(ind_nat)
 
-        shift_ = elect.shifthamgam(self.para, qatom_xlbomd, qzero, gmat)
+        shift_ = self.elect.shifthamgam(self.para, qatom_xlbomd, qzero, gmat)
         for iat in range(0, self.nat):
             for jind in range(self.atind[iat], self.atind[iat + 1]):
                 shiftorb_[jind] = shift_[iat]
@@ -524,7 +601,7 @@ class SCF:
         eigval_, eigm_ch = self.eigen.eigen(eigm_, oldsmat_)
 
         # calculate the occupation of electrons
-        occ_ = elect.fermi(eigval_)
+        occ_ = self.elect.fermi(eigval_)
         for iind in range(0, int(self.atind[self.nat])):
             if occ_[iind] > self.para['general_tol']:
                 energy = energy + occ_[iind] * eigval_[iind]
@@ -541,7 +618,7 @@ class SCF:
                 denmat_[inum] = denmat_2d_[j_i, iind]
 
         # calculate mulliken charges
-        qatom_ = elect.mulliken(self.para['HSsym'], self.smat, denmat_)
+        qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat, denmat_)
         ecoul = 0.0
         for i in range(0, self.nat):
             ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
@@ -550,7 +627,7 @@ class SCF:
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom_
         self.para['denmat'] = denmat_
-        analysis.sum_property(), print_.print_dftb_caltail()
+        self.analysis.sum_property(), self.print_.print_dftb_caltail()
 
     def convergence(self, iiter, maxiter, qdiff):
         """Convergence for SCC loops."""
@@ -577,17 +654,21 @@ class SCF:
 
 
 class Repulsive():
+    """Calculate repulsive for DFTB."""
 
     def __init__(self, para):
+        """Initialize parameters."""
         self.para = para
         self.nat = self.para['natom']
         self.get_rep_para()
         self.cal_rep_energy()
 
     def get_rep_para(self):
+        """Get neighbour number, usually in solid."""
         Periodic(self.para).get_neighbour(cutoff='repulsive')
 
     def cal_rep_energy(self):
+        """Calculate repulsive energy."""
         self.rep_energy = t.zeros((self.nat), dtype=t.float64)
         atomnameall = self.para['atomnameall']
         for iat in range(0, self.nat):
@@ -596,12 +677,13 @@ class Repulsive():
                 cutoff_ = self.para['cutoff_rep' + nameij]
                 distanceij = self.para['distance'][iat, jat]
                 if distanceij < cutoff_:
-                    ienergy = self.cal_erep_atomij(distanceij, nameij)
+                    ienergy = self.cal_rep_atomij(distanceij, nameij)
                     self.rep_energy[iat] = self.rep_energy[iat] + ienergy
         sum_energy = t.sum(self.rep_energy[:])
         self.para['rep_energy'] = sum_energy
 
-    def cal_erep_atomij(self, distanceij, nameij):
+    def cal_rep_atomij(self, distanceij, nameij):
+        """Calculate repulsive polynomials for atom pair."""
         nint = self.para['nint_rep' + nameij]
         alldist = t.zeros((nint + 1), dtype=t.float64)
         a1 = self.para['a1_rep' + nameij]
@@ -722,65 +804,6 @@ class Mixing:
         return qmix_
 
 
-class Write:
-    """Write DFTB results."""
-
-    def __init__(self, para):
-        """Initialize parameters."""
-        self.para = para
-
-    def write(self):
-        pass
-
-
-class Print:
-    """Print DFTB results."""
-
-    def __init__(self, para):
-        """Initialize parameters."""
-        self.para = para
-
-    def print_scf_title(self):
-        """Print DFTB type."""
-        if not self.para['Lperiodic'] and self.para['scc'] == 'nonscc':
-            print('*' * 35, 'Non-periodic Non-SCC-DFTB', '*' * 35)
-        elif not self.para['Lperiodic'] and self.para['scc'] == 'scc':
-            print('*' * 35, 'Non-periodic SCC-DFTB', '*' * 35)
-        elif not self.para['Lperiodic'] and self.para['scc'] == 'xlbomd':
-            print('*' * 35, 'Non-periodic xlbomd-DFTB', '*' * 35)
-        elif self.para['Lperiodic'] and self.para['scc'] == 'scc':
-            print('*' * 35, 'Periodic SCC-DFTB', '*' * 35)
-
-    def print_energy(self, iiter, energy):
-        """Print energy for SCC loops."""
-        if iiter == 0:
-            dE = energy[iiter].detach()
-            print('iteration', ' '*8, 'energy', ' '*20, 'dE')
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
-            return dE
-        elif iiter >= 1:
-            dE = energy[iiter].detach() - energy[iiter - 1].detach()
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
-            return dE
-
-    def print_dftb_caltail(self):
-        """Print DFTB results."""
-        t.set_printoptions(precision=10)
-        print('charge (e): \n', self.para['qatomall'].detach())
-        print('dipole (eAng): \n', self.para['dipole'].detach())
-        print('energy (Hartree): \n', self.para['energy'].detach())
-        print('TS energy (Hartree): \n', self.para['H0_energy'].detach())
-        if self.para['LMBD_DFTB']:
-            print('CPA: \n', self.para['cpa'].detach())
-            print('polarizability: \n', self.para['alpha_mbd'].detach())
-        if self.para['scc'] == 'scc':
-            print('Coulomb energy (Hartree): \n',
-                  -self.para['coul_energy'].detach())
-        if self.para['Lrepulsive']:
-            print('repulsive energy (Hartree): \n',
-                  self.para['rep_energy'].detach())
-
-
 class Analysis:
     """Analysis of DFTB results, processing DFTB results."""
 
@@ -829,14 +852,20 @@ class Analysis:
 
     def get_qatom(self):
         """Get the basic electronic information of each atom."""
-        atomname = self.para['atomnameall']
-        num_electrons = 0
-        qatom = t.zeros((self.nat), dtype=t.float64)
-        for i in range(0, self.nat):
-            qatom[i] = self.para['val_' + atomname[i]]
-            num_electrons += qatom[i]
-        self.para['qatom'] = qatom
-        self.para['nelectrons'] = num_electrons
+        # name of all atoms
+        name = self.para['atomnameall']
+
+        # define initial charge
+        qat = []
+
+        # get each intial atom charge
+        [qat.append(self.para['val_' + name[iat]]) for iat in range(self.nat)]
+
+        # sum up all atom charge
+        self.para['nelectrons'] = sum(qat)
+
+        # return charge information
+        self.para['qatom'] = t.Tensor(qat).double()
 
     def get_dipole(self, qzero, qatom):
         """Read and process dipole data."""

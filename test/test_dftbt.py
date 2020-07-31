@@ -636,7 +636,6 @@ def test_compr_para(para):
     para['scclist'] = ['scc', 'nonscc']  # nonscc, scc, xlbomd
     para['Lml'] = True  # only perform DFTB part without ML
     para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['tElec'] = 0
     para['maxIter'] = 60
@@ -1030,19 +1029,11 @@ if __name__ == '__main__':
 
     test normal DFTB, DFTB with interpolation SKF
     """
-
     # set the precision = 15
     t.set_printoptions(precision=15)
+
     para = {}
     para["test_target"] = "single"
-    para['Lml_skf'] = False
-
-    # The following is for MBD-DFTB
-    para['LMBD_DFTB'] = False
-    para['n_omega_grid'] = 15
-    para['vdw_self_consistent'] = False
-    para['eigenmethod'] = 'cholesky'
-    para['beta'] = 1.05
 
     if para["test_target"] == "single":
         single_test(para)
