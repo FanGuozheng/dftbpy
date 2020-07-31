@@ -204,7 +204,7 @@ class DFTBelect:
                     gmat[iatom, jatom] = gval
 
 
-            FWHM = np.sqrt(8. * np.log(8) / np.pi) / U
+            #FWHM = np.sqrt(8. * np.log(8) / np.pi) / U
         return gmat
 
     def gamsub(self, a, b, rr, rrc):
@@ -242,7 +242,7 @@ class DFTBelect:
                 shift[iat] = shifti
         elif self.para['HSsym'] in ['symall', 'symall_chol']:
             # The ".double()" can be removed once dtyping has been fixed
-            shift = qdiff @ gmat.double()
+            shift = (qatom - qzero) @ gmat
         return shift
 
     def mulliken(self, sym, overmat, denmat):

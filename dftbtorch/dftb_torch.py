@@ -390,7 +390,7 @@ class SCF:
         print_ = Print(self.para)
         maxiter = self.para['maxIter']
         analysis.get_qatom()
-        gmat = elect.gmatrix()
+        gmat = elect.gmatrix().double()
 
         energy = t.zeros((maxiter), dtype=t.float64)
         # Warning the next line will creates linked references, is this intended
@@ -409,7 +409,7 @@ class SCF:
             # to avoid code recitation. We can call this even when we have no
             # charge fluctuations yet.
             # The "shift_" term is the a product of the gamma and dQ values
-            shift_2 = (q_mixed - qzero) @ gmat
+            #shift_2 = (q_mixed - qzero) @ gmat.double()
             shift_ = elect.shifthamgam(self.para, q_mixed, qzero, gmat)
 
             # "n_orbitals" should be a system constant which should not be

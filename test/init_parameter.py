@@ -217,7 +217,7 @@ def init_dftb(para):
     para['general_tol'] = 1E-4
     para['tElec'] = 0
     para['maxIter'] = 60
-    para['HSsym'] = 'symhalf'  # symhalf, symall, symall_chol
+    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
     para['dist_tailskf'] = 1.0
     para['ninterp'] = 8
     para['direSK'] = '../slko/test'
