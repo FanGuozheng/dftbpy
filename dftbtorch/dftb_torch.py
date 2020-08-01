@@ -830,17 +830,18 @@ class Mixing:
     def __init__(self, para):
         """Initialize parameters."""
         self.para = para
+
+        # initialize broyden mixing parameters
         if self.para['mixMethod'] == 'broyden':
-            self.df, self.uu = [], []
-            self.ww = t.zeros((self.para['maxIter']), dtype=t.float64)
+            self.df = []
+
+            self.uu = []
+
+            # weight parameter in broyden method
+            self.ww = []
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
-        """Call different mixing method."""
-        """
-        There is code here to deal with the zeroth iteration yet it is not used.
-        If possible each type of mixer should be in a separate class all of
-        which should inherent from a an abstract base meta class.
-        """
+        """This code is to deal with the 0th iteration."""
         if iiter == 0:
             qmix.append(qzero)
             if self.para['mixMethod'] == 'broyden':
@@ -883,22 +884,32 @@ class Mixing:
         aa = t.zeros((iiter, iiter), dtype=t.float64)
         cc = t.zeros((iiter, iiter), dtype=t.float64)
         beta = t.zeros((iiter, iiter), dtype=t.float64)
+
         weight = 1e-2
+
         omega0 = 1e-2
+
         alpha = self.para['mixFactor']
 
-        qdiff.append(qatom_ - qmix[-1])
-        df_uu = qdiff[-1] - qdiff[-2]
-        self.ww[iiter - 1] = weight / (t.sqrt(t.dot(qdiff[-1], qdiff[-1])))
-        inv_norm = 1 / t.sqrt(t.dot(df_uu, df_uu))
-        df_uu = inv_norm * df_uu
+        # get weight parameter for last interation
+        self.ww.append(weight / t.sqrt(qdiff[-1] @ qdiff[-1]))
 
-        for ii in range(0, iiter - 1):
-            aa[ii, iiter - 1] = t.dot(self.df[ii], df_uu)
+        # get updated charge difference
+        qdiff.append(qatom_ - qmix[-1])
+
+        # difference of charge difference
+        df_ = qdiff[-1] - qdiff[-2]
+
+        # get normalized difference of charge difference
+        df = 1 / t.sqrt(df_ @ df_) * df_
+
+        aa_ = t.Tensor(self.df[:]) @ df
+        for ii in range(iiter - 1):
+            aa[ii, iiter - 1] = t.dot(self.df[ii], df)
             aa[iiter - 1, ii] = aa[ii, iiter - 1]
             cc[0, ii] = self.ww[ii] * t.dot(self.df[ii], qdiff[-1])
         aa[iiter - 1, iiter - 1] = 1.0
-        cc[0, iiter - 1] = self.ww[iiter - 1] * t.dot(df_uu, qdiff[-1])
+        cc[0, iiter - 1] = self.ww[iiter - 1] * t.dot(df, qdiff[-1])
 
         for ii in range(0, iiter):
             beta[:iiter - 1, ii] = self.ww[:iiter - 1] * self.ww[ii] * \
@@ -906,17 +917,18 @@ class Mixing:
             beta[ii, ii] = beta[ii, ii] + omega0 ** 2
         beta = t.inverse(beta)
         gamma = t.mm(cc, beta)
-        self.df.append(df_uu)
-        df_uu = alpha * df_uu + inv_norm * (qmix[-1] - qmix[-2])
+
+        self.df.append(df)
+        df = alpha * df + 1 / t.sqrt(df_ @ df_) * (qmix[-1] - qmix[-2])
 
         qmix_ = qmix[-1] + alpha * qdiff[-1]
         print('qmix_1', qmix_, qmix[-1])
         for ii in range(0, iiter - 1):
             qmix_ = qmix_ - self.ww[ii] * gamma[0, ii] * self.uu[ii]
         print('qmix_2', qmix_, self.ww[:], gamma[0, :], self.uu[ii])
-        qmix_ = qmix_ - self.ww[iiter - 1] * gamma[0, iiter - 1] * df_uu
+        qmix_ = qmix_ - self.ww[iiter - 1] * gamma[0, iiter - 1] * df
         print('qmix_3', qmix_, self.ww[iiter - 1], gamma[0, iiter - 1])
-        self.uu.append(df_uu)
+        self.uu.append(df)
         return qmix_
 
 
