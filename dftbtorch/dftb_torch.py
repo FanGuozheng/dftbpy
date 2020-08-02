@@ -831,14 +831,28 @@ class Mixing:
         """Initialize parameters."""
         self.para = para
 
+        # max iteration loop
+        self.nit = self.para['maxIter']
+
         # initialize broyden mixing parameters
         if self.para['mixMethod'] == 'broyden':
+
+            # global diufference of charge difference
             self.df = []
 
             self.uu = []
 
             # weight parameter in broyden method
-            self.ww = []
+            self.ww = t.zeros((self.nit), dtype=t.float64)
+
+            # global a parameter for broyden method
+            self.aa = t.zeros((self.nit, self.nit), dtype=t.float64)
+
+            # global c parameter for broyden method
+            self.cc = t.zeros((self.nit, self.nit), dtype=t.float64)
+
+            # global beta parameter for broyden method
+            self.beta = t.zeros((self.nit, self.nit), dtype=t.float64)
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
         """This code is to deal with the 0th iteration."""
@@ -880,54 +894,103 @@ class Mixing:
         return qmix_
 
     def broyden_mix(self, iiter, qmix, qatom_, qdiff):
-        """Broyden mixing method."""
-        aa = t.zeros((iiter, iiter), dtype=t.float64)
-        cc = t.zeros((iiter, iiter), dtype=t.float64)
-        beta = t.zeros((iiter, iiter), dtype=t.float64)
+        """Broyden mixing method.
 
-        weight = 1e-2
+        Reference:
+            D. D. Johnson, PRB, 38 (18), 1988.
+
+        """
+        cc = t.zeros((iiter, iiter), dtype=t.float64)
+
+        # temporal a parameter for current interation
+        aa_ = []
+
+        # temporal c parameter for current interation
+        cc_ = []
+
+        weightfrac = 1e-2
 
         omega0 = 1e-2
 
+        # max weight
+        maxweight = 1E5
+
+        # min weight
+        minweight = 1.0
+
         alpha = self.para['mixFactor']
 
-        # get weight parameter for last interation
-        self.ww.append(weight / t.sqrt(qdiff[-1] @ qdiff[-1]))
+        # get temporal parameter of last interation: <dF|dF>
+        ww_ = t.sqrt(qdiff[-1] @ qdiff[-1])
+
+        # build omega (ww) according to charge difference
+        # if weight from last loop is larger than: weightfrac / maxweight
+        if ww_ > weightfrac / maxweight:
+            self.ww[iiter - 1] = weightfrac / ww_
+
+        # here the gradient may break
+        else:
+            self.ww[iiter - 1] = maxweight
+
+        # if weight is smaller than: minweight
+        if self.ww[iiter - 1] < minweight:
+
+            # here the gradient may break
+            self.ww[iiter - 1] = minweight
 
         # get updated charge difference
         qdiff.append(qatom_ - qmix[-1])
 
-        # difference of charge difference
+        # temporal (latest) difference of charge difference
         df_ = qdiff[-1] - qdiff[-2]
 
         # get normalized difference of charge difference
-        df = 1 / t.sqrt(df_ @ df_) * df_
+        ndf = 1 / t.sqrt(df_ @ df_) * df_
 
-        aa_ = t.Tensor(self.df[:]) @ df
-        for ii in range(iiter - 1):
-            aa[ii, iiter - 1] = t.dot(self.df[ii], df)
-            aa[iiter - 1, ii] = aa[ii, iiter - 1]
-            cc[0, ii] = self.ww[ii] * t.dot(self.df[ii], qdiff[-1])
-        aa[iiter - 1, iiter - 1] = 1.0
-        cc[0, iiter - 1] = self.ww[iiter - 1] * t.dot(df, qdiff[-1])
+        if iiter >= 2:
+            # build loop from first loop to last loop
+            [aa_.append(t.tensor(idf, dtype=t.float64) @ ndf) for idf in
+             self.df[:-1]]
 
-        for ii in range(0, iiter):
-            beta[:iiter - 1, ii] = self.ww[:iiter - 1] * self.ww[ii] * \
-                aa[:iiter - 1, ii]
-            beta[ii, ii] = beta[ii, ii] + omega0 ** 2
-        beta = t.inverse(beta)
-        gamma = t.mm(cc, beta)
+            # build loop from first loop to last loop
+            [cc_.append(t.tensor(idf, dtype=t.float64) @ t.tensor(qdiff[-1],
+             dtype=t.float64)) for idf in self.df[:-1]]
 
-        self.df.append(df)
-        df = alpha * df + 1 / t.sqrt(df_ @ df_) * (qmix[-1] - qmix[-2])
+            # update last a parameter
+            self.aa[: iiter - 1, iiter] = t.tensor(aa_, dtype=t.float64)
+            self.aa[iiter, : iiter - 1] = t.tensor(aa_, dtype=t.float64)
+
+            # update last c parameter
+            self.cc[: iiter - 1, iiter] = t.tensor(cc_, dtype=t.float64)
+            self.cc[iiter, : iiter - 1] = t.tensor(cc_, dtype=t.float64)
+
+        self.aa[iiter - 1, iiter - 1] = 1.0
+
+        # update last c parameter
+        self.cc[iiter - 1, iiter - 1] = self.ww[iiter - 1] * (ndf @ qdiff[-1])
+
+        for ii in range(iiter):
+            self.beta[:iiter, ii] = self.ww[:iiter] * self.ww[ii] * \
+                self.aa[:iiter, ii]
+
+            self.beta[ii, ii] = self.beta[ii, ii] + omega0 ** 2
+
+        self.beta[: iiter, : iiter] = t.inverse(self.beta[: iiter, : iiter])
+
+        gamma = t.mm(cc[: iiter, : iiter], self.beta[: iiter, : iiter])
+
+        # add difference of charge difference
+        self.df.append(ndf)
+
+        df = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (qmix[-1] - qmix[-2])
 
         qmix_ = qmix[-1] + alpha * qdiff[-1]
-        print('qmix_1', qmix_, qmix[-1])
-        for ii in range(0, iiter - 1):
+
+        for ii in range(iiter):
             qmix_ = qmix_ - self.ww[ii] * gamma[0, ii] * self.uu[ii]
-        print('qmix_2', qmix_, self.ww[:], gamma[0, :], self.uu[ii])
+
         qmix_ = qmix_ - self.ww[iiter - 1] * gamma[0, iiter - 1] * df
-        print('qmix_3', qmix_, self.ww[iiter - 1], gamma[0, iiter - 1])
+
         self.uu.append(df)
         return qmix_
 
