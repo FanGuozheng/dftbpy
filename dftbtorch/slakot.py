@@ -223,9 +223,6 @@ class SKTran:
         self.para['hammat'] = t.zeros((norb, norb), dtype=t.float64)
         self.para['overmat'] = t.zeros((norb, norb), dtype=t.float64)
 
-        # build temporary distance vector for each atom pair
-        rr = t.zeros(3)
-
         for iat in range(natom):
 
             # l of i atom
@@ -248,7 +245,7 @@ class SKTran:
                 self.para['nameij'] = atomname[iat] + atomname[jat]
 
                 # distance vector between i and j atom
-                rr[:] = dvec[iat, jat, :]
+                rr = dvec[iat, jat, :]
 
                 # for the same atom, where on-site should be construct
                 if iat == jat:

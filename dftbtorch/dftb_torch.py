@@ -463,9 +463,9 @@ class SCF:
         self.analysis.sum_property()
         self.print_.print_dftb_caltail()
 
-
     def scf_npe_scc_(self):
         """SCF for non-periodic-ML system with scc.
+
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         """

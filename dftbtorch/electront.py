@@ -34,9 +34,6 @@ class DFTBelect:
         # make sure the electron number is positive integer
         assert nelect >= 1
 
-        # electron number consistency
-        assert nelect == norbs
-
         # the occupied state
         nef = int(nelect / 2)
 

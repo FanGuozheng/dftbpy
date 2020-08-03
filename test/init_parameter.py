@@ -248,7 +248,7 @@ def init_dftb(para):
     para['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'broyden'
+    para['mixMethod'] = 'anderson'
 
     # mixing factor
     para['mixFactor'] = 0.2
@@ -270,7 +270,7 @@ def init_dftb(para):
     para['t_zero_max'] = 5
 
     # how to write H0, S: symhalf, symall
-    para['HSsym'] = 'symhalf'
+    para['HSsym'] = 'symall'
 
     # skf: directly read or interpolate from a list of skf files
     para['LreadSKFinterp'] = False
@@ -281,7 +281,7 @@ def init_dftb(para):
     # skf interpolation number
     para['ninterp'] = 8
 
-    # skfdirectory
+    # skf directory
     para['direSK'] = '../slko/test'
 
     # The following is for MBD-DFTB
