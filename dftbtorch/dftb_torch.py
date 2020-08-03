@@ -313,150 +313,158 @@ class SCF:
         self.para['qzero'] = self.para['qatom']
         ind_nat = self.atind[self.nat]
 
-        icount = 0
-        if self.para['HSsym'] in ['symall', 'symall_chol']:
-            eigm, overm = self.hmat, self.smat
-        elif self.para['HSsym'] == 'symhalf':
-            eigm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            overm = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            for iind in range(ind_nat):
-                for jind in range(iind + 1):
-                    eigm[jind, iind] = self.hmat[icount]
-                    overm[jind, iind] = self.smat[icount]
-                    eigm[iind, jind] = self.hmat[icount]
-                    overm[iind, jind] = self.smat[icount]
-                    icount += 1
+        if self.para['HSsym'] == 'symhalf':
+
+            # transfer H0, S from 1D to 2D
+            ham = self.half_to_sym(self.hmat, ind_nat)
+            over = self.half_to_sym(self.smat, ind_nat)
+
+        elif self.para['HSsym'] == 'symall':
+
+            # replace H0, S name for convenience
+            ham, over = self.hmat, self.smat
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_ch, eigm_ch = self.eigen.eigen(eigm, overm)
+        epsilon, C = self.eigen.eigen(ham, over)
 
         # calculate the occupation of electrons
-        self.elect.fermi(eigval_ch)
-        energy = self.para['occ'][self.para['occ'] > 1E-1] @ eigval_ch[self.para['occ'] > 1E-1]
+        occupancies = self.elect.fermi(epsilon)
 
-        # density matrix, work controls the unoccupied eigm as 0!!
-        work = t.sqrt(self.para['occ'])
-        for jind in range(0, ind_nat):  # n = no. of occupied orbitals
-            for iind in range(0, ind_nat):
-                eigm_ch[iind, jind] = eigm_ch[iind, jind] * work[jind]
-        denmat = t.mm(eigm_ch, eigm_ch.t())
+        # build density according to occupancies and eigenvector
+        C_scaled = t.sqrt(occupancies) * C
+        denmat = C_scaled @ C_scaled.T
 
         # calculate mulliken charges
-        if self.para['HSsym'] == 'symhalf':
-            denmat_ = t.zeros((self.atind2), dtype=t.float64)
-            for iind in range(0, ind_nat):
-                for j_i in range(0, iind + 1):
-                    inum = int(iind * (iind + 1) / 2 + j_i)
-                    denmat_[inum] = denmat[j_i, iind]
-            qatom = self.elect.mulliken(self.para['HSsym'], self.smat, denmat_)
-        elif self.para['HSsym'] in ['symall', 'symall_chol']:
-            qatom = self.elect.mulliken(self.para['HSsym'], self.smat, denmat)
+        qatom = self.elect.mulliken(self.para['HSsym'], over, denmat)
 
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = eigval_ch, qatom
+        self.para['eigenvalue'], self.para['qatomall'] = epsilon, qatom
         self.para['denmat'] = denmat
         self.analysis.dftb_energy()
         self.analysis.sum_property()
         self.print_.print_dftb_caltail()
 
-    def scf_npe_scc_(self):
+    def half_to_sym(self, in_mat, dim_out):
+        """Transfer 1D half H0, S to full, symmetric H0, S."""
+        # build 2D full, symmetric H0 or S
+        out_mat = t.zeros((dim_out, dim_out), dtype=t.float64)
+
+        # transfer 1D to 2D
+        icount = 0
+        for iind in range(dim_out):
+            for jind in range(iind + 1):
+                out_mat[jind, iind] = out_mat[iind, jind] = in_mat[icount]
+                icount += 1
+        return out_mat
+
+    def scf_npe_scc(self):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         """
+        # A lot of information here is being stored to a dictionary, it is likely
+        # more efficient to assign these to a class using __slots__ to help with
+        # speed and memory. This might help compartmentalise the code a little more.
+        # get the dimension of 2D H0, S
+        ind_nat = self.atind[self.nat]
+
+        if self.para['HSsym'] == 'symhalf':
+
+            # transfer H0, S from 1D to 2D
+            ham = self.half_to_sym(self.hmat, ind_nat)
+            over = self.half_to_sym(self.smat, ind_nat)
+
+        elif self.para['HSsym'] == 'symall':
+
+            # replace H0, S name for convenience
+            ham, over = self.hmat, self.smat
+
+
+        from mixer import Anderson
+        mixer = Anderson(mix_param=0.2, init_mix_param=0.2, generations=2)
+
         maxiter = self.para['maxIter']
         gmat = self.elect.gmatrix()
 
         energy = t.zeros((maxiter), dtype=t.float64)
+        # Warning the next line will creates linked references, is this intended
         self.para['qzero'] = qzero = self.para['qatom']
-        eigm, eigval, qatom, qmix, qdiff = [], [], [], [], []
-        denmat, denmat_2d = [], []
-        ind_nat = self.atind[self.nat]
+        denmat = []
 
-        for iiter in range(0, maxiter):
+        q_mixed = qzero.clone()
+        for iiter in range(maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
-            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            oldsmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            denmat_ = t.zeros((self.atind2), dtype=t.float64)
-            qatom_ = t.zeros((self.nat), dtype=t.float64)
-            fockmat_ = t.zeros((self.atind2), dtype=t.float64)
-            shift_ = t.zeros((self.nat), dtype=t.float64)
-            shiftorb_ = t.zeros((ind_nat), dtype=t.float64)
-            occ_ = t.zeros((ind_nat), dtype=t.float64)
-            work_ = t.zeros((ind_nat), dtype=t.float64)
 
-            if iiter > 0:
-                shift_ = self.elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
-            for iat in range(0, self.nat):
-                for jind in range(self.atind[iat], self.atind[iat + 1]):
-                    shiftorb_[jind] = shift_[iat]
+            # Should move the atomic -> orbital expansion to an external
+            # function to avoid code recitation. We can call this even when we
+            # have no charge fluctuations yet.
+            # The "shift_" term is the a product of the gamma and dQ values
+            # shift_2 = (q_mixed - qzero) @ gmat.double()
+            shift_ = self.elect.shifthamgam(self.para, q_mixed, qzero, gmat)
 
-            # Hamiltonian = H0 + H2, where
-            # H2 = 0.5 * sum(overlap * (gamma_IK + gamma_JK))
-            icount = 0
-            for iind in range(int(self.atind[self.nat])):
-                for j_i in range(iind + 1):
-                    fockmat_[icount] = self.hmat[icount] + 0.5 * \
-                        self.smat[icount] * (shiftorb_[iind] + shiftorb_[j_i])
-                    #icount += 1
+            # "n_orbitals" should be a system constant which should not be
+            # defined here.
+            n_orbitals = t.tensor(np.diff(self.atind))
+            shiftorb_ = shift_.repeat_interleave(n_orbitals)
 
-            # transfer 1D to 2D H, S matrice
-            icount = 0
-            for iind in range(0, int(self.atind[self.nat])):
-                for j_i in range(0, iind + 1):
-                    eigm_[j_i, iind] = fockmat_[icount]
-                    oldsmat_[j_i, iind] = self.smat[icount]
-                    eigm_[iind, j_i] = fockmat_[icount]
-                    oldsmat_[iind, j_i] = self.smat[icount]
-                    icount += 1
+            pause = 10
+            # To get the Fock matrix "F"; Construct the gamma matrix "G" then
+            # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
+            # relative value for true vectorisation. shift_mat is precomputed
+            # to make the code easier to understand, however it will be removed
+            # later in the development process to save on memory allocation.
+            shift_mat = t.unsqueeze(shiftorb_, 1) + shiftorb_
+            F = ham + 0.5 * over * shift_mat
 
-            # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self.eigen.eigen(eigm_, oldsmat_)
-            eigval.append(eigval_), eigm.append(eigm_ch)
+            # Calculate the eigen-values & vectors via a Cholesky decomposition
+            epsilon, C = self.eigen.eigen(F, over)
 
-            # calculate the occupation of electrons
-            occ_ = self.elect.fermi(eigval_)
-            for iind in range(0, int(self.atind[self.nat])):
-                if occ_[iind] > self.para['general_tol']:
-                    energy[iiter] = energy[iiter] + occ_[iind] * eigval_[iind]
+            # Calculate the occupation of electrons via the fermi method
+            occupancies = self.elect.fermi(epsilon)
 
-            # density matrix, work_ controls the unoccupied eigm as 0!!
-            work_ = t.sqrt(occ_)
-            for j in range(0, ind_nat):  # n = no. of occupied orbitals
-                for i in range(0, self.atind[self.nat]):
-                    eigm_ch[i, j] = eigm_ch[i, j].clone() * work_[j]
-            denmat_2d_ = t.mm(eigm_ch, eigm_ch.t())
-            denmat_2d.append(denmat_2d_)
-            for iind in range(0, int(self.atind[self.nat])):
-                for j_i in range(0, iind + 1):
-                    inum = int(iind * (iind + 1) / 2 + j_i)
-                    denmat_[inum] = denmat_2d_[j_i, iind]
-            denmat.append(denmat_)
+            # To get the density matrix "rho":
+            #   1) Scale C by occupancies, which remain in the domain ∈[0, 2]
+            #       rather than being remapped to [0, 1].
+            #   2) Multiply the scaled coefficients by their transpose.
+            C_scaled = t.sqrt(occupancies) * C
+            rho = C_scaled @ C_scaled.T
+
+            # Housekeeping functions:
+            # Append the density matrix to "denmat", this is needed by MBD at
+            # least.
+            denmat.append(rho)
 
             # calculate mulliken charges
-            qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
-            qatom.append(qatom_)
-            ecoul = 0.0
-            for i in range(0, self.nat):
-                ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
-            energy[iiter] = energy[iiter] - 0.5 * ecoul
-            self.mix.mix(iiter, qzero, qatom, qmix, qdiff)
+            q_new = self.elect.mulliken(self.para['HSsym'], over, rho)
+            # Last mixed charge is the current step now
+            q_mixed = mixer(q_new, q_mixed)
+
+            # This is needed for "analysis" we really don't want this in a loop
+            self.para['eigenvalue'], self.para['shift_'] = epsilon, shift_
+            # This should be done outside of the SCC loop, we really want to
+            # avoid frequent dictionary calls. Why is this the unmixed charge?
+            # Why not pass as options to the function that needs it?
+            self.para['qatom_'] = q_new
 
             # if reached convergence
+            self.analysis.dftb_energy()
+            energy[iiter] = self.para['energy']
             self.dE = self.print_.print_energy(iiter, energy)
-            reach_convergence = self.convergence(iiter, maxiter, qdiff)
-            if reach_convergence:
+            if self.convergence(iiter, maxiter, q_mixed-q_new):
                 break
 
+            # General notes:
+            #   1) Will need to introduce dynamic error handling
+
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
+        self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
         self.para['denmat'] = denmat
-        self.analysis.dftb_energy()
         self.analysis.sum_property()
         self.print_.print_dftb_caltail()
 
-    def scf_npe_scc(self):
+
+    def scf_npe_scc_(self):
         """SCF for non-periodic-ML system with scc.
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
@@ -528,118 +536,6 @@ class SCF:
         self.para['denmat'] = denmat
         self.analysis.sum_property()
         self.print_.print_dftb_caltail()
-
-    def scf_npe_scc_symall(self):
-        """SCF for non-periodic-ML system with scc.
-        atomind is the number of atom, for C, lmax is 2, therefore
-        we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        """
-        """
-        Will need to clean up what should be a class instance and what should
-        be a parameter. A fixed data structure will need to be decided on.
-        """
-        # A lot of information here is being stored to a dictionary, it is likely
-        # more efficient to assign these to a class using __slots__ to help with
-        # speed and memory. This might help compartmentalise the code a little more.
-        from dftbmalt.dftb.mixer import Anderson
-        mixer = Anderson(mix_param=0.2, init_mix_param=0.2, generations=2)
-
-        # Looks as if we are assuming there is not orbital resolved DFTB
-        # Primary SCC function
-        elect = DFTBelect(self.para)
-        mix = Mixing(self.para)
-        elect = DFTBelect(self.para)
-        analysis = Analysis(self.para)
-
-        print_ = Print(self.para)
-        maxiter = self.para['maxIter']
-        analysis.get_qatom()
-        gmat = elect.gmatrix().double()
-
-        energy = t.zeros((maxiter), dtype=t.float64)
-        # Warning the next line will creates linked references, is this intended
-        self.para['qzero'] = qzero = self.para['qatom']
-        #eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
-        denmat = []
-        ind_nat = self.atind[self.nat]
-        # print('hamt:', self.hmat)
-
-        q_mixed = qzero.clone()
-        for iiter in range(self.para['maxIter']):
-            # calculate the sum of gamma * delta_q, the 1st cycle is zero
-
-
-            # Should move the atomic -> orbital expansion to an external function
-            # to avoid code recitation. We can call this even when we have no
-            # charge fluctuations yet.
-            # The "shift_" term is the a product of the gamma and dQ values
-            #shift_2 = (q_mixed - qzero) @ gmat.double()
-            shift_ = elect.shifthamgam(self.para, q_mixed, qzero, gmat)
-
-            # "n_orbitals" should be a system constant which should not be
-            # defined here.
-            n_orbitals = t.tensor(np.diff(self.atind))
-            shiftorb_ = shift_.repeat_interleave(n_orbitals)
-
-            pause = 10
-            # To get the Fock matrix "F"; Construct the gamma matrix "G" then
-            # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
-            # relative value for true vectorisation. shift_mat is precomputed to
-            # make the code easier to understand, however it will be removed later
-            # in the development process to save on memory allocation.
-            shift_mat = t.unsqueeze(shiftorb_, 1) + shiftorb_
-            F = self.hmat + 0.5 * self.smat * shift_mat
-
-            # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.smat)
-
-            # Calculate the occupation of electrons via the fermi method
-            occupancies = elect.fermi(epsilon)
-
-            # To get the density matrix "rho":
-            #   1) Scale C by occupancies, which remain in the domain ∈[0, 2]
-            #       rather than being remapped to [0, 1].
-            #   2) Multiply the scaled coefficients by their transpose.
-            C_scaled = t.sqrt(occupancies) * C
-            rho = C_scaled @ C_scaled.T
-
-            # Housekeeping functions:
-            # Append the density matrix to "denmat", this is needed by MBD at
-            # least.
-            denmat.append(rho)
-
-
-            # calculate mulliken charges
-            q_new = elect.mulliken(self.para['HSsym'], self.smat[:], rho)
-            # Last mixed charge is the current step now
-            q_mixed = mixer(q_new, q_mixed)
-
-            # This is needed for "analysis" we really don't want this in a loop
-            self.para['eigenvalue'], self.para['shift_'] = epsilon, shift_
-            #self.para['eigenvalue'] = epsilon
-            # This should be done outside of the SCC loop, we really want to avoid
-            # frequent dictionary calls. Why is this the unmixed charge? Why not
-            # pass as options to the function that needs it?
-            self.para['qatom_'] = q_new
-
-            # if reached convergence
-            analysis.dftb_energy()
-            energy[iiter] = self.para['energy']
-            self.dE = print_.print_energy(iiter, energy)
-            if self.convergence(iiter, maxiter, q_mixed-q_new):
-                break
-
-            # General notes:
-            #   1) Will need to introduce dynamic error handling
-
-
-
-
-        # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
-        self.para['denmat'] = denmat
-        analysis.sum_property()
-        print_.print_dftb_caltail()
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -1008,7 +904,7 @@ class Analysis:
         eigval = self.para['eigenvalue']
         occ = self.para['occ']
         if self.para['scc'] == 'nonscc':
-            self.para['H0_energy'] = t.dot(eigval, occ)
+            self.para['H0_energy'] = eigval @ occ
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
                     self.para['rep_energy']

@@ -58,6 +58,9 @@ class DFTBelect:
         # return occupied electron in each state
         self.para['occ'] = occ
 
+        # return occupation of electrons
+        return occ
+
     def gmatrix(self):
         """Build the gamma (2D) in second-order term.
         Args:

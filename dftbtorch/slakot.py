@@ -39,7 +39,7 @@ class SKTran:
 
                 # build H0 and S with only half matrices
                 elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tran_half(para)
+                    self.sk_tran_half()
 
             # use interpolation to get integral with various compression radius
             if self.para['LreadSKFinterp']:
@@ -64,7 +64,7 @@ class SKTran:
 
                 # build H0, S with half matrices
                 elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tran_half(para)
+                    self.sk_tran_half()
 
             # directly get integrals with spline, or some other method
             elif self.para['Lml_HS']:
@@ -147,8 +147,7 @@ class SKTran:
 
             # l of i atom
             lmaxi = self.para['lmaxall'][iat]
-
-            for jat in range(iat + 1):
+            for jat in range(iat):
 
                 # l of j atom
                 lmaxj = self.para['lmaxall'][jat]
@@ -181,6 +180,23 @@ class SKTran:
                             idx = int(mm * (mm + 1) / 2 + nn)
                             self.para['hammat'][idx] = self.para['hams'][m, n]
                             self.para['overmat'][idx] = self.para['ovrs'][m, n]
+
+            # build temporary on-site
+            self.para['h_o'] = t.zeros((9), dtype=t.float64)
+            self.para['s_o'] = t.zeros((9), dtype=t.float64)
+
+            # get the name between atoms
+            self.para['nameij'] = atomname[iat] + atomname[iat]
+
+            # get on-site between i and j atom
+            self.slkode_onsite(rr, iat, lmaxi)
+
+            # write on-site between i and j to final on-site matrix
+            for m in range(atomind[iat + 1] - atomind[iat]):
+                mm = atomind[iat] + m
+                idx = int(mm * (mm + 1) / 2 + mm)
+                self.para['hammat'][idx] = self.para['h_o'][m]
+                self.para['overmat'][idx] = self.para['s_o'][m]
 
     def sk_tran_symall(self):
         """Transfer H0, S according to Slater-Koster rules.
@@ -238,7 +254,7 @@ class SKTran:
                 if iat == jat:
 
                     # get on-site between i and j atom
-                    self.slkode_onsite(rr, iat, jat, lmaxi)
+                    self.slkode_onsite(rr, iat, lmaxi)
 
                     # write on-site between i and j to final on-site matrix
                     for m in range(atomind[iat + 1] - atomind[iat]):
@@ -264,7 +280,7 @@ class SKTran:
                             self.para['overmat'][mm, nn] = \
                                 self.para['ovrs'][m, n]
 
-    def slkode_onsite(self, rr, i, j, lmax):
+    def slkode_onsite(self, rr, iat, lmax):
         """Transfer i from ith atom to ith spiece."""
         # name of i and i atom
         nameij = self.para['nameij']
@@ -348,18 +364,25 @@ class SKTran:
         # get the maximum and minimum of l
         lmax, lmin = max(li, lj), min(li, lj)
 
+        # get cutoff from machine learning input
         if self.para['Lml']:
-            cutoff = self.para['interpcutoff']  # may need revise!!!
+            cutoff = self.para['interpcutoff']
             if self.para['Lml_skf']:
                 self.para['hsdata'] = self.para['hs_all'][iat, jat]
             else:
                 getsk(self.para, nameij, dd)
+
+        # read SKF and get cutoff from SKF for each atom pair
         else:
             getsk(self.para, nameij, dd)
             cutoff = self.para['cutoffsk' + nameij]
         skselfnew = t.zeros((3), dtype=t.float64)
+
+        # distance between atoms is out of range
         if dd > cutoff:
             return self.para
+
+        # distance between atoms is zero
         if dd < 1E-4:
             if iat != jat:
                 print("ERROR, distance between", iat, "and", jat, "atom is 0")
@@ -368,20 +391,24 @@ class SKTran:
                     skselfnew[:] = self.para['onsite' + nameij]
                 elif type(self.para['coorall'][0]) is np.ndarray:
                     skselfnew[:] = t.FloatTensor(self.para['onsite' + nameij])
+
+            # max of l is 1, therefore only s orbital is included
             if lmax == 1:
                 self.para['hams'][0, 0] = skselfnew[2]
                 self.para['ovrs'][0, 0] = 1.0
+
+            # max of l is 2, therefore p orbital is included
             elif lmax == 2:
                 self.para['hams'][0, 0] = skselfnew[2]
-                t.diag(self.para['hams'])[1: 4, 1: 4] = skselfnew[1]
-                t.diag(self.para['ovrs'])[: 4, : 4] = 1.0
-            else:
-                self.para['hams'][0, 0] = skselfnew[2]
-                t.diag(self.para['hams'])[1: 4, 1: 4] = skselfnew[1]
-                t.diag(self.para['hams'])[4: 9, 4: 9] = skselfnew[0]
-                t.diag(self.para['ovrs'])[:, :] = 1.0
+
+                t.diag(self.para['hams'])[1: 4] = skselfnew[:]
+                t.diag(self.para['ovrs'])[: 4] = 1.0
+            # for d orbital, in to do list...
+
+        # get integral with given distance
         else:
-            if self.para['HS_spline']:
+            # directly get integral from spline
+            if self.para['Lml_HS']:
                 shparspline(self.para, rr, iat, jat, dd)
             else:
                 # shpar(para, para['hs_all'][i, j], rr, i, j, dd)

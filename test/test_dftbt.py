@@ -1003,8 +1003,8 @@ def normal_test(para):
 def single_test(para):
     """test for DFTB."""
     initpara.init_dftb(para)
-    # nonscc_CH4(para)
-    scc_CH4(para)
+    nonscc_CH4(para)
+    # scc_CH4(para)
 
 
 def compr_test(para):

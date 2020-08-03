@@ -20,18 +20,24 @@ def init_dftb_ml(para):
         DFTB parameters
         Others, such as plotting parameters
     """
-    # **************************** load data *******************************
+    # **********************************************************************
+    #                              load data
+    # **********************************************************************
     # optional datatype: ANI, json
     para['dataType'] = 'ani'
 
     # get the current path
     path = os.getcwd()
     dire_data = '../data/dataset/'
+
+    # read json type geometry
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
         para['pythondata_file'] = 'CH4_data'  # name of data in defined path
         para['n_dataset'] = ['50']
         para['dire_interpSK'] = os.path.join(path, '../slko')
+
+    # read ANI dataset
     elif para['dataType'] == 'ani':
         hdffilelist = []
         hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s03.h5'))
@@ -41,6 +47,8 @@ def init_dftb_ml(para):
         para['n_test'] = ['1']  # used to test!!!!! n_test >= n_dataset!!!!!
         para['hdf_mixture'] = True  # mix different molecule type
         assert len(para['n_dataset']) == len(para['n_test'])
+
+    # read QM7 dataset
     elif para['dataType'] == 'qm7':
         para['qm7_data'] = os.path.join(dire_data, 'qm7.mat')
         para['train_specie'] = [1, 6, 8]
@@ -48,9 +56,33 @@ def init_dftb_ml(para):
         para['n_test'] = ['5']  # how many used to test!!!!!
         assert len(para['n_dataset']) == len(para['n_test'])
 
-    # ------------------  ML and environment parameters -------------------
+    # **********************************************************************
+    #             machine learning and environment parameters
+    # **********************************************************************
+    # is machine learning is on, the following is machine learning target
+    para['Lml'] = True
+
+    # optimize compression radius
+    para['Lml_skf'] = False
+
+    # optimize integral (e.g Polyspline)
+    para['Lml_HS'] = False
+
+    # test gradients of interp of SK table
+    para['Lml_compr'] = False
+
+    # each spiece has the same compress_r
+    para['Lml_compr_global'] = False
+
+    # optimize ACSF parameters
+    para['Lml_acsf'] = True
+
     para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
-    para['featureType'] = 'acsf'  # rad, cm (CoulombMatrix), acsf!!!!!
+
+    # define atomic representation: rad, cm (CoulombMatrix), acsf!!!!!
+    para['featureType'] = 'acsf'
+
+    # define ACSF parameter
     if para['featureType'] == 'acsf':
         para['acsf_rcut'] = 6.0
         para['Lacsf_g2'] = True
@@ -59,6 +91,7 @@ def init_dftb_ml(para):
         para['Lacsf_g4'] = True
         para['acsf_g4'] = [[0.02, 1, -1]]
         para['Lacsf_g5'] = False
+
     # for test, where to read the optimized parameters, 1 means read the last
     # optimized para in dire_data, 0 is the unoptimized !!!!!
     para['opt_para_test'] = 1.0
@@ -85,12 +118,6 @@ def init_dftb_ml(para):
     para['lr'] = 5E-3  # learning rate !!!!!
     para['loss_function'] = 'MSELoss'  # MSELoss, L1Loss
 
-    para['Lml'] = True  # is DFTB-ML, if not, it will perform normal DFTB
-    para['Lml_skf'] = False  # if optimize compress_r!!!!!
-    para['Lml_HS'] = False  # if optimize HS mat (e.g Polyspline)
-    para['Lml_compr'] = False  # test gradients of interp of SK table
-    para['Lml_compr_global'] = False  # each spiece has the same compress_r
-    para['Lml_acsf'] = True
     if para['Lml_HS']:
         para['interptype'] = 'Polyspline'
         para['zero_threshold'] = 5E-3
@@ -175,7 +202,10 @@ def init_dftb_ml(para):
     para['convergenceType'], para['energy_tol'] = 'energy', 1E-6
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
+
+    # mix method: simple, anderson, broyden
+    para['mixMethod'] = 'anderson'
+    para['mixFactor'] = 0.2
     # if build half H0, S or build whole H0, S: symall, symhalf.. !!!!!
     para['HSsym'] = 'symall'
     para['ninterp'] = 8  # interpolation integrals when read SKF with distance
@@ -240,14 +270,12 @@ def init_dftb(para):
     para['t_zero_max'] = 5
 
     # how to write H0, S: symhalf, symall
-    para['HSsym'] = 'symall'
+    para['HSsym'] = 'symhalf'
 
     # skf: directly read or interpolate from a list of skf files
     para['LreadSKFinterp'] = False
 
     # skf file tail distance
-    para['HSsym'] = 'symall'  # symhalf, symall
-
     para['dist_tailskf'] = 1.0
 
     # skf interpolation number
