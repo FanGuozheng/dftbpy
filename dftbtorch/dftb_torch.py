@@ -404,18 +404,17 @@ class SCF:
         for iiter in range(self.para['maxIter']):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
 
-
             # Should move the atomic -> orbital expansion to an external function
             # to avoid code recitation. We can call this even when we have no
             # charge fluctuations yet.
-            # The "shift_" term is the a product of the gamma and dQ values
-            #shift_2 = (q_mixed - qzero) @ gmat.double()
-            shift_ = elect.shifthamgam(self.para, q_mixed, qzero, gmat)
+            # The "shifts" term is the a product of the gamma and dQ values.The
+            # naming follows the convention laid out in DFTB+
+            shifts = (q_mixed - qzero) @ gmat.double()
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
             n_orbitals = t.tensor(np.diff(self.atind))
-            shiftorb_ = shift_.repeat_interleave(n_orbitals)
+            shiftorb_ = shifts.repeat_interleave(n_orbitals)
 
             pause = 10
             # To get the Fock matrix "F"; Construct the gamma matrix "G" then
@@ -451,7 +450,7 @@ class SCF:
             q_mixed = mixer(q_new, q_mixed)
 
             # This is needed for "analysis" we really don't want this in a loop
-            self.para['eigenvalue'], self.para['shift_'] = epsilon, shift_
+            self.para['eigenvalue'], self.para['shift_'] = epsilon, shifts
             #self.para['eigenvalue'] = epsilon
             # This should be done outside of the SCC loop, we really want to avoid
             # frequent dictionary calls. Why is this the unmixed charge? Why not
