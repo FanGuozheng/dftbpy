@@ -342,7 +342,7 @@ class SCF:
         self.para['denmat'] = denmat
         self.analysis.dftb_energy()
         self.analysis.sum_property()
-        self.print_.print_dftb_caltail()
+        self.print_.print_dftb_tail()
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -461,7 +461,7 @@ class SCF:
         self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
         self.para['denmat'] = denmat
         self.analysis.sum_property()
-        self.print_.print_dftb_caltail()
+        self.print_.print_dftb_tail()
 
     def scf_npe_scc_(self):
         """SCF for non-periodic-ML system with scc.
@@ -535,7 +535,7 @@ class SCF:
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
         self.para['denmat'] = denmat
         self.analysis.sum_property()
-        self.print_.print_dftb_caltail()
+        self.print_.print_dftb_tail()
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -634,7 +634,7 @@ class SCF:
         # print and write non-SCC DFTB results
         self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom_
         self.para['denmat'] = denmat_
-        self.analysis.sum_property(), self.print_.print_dftb_caltail()
+        self.analysis.sum_property(), self.print_.print_dftb_tail()
 
     def convergence(self, iiter, maxiter, qdiff):
         """Convergence for SCC loops."""

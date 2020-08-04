@@ -228,14 +228,17 @@ def init_dftb_ml(para):
 
 
 def init_dftb(para):
-    """Initialize the parameters for DFTB.
+    """Initialize the parameters for normal DFTB.
 
-    In general, you have to define:
+    Applications:
+        DFTB without gradient
+        SKF from normal SKF file
+    Returns:
         Path of input (if you do not offer all in python)
         DFTB parameters
         Others, such as plotting parameters
     """
-    # get parameters from input file, or from python code
+    # do not get parameters from input file, from python code
     para['LReadInput'] = False
 
     # system perodic condition
@@ -259,21 +262,24 @@ def init_dftb(para):
     # convergence precision
     para['energy_tol'] = 1e-6
 
+    # delta distance when interpolate SKF integral
     para['delta_r_skf'] = 1E-5
-    para['general_tol'] = 1E-4
-    para['tElec'] = 0
 
-    # max interation of SCC loop
-    para['maxIter'] = 60
+    # electron temperature
+    para['tElec'] = 0
 
     # if smaller than t_zero_max, temperature treated as zero
     para['t_zero_max'] = 5
 
-    # how to write H0, S: symhalf, symall
-    para['HSsym'] = 'symall'
+    # max interation of SCC loop
+    para['maxIter'] = 60
 
+    # ****************************** SKF, H, S ******************************
     # skf: directly read or interpolate from a list of skf files
     para['LreadSKFinterp'] = False
+
+    # orbital resolved: if Ture, only use Hubbert of s orbital
+    para['Lorbres'] = False
 
     # skf file tail distance
     para['dist_tailskf'] = 1.0
@@ -284,14 +290,21 @@ def init_dftb(para):
     # skf directory
     para['direSK'] = '../slko/test'
 
-    # The following is for MBD-DFTB
+    # how to write H0, S: symhalf (write upper or lower), symall (write whole)
+    para['HSsym'] = 'symall'
+
+    # general eigenvalue method: cholesky, lowdin_qr
+    para['eigenmethod'] = 'cholesky'
+
+    # ****************************** MBD-DFTB ******************************
     para['LMBD_DFTB'] = False
+
+    # omega grid
     para['n_omega_grid'] = 15
     para['vdw_self_consistent'] = False
-    para['eigenmethod'] = 'cholesky'
     para['beta'] = 1.05
 
-    # machine learning
+    # **************************** ML parameter ****************************
     para['Lml'] = False
 
     # machine learning optimize SKF parameters (compression radius...)
@@ -309,49 +322,113 @@ def init_dftb_interp(para):
         DFTB parameters
         Others, such as plotting parameters
     """
-    para['Lml'] = False  # only perform DFTB part without ML
-    para['LReadInput'] = False  # define parameters in python, not read input
-    para['LreadSKFinterp'] = True
+    # define parameters in python, or read from input
+    para['LReadInput'] = False
+
+    # periodic condition
     para['Lperiodic'] = False
-    para['mixMethod'], para['mixFactor'] = 'anderson', 0.2
-    para['convergenceType'], para['energy_tol'] = 'energy',  1e-7
-    para['general_tol'] = 1E-4
+
+    # mixing method: simple, anderson, broyden
+    para['mixMethod'] = 'anderson'
+
+    # mixing factor
+    para['mixFactor'] = 0.2
+
+    # convergence method: energy, charge
+    para['convergenceType'] = 'energy'
+
+    # convergence precision
+    para['energy_tol'] = 1e-7
+
+    # delta distance when interpolating SKF integral
     para['delta_r_skf'] = 1E-5
+
+    # temperature
     para['tElec'] = 0
+
+    # max interation step
     para['maxIter'] = 60
+
+    # general eigenvalue method: cholesky, lowdin_qr
+    para['eigenmethod'] = 'cholesky'
+
+    # if calculate dipole
     para['Ldipole'] = True
-    para['HSsym'] = 'symall_chol'  # symhalf, symall, symall_chol
-    para['dist_tailskf'] = 1.0
-    para['ninterp'] = 8
-    para['interpcutoff'] = 4.0
-    para['Lml_skf'] = True
-    para['Lml_HS'] = False
+
+    # if calculate repulsive
     para['Lrepulsive'] = False
+
+    # write half, or full H0, S: symhalf, symall
+    para['HSsym'] = 'symall'
+
+    # smooth SKF integral tail
+    para['dist_tailskf'] = 1.0
+
+    # integral interpolation grid points
+    para['ninterp'] = 8
+
+    # cutoff
+    # para['interpcutoff'] = 4.0
+
+    # **************************** ML parameter ****************************
+    para['Lml'] = False
+
+    # machine learning optimize SKF parameters (compression radius...)
+    para['Lml_skf'] = True
+
+    # machine learning optimize integral
+    para['Lml_HS'] = False
 
     # The following is for MBD-DFTB
     para['LMBD_DFTB'] = False
     para['n_omega_grid'] = 15
     para['vdw_self_consistent'] = False
-    para['eigenmethod'] = 'cholesky'
     para['beta'] = 1.05
 
-    para['Lml_compr_global'] = False
+    # para['Lml_compr_global'] = False
+    # if interpolate or optimize onsite
     para['Lonsite'] = False
+
+    # total atom specie in last step
     para['atomspecie_old'] = []
+
+    # get integral from interpolation
+    para['LreadSKFinterp'] = True
+
+    # SKF compression radius: all (all radius the same), wavefunction
+    para['typeSKinterpR'] = 'all'
+
+    # directory of SKF file
     para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
+
+    # initial compression radius of H
     para['H_init_compr'] = 2.5
+
+    # initial compression radius of C
     para['C_init_compr'] = 3.0
+
+    # grid points of compression radius of H
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
+
+    # grid points of compression radius of C
     para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
                                      5.00, 5.50, 6.00]), dtype=t.float64)
+
+    # onsite of H
     para['onsiteH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+
+    # onsite of C
     para['onsiteC'] = t.tensor((
             [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
             dtype=t.float64)
+
+    # Hubbert of H
     para['uhubbH'] = t.tensor((
             [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+
+    # Hubber of C
     para['uhubbC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
             dtype=t.float64)

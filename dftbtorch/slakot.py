@@ -904,31 +904,6 @@ def getsk(para, nameij, dd):
     return para
 
 
-'''def shpar(para, hs_data, xyz, i, j, dd):
-    hams = para['hams']
-    ovrs = para['ovrs']
-    xx = xyz[0] / dd
-    yy = xyz[1] / dd
-    zz = xyz[2] / dd
-    lmaxi = para['lmaxall'][i]
-    lmaxj = para['lmaxall'][j]
-    maxmax = max(lmaxi, lmaxj)
-    minmax = min(lmaxi, lmaxj)
-    if maxmax == 1:
-        skss(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    elif maxmax == 2 and minmax == 1:
-        sksp(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    elif maxmax == 2 and minmax == 2:
-        skpp(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    elif maxmax == 3 and minmax == 1:
-        sksd(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    elif maxmax == 3 and minmax == 2:
-        skpd(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    elif maxmax == 3 and minmax == 3:
-        skdd(xx, yy, zz, i, j, hs_data, hams, ovrs)
-    return hams, ovrs'''
-
-
 def shparspline(para, xyz, i, j, dd):
     '''
     this function is to update para['hams'], para['ovrs']

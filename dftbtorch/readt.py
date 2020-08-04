@@ -392,6 +392,10 @@ class ReadSlaKo:
                     self.para['uhubb' + nameij] = fp_line_[4:7]
                     self.para['occ_skf' + nameij] = fp_line_[7:10]
 
+                    # if orbital resolved
+                    if not self.para['Lorbres']:
+                        self.para['uhubb' + nameij][:] = fp_line_[6]
+
                     # read third line: mass...
                     data = np.fromfile(fp, dtype=float, count=20, sep=' ')
                     self.para['mass_cd' + nameij] = t.from_numpy(data)
@@ -477,8 +481,15 @@ class ReadSlaKo:
             self.para['onsite'][icount, :] = \
                 t.FloatTensor(self.para['onsite' + nameii])
             self.para['spe'][icount] = self.para['spe' + nameii]
-            self.para['uhubb'][icount, :] = \
-                t.FloatTensor(self.para['uhubb' + nameii])
+
+            # if orbital resolved
+            if not self.para['Lorbres']:
+                self.para['uhubb'][icount, :] = \
+                    t.FloatTensor(self.para['uhubb' + nameii])[-1]
+            else:
+                self.para['uhubb'][icount, :] = \
+                    t.FloatTensor(self.para['uhubb' + nameii])
+
             self.para['occ_atom'][icount, :] = t.FloatTensor(
                 self.para['occ_skf' + nameii])
             icount += 1
@@ -506,6 +517,8 @@ class ReadSlaKo:
             self.para['onsite' + nameij] = line1_temp[0:3]
             self.para['spe' + nameij] = line1_temp[3]
             self.para['uhubb' + nameij] = line1_temp[4:7]
+            if not self.para['Lorbres']:
+                self.para['uhubb' + nameij][:] = line1_temp[6]
             self.para['occ_skf' + nameij] = line1_temp[7:10]
             for imass_cd in allskfdata[2]:
                 mass_cd.append(float(imass_cd))
@@ -671,6 +684,8 @@ class SkInterpolator:
                 spe_[rowi, colj] = spe[skfi]
                 uhubb_[rowi, colj, :] = uhubb[skfi, :]
                 occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
+                if not self.para['Lorbres']:
+                    uhubb_[rowi, colj, :] = uhubb[skfi, -1]
         if self.para['Lonsite']:
             self.para['massrcut_rall' + nameij] = mass_rcut_
             self.para['onsite_rall' + nameij] = onsite_
