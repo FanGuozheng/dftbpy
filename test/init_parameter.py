@@ -274,6 +274,9 @@ def init_dftb(para):
     # max interation of SCC loop
     para['maxIter'] = 60
 
+    # density basis: exp_spher, gaussian
+    para['scc_den_basis'] = 'exp_spher'
+
     # ****************************** SKF, H, S ******************************
     # skf: directly read or interpolate from a list of skf files
     para['LreadSKFinterp'] = False

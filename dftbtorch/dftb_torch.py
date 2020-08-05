@@ -75,22 +75,37 @@ class Initialization:
         # if define input file, now only support json
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
+
+                # read input parameters
                 self.readin.read_input(para)
+
+                # read input coordinates
                 self.readin.get_coor(para)
 
-        # default is from input file, otherwise set LReadInput as False, and
-        # you can offer parameters in python code
+        # define LReadInput, if LReadInput is True, read from input
         elif 'LReadInput' not in self.para.keys():
-            self.readin.read_input(para)
-            self.readin.get_coor()
+            if self.para['LReadInput']:
+
+                # read input parameters
+                self.readin.read_input(para)
+
+                # read input coordinates
+                self.readin.get_coor()
 
         # generate vector, distance ... from coordinate
         self.readin.cal_coor()
 
-        # deal with reading integrals and SK transformation
+        # read skf fike
+        self.read_sk()
+
+        # get Hubbert for each if use gaussian density basis
+        if self.para['scc_den_basis'] == 'gaussian':
+            self.get_this_hubbert()
+
+        # deal with SK transformation
         self.run_sk()
 
-    def run_sk(self):
+    def read_sk(self):
         """Read integrals and perform SK transformations.
 
         Read integrals from .skf
@@ -106,9 +121,6 @@ class Initialization:
 
                 # read skf file by atom specie
                 self.readsk.read_sk_specie()
-
-                # SK transformations
-                SKTran(self.para)
 
             # get integral from a list of skf file by interpolation
             if self.para['LreadSKFinterp']:
@@ -144,6 +156,36 @@ class Initialization:
 
                 self.readsk.read_sk_specie()
                 self.slako.get_sk_spldata()
+
+    def get_this_hubbert(self):
+        """Get Hubbert for current calculation."""
+        this_U = []
+        # only support not orbital resolved U
+        if not self.para['Lorbres']:
+
+            # get U hubbert for each atom
+            [this_U.append(self.para['uhubb' + iname + iname][-1])
+             for iname in self.para['atomnameall']]
+
+        # transfer to tensor
+        self.para['this_U'] = t.tensor(this_U, dtype=t.float64)
+
+    def run_sk(self):
+        """Read integrals and perform SK transformations.
+
+        Read integrals from .skf
+        direct offer integral
+        get integrals by interpolation from a list of skf files.
+
+        """
+        # do not perform machine learning
+        if not self.para['Lml']:
+
+            # get integral from directly reading skf file
+            if not self.para['LreadSKFinterp']:
+
+                # SK transformations
+                SKTran(self.para)
 
     def interpskf(self):
         """Read .skf data from skgen with various compR."""
@@ -384,8 +426,17 @@ class SCF:
         from mixer import Anderson
         mixer = Anderson(mix_param=0.2, init_mix_param=0.2, generations=2)
 
+        # max iteration
         maxiter = self.para['maxIter']
-        gmat = self.elect.gmatrix()
+
+        # choose density basis type: Gaussian profile
+        if self.para['scc_den_basis'] == 'gaussian':
+            gmat = self.elect._gamma_gaussian(self.para['this_U'],
+                                              self.para['coor'])
+
+        # expexponential normalized spherical charge density
+        elif self.para['scc_den_basis'] == 'exp_spher':
+            gmat = self.elect.gmatrix()
 
         energy = t.zeros((maxiter), dtype=t.float64)
         # Warning the next line will creates linked references, is this intended
