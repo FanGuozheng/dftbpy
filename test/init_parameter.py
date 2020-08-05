@@ -30,6 +30,9 @@ def init_dftb_ml(para):
     path = os.getcwd()
     dire_data = '../data/dataset/'
 
+    # define path of feature related files
+    para['direfeature'] = '.'
+
     # read json type geometry
     if para['dataType'] == 'json':
         para['pythondata_dire'] = '../data'  # path of data
@@ -40,20 +43,44 @@ def init_dftb_ml(para):
     # read ANI dataset
     elif para['dataType'] == 'ani':
         hdffilelist = []
+
+        # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
         hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s03.h5'))
+
+        # transfer to list
         para['hdffile'] = hdffilelist
-        para['hdf_num'] = [['1']]  # determine the type of molecule!!!!!
-        para['n_dataset'] = ['1']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['1']  # used to test!!!!! n_test >= n_dataset!!!!!
-        para['hdf_mixture'] = True  # mix different molecule type
+
+        # determine the type of molecule: str(integer), 'all' !!
+        para['hdf_num'] = [['1']]
+
+        # how many molecules for each molecule specie !!
+        para['n_dataset'] = ['1']
+
+        # used to test (optimize ML algorithm parameters) !!
+        para['n_test'] = ['1']
+
+        # mix different molecule specie type
+        para['hdf_mixture'] = True
+
+        # test the molecule specie is the same
         assert len(para['n_dataset']) == len(para['n_test'])
 
     # read QM7 dataset
     elif para['dataType'] == 'qm7':
+
+        # define path and dataset name
         para['qm7_data'] = os.path.join(dire_data, 'qm7.mat')
+
+        # define dataset specie
         para['train_specie'] = [1, 6, 8]
-        para['n_dataset'] = ['5']  # how many molecules used to optimize!!!!!
-        para['n_test'] = ['5']  # how many used to test!!!!!
+
+        # how many molecules used to optimize !!
+        para['n_dataset'] = ['5']
+
+        # how many used to test !!
+        para['n_test'] = ['5']
+
+        # test the molecule specie is the same
         assert len(para['n_dataset']) == len(para['n_test'])
 
     # **********************************************************************
@@ -84,18 +111,28 @@ def init_dftb_ml(para):
 
     # define ACSF parameter
     if para['featureType'] == 'acsf':
+
+        # cutoff, for G1
         para['acsf_rcut'] = 6.0
+
+        # G2 parameters
         para['Lacsf_g2'] = True
         para['acsf_g2'] = [[1, 1]]
+
+        # G3 parameters
         para['Lacsf_g3'] = False
+
+        # G4 parameters
         para['Lacsf_g4'] = True
         para['acsf_g4'] = [[0.02, 1, -1]]
+
+        # G5 parameters
         para['Lacsf_g5'] = False
 
     # for test, where to read the optimized parameters, 1 means read the last
     # optimized para in dire_data, 0 is the unoptimized !!!!!
     para['opt_para_test'] = 1.0
-    para['direfeature'] = '.'
+
     # get ACSF by hand, if featureType is rad
     para['rcut'] = 15
     para['r_s'] = 5
@@ -106,66 +143,120 @@ def init_dftb_ml(para):
     para['ang_paraall'] = []
     para['rad_paraall'] = []
 
-    # ----------------------------- DFTB-ML -----------------------------
-    para['reference'] = 'aims'  # optional reference: aims, dftbplus, dftb!!!!!
-    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa...!!!!!
+    # *********************************************************************
+    #                              DFTB-ML
+    # *********************************************************************
+    # optional reference: aims, dftbplus, dftb !!
+    para['reference'] = 'aims'
+
+    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa... !!
     para['target'] = ['dipole']
+
+    # define weight in loss function
     para['dipole_loss_ratio'] = 1
     para['polarizability_loss_ratio'] = 0.15
-    para['mlsteps'] = 2  # how many steps for optimize in DFTB-ML!!!!!
-    para['save_steps'] = 1  # how many steps to save the DFTB-ML data!!!!!
-    para['opt_step_min'] = 2
-    para['lr'] = 5E-3  # learning rate !!!!!
-    para['loss_function'] = 'MSELoss'  # MSELoss, L1Loss
 
+    # how many steps for optimize in DFTB-ML !!
+    para['mlsteps'] = 2
+
+    # how many steps to save the DFTB-ML data !!
+    para['save_steps'] = 1
+
+    # minimum steps
+    para['opt_step_min'] = 2
+
+    # learning rate !!
+    para['lr'] = 5E-3
+
+    # define loss function: MSELoss, L1Loss
+    para['loss_function'] = 'MSELoss'
+
+    # optimize integral directly
     if para['Lml_HS']:
+
+        # type to generate integral
         para['interptype'] = 'Polyspline'
         para['zero_threshold'] = 5E-3
         para['rand_threshold'] = 5E-2
     para['interpdist'] = 0.4
     para['atomspecie_old'] = []
 
+    # optimize compression radius: by interpolation or by ML prediction
     if para['Lml_skf'] or para['Lml_acsf']:
+
         # if read SKF from a list of files with interpolation
         para['LreadSKFinterp'] = True
-        para['Lonsite'] = False  # if optimize onsite in DFTB-ML
-        para['typeSKinterp'] = 'uniform'  # grid of compr is uniform or ?!!!!!
-        para['typeSKinterpR'] = 'all'  # all, wavefunction, density...
+
+        # if optimize onsite in DFTB-ML
+        para['Lonsite'] = False
+
+        # grid of compression radius is uniform or not !!
+        para['typeSKinterp'] = 'uniform'
+
+        # skgen compression radius parameters: all, wavefunction, density
+        para['typeSKinterpR'] = 'all'
+
+        # the grid point of compression radius is not uniform
         if para['typeSKinterp'] == 'nonuniform':
             para['dire_interpSK'] = os.path.join(path, '../slko/nonuniform')
+
+        # the grid point of compression radius is uniform
         elif para['typeSKinterp'] == 'uniform':
             para['dire_interpSK'] = os.path.join(path, '../slko/uniform')
-        para['ncompr'] = 10  # should be equal to atom_compr_grid
+
+        # number of grid points, should be equal to atom_compr_grid
+        para['ncompr'] = 10
+
         # if fix the optimization step and set convergence condition
         para['Lopt_step'] = True
         para['opt_ml_tol'] = 1E-3
-        para['Lopt_ml_compr'] = False  # if predict compR during DFTB-ML!!!!!
+
+        # if predict compression radius during DFTB-ML
+        para['Lopt_ml_compr'] = False
+
         # after opt_ml_step*nbatch molecule, perform ML predict compR!!!!!!
         para['opt_ml_step'] = 0.5
         para['opt_ml_all'] = False
-        para['compr_min'] = 2.2  # if any compR < 2.2, break DFTB-ML loop
-        para['compr_max'] = 9  # if any compR > 9, break DFTB-ML loop
+
+        # if any compR < 2.2, break DFTB-ML loop
+        para['compr_min'] = 2.2
+
+        # if any compR > 9, break DFTB-ML loop
+        para['compr_max'] = 9
+
+        # compression radius of H
         para['H_compr_grid'] = t.tensor((
                 [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
                 dtype=t.float64)
+
+        # compression radius of C
         para['C_compr_grid'] = t.tensor((
                 [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
                 dtype=t.float64)
+
+        # compression radius of N
         para['N_compr_grid'] = t.tensor((
                 [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
                 dtype=t.float64)
+
+        # compression radius of O
         para['O_compr_grid'] = t.tensor((
                 [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
                 dtype=t.float64)
+
+        # test the grid points length
         assert len(para['H_compr_grid']) == para['ncompr']
         assert len(para['C_compr_grid']) == para['ncompr']
         assert len(para['N_compr_grid']) == para['ncompr']
         assert len(para['O_compr_grid']) == para['ncompr']
 
+        # set initial compression radius
         para['H_init_compr'] = 3.5
         para['C_init_compr'] = 3.5
         para['N_init_compr'] = 3.5
         para['O_init_compr'] = 3.5
+
+        # define onsite
         para['onsiteH'] = t.tensor((
                 [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
         para['onsiteC'] = t.tensor((
@@ -177,54 +268,107 @@ def init_dftb_ml(para):
         para['onsiteO'] = t.tensor((
                 [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
                 dtype=t.float64)
-        para['uhubbH'] = t.tensor((
-                [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-        para['uhubbC'] = t.tensor((
-                [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-                dtype=t.float64)
-        para['uhubbN'] = t.tensor((
-                [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]),
-                dtype=t.float64)
-        para['uhubbO'] = t.tensor((
-                [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]),
-                dtype=t.float64)
 
-    # ----------------------------- DFTB -----------------------------
-    para['LReadInput'] = False  # if read parameter from dftb_in file
-    para['LMBD_DFTB'] = True  # if perform MBD-DFTB calculation
-    para['n_omega_grid'] = 15  # mbd_vdw_n_quad_pts = para['n_omega_grid']
+        # deine Hubbert is orbital resolved or not
+        para['Lorbres'] = False
+
+        # Hubbert is orbital resolved
+        # if use different parametrization method, remember revise value here
+        if para['Lorbres']:
+            para['uhubbH'] = t.tensor((
+                    [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+            para['uhubbC'] = t.tensor((
+                    [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
+                    dtype=t.float64)
+            para['uhubbN'] = t.tensor((
+                    [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]),
+                    dtype=t.float64)
+            para['uhubbO'] = t.tensor((
+                    [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]),
+                    dtype=t.float64)
+
+        # Hubbert is not orbital resolved, value from skgen
+        elif not para['Lorbres']:
+            para['uhubbH'] = t.tensor(([4.196174261214E-01, 4.196174261214E-01,
+                                        4.196174261214E-01]), dtype=t.float64)
+            para['uhubbC'] = t.tensor(([3.646664973641E-01, 3.646664973641E-01,
+                                        3.646664973641E-01]), dtype=t.float64)
+            para['uhubbN'] = t.tensor(([4.308879578818E-01, 4.308879578818E-01,
+                                        4.308879578818E-01]), dtype=t.float64)
+            para['uhubbO'] = t.tensor(([4.954041702122E-01, 4.954041702122E-01,
+                                        4.954041702122E-01]), dtype=t.float64)
+
+    # ********************************************************************
+    #                          DFTB parameter
+    # ********************************************************************
+    # if read parameter from dftb_in (default input name)
+    para['LReadInput'] = False
+
+    # if perform MBD-DFTB calculation
+    para['LMBD_DFTB'] = True
+
+    # mbd_vdw_n_quad_pts = para['n_omega_grid']
+    para['n_omega_grid'] = 15
     para['vdw_self_consistent'] = False
     para['beta'] = 1.05
-    # general eigenvalue methodin DFTB-ML: cholesky, lowdin_qr!!!!!
+
+    # general eigenvalue methodin DFTB-ML: cholesky, lowdin_qr !!
     para['eigenmethod'] = 'cholesky'
-    para['scf'] = True
+
+    # perform (non-) SCC DFTB: nonscc, scc
     para['scc'] = 'scc'
-    para['convergenceType'], para['energy_tol'] = 'energy', 1E-6
+
+    # convergence type
+    para['convergenceType'] = 'energy'
+
+    # tolerance
+    para['energy_tol'] = 1E-6
+
+    # delta r when interpolating i9ntegral
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
 
     # mix method: simple, anderson, broyden
     para['mixMethod'] = 'anderson'
+
+    # mixing fraction
     para['mixFactor'] = 0.2
-    # if build half H0, S or build whole H0, S: symall, symhalf.. !!!!!
+
+    # if build half H0, S or build whole H0, S: symall, symhalf !!
     para['HSsym'] = 'symall'
-    para['ninterp'] = 8  # interpolation integrals when read SKF with distance
-    para['dist_tailskf'] = 1.0  # smooth tail of SKF
+
+    # interpolation integrals when read SKF with distance
+    para['ninterp'] = 8
+
+    # distance when smoothing tail of SKF
+    para['dist_tailskf'] = 1.0
+
+    # temperature
     para['tElec'] = 0
-    para['maxIter'] = 60  # max of SCF loop
+
+    # max of SCF loop
+    para['maxIter'] = 60
     para['t_zero_max'] = 5
+
+    # periodic condition
     para['Lperiodic'] = False
+
+    # calculate dipole or not
     para['Ldipole'] = True
+
+    # calculate repulsive or not
     para['Lrepulsive'] = False
-    para['coorType'] = 'C'  # cartesian...
-    para['filename'] = 'dftb_in'
+
+    # coordinate type: 'C': cartesian...
+    para['coorType'] = 'C'
+
+    # get input path
     para['direInput'] = os.path.join(path, 'dftbtorch')
 
     # ---------------------- plotting and others ----------------------
     para['Lplot_ham'] = True
     para['Lplot_feature'] = False
     para['hamold'] = 0
-    return para
 
 
 def init_dftb(para):
@@ -251,7 +395,7 @@ def init_dftb(para):
     para['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'anderson'
+    para['mixMethod'] = 'broyden'
 
     # mixing factor
     para['mixFactor'] = 0.2

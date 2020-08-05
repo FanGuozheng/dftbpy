@@ -16,6 +16,7 @@ from periodic import Periodic
 from matht import EigenSolver
 import parameters
 import dftbtorch.parser as parser
+from mixer import Simple, Anderson, Broyden
 from mbd import MBD
 from utils.save import SaveData
 from write import Print
@@ -350,9 +351,28 @@ class SCF:
         # get electron information, such as initial charge
         self.analysis.get_qatom()
 
+        # mixing method is simple method
+        if para['mixMethod'] == 'simple':
+            self.mixer = Simple(mix_param=self.para['mixFactor'])
+
+        # mixing method is anderson
+        if para['mixMethod'] == 'anderson':
+            self.mixer = Anderson(mix_param=self.para['mixFactor'],
+                                  init_mix_param=self.para['mixFactor'],
+                                  generations=2)
+
+        # mixing method is broyden
+        if para['mixMethod'] == 'broyden':
+            self.mixer = Broyden(mix_param=self.para['mixFactor'],
+                                 init_mix_param=self.para['mixFactor'],
+                                 generations=self.para['maxIter'])
+
     def scf_npe_nscc(self):
         """DFTB for non-SCC, non-perodic calculation."""
+        # initial neutral charge
         self.para['qzero'] = self.para['qatom']
+
+        # number of orbitals
         ind_nat = self.atind[self.nat]
 
         if self.para['HSsym'] == 'symhalf':
@@ -367,23 +387,26 @@ class SCF:
             ham, over = self.hmat, self.smat
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        epsilon, C = self.eigen.eigen(ham, over)
+        self.para['eigenvalue'], C = self.eigen.eigen(ham, over)
 
         # calculate the occupation of electrons
-        occupancies = self.elect.fermi(epsilon)
+        occupancies = self.elect.fermi(self.para['eigenvalue'])
 
         # build density according to occupancies and eigenvector
         C_scaled = t.sqrt(occupancies) * C
-        denmat = C_scaled @ C_scaled.T
+        self.para['denmat'] = C_scaled @ C_scaled.T
 
         # calculate mulliken charges
-        qatom = self.elect.mulliken(self.para['HSsym'], over, denmat)
+        self.para['qatomall'] = self.elect.mulliken(
+            self.para['HSsym'], over, self.para['denmat'])
+
+        # claculate DFTB energy
+        self.analysis.dftb_energy()
+
+        # claculate physical properties
+        self.analysis.sum_property()
 
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = epsilon, qatom
-        self.para['denmat'] = denmat
-        self.analysis.dftb_energy()
-        self.analysis.sum_property()
         self.print_.print_dftb_tail()
 
     def half_to_sym(self, in_mat, dim_out):
@@ -411,6 +434,12 @@ class SCF:
         # get the dimension of 2D H0, S
         ind_nat = self.atind[self.nat]
 
+        # max iteration
+        maxiter = self.para['maxIter']
+
+        # define energy matrix
+        energy = t.zeros((maxiter), dtype=t.float64)
+
         if self.para['HSsym'] == 'symhalf':
 
             # transfer H0, S from 1D to 2D
@@ -422,13 +451,6 @@ class SCF:
             # replace H0, S name for convenience
             ham, over = self.hmat, self.smat
 
-
-        from mixer import Anderson
-        mixer = Anderson(mix_param=0.2, init_mix_param=0.2, generations=2)
-
-        # max iteration
-        maxiter = self.para['maxIter']
-
         # choose density basis type: Gaussian profile
         if self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
@@ -438,7 +460,6 @@ class SCF:
         elif self.para['scc_den_basis'] == 'exp_spher':
             gmat = self.elect.gmatrix()
 
-        energy = t.zeros((maxiter), dtype=t.float64)
         # Warning the next line will creates linked references, is this intended
         self.para['qzero'] = qzero = self.para['qatom']
         denmat = []
@@ -459,7 +480,6 @@ class SCF:
             n_orbitals = t.tensor(np.diff(self.atind))
             shiftorb_ = shift_.repeat_interleave(n_orbitals)
 
-            pause = 10
             # To get the Fock matrix "F"; Construct the gamma matrix "G" then
             # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
             # relative value for true vectorisation. shift_mat is precomputed
@@ -489,7 +509,7 @@ class SCF:
             # calculate mulliken charges
             q_new = self.elect.mulliken(self.para['HSsym'], over, rho)
             # Last mixed charge is the current step now
-            q_mixed = mixer(q_new, q_mixed)
+            q_mixed = self.mixer(q_new, q_mixed)
 
             # This is needed for "analysis" we really don't want this in a loop
             self.para['eigenvalue'], self.para['shift_'] = epsilon, shift_
@@ -502,15 +522,16 @@ class SCF:
             self.analysis.dftb_energy()
             energy[iiter] = self.para['energy']
             self.dE = self.print_.print_energy(iiter, energy)
-            if self.convergence(iiter, maxiter, q_mixed-q_new):
+            if self.convergence(iiter, maxiter, q_mixed - q_new):
                 break
 
-            # General notes:
-            #   1) Will need to introduce dynamic error handling
+        # return eigenvalue and charge
+        self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
+
+        # return density matrix
+        self.para['denmat'] = denmat
 
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
-        self.para['denmat'] = denmat
         self.analysis.sum_property()
         self.print_.print_dftb_tail()
 
