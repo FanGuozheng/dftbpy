@@ -19,7 +19,7 @@ from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
 import dftbtorch.parser as parser
-DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
+# DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,

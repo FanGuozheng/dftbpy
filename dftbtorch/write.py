@@ -61,6 +61,29 @@ class Print:
             print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
             return dE
 
+    def print_charge(self, iiter, charge, nat):
+        """Print charge in each SCC loops."""
+        # for the 0th loop, dQ == energy
+        if iiter == 0:
+            dQ = charge[0].detach().sum() / nat
+
+            # print title
+            print('iteration', ' ' * 8, 'total charge', ' ' * 20, 'dQ')
+
+            # print 0th loop charge
+            print(f'{iiter:5} {charge[-1].detach().sum():25}', f'{dQ:25}')
+            return dQ
+
+        # print dE and charge
+        elif iiter >= 1:
+
+            # get charge
+            dQ = abs((charge[-2].detach() - charge[-1].detach())).sum() / nat
+
+            # print nth loop charge
+            print(f'{iiter:5} {charge[-1].detach().sum():25}', f'{dQ:25}')
+            return dQ
+
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
         # print charge

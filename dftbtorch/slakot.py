@@ -475,8 +475,8 @@ class SKinterp:
             # onsite is the same, therefore read [0, 0] instead
             onsite = t.zeros((3), dtype=t.float64)
             uhubb = t.zeros((3), dtype=t.float64)
-            onsite[:] = self.para['onsite' + iat]
-            uhubb[:] = self.para['uhubb' + iat]
+            onsite[:] = self.para['onsite' + iat + iat]
+            uhubb[:] = self.para['uhubb' + iat + iat]
             self.para['onsite' + iat + iat] = onsite
             self.para['uhubb' + iat + iat] = uhubb
 

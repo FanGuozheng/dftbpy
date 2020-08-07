@@ -257,15 +257,15 @@ def init_dftb_ml(para):
         para['O_init_compr'] = 3.5
 
         # define onsite
-        para['onsiteH'] = t.tensor((
+        para['onsiteHH'] = t.tensor((
                 [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-        para['onsiteC'] = t.tensor((
+        para['onsiteCC'] = t.tensor((
                 [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
                 dtype=t.float64)
-        para['onsiteN'] = t.tensor((
+        para['onsiteNN'] = t.tensor((
                 [0.0E+00, -2.607280834222E-01, -6.400000000000E-01]),
                 dtype=t.float64)
-        para['onsiteO'] = t.tensor((
+        para['onsiteOO'] = t.tensor((
                 [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
                 dtype=t.float64)
 
@@ -275,28 +275,32 @@ def init_dftb_ml(para):
         # Hubbert is orbital resolved
         # if use different parametrization method, remember revise value here
         if para['Lorbres']:
-            para['uhubbH'] = t.tensor((
+            para['uhubbHH'] = t.tensor((
                     [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-            para['uhubbC'] = t.tensor((
+            para['uhubbCC'] = t.tensor((
                     [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
                     dtype=t.float64)
-            para['uhubbN'] = t.tensor((
+            para['uhubbNN'] = t.tensor((
                     [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]),
                     dtype=t.float64)
-            para['uhubbO'] = t.tensor((
+            para['uhubbOO'] = t.tensor((
                     [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]),
                     dtype=t.float64)
 
         # Hubbert is not orbital resolved, value from skgen
         elif not para['Lorbres']:
-            para['uhubbH'] = t.tensor(([4.196174261214E-01, 4.196174261214E-01,
-                                        4.196174261214E-01]), dtype=t.float64)
-            para['uhubbC'] = t.tensor(([3.646664973641E-01, 3.646664973641E-01,
-                                        3.646664973641E-01]), dtype=t.float64)
-            para['uhubbN'] = t.tensor(([4.308879578818E-01, 4.308879578818E-01,
-                                        4.308879578818E-01]), dtype=t.float64)
-            para['uhubbO'] = t.tensor(([4.954041702122E-01, 4.954041702122E-01,
-                                        4.954041702122E-01]), dtype=t.float64)
+            para['uhubbHH'] = t.tensor(([4.196174261214E-01,
+                                         4.196174261214E-01,
+                                         4.196174261214E-01]), dtype=t.float64)
+            para['uhubbCC'] = t.tensor(([3.646664973641E-01,
+                                         3.646664973641E-01,
+                                         3.646664973641E-01]), dtype=t.float64)
+            para['uhubbNN'] = t.tensor(([4.308879578818E-01,
+                                         4.308879578818E-01,
+                                         4.308879578818E-01]), dtype=t.float64)
+            para['uhubbOO'] = t.tensor(([4.954041702122E-01,
+                                         4.954041702122E-01,
+                                         4.954041702122E-01]), dtype=t.float64)
 
     # ********************************************************************
     #                          DFTB parameter
@@ -312,6 +316,9 @@ def init_dftb_ml(para):
     para['vdw_self_consistent'] = False
     para['beta'] = 1.05
 
+    # if calculate PDOS
+    para['Lpdos'] = False
+
     # general eigenvalue methodin DFTB-ML: cholesky, lowdin_qr !!
     para['eigenmethod'] = 'cholesky'
 
@@ -322,14 +329,14 @@ def init_dftb_ml(para):
     para['convergenceType'] = 'energy'
 
     # tolerance
-    para['energy_tol'] = 1E-6
+    para['convergence_tol'] = 1E-6
 
     # delta r when interpolating i9ntegral
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
 
     # mix method: simple, anderson, broyden
-    para['mixMethod'] = 'anderson'
+    para['mixMethod'] = 'broyden'
 
     # mixing fraction
     para['mixFactor'] = 0.2
@@ -348,7 +355,12 @@ def init_dftb_ml(para):
 
     # max of SCF loop
     para['maxIter'] = 60
+
+    # if smaller than t_zero_max, treated as zero
     para['t_zero_max'] = 5
+
+    # density basis for second order gamma
+    para['scc_den_basis'] = 'gaussian'
 
     # periodic condition
     para['Lperiodic'] = False
@@ -395,7 +407,7 @@ def init_dftb(para):
     para['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'broyden'
+    para['mixMethod'] = 'anderson'
 
     # mixing factor
     para['mixFactor'] = 0.2
@@ -404,7 +416,7 @@ def init_dftb(para):
     para['convergenceType'] = 'energy'
 
     # convergence precision
-    para['energy_tol'] = 1e-6
+    para['convergence_tol'] = 1e-8
 
     # delta distance when interpolate SKF integral
     para['delta_r_skf'] = 1E-5
@@ -424,6 +436,9 @@ def init_dftb(para):
     # ****************************** SKF, H, S ******************************
     # skf: directly read or interpolate from a list of skf files
     para['LreadSKFinterp'] = False
+
+    # if calculate PDOS
+    para['Lpdos'] = True
 
     # orbital resolved: if Ture, only use Hubbert of s orbital
     para['Lorbres'] = False
@@ -481,11 +496,11 @@ def init_dftb_interp(para):
     # mixing factor
     para['mixFactor'] = 0.2
 
-    # convergence method: energy, charge
+    # convergence_tol method: energy, charge
     para['convergenceType'] = 'energy'
 
     # convergence precision
-    para['energy_tol'] = 1e-7
+    para['convergence_tol'] = 1e-7
 
     # delta distance when interpolating SKF integral
     para['delta_r_skf'] = 1E-5

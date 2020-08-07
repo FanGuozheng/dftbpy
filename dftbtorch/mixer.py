@@ -682,7 +682,24 @@ class Broyden(Mixer):
         dtype = dQ_first.dtype
         self._F = t.zeros(size, dtype=dtype)
         self._dQs = t.zeros(size, dtype=dtype)
-        self.ww = t.zeros((self.generations + 1), dtype=dtype)
+
+        # weight parameters
+        self.ww = t.zeros((self.generations), dtype=dtype)
+
+        # global a parameter for broyden method
+        self.aa = t.zeros((self.generations, self.generations), dtype=t.float64)
+
+        # global c parameter for broyden method
+        self.cc = t.zeros((self.generations, self.generations), dtype=t.float64)
+
+        # global beta parameter for broyden method
+        self.beta = t.zeros((self.generations, self.generations), dtype=t.float64)
+
+        # global diufference of charge difference
+        self.df = []
+
+        self.uu = []
+
 
     def __call__(self, dQ_new, dQ_old=None, **kwargs):
         # Batch-wise operations must be handled slightly different so identity
@@ -704,7 +721,7 @@ class Broyden(Mixer):
         # Calculate dQ_new - dQ_old delta & assign to the delta history _F
         self._F[0] = dQ_new - dQ_old
 
-        cc = t.zeros((self._step_number, self._step_number), dtype=t.float64)
+        # cc = t.zeros((self._step_number, self._step_number), dtype=t.float64)
 
         # temporal a parameter for current interation
         aa_ = []
@@ -729,7 +746,8 @@ class Broyden(Mixer):
 
         # build omega (ww) according to charge difference
         # if weight from last loop is larger than: weightfrac / maxweight
-        if ww_ > weightfrac / maxweight:
+        self.ww[self._step_number - 1] = weightfrac / ww_
+        '''if ww_ > weightfrac / maxweight:
             self.ww[self._step_number - 1] = weightfrac / ww_
 
         # here the gradient may break
@@ -740,62 +758,67 @@ class Broyden(Mixer):
         if self.ww[self._step_number - 1] < minweight:
 
             # here the gradient may break
-            self.ww[self._step_number - 1] = minweight
+            self.ww[self._step_number - 1] = minweight'''
 
-        # get updated charge difference
-        qdiff.append(qatom_ - qmix[-1])
 
         # temporal (latest) difference of charge difference
-        df_ = qdiff[-1] - qdiff[-2]
+        df_ = self._F[0] - self._F[1]
 
         # get normalized difference of charge difference
         ndf = 1 / t.sqrt(df_ @ df_) * df_
 
-        if self._step_number >= 2:
+        if self._step_number == 1:
+            dQ_mixed = self._dQs[0] + (self._F[0] * self.init_mix_param)
+            self.df.append(t.zeros((dQ_mixed.shape), dtype=t.float64))
+            self.uu.append(t.zeros((dQ_mixed.shape), dtype=t.float64))
+
+        if self._step_number >= 3:
             # build loop from first loop to last loop
-            [aa_.append(t.tensor(idf, dtype=t.float64) @ ndf) for idf in
-             self.df[:-1]]
+            [aa_.append(idf @ ndf) for idf in self.df[:-1]]
 
             # build loop from first loop to last loop
-            [cc_.append(t.tensor(idf, dtype=t.float64) @ t.tensor(qdiff[-1],
-             dtype=t.float64)) for idf in self.df[:-1]]
+            [cc_.append(idf @ self._F[0]) for idf in self.df[:-1]]
 
             # update last a parameter
-            self.aa[: self._step_number - 1, self._step_number] = t.tensor(aa_, dtype=t.float64)
-            self.aa[self._step_number, : self._step_number - 1] = t.tensor(aa_, dtype=t.float64)
+            self.aa[: self._step_number - 2, self._step_number - 1] = t.tensor(aa_, dtype=t.float64)
+            self.aa[self._step_number - 1, : self._step_number - 2] = t.tensor(aa_, dtype=t.float64)
 
             # update last c parameter
-            self.cc[: self._step_number - 1, self._step_number] = t.tensor(cc_, dtype=t.float64)
-            self.cc[self._step_number, : self._step_number - 1] = t.tensor(cc_, dtype=t.float64)
+            self.cc[: self._step_number - 2, self._step_number - 1] = t.tensor(cc_, dtype=t.float64)
+            self.cc[self._step_number - 1, : self._step_number - 2] = t.tensor(cc_, dtype=t.float64)
 
-        self.aa[self._step_number - 1, self._step_number - 1] = 1.0
+        if self._step_number >= 2:
 
-        # update last c parameter
-        self.cc[self._step_number - 1, self._step_number - 1] = self.ww[self._step_number - 1] * (ndf @ qdiff[-1])
+            # for the second loop
+            self.aa[self._step_number - 1, self._step_number - 1] = 1.0
 
-        for ii in range(self._step_number):
-            self.beta[:self._step_number, ii] = self.ww[:self._step_number] * self.ww[ii] * \
-                self.aa[:self._step_number, ii]
+            # update last c parameter
+            self.cc[self._step_number - 1, self._step_number - 1] = self.ww[self._step_number - 1] * (ndf @ self._F[0])
 
-            self.beta[ii, ii] = self.beta[ii, ii] + omega0 ** 2
+            # fill beta off-diagonal and diagonal
+            beta = t.unsqueeze(self.ww, 1) @ t.unsqueeze(self.ww, 0) * self.aa
+            beta.add_(t.eye(len(beta)) * omega0 ** 2)
 
-        self.beta[: self._step_number, : self._step_number] = t.inverse(self.beta[: self._step_number, : self._step_number])
+            # get inverse of beta in equation 13
+            beta_ = beta[: self._step_number, : self._step_number].inverse()
 
-        gamma = t.mm(cc[: self._step_number, : self._step_number], self.beta[: self._step_number, : self._step_number])
+            # self.cc and self.beta is not filled, the rest is still zero
+            gamma = self.cc[: self._step_number, : self._step_number] @ beta_
 
-        # add difference of charge difference
-        self.df.append(ndf)
+            # add difference of charge difference
+            self.df.append(ndf)
 
-        df = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (qmix[-1] - qmix[-2])
+            df = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (self._dQs[0] - self._dQs[1])
 
-        qmix_ = qmix[-1] + alpha * qdiff[-1]
+            dQ_mixed = self._dQs[0] + alpha * self._F[0]
 
-        for ii in range(self._step_number):
-            qmix_ = qmix_ - self.ww[ii] * gamma[0, ii] * self.uu[ii]
+            for ii in range(self._step_number - 1):
+                dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self.uu[ii])
 
-        qmix_ = qmix_ - self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * df
+            dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * df)
 
-        self.uu.append(df)
+            self.uu.append(df)
+
         # Shift F & dQ histories over; a roll follow by a reassignment is
         # necessary to avoid a pytorch inplace error. (gradients remain intact)
         self._F = t.roll(self._F, 1, 0)
@@ -810,31 +833,6 @@ class Broyden(Mixer):
 
         # Return the mixed parameter
         return dQ_mixed
-
-    def __build_F_and_dQs(self, dQ_first):
-        """Builds the F and dQs matrices. This is mainly used during the
-        initialisation prices, and has been abstracted to avoid code repetition
-        and help tidy things up.
-
-        Parameters
-        ----------
-        dQ_first : `torch.tensor`
-            The first dQ tensor on which the new are to be based.
-
-        Notes
-        -----
-        This function auto-assigns to the class variables so it returns nothing.
-
-        Todo
-        ----
-        - Rename this function to "_initialisation" to bring it into line with
-          the base class definition.
-        """
-        # Clone size and type settings.
-        size = (self.generations + 1, *tuple(dQ_first.shape))
-        dtype = dQ_first.dtype
-        self._F = t.zeros(size, dtype=dtype)
-        self._dQs = t.zeros(size, dtype=dtype)
 
     def reset(self, dQ_init=None):
         """Resets the mixer instance read to be used again.

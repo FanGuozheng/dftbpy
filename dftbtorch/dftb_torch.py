@@ -20,6 +20,7 @@ from mixer import Simple, Anderson, Broyden
 from mbd import MBD
 from utils.save import SaveData
 from write import Print
+import DFTBMaLT.dftbmalt.dftb.dos as dos
 
 
 def main(para):
@@ -160,11 +161,12 @@ class Initialization:
 
     def get_this_hubbert(self):
         """Get Hubbert for current calculation."""
+        # create temporal Hubbert list
         this_U = []
         # only support not orbital resolved U
         if not self.para['Lorbres']:
 
-            # get U hubbert for each atom
+            # get U hubbert (s orbital) for each atom
             [this_U.append(self.para['uhubb' + iname + iname][-1])
              for iname in self.para['atomnameall']]
 
@@ -259,9 +261,6 @@ class Rundftbpy:
 
         # calculate repulsive term
         self.run_repulsive()
-
-        # make a summary of DFTB
-        Analysis(self.para).dftb_energy()
 
     def runscf(self):
         """Run DFTB with multi interface.
@@ -396,6 +395,9 @@ class SCF:
         C_scaled = t.sqrt(occupancies) * C
         self.para['denmat'] = C_scaled @ C_scaled.T
 
+        # return the eigenvector
+        self.para['eigenvec'] = C
+
         # calculate mulliken charges
         self.para['qatomall'] = self.elect.mulliken(
             self.para['HSsym'], over, self.para['denmat'])
@@ -428,17 +430,15 @@ class SCF:
         atomind is the number of atom, for C, lmax is 2, therefore
         we need 2**2 orbitals (s, px, py, pz), then define atomind2
         """
-        # A lot of information here is being stored to a dictionary, it is likely
-        # more efficient to assign these to a class using __slots__ to help with
-        # speed and memory. This might help compartmentalise the code a little more.
+        # todo: using __slots__ to help with speed and memory instead of dict
         # get the dimension of 2D H0, S
         ind_nat = self.atind[self.nat]
 
         # max iteration
         maxiter = self.para['maxIter']
 
-        # define energy matrix
-        energy = t.zeros((maxiter), dtype=t.float64)
+        # define convergence list
+        conv_ = []
 
         if self.para['HSsym'] == 'symhalf':
 
@@ -460,7 +460,7 @@ class SCF:
         elif self.para['scc_den_basis'] == 'exp_spher':
             gmat = self.elect.gmatrix()
 
-        # Warning the next line will creates linked references, is this intended
+        # Warning the next line will creates linked references
         self.para['qzero'] = qzero = self.para['qatom']
         denmat = []
 
@@ -468,12 +468,8 @@ class SCF:
         for iiter in range(maxiter):
             # calculate the sum of gamma * delta_q, the 1st cycle is zero
 
-            # Should move the atomic -> orbital expansion to an external
-            # function to avoid code recitation. We can call this even when we
-            # have no charge fluctuations yet.
             # The "shift_" term is the a product of the gamma and dQ values
-            # shift_2 = (q_mixed - qzero) @ gmat.double()
-            shift_ = self.elect.shifthamgam(self.para, q_mixed, qzero, gmat)
+            shift_ = (q_mixed - qzero) @ gmat
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
@@ -508,21 +504,26 @@ class SCF:
 
             # calculate mulliken charges
             q_new = self.elect.mulliken(self.para['HSsym'], over, rho)
+
             # Last mixed charge is the current step now
             q_mixed = self.mixer(q_new, q_mixed)
 
-            # This is needed for "analysis" we really don't want this in a loop
-            self.para['eigenvalue'], self.para['shift_'] = epsilon, shift_
-            # This should be done outside of the SCC loop, we really want to
-            # avoid frequent dictionary calls. Why is this the unmixed charge?
-            # Why not pass as options to the function that needs it?
-            self.para['qatom_'] = q_new
+            if self.para['convergenceType'] == 'energy':
+
+                # get energy: E0 + E_coul
+                conv_.append(epsilon @ occupancies +
+                             0.5 * shift_ @ (q_mixed + qzero))
+
+                # print energy information
+                diff_ = self.print_.print_energy(iiter, conv_)
+
+            # use charge as convergence condition
+            elif self.para['convergenceType'] == 'charge':
+                conv_.append(q_mixed)
+                diff_ = self.print_.print_charge(iiter, conv_, self.nat)
 
             # if reached convergence
-            self.analysis.dftb_energy()
-            energy[iiter] = self.para['energy']
-            self.dE = self.print_.print_energy(iiter, energy)
-            if self.convergence(iiter, maxiter, q_mixed - q_new):
+            if self.convergence(iiter, maxiter, diff_):
                 break
 
         # return eigenvalue and charge
@@ -531,81 +532,13 @@ class SCF:
         # return density matrix
         self.para['denmat'] = denmat
 
-        # print and write non-SCC DFTB results
-        self.analysis.sum_property()
-        self.print_.print_dftb_tail()
+        # return the eigenvector
+        self.para['eigenvec'] = C
 
-    def scf_npe_scc_(self):
-        """SCF for non-periodic-ML system with scc.
-
-        atomind is the number of atom, for C, lmax is 2, therefore
-        we need 2**2 orbitals (s, px, py, pz), then define atomind2
-        """
-        maxiter = self.para['maxIter']
-        gmat = self.elect.gmatrix()
-
-        energy = t.zeros((maxiter), dtype=t.float64)
-        self.para['qzero'] = qzero = self.para['qatom']
-        eigm, eigval, qatom, qmix, qdiff, denmat = [], [], [], [], [], []
-        ind_nat = self.atind[self.nat]
-        # print('hamt:', self.hmat)
-
-        for iiter in range(0, maxiter):
-            # calculate the sum of gamma * delta_q, the 1st cycle is zero
-            qatom_ = t.zeros((self.nat), dtype=t.float64)
-            fockmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            shift_ = t.zeros((self.nat), dtype=t.float64)
-            shiftorb_ = t.zeros((ind_nat), dtype=t.float64)
-            work_ = t.zeros((ind_nat), dtype=t.float64)
-
-            if iiter > 0:
-                shift_ = self.elect.shifthamgam(self.para, qmix[-1], qzero, gmat)
-            for iat in range(0, self.nat):
-                for jind in range(self.atind[iat], self.atind[iat + 1]):
-                    shiftorb_[jind] = shift_[iat]
-
-            # Hamiltonian = H0 + H2, where
-            # H2 = 0.5 * sum(overlap * (gamma_IK + gamma_JK))
-            icount = 0
-            for iind in range(0, ind_nat):
-                for j_i in range(0, ind_nat):
-                    fockmat_[iind, j_i] = \
-                        self.hmat[iind, j_i] + 0.5 * self.smat[iind, j_i] * \
-                        (shiftorb_[iind] + shiftorb_[j_i])
-                    icount += 1
-
-            # get eigenvector and eigenvalue (and cholesky decomposition)
-            eigval_, eigm_ch = self.eigen.eigen(fockmat_, self.smat)
-            eigval.append(eigval_), eigm.append(eigm_ch)
-
-            # calculate the occupation of electrons
-            self.elect.fermi(eigval_)
-            self.para['eigenvalue'], self.para['shift_'] = eigval_, shift_
-
-            # density matrix, work_ controls the unoccupied eigm as 0!!
-            work_ = t.sqrt(self.para['occ'])
-            for j in range(0, ind_nat):  # n = no. of occupied orbitals
-                for i in range(0, self.atind[self.nat]):
-                    eigm_ch[i, j] = eigm_ch[i, j].clone() * work_[j]
-            denmat_ = t.mm(eigm_ch, eigm_ch.t())
-            denmat.append(denmat_)
-
-            # calculate mulliken charges
-            qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat[:], denmat_)
-            qatom.append(qatom_)
-            self.mix.mix(iiter, qzero, qatom, qmix, qdiff)
-            self.para['qatom_'] = qatom_
-
-            # if reached convergence
-            self.analysis.dftb_energy()
-            energy[iiter] = self.para['energy']
-            self.dE = self.print_.print_energy(iiter, energy)
-            if self.convergence(iiter, maxiter, qdiff):
-                break
+        # return final energy
+        self.analysis.dftb_energy(shift_, qatom=q_mixed)
 
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom[-1]
-        self.para['denmat'] = denmat
         self.analysis.sum_property()
         self.print_.print_dftb_tail()
 
@@ -708,23 +641,29 @@ class SCF:
         self.para['denmat'] = denmat_
         self.analysis.sum_property(), self.print_.print_dftb_tail()
 
-    def convergence(self, iiter, maxiter, qdiff):
+    def convergence(self, iiter, maxiter, diff_):
         """Convergence for SCC loops."""
+        # use energy as convergence condition
         if self.para['convergenceType'] == 'energy':
-            if abs(self.dE) < self.para['energy_tol']:
+            if abs(diff_) < self.para['convergence_tol']:
                 reach_convergence = True
+
+            # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
-                if abs(self.dE) > self.para['energy_tol']:
+                if abs(diff_) > self.para['convergence_tol']:
                     print('Warning: SCF donot reach required convergence')
                     reach_convergence = True
             else:
                 reach_convergence = False
+
+        # use charge as convergence condition
         elif self.para['convergenceType'] == 'charge':
-            qdiff_ = t.sum(qdiff[-1]) / len(qdiff[-1])
-            if abs(qdiff_) < self.para['charge_tol']:
+            if abs(diff_) < self.para['convergence_tol']:
                 reach_convergence = True
+
+            # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
-                if abs(qdiff_) > PUBPARA['tol']:
+                if abs(diff_) > self.para['convergence_tol']:
                     print('Warning: SCF donot reach required convergence')
                     reach_convergence = True
             else:
@@ -868,7 +807,7 @@ class Mixing:
             D. D. Johnson, PRB, 38 (18), 1988.
 
         """
-        cc = t.zeros((iiter, iiter), dtype=t.float64)
+        # cc = t.zeros((iiter, iiter), dtype=t.float64)
 
         # temporal a parameter for current interation
         aa_ = []
@@ -945,7 +884,7 @@ class Mixing:
 
         self.beta[: iiter, : iiter] = t.inverse(self.beta[: iiter, : iiter])
 
-        gamma = t.mm(cc[: iiter, : iiter], self.beta[: iiter, : iiter])
+        gamma = t.mm(self.cc[: iiter, : iiter], self.beta[: iiter, : iiter])
 
         # add difference of charge difference
         self.df.append(ndf)
@@ -971,28 +910,38 @@ class Analysis:
         self.para = para
         self.nat = self.para['natom']
 
-    def dftb_energy(self):
+    def dftb_energy(self, shift_=None, qatom=None):
         """Get energy for DFTB with electronic and eigen results."""
+        # get eigenvalue
         eigval = self.para['eigenvalue']
+
+        # get occupancy
         occ = self.para['occ']
+
+        # non-SCC DFTB energy
         if self.para['scc'] == 'nonscc':
+
+            # product of occupancy and eigenvalue
             self.para['H0_energy'] = eigval @ occ
+
+            # add up energy
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
                     self.para['rep_energy']
             else:
                 self.para['energy'] = self.para['H0_energy']
+
+        # SCC energy
         if self.para['scc'] == 'scc':
             qzero = self.para['qzero']
-            shift_ = self.para['shift_']
-            qatom_ = self.para['qatom_']
-            self.para['H0_energy'] = t.dot(eigval, occ)
-            ecoul = 0.0
-            # qatom_[i] + qzero[i] ? qatom_[i] + qqatom_[j]?
-            # look up later (AJM)
-            for i in range(0, self.nat):
-                ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
-            self.para['coul_energy'] = ecoul / 2.0
+
+            # product of occupancy and eigenvalue
+            self.para['H0_energy'] = eigval @ occ
+
+            # get Coulomb energy
+            self.para['coul_energy'] = shift_ @ (qatom + qzero) / 2
+
+            # add up energy
             if self.para['Lrepulsive']:
                 self.para['energy'] = self.para['H0_energy'] + \
                     self.para['rep_energy'] - self.para['coul_energy']
@@ -1005,11 +954,21 @@ class Analysis:
         nocc = self.para['nocc']
         eigval = self.para['eigenvalue']
         qzero, qatom = self.para['qzero'], self.para['qatomall']
+
+        # get HOMO-LUMO, not orbital resolved
         self.para['homo_lumo'] = eigval[int(nocc) - 1:int(nocc) + 1] * \
             self.para['AUEV']
+
+        # calculate dipole
         self.para['dipole'] = self.get_dipole(qzero, qatom)
+
+        # calculate MBD-DFTB
         if self.para['LMBD_DFTB']:
             MBD(self.para)
+
+        # calculate PDOS or not
+        if self.para['Lpdos']:
+            self.pdos()
 
     def get_qatom(self):
         """Get the basic electronic information of each atom."""
@@ -1040,3 +999,22 @@ class Analysis:
                 dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
                     coor[iatom][1:]
         return dipole
+
+    def pdos(self):
+        """Calculate PDOS."""
+        # E: define for testing
+        self.para['pdos_E'] = t.linspace(-2, 2, 10, dtype=t.float64)
+
+        # calculate pdos
+        self.para['pdos'] = dos.PDoS(
+            # C eigen vector
+            self.para['eigenvec'],
+
+            # overlap
+            self.para['overmat'],
+
+            # PDOS energy
+            self.para['pdos_E'],
+
+            # eigenvalue
+            self.para['eigenvalue'], sigma=1E-3)

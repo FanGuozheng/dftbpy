@@ -216,9 +216,9 @@ def nonscc_CH4_nonsym(para):
 
 
 def scc_CH4_nonsym(para):
-    """Test non-symmetric CH4 with scc DFTB
+    """Test non-symmetric CH4 with scc DFTB.
 
-    What cab be test: dipole, charge, polarizability, H0, S
+    What cab be test: dipole, charge, polarizability, H0, S.
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['LMBD_DFTB'] = True
@@ -244,10 +244,11 @@ def scc_CH4_nonsym(para):
 
 
 def nonscc_H2(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
+    """Test eigen values, charges of CH4 by using Non-SCC DFTB.
+
     Before DFTB calculations, we will also test H0 and S;
-    '''
+
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -259,10 +260,11 @@ def nonscc_H2(para):
 
 
 def scc_H2(para):
-    '''Test eigen values, charges of CH4 by using SCC DFTB;
+    """Test eigen values, charges of CH4 by using SCC DFTB.
 
     Before DFTB calculations, we will also test H0 and S;
-    '''
+
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
@@ -281,10 +283,12 @@ def scc_H2(para):
 
 
 def nonscc_CO(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """
+    Test eigen values, charges of CH4 by using Non-SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
@@ -298,10 +302,11 @@ def nonscc_CO(para):
 
 
 def scc_CO(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['LMBD_DFTB'] = False
     para['coor'] = t.tensor(([
@@ -320,10 +325,11 @@ def scc_CO(para):
 
 
 def nonscc_CO2(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using Non-SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
             [8, -2.0357279573e-03, -1.7878314480e-02, 1.1467019320e+00],
@@ -338,10 +344,11 @@ def nonscc_CO2(para):
 
 
 def scc_CO2(para):
-    '''
-    Test eigen values, charges of CH4 by using Non-SCC DFTB;
+    """Test eigen values, charges of CH4 by using Non-SCC DFTB.
+
     Before DFTB calculations, we will also test H0 and S;
-    '''
+
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['LMBD_DFTB'] = False
     para['coor'] = t.tensor(([
@@ -361,10 +368,11 @@ def scc_CO2(para):
 
 
 def nonscc_C2H6(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor((
             [[6, 7.8179776669e-01,  1.5335133066e-03, 2.6934888214e-02],
@@ -387,10 +395,11 @@ def nonscc_C2H6(para):
 
 
 def scc_C2H6(para):
-    '''
-    Test eigenvalue, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigenvalue, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor((
@@ -424,10 +433,11 @@ def scc_C2H6(para):
 
 
 def nonscc_C2H6O(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
     Before DFTB calculations, we will also test H0 and S;
-    '''
+
+    """
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor((
             [[6, -1.1924011707, -0.2497887760, -0.0266653895],
@@ -454,10 +464,11 @@ def nonscc_C2H6O(para):
 
 
 def scc_C2H6O(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor((
@@ -492,10 +503,10 @@ def scc_C2H6O(para):
 
 
 def scc_CH4_compr(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+    """
     initpara.init_dftb_interp(para)
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
@@ -517,10 +528,11 @@ def scc_CH4_compr(para):
 
 
 def nonscc_CH4_compr(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
     initpara.init_dftb_interp(para)
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
@@ -542,10 +554,11 @@ def nonscc_CH4_compr(para):
 
 
 def nonscc_CH4_compr_nongrid(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
     Before DFTB calculations, we will also test H0 and S;
-    '''
+
+    """
     initpara.init_dftb_interp(para)
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor((
@@ -1061,7 +1074,7 @@ if __name__ == '__main__':
     t.set_printoptions(precision=15)
 
     para = {}
-    para["test_precision"] = "normal"
+    para["test_precision"] = "single"
 
     # test a single molecule
     if para["test_precision"] == "single":
