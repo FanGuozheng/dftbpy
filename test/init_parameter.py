@@ -407,7 +407,7 @@ def init_dftb(para):
     para['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'anderson'
+    para['mixMethod'] = 'broyden'
 
     # mixing factor
     para['mixFactor'] = 0.2

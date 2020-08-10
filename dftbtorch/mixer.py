@@ -682,6 +682,8 @@ class Broyden(Mixer):
         dtype = dQ_first.dtype
         self._F = t.zeros(size, dtype=dtype)
         self._dQs = t.zeros(size, dtype=dtype)
+        self._U = t.zeros(size, dtype=dtype)
+        self.df = t.zeros(size, dtype=dtype)
 
         # weight parameters
         self.ww = t.zeros((self.generations), dtype=dtype)
@@ -696,7 +698,7 @@ class Broyden(Mixer):
         self.beta = t.zeros((self.generations, self.generations), dtype=t.float64)
 
         # global diufference of charge difference
-        self.df = []
+        # self.df = []
 
         self.uu = []
 
@@ -724,10 +726,10 @@ class Broyden(Mixer):
         # cc = t.zeros((self._step_number, self._step_number), dtype=t.float64)
 
         # temporal a parameter for current interation
-        aa_ = []
+        # aa_ = []
 
         # temporal c parameter for current interation
-        cc_ = []
+        # cc_ = []
 
         weightfrac = 1e-2
 
@@ -760,7 +762,6 @@ class Broyden(Mixer):
             # here the gradient may break
             self.ww[self._step_number - 1] = minweight'''
 
-
         # temporal (latest) difference of charge difference
         df_ = self._F[0] - self._F[1]
 
@@ -769,31 +770,21 @@ class Broyden(Mixer):
 
         if self._step_number == 1:
             dQ_mixed = self._dQs[0] + (self._F[0] * self.init_mix_param)
-            self.df.append(t.zeros((dQ_mixed.shape), dtype=t.float64))
-            self.uu.append(t.zeros((dQ_mixed.shape), dtype=t.float64))
-
-        if self._step_number >= 3:
-            # build loop from first loop to last loop
-            [aa_.append(idf @ ndf) for idf in self.df[:-1]]
-
-            # build loop from first loop to last loop
-            [cc_.append(idf @ self._F[0]) for idf in self.df[:-1]]
-
-            # update last a parameter
-            self.aa[: self._step_number - 2, self._step_number - 1] = t.tensor(aa_, dtype=t.float64)
-            self.aa[self._step_number - 1, : self._step_number - 2] = t.tensor(aa_, dtype=t.float64)
-
-            # update last c parameter
-            self.cc[: self._step_number - 2, self._step_number - 1] = t.tensor(cc_, dtype=t.float64)
-            self.cc[self._step_number - 1, : self._step_number - 2] = t.tensor(cc_, dtype=t.float64)
+            idf = t.zeros((dQ_mixed.shape), dtype=t.float64)
+            ndf = t.zeros((dQ_mixed.shape), dtype=t.float64)
 
         if self._step_number >= 2:
+            x = self.aa.clone()
+            sizea, sizec = self.aa.size(0), self.cc.size(0)
+            assert sizea == sizec
 
             # for the second loop
             self.aa[self._step_number - 1, self._step_number - 1] = 1.0
 
             # update last c parameter
             self.cc[self._step_number - 1, self._step_number - 1] = self.ww[self._step_number - 1] * (ndf @ self._F[0])
+            # diagc = self.ww * (self.df @ self._F[0])
+            # self.cc.as_strided([sizec], [sizec + 1]).copy_(diagc)
 
             # fill beta off-diagonal and diagonal
             beta = t.unsqueeze(self.ww, 1) @ t.unsqueeze(self.ww, 0) * self.aa
@@ -805,23 +796,42 @@ class Broyden(Mixer):
             # self.cc and self.beta is not filled, the rest is still zero
             gamma = self.cc[: self._step_number, : self._step_number] @ beta_
 
-            # add difference of charge difference
-            self.df.append(ndf)
-
-            df = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (self._dQs[0] - self._dQs[1])
+            idf = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (self._dQs[0] - self._dQs[1])
 
             dQ_mixed = self._dQs[0] + alpha * self._F[0]
 
             for ii in range(self._step_number - 1):
-                dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self.uu[ii])
+                dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self._U[ii])
 
-            dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * df)
+            dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * idf)
 
-            self.uu.append(df)
+            # self.uu.append(idf)
+
+        if self._step_number >= 3:
+            aa_ = self.df[:self._step_number - 2] @ ndf
+            cc_ = self.df[:self._step_number - 2] @ self._F[0]
+
+            # update last a parameter
+            self.aa[: self._step_number - 2, self._step_number - 1] = aa_
+            self.aa[self._step_number - 1, : self._step_number - 2] = aa_
+            '''tmp_ = self.aa.clone()
+            tmp_[: self._step_number - 2, self._step_number - 1] = aa_
+            tmp_[self._step_number - 1, : self._step_number - 2] = aa_
+            self.aa = tmp_'''
+
+
+            # update last c parameter
+            self.cc[: self._step_number - 2, self._step_number - 1] = cc_
+            self.cc[self._step_number - 1, : self._step_number - 2] = cc_
+            '''tmpc_ = self.cc.clone()
+            tmpc_[: self._step_number - 2, self._step_number - 1] = cc_
+            tmpc_[self._step_number - 1, : self._step_number - 2] = cc_
+            self.cc = tmpc_'''
 
         # Shift F & dQ histories over; a roll follow by a reassignment is
         # necessary to avoid a pytorch inplace error. (gradients remain intact)
         self._F = t.roll(self._F, 1, 0)
+
         self._dQs = t.roll(self._dQs, 1, 0)
 
         # Assign the mixed dQ to the dQs history array. The last dQ_mixed value
@@ -830,6 +840,11 @@ class Broyden(Mixer):
 
         # Save the last difference to _delta
         self._delta = self._F[1]
+
+        # self.df = t.roll(self.df, 1, 0)
+        self.df[self._step_number - 1] = ndf
+        self._U = t.roll(self._U, 1, 0)
+        self._U[0] = idf
 
         # Return the mixed parameter
         return dQ_mixed
