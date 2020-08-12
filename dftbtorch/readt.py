@@ -220,6 +220,10 @@ class ReadInt:
             atomind: how many orbitals of each atom in DFTB calculations
 
         """
+        # Perhaps not the best idea to have the atomic number in the same list
+        # as the coordinates. Especially as the list is called "coor" this will
+        # case a lot of confusion. Furthermore the atomic number should be an
+        # integer not a float.
         self.para['coorbohr'] = self.para['coor'][:, 1:] / BOHR
         coor = self.para['coor']
         natom = np.shape(coor)[0]
@@ -232,7 +236,7 @@ class ReadInt:
 
         atomind.append(0)
         [atomnamelist.append(ATOMNAME[int(num) - 1]) for num in coor[:, 0]]
-
+        # Most of this can be done with a single line
         for iat in range(0, natom):
             atom_lmax.append(VAL_ORB[ATOMNAME[int(coor[iat, 0] - 1)]])
             atomind.append(int(atomind[iat] + atom_lmax[iat]**2))
