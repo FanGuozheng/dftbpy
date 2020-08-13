@@ -203,8 +203,6 @@ class DFTBelect:
                             gval = rrc - fhbond * val12 - fhbond * val21
                     gmat[iatom, jatom] = gval
 
-
-            #FWHM = np.sqrt(8. * np.log(8) / np.pi) / U
         return gmat
 
     def gamsub(self, a, b, rr, rrc):
@@ -269,4 +267,7 @@ class DFTBelect:
                         denmatij = denmat[jind, iind]
                         overmatij = overmat[jind, iind]
                         qatom[iat] = qatom[iat] + denmatij * overmatij
+        # Could use torch.sum(rho * S, -1); this will be orbital resolved, which
+        # is what we would normally want. Means this entire function can be
+        # reduced to a single line.
         return qatom
