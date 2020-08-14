@@ -18,6 +18,8 @@ import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
+from utils.ase import DFTBASE
+from utils.run_calculation import RUNDFTB
 import dftbtorch.parser as parser
 # DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
@@ -159,6 +161,9 @@ class RunML:
             self.aims_ref(self.para)
         elif self.para['ref'] == 'dftbplus':
             self.dftbplus_ref(self.para)
+        elif self.para['ref'] == 'dftbase':
+            DFTBASE(self.para).run_batch(self.nbatch,
+                                         para['coorall'])
 
     def dftb_ref(self):
         """Calculate reference (DFTB_torch)"""
@@ -218,7 +223,7 @@ class RunML:
         self.save.save1D(self.para['refenergy'].detach().numpy(),
                          name='energydftb.dat', dire=dire, ty='w')
 
-    def aims_ref(self, para):
+    '''def aims_ref(self, para):
         """Calculate reference (FHI-aims)"""
         self.pre_aims()
 
@@ -296,7 +301,7 @@ class RunML:
                 idx = int(coor[iat, 0])
                 iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
                 energy = energy - DFTB_ENERGY[iname]
-        return energy
+        return energy'''
 
     def dftbplus_ref(self, para):
         """Calculate reference (DFTB+)"""
@@ -342,7 +347,7 @@ class RunML:
         self.para['refdipole'] = dipole
         self.para['refalpha_mbd'] = alpha_mbd
 
-        if self.para['task'] == 'optml':
+        if self.para['task'] == 'opt':
             dire = '.data'
         elif self.para['task'] == 'test':
             dire = self.para['dire_data']
@@ -357,43 +362,6 @@ class RunML:
                          name='energydftbplus.dat', dire=dire, ty='a')
         self.save.save1D(np.asarray(self.para['natomall']),
                          name='natomdftbplus.dat', dire=dire, ty='a')
-
-    '''def dftb(self, para):
-        if para['cal_ref']:
-            para['cal_ref'] = False
-            nbatch = para['nfile']
-            coorall = para['coorall']
-            save = SaveData(para)
-            if para['Lml_HS'] and not para['Lml_skf']:
-                save.save2D(para['splyall_rand'].detach().numpy(),
-                            name='splref.dat', ty='a')
-            for ibatch in range(0, nbatch):
-                para['coor'] = t.from_numpy(coorall[ibatch])
-                self.runcal.idftb_torchspline()
-                eigval = para['homo_lumo']
-
-                # save data
-                save.save1D(eigval.detach().numpy(), name='eigref.dat', ty='a')
-                save.save1D(para['hammat'].detach().numpy(),
-                            name='hamref.dat', ty='a')
-        elif not para['cal_ref']:
-            nbatch = para['nfile']
-            coorall = para['coorall']
-            save = SaveData(para)
-            if para['Lml_HS'] and not para['Lml_skf']:
-                save.save2D(para['splyall_rand'].detach().numpy(),
-                            name='splref.dat', ty='a')
-
-            # calculate one by one to optimize para
-            for ibatch in range(0, nbatch):
-                para['coor'] = t.from_numpy(coorall[ibatch])
-                self.runcal.idftb_torchspline()
-                eigval = para['homo_lumo']
-
-                # save data
-                save.save1D(eigval.detach().numpy(), name='eigref.dat', ty='a')
-                save.save1D(para['hammat'].detach().numpy(),
-                            name='hamref.dat', ty='a')'''
 
     def get_coor(self, ibatch):
         """get the ith coor according to data type"""
@@ -440,7 +408,6 @@ class RunML:
             para['splyall_rand'] = Variable(para['splyall_rand'],
                                             requires_grad=True)
             optimizer = t.optim.SGD([para['splyall_rand']], lr=5e-7)
-
         save = SaveData(para)
         coorall = para['coorall']
 
@@ -684,7 +651,7 @@ class RunML:
 
                 homo_lumo_ref = para['refhomo_lumo'][ibatch]
                 dipref = para['refdipole'][ibatch]
-                if para['LMBD_DFTB']:
+                if para['LMBD_DFTB'] and para['reference'] == 'aims':
                     pol_ref = para['refalpha_mbd'][ibatch][:nat]
                     volref = para['refvol'][ibatch][:nat]
                 if 'hstable' in para['target']:
@@ -1048,11 +1015,9 @@ if __name__ == "__main__":
     t.set_printoptions(precision=15)
     para = {}
     parser.parser_cmd_args(para)
-    print("task", para['task'])
     if para['task'] == 'opt':
         opt(para)
     elif para['task'] == 'test':
-        # para['dire_data'] = '../data/results/test_CH4_dip_pol_para/dire7'
         testml(para)
     elif para['task'] == 'envpara':
         initpara.init_dftb_ml(para)

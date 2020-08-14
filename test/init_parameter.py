@@ -146,11 +146,16 @@ def init_dftb_ml(para):
     # *********************************************************************
     #                              DFTB-ML
     # *********************************************************************
-    # optional reference: aims, dftbplus, dftb !!
-    para['reference'] = 'aims'
+    # optional reference: aims, dftbplus, dftb, dftbase !!
+    para['reference'] = 'dftbase'
 
-    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa... !!
-    para['target'] = ['dipole']
+    if para['reference'] == 'dftbase':
+        para['dftb_ase_path'] = '/home/gz_fan/Documents/ML/dftb/test/dftbplus'
+        para['dftb_bin'] = 'dftb+'
+        para['skf_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
+
+    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
+    para['target'] = ['pdos']
 
     # define weight in loss function
     para['dipole_loss_ratio'] = 1
@@ -336,7 +341,7 @@ def init_dftb_ml(para):
     para['general_tol'] = 1E-4
 
     # mix method: simple, anderson, broyden
-    para['mixMethod'] = 'broyden'
+    para['mixMethod'] = 'anderson'
 
     # mixing fraction
     para['mixFactor'] = 0.2

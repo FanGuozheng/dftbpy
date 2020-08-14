@@ -802,6 +802,9 @@ class Broyden(Mixer):
 
             for ii in range(self._step_number - 1):
                 dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self._U[ii])
+            '''print("dQ_mixed", dQ_mixed)
+            print
+            dQ_mixed.add_(- self.ww * gamma[0, :] @ self._U)'''
 
             dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * idf)
 
