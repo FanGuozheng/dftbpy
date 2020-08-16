@@ -45,7 +45,7 @@ def init_dftb_ml(para):
         hdffilelist = []
 
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s03.h5'))
+        hdffilelist.append(os.path.join(dire_data, 'an1/ani_gdb_s01.h5'))
 
         # transfer to list
         para['hdffile'] = hdffilelist
@@ -90,7 +90,7 @@ def init_dftb_ml(para):
     para['Lml'] = True
 
     # optimize compression radius
-    para['Lml_skf'] = False
+    para['Lml_skf'] = True
 
     # optimize integral (e.g Polyspline)
     para['Lml_HS'] = False
@@ -102,7 +102,7 @@ def init_dftb_ml(para):
     para['Lml_compr_global'] = False
 
     # optimize ACSF parameters
-    para['Lml_acsf'] = True
+    para['Lml_acsf'] = False
 
     para['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
@@ -314,7 +314,7 @@ def init_dftb_ml(para):
     para['LReadInput'] = False
 
     # if perform MBD-DFTB calculation
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
 
     # mbd_vdw_n_quad_pts = para['n_omega_grid']
     para['n_omega_grid'] = 15
@@ -322,7 +322,7 @@ def init_dftb_ml(para):
     para['beta'] = 1.05
 
     # if calculate PDOS
-    para['Lpdos'] = False
+    para['Lpdos'] = True
 
     # general eigenvalue methodin DFTB-ML: cholesky, lowdin_qr !!
     para['eigenmethod'] = 'cholesky'

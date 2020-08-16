@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 import re
 import numpy as np
+import torch as t
 from ase import Atoms
 from ase.build import molecule
 from ase.calculators.dftb import Dftb
@@ -110,17 +111,17 @@ class DFTBASE:
         S_mat = get_matrix('oversqr.dat')
 
         # read final eigenvector
-        get_eigenvec('eigenvec.out')
+        eigenvec = get_eigenvec('eigenvec.out')
+        os.system('cat eigenvec.out')
 
         # read final eigenvalue
-        get_eigenvec('band.out')
+        eigenval, occ = get_eigenvalue('band.out')
 
     def remove(self):
         """Remove all DFTB data after calculations."""
         os.system('rm dftb+ ase_env.sh band.out charges.bin detailed.out')
         os.system('rm dftb_in.hsd dftb.out dftb_pin.hsd eigenvec.bin')
         os.system('rm eigenvec.out geo_end.gen hamsqr1.dat oversqr.dat')
-
 
     def process_results(self):
         pass
@@ -135,11 +136,37 @@ def get_matrix(filename):
 
 def get_eigenvec(filename):
     """Read eigenvec.out."""
+    string = []
     text = ''.join(open(filename, 'r').readlines())
-    string = re.search('(?<=Eigenvector\n).+(?=\n)',text, flags = re.DOTALL)
-    print(text, "string", string, type(text))
-    [x.split(' ')[3] for x in text]
+
+    # only read float
+    string_ = re.findall(r"[-+]?\d*\.\d+", text)
+
+    # delete even column
+    del string_[1::2]
+    [string.append(float(ii)) for ii in string_]
+    nstr = int(np.sqrt(len(string)))
+
+    # transfer list to ==> numpy(float64) ==> torch
+    eigenvec = np.asarray(string).reshape(nstr, nstr)
+    return t.from_numpy(eigenvec)
 
 def get_eigenvalue(filename):
     """Read band.out."""
-    pass
+    eigenval_, occ_ = [], []
+    text = ''.join(open(filename, 'r').readlines())
+
+    # only read float
+    string = re.findall(r"[-+]?\d*\.\d+", text)
+
+    # delete even column
+    [eigenval_.append(float(ii)) for ii in string[1::2]]
+    [occ_.append(float(ii)) for ii in string[0::2]]
+
+    # get the length og eigenvalue and occupancy
+    nstr = len(string)
+
+    # transfer list to ==> numpy(float64) ==> torch
+    eigenval = t.from_numpy(np.asarray(eigenval_))
+    occ = t.from_numpy(np.asarray(occ_))
+    return eigenval, occ
