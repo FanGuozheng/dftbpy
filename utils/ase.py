@@ -11,6 +11,7 @@ from ase.optimize import QuasiNewton
 from ase.io import write
 import os
 import dftbplus.asedftb as asedftb
+import dftbtorch.dftb_torch as dftb_torch
 
 
 class DFTBASE:
@@ -57,6 +58,8 @@ class DFTBASE:
         """Run batch systems with ASE-DFTB."""
         # source and set environment for python, ase before calculations
         os.system('source ase_env.sh')
+        if self.para['Lpdos']:
+            self.para['pdosdftbplus'] = []
 
         for ibatch in range(nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
@@ -68,6 +71,12 @@ class DFTBASE:
 
             # process result data for each calculations
             self.process_iresult()
+
+            # calculate PDOS or not
+            if self.para['Lpdos']:
+                self.para['natom'] = len(coorall[ibatch])
+                dftb_torch.Analysis(self.para).pdos()
+                self.para['pdosdftbplus'].append(self.para['pdos'])
 
         # deal with DFTB data
         self.process_results()
@@ -108,14 +117,13 @@ class DFTBASE:
     def process_iresult(self):
         """Process result for each calculation."""
         # read in the H (hamsqr1.dat) and S (oversqr.dat) matrices now
-        S_mat = get_matrix('oversqr.dat')
+        self.para['overmat'] = get_matrix('oversqr.dat')
 
         # read final eigenvector
-        eigenvec = get_eigenvec('eigenvec.out')
-        os.system('cat eigenvec.out')
+        self.para['eigenvec'] = get_eigenvec('eigenvec.out')
 
         # read final eigenvalue
-        eigenval, occ = get_eigenvalue('band.out')
+        self.para['eigenvalue'], occ = get_eigenvalue('band.out')
 
     def remove(self):
         """Remove all DFTB data after calculations."""
@@ -131,7 +139,8 @@ def get_matrix(filename):
     """Read hamsqr1.dat and oversqr.dat."""
     text = ''.join(open(filename, 'r').readlines())
     string = re.search('(?<=MATRIX\n).+(?=\n)',text, flags = re.DOTALL).group(0)
-    return np.array([[float(i) for i in row.split()] for row in string.split('\n')])
+    out = np.array([[float(i) for i in row.split()] for row in string.split('\n')])
+    return t.from_numpy(out)
 
 
 def get_eigenvec(filename):
@@ -162,9 +171,6 @@ def get_eigenvalue(filename):
     # delete even column
     [eigenval_.append(float(ii)) for ii in string[1::2]]
     [occ_.append(float(ii)) for ii in string[0::2]]
-
-    # get the length og eigenvalue and occupancy
-    nstr = len(string)
 
     # transfer list to ==> numpy(float64) ==> torch
     eigenval = t.from_numpy(np.asarray(eigenval_))

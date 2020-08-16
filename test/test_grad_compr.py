@@ -223,7 +223,7 @@ class RunML:
         self.save.save1D(self.para['refenergy'].detach().numpy(),
                          name='energydftb.dat', dire=dire, ty='w')
 
-    '''def aims_ref(self, para):
+    def aims_ref(self, para):
         """Calculate reference (FHI-aims)"""
         self.pre_aims()
 
@@ -301,7 +301,7 @@ class RunML:
                 idx = int(coor[iat, 0])
                 iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
                 energy = energy - DFTB_ENERGY[iname]
-        return energy'''
+        return energy
 
     def dftbplus_ref(self, para):
         """Calculate reference (DFTB+)"""
@@ -553,6 +553,9 @@ class RunML:
                         cpa = para['cpa']
                         vol_ratio_ref = self.get_hirsh_vol_ratio(volref)
                         loss = criterion(cpa, vol_ratio_ref)
+                    elif 'pdos' in para['target']:
+                        pdosref = para['pdosdftbplus'][ibatch]
+                        loss = criterion(para['pdos'], pdosref)
                 elif len(para['target']) == 2:
                     if 'dipole' and 'polarizability' in para['target']:
                         dipole = para['dipole']
@@ -589,6 +592,12 @@ class RunML:
                     if 'energy' in para['target']:
                         print('energy: {}, energyref: {}'.format(
                                 energy, energy_ref))
+                    if para['LMBD_DFTB']:
+                        self.save.save1D(para['alpha_mbd'].detach().numpy(),
+                                         name='polbp.dat', dire='.data', ty='a')
+                        self.save.save1D(para['cpa'].detach().numpy(),
+                                         name='cpa.dat', dire='.data', ty='a')
+
                     self.save.save1D(para['dipole'].detach().numpy(),
                                      name='dipbp.dat', dire='.data', ty='a')
                     self.save.save1D(para['hammat'].detach().numpy(),
@@ -599,10 +608,6 @@ class RunML:
                                      name='qatombp.dat', dire='.data', ty='a')
                     self.save.save1D(para['energy'].detach().numpy(),
                                      name='energybp.dat', dire='.data', ty='a')
-                    self.save.save1D(para['alpha_mbd'].detach().numpy(),
-                                     name='polbp.dat', dire='.data', ty='a')
-                    self.save.save1D(para['cpa'].detach().numpy(),
-                                     name='cpa.dat', dire='.data', ty='a')
                     self.save.save1D(loss_,
                                      name='lossbp.dat', dire='.data', ty='a')
                     print('-' * 100)
