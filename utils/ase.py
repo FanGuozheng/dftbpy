@@ -12,12 +12,13 @@ from ase.io import write
 import os
 import dftbplus.asedftb as asedftb
 import dftbtorch.dftb_torch as dftb_torch
+from utils.save import SaveData
 
 
-class DFTBASE:
-    """Run DFTB calculations by ase."""
+class DFTB:
+    """"""
 
-    def __init__(self, para):
+    def __init__(self, para, setenv=False):
         self.para = para
 
         # DFTB+ binary name, normally dftb+
@@ -27,10 +28,14 @@ class DFTBASE:
         self.dftb_path = para['dftb_ase_path']
 
         # SKF path
-        self.slko_path = self.para['skf_path']
+        self.slko_path = self.para['skf_ase_path']
 
         # set environment before calculations
-        self.set_env()
+        self.setenv = setenv
+        if self.setenv:
+            self.set_env()
+
+        self.ev_hat = self.para["AUEV"]
 
     def set_env(self):
         """Set the environment before DFTB calculations with ase."""
@@ -54,9 +59,10 @@ class DFTBASE:
         # source the ase_env.sh bash file
         os.system('source ase_env.sh')
 
-    def run_batch(self, nbatch, coorall):
+    def run_dftb(self, nbatch, coorall):
         """Run batch systems with ASE-DFTB."""
         # source and set environment for python, ase before calculations
+        self.save = SaveData(self.para)
         os.system('source ase_env.sh')
         if self.para['Lpdos']:
             self.para['pdosdftbplus'] = []
@@ -67,7 +73,7 @@ class DFTBASE:
             ispecie = ''.join(self.para['symbols'][ibatch])
 
             # run each molecule in batches
-            asedftb.ase_dftb(coorall[ibatch], ispecie)
+            self.ase_idftb(coorall[ibatch], ispecie)
 
             # process result data for each calculations
             self.process_iresult()
@@ -75,8 +81,15 @@ class DFTBASE:
             # calculate PDOS or not
             if self.para['Lpdos']:
                 self.para['natom'] = len(coorall[ibatch])
+
+                # calculate PDOS
                 dftb_torch.Analysis(self.para).pdos()
                 self.para['pdosdftbplus'].append(self.para['pdos'])
+
+                # save PDOS
+                self.save.save2D(self.para['pdos'].numpy(),
+                                 name='pdosref.dat', dire='.data', ty='a')
+
 
         # deal with DFTB data
         self.process_results()
@@ -84,7 +97,7 @@ class DFTBASE:
         # remove DFTB files
         self.remove()
 
-    def ase_dftb(moleculespecie, coor):
+    def ase_idftb(self, coor, moleculespecie):
         """Build DFTB input by ASE."""
         # set Atoms with molecule specie and coordinates
         mol = Atoms(moleculespecie, positions=coor[:, 1:])
@@ -112,7 +125,7 @@ class DFTBASE:
             mol.get_potential_energy()
         except UnboundLocalError:
             mol.calc.__dict__["parameters"]['Options_WriteHS']='No'
-            x = mol.get_potential_energy()
+            mol.get_potential_energy()
 
     def process_iresult(self):
         """Process result for each calculation."""
@@ -123,7 +136,9 @@ class DFTBASE:
         self.para['eigenvec'] = get_eigenvec('eigenvec.out')
 
         # read final eigenvalue
-        self.para['eigenvalue'], occ = get_eigenvalue('band.out')
+        self.para['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
+        self.save.save1D(self.para['eigenvalue'],
+                         name='HLdftbplus.dat', dire='.data', ty='a')
 
     def remove(self):
         """Remove all DFTB data after calculations."""
@@ -132,6 +147,29 @@ class DFTBASE:
         os.system('rm eigenvec.out geo_end.gen hamsqr1.dat oversqr.dat')
 
     def process_results(self):
+        pass
+
+
+class Aims:
+
+    def __init__(self, para, setenv=False):
+        self.para = para
+
+        # DFTB+ binary name, normally dftb+
+        self.dftb_bin = self.para['aims_bin']
+
+        # DFTB+ binary path
+        self.dftb_path = para['aims_ase_path']
+
+        # set environment before calculations
+        self.setenv = setenv
+        if self.setenv:
+            self.set_env()
+
+    def run_aims(self, nbatch, coorall):
+        pass
+
+    def ase_iaims(self):
         pass
 
 
@@ -160,7 +198,8 @@ def get_eigenvec(filename):
     eigenvec = np.asarray(string).reshape(nstr, nstr)
     return t.from_numpy(eigenvec)
 
-def get_eigenvalue(filename):
+
+def get_eigenvalue(filename, eV_Hat):
     """Read band.out."""
     eigenval_, occ_ = [], []
     text = ''.join(open(filename, 'r').readlines())
@@ -173,6 +212,6 @@ def get_eigenvalue(filename):
     [occ_.append(float(ii)) for ii in string[0::2]]
 
     # transfer list to ==> numpy(float64) ==> torch
-    eigenval = t.from_numpy(np.asarray(eigenval_))
+    eigenval = t.from_numpy(np.asarray(eigenval_)) / eV_Hat
     occ = t.from_numpy(np.asarray(occ_))
     return eigenval, occ

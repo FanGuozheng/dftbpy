@@ -1074,7 +1074,7 @@ if __name__ == '__main__':
     t.set_printoptions(precision=15)
 
     para = {}
-    para["test_precision"] = "single"
+    para["test_precision"] = "normal"
 
     # test a single molecule
     if para["test_precision"] == "single":

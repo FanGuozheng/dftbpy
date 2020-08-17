@@ -146,13 +146,27 @@ def init_dftb_ml(para):
     # *********************************************************************
     #                              DFTB-ML
     # *********************************************************************
-    # optional reference: aims, dftbplus, dftb, dftbase !!
+    # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
     para['reference'] = 'dftbase'
 
     if para['reference'] == 'dftbase':
+
+        # path of binary, executable DFTB file
         para['dftb_ase_path'] = '/home/gz_fan/Documents/ML/dftb/test/dftbplus'
+
+        # name of binary, executable DFTB file
         para['dftb_bin'] = 'dftb+'
-        para['skf_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
+
+        # path slater-koster file
+        para['skf_ase_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
+
+    if para['reference'] == 'aimsase':
+
+        # path of binary, executable FHI-aims file
+        para['aims_ase_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/bin'
+
+        # name of binary, executable FHI-aims file
+        para['aims_bin'] = 'aims.171221_1.scalapack.mpi.x+'
 
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
     para['target'] = ['pdos']
@@ -162,7 +176,7 @@ def init_dftb_ml(para):
     para['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    para['mlsteps'] = 2
+    para['mlsteps'] = 4
 
     # how many steps to save the DFTB-ML data !!
     para['save_steps'] = 1
@@ -171,7 +185,7 @@ def init_dftb_ml(para):
     para['opt_step_min'] = 2
 
     # learning rate !!
-    para['lr'] = 5E-3
+    para['lr'] = 5E-1
 
     # define loss function: MSELoss, L1Loss
     para['loss_function'] = 'MSELoss'
@@ -339,6 +353,7 @@ def init_dftb_ml(para):
     # delta r when interpolating i9ntegral
     para['delta_r_skf'] = 1E-5
     para['general_tol'] = 1E-4
+    para['sk_tran'] = 'new'
 
     # mix method: simple, anderson, broyden
     para['mixMethod'] = 'anderson'
@@ -371,7 +386,7 @@ def init_dftb_ml(para):
     para['Lperiodic'] = False
 
     # calculate dipole or not
-    para['Ldipole'] = True
+    para['Ldipole'] = False
 
     # calculate repulsive or not
     para['Lrepulsive'] = False
@@ -412,7 +427,7 @@ def init_dftb(para):
     para['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'broyden'
+    para['mixMethod'] = 'anderson'
 
     # mixing factor
     para['mixFactor'] = 0.2
@@ -456,6 +471,7 @@ def init_dftb(para):
 
     # skf directory
     para['direSK'] = '../slko/test'
+    para['sk_tran'] = 'new'
 
     # how to write H0, S: symhalf (write upper or lower), symall (write whole)
     para['HSsym'] = 'symall'

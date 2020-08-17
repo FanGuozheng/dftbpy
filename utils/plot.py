@@ -10,14 +10,30 @@ def plot_ml_compr(para):
     """Plot for DFTB-ML optimization."""
     read_nstep(para)  # read how many steps have been saved each molecule
     plot_humolumo(para)
-    plot_dip(para)
-    plot_pol(para)
-    plot_energy(para)
+
+    # plot dipole
+    if para['Ldipole']:
+        plot_dip(para)
+
+    # plot polarizability
+    if para['LMBD_DFTB']:
+        plot_pol(para)
+
+    # plot_energy(para)
     plot_loss(para)
+
+    # plot integral
     if para['Lml_HS']:
         plot_spl(para)
+
+    # plot compression radius
     if para['Lml_skf']:
         plot_compr(para)
+
+    # plot PDOS
+    if para['Lpdos']:
+        plot_pdos(para)
+
 
 
 def plot_ml_feature(para):
@@ -45,7 +61,7 @@ def plot_humolumo(para):
     dire = para['dire_data']
     if para['ref'] == 'aims':
         eigref = dire + '/HLaims.dat'
-    elif para['ref'] == 'dftbplus':
+    elif para['ref'] == 'dftbplus' or para['ref'] == 'dftbase':
         eigref = dire + '/HLdftbplus.dat'
     elif para['ref'] == 'dftb':
         eigref = dire + '/HLdftb.dat'
@@ -70,7 +86,7 @@ def plot_humolumo(para):
         p1, = plt.plot(count, abs(datref[ifile, 0] - datopt[ifile, :, 0]), 'r')
         p2, = plt.plot(count, abs(datref[ifile, 1] - datopt[ifile, :, 1]), 'b')
         icount += nstep_
-        
+
     plt.xlabel('steps * molecules')
     plt.ylabel('eigenvalue absolute difference')
     plt.legend([p1, p2], ['HOMO-diff', 'LUMO-diff'])
@@ -849,6 +865,53 @@ def plot_compr(para):
     plt.show()
 
 
+def plot_pdos(para):
+    """Plot PDOS."""
+    dire = para["dire_data"]
+    ntrain = para['ntrain']
+    fpr = open(dire + '/pdosref.dat', 'r')
+    fpbp = open(dire + '/pdosbp.dat', 'r')
+
+    nstep = para['nsteps']
+    nstepmax = int(nstep.max())
+    lenE1 = max(para['shape_pdos'][:, 0])
+    lenE2 = max(para['shape_pdos'][:, 1])
+    datafpr = np.zeros((ntrain, lenE1, lenE2), dtype=float)
+    datafpbp = np.zeros((ntrain, nstepmax, lenE1, lenE2), dtype=float)
+
+    print('plot PDOS')
+    for ifile in range(ntrain):
+        natom = int(para['natomall'][ifile])
+        nstep_ = int(nstep[ifile])
+        neigen = para['shape_pdos'][ifile][0]
+        datafpr[ifile, :, :] = \
+            np.fromfile(fpr, dtype=float, count=neigen*lenE2,
+                        sep=' ').reshape(neigen, lenE2)
+
+        datafpbp[ifile, :nstep_, :, :] = \
+            np.fromfile(fpbp, dtype=float, count=neigen*lenE2*nstep_,
+                        sep=' ').reshape(nstep_, neigen, lenE2)
+
+    icount = 1
+    color = ['r', 'y', 'c', 'b']
+    for ifile in range(ntrain):
+        nstep_ = int(nstep[ifile])
+        neigen = para['shape_pdos'][ifile][0]
+        nE = para['shape_pdos'][ifile][1]
+
+        for ilen in range(neigen):
+
+            count = np.linspace(icount, icount + nE - 1, nE)
+            plt.plot(count, datafpr[ifile][ilen], 'k')
+            for istep in range(nstep_):
+                plt.plot(count, datafpbp[ifile, istep][ilen], color[istep])
+
+            icount += nE
+    plt.ylabel('compression radius of each atom')
+    plt.xlabel('steps * molecule')
+    plt.show()
+
+
 def plot_compr_f(para):
     """Plot compression radius [ntrain, nstep, natom]."""
     ntrain = para['nfile']
@@ -933,7 +996,7 @@ def plot_qatom_compare():
                    8.891907930374145508e-01],
                   [4.469466209411621094e+00, 8.754418492317199707e-01,
                    8.842838406562805176e-01, 8.767709732055664062e-01,
-                   8.940382003784179688e-01], 
+                   8.940382003784179688e-01],
                   [4.454654216766357422e+00, 8.794505000114440918e-01,
                    8.875507116317749023e-01, 8.807054162025451660e-01,
                    8.976424336433410645e-01],

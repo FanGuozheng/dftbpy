@@ -1017,4 +1017,4 @@ class Analysis:
             self.para['pdos_E'],
 
             # eigenvalue
-            self.para['eigenvalue'], sigma=1E-3)
+            self.para['eigenvalue'], sigma=5E-1)

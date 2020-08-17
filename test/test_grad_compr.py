@@ -11,6 +11,7 @@ from torch.autograd import Variable
 import torch as t
 import write_output as write
 import dftbtorch.dftb_torch as dftb_torch
+import dftbtorch.parameters as parameters
 import dftbtorch.slakot as slakot
 import utils.plot as plot
 import init_parameter as initpara
@@ -18,7 +19,7 @@ import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
-from utils.ase import DFTBASE
+from utils.ase import DFTB, Aims
 from utils.run_calculation import RUNDFTB
 import dftbtorch.parser as parser
 # DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
@@ -42,6 +43,8 @@ def opt(para):
 
     # load dataset, here is hdf type
     LoadData(para, int(para['n_dataset'][0]))
+    para['ntrain'] = para['nhdf_max']
+
     if para['dataType'] == 'ani':
         para['nfile'] = para['nhdf_max']
     elif para['dataType'] == 'json':
@@ -155,15 +158,23 @@ class RunML:
         self.para['specieall'] = []
         self.para['refeigval'] = []
 
+        # get the constant parameters for DFTB
+        parameters.dftb_parameter(self.para)
+
         if self.para['ref'] == 'dftb':
             self.dftb_ref()
         elif self.para['ref'] == 'aims':
             self.aims_ref(self.para)
         elif self.para['ref'] == 'dftbplus':
             self.dftbplus_ref(self.para)
+
+        # DFTB+ as reference
         elif self.para['ref'] == 'dftbase':
-            DFTBASE(self.para).run_batch(self.nbatch,
-                                         para['coorall'])
+            DFTB(self.para, setenv=True).run_dftb(self.nbatch, para['coorall'])
+
+        # FHI-aims as reference
+        elif self.para['ref'] == 'aimsase':
+            Aims(self.para).run_aims(self.nbatch, para['coorall'])
 
     def dftb_ref(self):
         """Calculate reference (DFTB_torch)"""
@@ -453,6 +464,7 @@ class RunML:
         """DFTB optimization of compression radius for given dataset."""
         # calculate one by one to optimize para
         para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
+        para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
 
         for ibatch in range(self.nbatch):
             para['ibatch'] = ibatch
@@ -556,6 +568,8 @@ class RunML:
                     elif 'pdos' in para['target']:
                         pdosref = para['pdosdftbplus'][ibatch]
                         loss = criterion(para['pdos'], pdosref)
+                        para['shape_pdos'][ibatch][0] = para['pdos'].shape[0]
+                        para['shape_pdos'][ibatch][1] = para['pdos'].shape[1]
                 elif len(para['target']) == 2:
                     if 'dipole' and 'polarizability' in para['target']:
                         dipole = para['dipole']
@@ -597,7 +611,9 @@ class RunML:
                                          name='polbp.dat', dire='.data', ty='a')
                         self.save.save1D(para['cpa'].detach().numpy(),
                                          name='cpa.dat', dire='.data', ty='a')
-
+                    if para['Lpdos']:
+                        self.save.save2D(para['pdos'].detach().numpy(),
+                                         name='pdosbp.dat', dire='.data', ty='a')
                     self.save.save1D(para['dipole'].detach().numpy(),
                                      name='dipbp.dat', dire='.data', ty='a')
                     self.save.save1D(para['hammat'].detach().numpy(),

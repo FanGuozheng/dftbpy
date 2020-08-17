@@ -1,7 +1,6 @@
 """Slater-Koster integrals related."""
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
 import time
 import sys
 import numpy as np
@@ -263,7 +262,10 @@ class SKTran:
                 else:
 
                     # get H, S with distance, initial integrals
-                    self.slkode_ij(rr, iat, jat, lmaxi, lmaxj)
+                    if self.para['sk_tran'] == 'new':
+                        self.slkode_vec(rr, iat, jat, lmaxi, lmaxj)
+                    elif self.para['sk_tran'] == 'old':
+                        self.slkode_ij(rr, iat, jat, lmaxi, lmaxj)
 
                     # write H0, S of i, j to final H0, S
                     for n in range(atomind[jat + 1] - atomind[jat]):
@@ -330,6 +332,128 @@ class SKTran:
             sys.exit()
         else:
             self.sk_(rr, iat, jat, dd, li, lj)
+
+    def slkode_vec(self, rr, iat, jat, li, lj):
+        """Generate H0, S by vectorized method."""
+        lmax, lmin = max(li, lj), min(li, lj)
+        xx, yy, zz = rr[:] / t.sqrt(t.sum(rr[:] ** 2))
+        hsall = self.para['hs_all']
+
+        if lmax == 1:
+            self.para['hams'][0, 0], self.para['ovrs'][0, 0] = \
+                self.skss_vec(hsall, xx, yy, zz, iat, jat)
+        if lmin == 1 and lmax == 2:
+            self.para['hams'][:4, :4], self.para['ovrs'][:4, :4] = \
+                self.sksp_vec(hsall, xx, yy, zz, iat, jat, li, lj)
+        if lmin == 2 and lmax == 2:
+            self.para['hams'][:4, :4], self.para['ovrs'][:4, :4] = \
+                self.skpp_vec(hsall, xx, yy, zz, iat, jat, li, lj)
+
+    def skss_vec(self, hs, x, y, z, i, j):
+        """Return ss integral after sk transformations.
+
+        Parameters:
+            hs: H, S tables with dimension [natom, natom, 20]
+
+        """
+        return hs[i, j, 9], hs[i, j, 19]
+
+    def sksp_vec(self, hs, x, y, z, i, j, li, lj):
+        """Return ss, sp integral after sk transformations.
+
+        Parameters:
+            hs: H, S tables with dimension [natom, natom, 20]
+
+        For sp orbitals here, such as for CH4 system, if we want to get H_s
+        and C_p integral, we can only read from H-C.skf, therefore for the
+        first loop layer, if the atom specie is C and second is H, the sp0 in
+        C-H.skf is 0 and instead we will read sp0 from [j, i, 8], which is
+        from H-C.skf
+
+        """
+        # read sp0 from <namei-namej>.skf
+        if li < lj:
+            H = t.tensor([[
+                # SS, SP_y, SP_z, SP_x
+                hs[i, j, 9],
+                y * hs[i, j, 8],
+                z * hs[i, j, 8],
+                x * hs[i, j, 8]],
+                # P_yS
+                [y * hs[i, j, 8], 0.0, 0.0, 0.0],
+                # P_zS
+                [z * hs[i, j, 8], 0.0, 0.0, 0.0],
+                # P_xS
+                [x * hs[i, j, 8], 0.0, 0.0, 0.0]])
+            S = t.tensor([[
+                hs[i, j, 19],
+                y * hs[i, j, 18],
+                z * hs[i, j, 18],
+                x * hs[i, j, 18]],
+                [y * hs[i, j, 18], 0.0, 0.0, 0.0],
+                [z * hs[i, j, 18], 0.0, 0.0, 0.0],
+                [x * hs[i, j, 18], 0.0, 0.0, 0.0]])
+
+        # read sp0 from <namej-namei>.skf
+        if li > lj:
+            H = t.tensor([[
+                hs[j, i, 9],
+                -y * hs[j, i, 8],
+                -z * hs[j, i, 8],
+                -x * hs[j, i, 8]],
+                [-y * hs[j, i, 8], 0.0, 0.0, 0.0],
+                [-z * hs[j, i, 8], 0.0, 0.0, 0.0],
+                [-x * hs[j, i, 8], 0.0, 0.0, 0.0]])
+            S = t.tensor([[
+                hs[j, i, 19],
+                -y * hs[j, i, 18],
+                -z * hs[j, i, 18],
+                -x * hs[j, i, 18]],
+                [-y * hs[j, i, 18], 0.0, 0.0, 0.0],
+                [-z * hs[j, i, 18], 0.0, 0.0, 0.0],
+                [-x * hs[j, i, 18], 0.0, 0.0, 0.0]])
+        return H, S
+
+    def skpp_vec(self, hs, x, y, z, i, j, li, lj):
+        """Return ss, sp, pp integral after sk transformations."""
+        H = t.tensor([[
+            # SS, SP_y, SP_z, SP_x
+            hs[i, j, 9],
+            y * hs[i, j, 8],
+            z * hs[i, j, 8],
+            x * hs[i, j, 8]],
+            # P_yS, P_yP_y, P_yP_z, P_yP_x
+            [-y * hs[j, i, 8],
+             y * y * hs[i, j, 5] + (1 - y * y) * hs[i, j, 6],
+             y * z * hs[i, j, 5] - y * z * hs[i, j, 6],
+             y * x * hs[i, j, 5] - y * x * hs[i, j, 6]],
+            # P_zS, P_zP_y, P_zP_z, P_zP_x
+            [-z * hs[j, i, 8],
+             z * y * hs[i, j, 5] - z * y * hs[i, j, 6],
+             z * z * hs[i, j, 5] + (1 - z * z) * hs[i, j, 6],
+             z * x * hs[i, j, 5] - z * x * hs[i, j, 6]],
+            [-x * hs[j, i, 8],
+             x * y * hs[i, j, 5] - x * y * hs[i, j, 6],
+             x * z * hs[i, j, 5] - x * z * hs[i, j, 6],
+             x * x * hs[i, j, 5] + (1 - x * x) * hs[i, j, 6]]])
+        S = t.tensor([[
+            hs[i, j, 19],
+            y * hs[i, j, 18],
+            z * hs[i, j, 18],
+            x * hs[i, j, 18]],
+            [-y * hs[j, i, 18],
+             y * y * hs[i, j, 15] + (1 - y * y) * hs[i, j, 16],
+             y * z * hs[i, j, 15] - y * z * hs[i, j, 16],
+             y * x * hs[i, j, 15] - y * x * hs[i, j, 16]],
+            [-z * hs[j, i, 18],
+             z * y * hs[i, j, 15] - z * y * hs[i, j, 16],
+             z * z * hs[i, j, 15] + (1 - z * z) * hs[i, j, 16],
+             z * x * hs[i, j, 15] - z * x * hs[i, j, 16]],
+            [-x * hs[j, i, 18],
+             x * y * hs[i, j, 15] - x * y * hs[i, j, 16],
+             x * z * hs[i, j, 15] - x * z * hs[i, j, 16],
+             x * x * hs[i, j, 15] + (1 - x * x) * hs[i, j, 16]]])
+        return H, S
 
     def sk_(self, xyz, iat, jat, dd, li, lj):
         """SK transformations with defined parameters."""
@@ -847,27 +971,6 @@ def spl_ypara(para, nameij, ngridpoint, xp0, lines):
     return para
 
 
-def getsk_(para, rr, i, j, li, lj):
-    """Read .skf data."""
-    dd = t.sqrt(t.sum(rr[:] ** 2))
-    namei, namej = para['atomnameall'][i], para['atomnameall'][j]
-    nameij, nameji = namei + namej, namej + namei
-    lmax, lmin = max(li, lj), min(li, lj)
-    if lmax == 1:
-        getsk(para, nameij, dd)
-        para['hsdataij'] = para['hsdata']
-    elif lmin == 1 and lmax == 2:
-        getsk(para, nameij, dd)
-        para['hsdataij'] = para['hsdata']
-        getsk(para, nameji, dd)
-        para['hsdataji'] = para['hsdata']
-    elif lmin == 2 and lmax == 2:
-        getsk(para, nameij, dd)
-        para['hsdataij'] = para['hsdata']
-        getsk(para, nameji, dd)
-        para['hsdataji'] = para['hsdata']
-
-
 def getsk(para, nameij, dd):
     # ninterp is the num of points for interpolation, here is 8
     ninterp = para['ninterp']
@@ -978,25 +1081,6 @@ def skss(para, xx, yy, zz, i, j, ham, ovr, li, lj):
     return ham, ovr
 
 
-
-def skssbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
-    """slater-koster transfermaton for s orvitals"""
-    h_data = Bspline().bspline(dd, t, c, 2)
-    ham[0, 0], ovr[0, 0] = hs_s_s(xx, yy, zz, h_data, data[19])
-    return ham, ovr
-
-
-def skss_spline(para, xx, yy, zz, dd):
-    """slater-koster transfermaton for s orvitals"""
-    data = para['hsdata']
-    splx = para['interp_xall']
-    sply = para['interp_y']
-    h_data = call_spline(splx, sply, dd, para['interptype'])
-    para['hams'][0, 0], para['ovrs'][0, 0] = hs_s_s(
-        xx, yy, zz, h_data, data[19])
-    return para
-
-
 def sksp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
     """SK tranformation of s and p orbitals."""
     hs_all = para['hs_all']
@@ -1041,37 +1125,6 @@ def sksp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
         ham[3, 0], ovr[3, 0] = hs_s_z(
                 xx, yy, zz, -hs_all[j, i, 8], -hs_all[j, i, 18])
     return ham, ovr
-
-
-def skspbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
-    ham, ovr = skssbspline(xx, yy, zz, dd, t, c[0, :], data, ham, ovr)
-    h_data = Bspline().bspline(dd, t, c[1, :], 2)
-    ham[0, 1], ovr[0, 1] = hs_s_x(xx, yy, zz, h_data, data[18])
-    ham[0, 2], ovr[0, 2] = hs_s_y(xx, yy, zz, h_data, data[18])
-    ham[0, 3], ovr[0, 3] = hs_s_z(xx, yy, zz, h_data, data[18])
-    for ii in range(nls, nlp + nls):
-        ham[ii, 0] = -ham[0, ii]
-        ovr[ii, 0] = -ovr[0, ii]
-    return ham, ovr
-
-
-def sksp_spline(para, xx, yy, zz, dd):
-    data = para['hsdata']
-    splx = para['interp_xall']
-    sply = para['interp_y']
-    h_data = call_spline(splx, sply[1, :], dd, para['interptype'])
-    para['interp_y'] = para['interp_y'][0, :]
-    skss_spline(para, xx, yy, zz, dd)
-    para['hams'][0, 1], para['ovrs'][0, 1] = hs_s_x(
-        xx, yy, zz, h_data, data[18])
-    para['hams'][0, 2], para['ovrs'][0, 2] = hs_s_y(
-        xx, yy, zz, h_data, data[18])
-    para['hams'][0, 3], para['ovrs'][0, 3] = hs_s_z(
-        xx, yy, zz, h_data, data[18])
-    for ii in range(nls, nlp+nls):
-        para['hams'][0, ii] = -para['hams'][ii, 0]
-        para['ovrs'][0, ii] = -para['ovrs'][ii, 0]
-    return para
 
 
 def sksd(xx, yy, zz, data, ham, ovr):
@@ -1124,50 +1177,6 @@ def skpp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
             ham[ii, jj] = ham[jj, ii]
             ovr[ii, jj] = ovr[jj, ii]
     return ham, ovr
-
-
-def skppbspline(xx, yy, zz, dd, t, c, data, ham, ovr):
-    ham, ovr = skspbspline(xx, yy, zz, dd, t, c[0:2, :], data, ham, ovr)
-    h_pp0 = Bspline().bspline(dd, t, c[2, :], 2)
-    h_pp1 = Bspline().bspline(dd, t, c[3, :], 2)
-    ham[1, 1], ovr[1, 1] = hs_x_x(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    ham[1, 2], ovr[1, 2] = hs_x_y(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    ham[1, 3], ovr[1, 3] = hs_x_z(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    ham[2, 2], ovr[2, 2] = hs_y_y(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    ham[2, 3], ovr[2, 3] = hs_y_z(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    ham[3, 3], ovr[3, 3] = hs_z_z(xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    for ii in range(nls, nlp+nls):
-        for jj in range(nls, ii + nls):
-            ham[ii, jj] = ham[jj, ii]
-            ovr[ii, jj] = ovr[jj, ii]
-    return ham, ovr
-
-
-def skpp_spline(para, xx, yy, zz, dd):
-    data = para['hsdata']
-    splx = para['interp_xall']
-    sply = para['interp_y']
-    h_pp0 = call_spline(splx, sply[2, :], dd), para['interptype']
-    h_pp1 = matht.polyInter(splx, sply[3, :], dd, para['interptype'])
-    para['interp_y'] = para['interp_y'][0:2, :]
-    sksp_spline(para, xx, yy, zz, dd)
-    para['ham'][1, 1], para['ovr'][1, 1] = hs_x_x(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    para['ham'][1, 2], para['ovr'][1, 2] = hs_x_y(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    para['ham'][1, 3], para['ovr'][1, 3] = hs_x_z(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    para['ham'][2, 2], para['ovr'][2, 2] = hs_y_y(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    para['ham'][2, 3], para['ovr'][2, 3] = hs_y_z(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    para['ham'][3, 3], para['ovr'][3, 3] = hs_z_z(
-        xx, yy, zz, h_pp0, data[15], h_pp1, data[16])
-    for ii in range(nls, nlp + nls):
-        for jj in range(nls, ii + nls):
-            para['ham'][ii, jj] = para['ham'][jj, ii]
-            para['ovr'][ii, jj] = para['ovr'][jj, ii]
-    return para
 
 
 def skpd(self, xx, yy, zz, data, ham, ovr):
@@ -1248,820 +1257,32 @@ def skdd(self, xx, yy, zz, data, ham, ovr):
     return ham, ovr
 
 
-def getSKTable(para):
-    '''In hamtable, the first line is '''
-    atomind = para['atomind']
-    natom = para['natom']
-    atomname = para['atomnameall']
-    dvec = para['dvec']
-    atomind2 = para['atomind2']
-    hamtable = t.zeros(atomind2, 3)
-    ovrtable = t.zeros(atomind2, 3)
-    rr_ij = t.zeros(atomind2, 3)
-    dd = t.zeros(atomind2)
-    haminfo = t.zeros(atomind2)
-    ovrinfo = t.zeros(atomind2)
-    rr = t.zeros(3)
-    for i in range(0, natom):
-        lmaxi = para['lmaxall'][i]
-        for j in range(0, i+1):
-            lmaxj = para['lmaxall'][j]
-            lmax = max(lmaxi, lmaxj)
-            ham = t.zeros(4, 9, 9)
-            ovr = t.zeros(4, 9, 9)
-            para['nameij'] = atomname[i]+atomname[j]
-            rr[:] = dvec[i, j, :]
-            hams, ovrs = HS_dist(
-                    rr, i, j, para, ham, ovr, lmax)
-            for n in range(0, atomind[j+1] - atomind[j]):
-                nn = atomind[j] + n
-                for m in range(0, atomind[i+1] - atomind[i]):
-                    mm = atomind[i] + m
-                    idx = int(mm * (mm + 1)/2 + nn)
-                    if nn <= mm:
-                        idx = int(mm * (mm + 1)/2 + nn)
-                        hamtable[idx, :] = ham[1:, m, n]
-                        ovrtable[idx, :] = ovr[1:, m, n]
-                        rr_ij[idx, :] = rr[:]
-                        dd[idx] = para['distance'][i, j]
-                        haminfo[idx] = ham[0, m, n]
-                        ovrinfo[idx] = ovr[0, m, n]
-    para['hamtable'] = hamtable
-    para['ovrtable'] = ovrtable
-    para['haminfo'] = haminfo
-    para['ovrinfo'] = ovrinfo
-    para['rr_ij'] = rr_ij
-    para['dd_ij'] = dd
-    return para
-
-
-def HS_dist(rr, i, j, para, ham, ovr, lmax):
-    # haminfo record the info of the corresponding hamiltonian,
-    # for s, p, d onsite, haminfo = 0, 1, 2
-    # for ss, sp1, sp2, sp3 integral, haminfo = 10, 11, 12, 13
-    # for sd1, sd2, sd3, sd4, sd5, orbital, haminfo is 14, 15, 16, 17, 18
-    # for p1s, p1p1, p1p2, p1p3, orbital, haminfo is 20, 21, 22, 23
-    # for p2s, p2p1, p2p2, p2p3, orbital, haminfo is 30, 31, 32, 33
-    # for p3s, p3p1, p3p2, p3p3, orbital, haminfo is 40, 41, 42, 43
-    dd = t.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2])
-    nameij = para['nameij']
-    if para['ty'] == 6:
-        hs_data = getsk(para, nameij, dd)
-    elif para['ty'] == 5:
-        hs_data = para['hs_all'][i, j, :]
-    skself = para['onsite']
-    cutoff = para['cutoffsk'+nameij]
-    skselfnew = t.zeros(3)
-    if dd > cutoff:
-        return ham, ovr
-    if dd < 1E-4:
-        if i != j:
-            print("ERROR,distancebetween", i, "atom and", j, "atom is 0")
-        else:
-            skselfnew[:] = t.from_numpy(skself[i, :])
-        if lmax == 1:
-            ham[:2, 0, 0] = t.tensor([0, skselfnew[2]])
-            ovr[:2, 0, 0] = t.tensor([0, 1.0])
-        elif lmax == 2:
-            ham[:2, 0, 0] = t.tensor([0, skselfnew[2]])
-            ovr[:2, 0, 0] = t.tensor([0, 1.0])
-            ham[:2, 1, 1] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 1, 1] = t.tensor([1, 1.0])
-            ham[:2, 2, 2] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 2, 2] = t.tensor([1, 1.0])
-            ham[:2, 3, 3] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 3, 3] = t.tensor([1, 1.0])
-        else:
-            ham[:2, 0, 0] = t.tensor([0, skselfnew[2]])
-            ovr[:2, 0, 0] = t.tensor([0, 1.0])
-            ham[:2, 1, 1] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 1, 1] = t.tensor([1, 1.0])
-            ham[:2, 2, 2] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 2, 2] = t.tensor([1, 1.0])
-            ham[:2, 3, 3] = t.tensor([1, skselfnew[1]])
-            ovr[:2, 3, 3] = t.tensor([1, 1.0])
-            ham[:2, 4, 4] = t.tensor([2, skselfnew[0]])
-            ovr[:2, 4, 4] = t.tensor([2, 1.0])
-            ham[:2, 5, 5] = t.tensor([2, skselfnew[0]])
-            ovr[:2, 5, 5] = t.tensor([2, 1.0])
-            ham[:2, 6, 6] = t.tensor([2, skselfnew[0]])
-            ovr[:2, 6, 6] = t.tensor([2, 1.0])
-            ham[:2, 7, 7] = t.tensor([2, skselfnew[0]])
-            ovr[:2, 7, 7] = t.tensor([2, 1.0])
-            ham[:2, 8, 8] = t.tensor([2, skselfnew[0]])
-            ovr[:2, 8, 8] = t.tensor([2, 1.0])
-    else:
-        lmaxi = para['lmaxall'][i]
-        lmaxj = para['lmaxall'][j]
-        maxmax = max(lmaxi, lmaxj)
-        minmax = min(lmaxi, lmaxj)
-        if maxmax == 1:
-            getss(hs_data, ham, ovr)
-        elif maxmax == 2 and minmax == 1:
-            getsp(hs_data, ham, ovr)
-        elif maxmax == 2 and minmax == 2:
-            getpp(hs_data, ham, ovr)
-        elif maxmax == 3 and minmax == 1:
-            getsd(hs_data, ham, ovr)
-        elif maxmax == 3 and minmax == 2:
-            getpd(hs_data, ham, ovr)
-        elif maxmax == 3 and minmax == 3:
-            getdd(hs_data, ham, ovr)
-    return ham, ovr
-
-
-def getss(hs_data, hamtable, ovrtable):
-    """slater-koster transfermaton for s orvitals"""
-    hamtable[0, 0, 0], ovrtable[0, 0, 0] = 10, 10
-    hamtable[1, 0, 0], ovrtable[1, 0, 0] = get_s_s(hs_data)
-    return hamtable, ovrtable
-
-
-def getsp(hs_data, hamtable, ovrtable):
-    getss(hs_data, hamtable, ovrtable)
-    hamtable[0, 1:4, 0], ovrtable[0, 1:4, 0] = (t.tensor(
-            [11, 12, 13]), t.tensor([11, 12, 13]))
-    hamtable[1, 1, 0], ovrtable[1, 1, 0] = get_s_x(hs_data)
-    hamtable[1, 2, 0], ovrtable[1, 2, 0] = get_s_y(hs_data)
-    hamtable[1, 3, 0], ovrtable[1, 3, 0] = get_s_z(hs_data)
-    for ii in range(nls, nlp+nls):
-        hamtable[0, 0, ii] = hamtable[0, ii, 0]
-        ovrtable[0, 0, ii] = ovrtable[0, ii, 0]
-        hamtable[1:, 0, ii] = -hamtable[1:, ii, 0]
-        ovrtable[1:, 0, ii] = -ovrtable[1:, ii, 0]
-    return hamtable, ovrtable
-
-
-def getsd(hs_data, hamtable, ovrtable):
-    getsp(hs_data, hamtable, ovrtable)
-    (hamtable[0, 4:9, 0], ovrtable[0, 4:9, 0]) = ([14, 15, 16, 17, 18],
-                                                  [14, 15, 16, 17, 18])
-    hamtable[1, 0, 4], ovrtable[1, 0, 4] = get_s_xy(hs_data)
-    hamtable[1, 0, 5], ovrtable[1, 0, 5] = get_s_yz(hs_data)
-    hamtable[1, 0, 6], ovrtable[1, 0, 6] = get_s_xz(hs_data)
-    hamtable[1, 0, 7], ovrtable[1, 0, 7] = get_s_x2y2(hs_data)
-    hamtable[1, 0, 8], ovrtable[1, 0, 8] = get_s_3z2r2(hs_data)
-    for ii in range(nls+nlp, nld):
-        hamtable[:, ii, 0] = hamtable[: 0, ii]
-        ovrtable[:, ii, 0] = ovrtable[:, 0, ii]
-    return hamtable, ovrtable
-
-
-def getpp(hs_data, hamtable, ovrtable):
-        getsp(hs_data, hamtable, ovrtable)
-        hamtable[0, 1, 1:4], ovrtable[0, 1, 1:4] = [21, 22, 23], [21, 22, 23]
-        (hamtable[1, 1, 1], ovrtable[1, 1, 1], hamtable[2, 1, 1],
-         ovrtable[2, 1, 1]) = get_x_x(hs_data)
-        (hamtable[1, 1, 2], ovrtable[1, 1, 2], hamtable[2, 1, 2],
-         ovrtable[2, 1, 2]) = get_x_y(hs_data)
-        (hamtable[1, 1, 3], ovrtable[1, 1, 3], hamtable[2, 1, 3],
-         ovrtable[2, 1, 3]) = get_x_z(hs_data)
-        hamtable[0, 2, 2:4], ovrtable[0, 2, 2:4] = [32, 33], [32, 33]
-        (hamtable[1, 2, 2], ovrtable[1, 2, 2], hamtable[2, 2, 2],
-         ovrtable[2, 2, 2]) = get_y_y(hs_data)
-        (hamtable[1, 2, 3], ovrtable[1, 2, 3], hamtable[2, 2, 3],
-         ovrtable[2, 2, 3]) = get_y_z(hs_data)
-        hamtable[0, 3, 3], ovrtable[0, 3, 3] = 43, 43
-        (hamtable[1, 3, 3], ovrtable[1, 3, 3], hamtable[2, 3, 3],
-         ovrtable[2, 3, 3]) = get_z_z(hs_data)
-        for ii in range(nls, nlp+nls):
-            for jj in range(nls, ii+nls):
-                hamtable[:, ii, jj] = hamtable[:, jj, ii]
-                ovrtable[:, ii, jj] = ovrtable[:, jj, ii]
-        return hamtable, ovrtable
-
-
-def getpd(hs_data, hamtable, ovrtable):
-    getpp(hs_data, hamtable, ovrtable)
-    hamtable[0, 1, 4:9], ovrtable[0, 1, 4:9] = ([24, 25, 26, 27, 28],
-                                                [24, 25, 26, 27, 28])
-    (hamtable[1, 1, 4], ovrtable[1, 1, 4], hamtable[2, 1, 4],
-     ovrtable[2, 1, 4]) = get_x_xy(hs_data)
-    (hamtable[1, 1, 5], ovrtable[1, 1, 5], hamtable[2, 1, 5],
-     ovrtable[2, 1, 5]) = get_x_yz(hs_data)
-    (hamtable[1, 1, 6], ovrtable[1, 1, 6], hamtable[2, 1, 6],
-     ovrtable[2, 1, 6]) = get_x_xz(hs_data)
-    (hamtable[1, 1, 7], ovrtable[1, 1, 7], hamtable[2, 1, 7],
-     ovrtable[2, 1, 7]) = get_x_x2y2(hs_data)
-    (hamtable[1, 1, 8], ovrtable[1, 1, 8], hamtable[2, 1, 8],
-     ovrtable[2, 1, 8]) = get_x_3z2r2(hs_data)
-    hamtable[0, 2, 4:9], ovrtable[0, 2, 4:9] = ([34, 35, 36, 37, 38],
-                                                [34, 35, 36, 37, 38])
-    (hamtable[1, 2, 4], ovrtable[1, 2, 4], hamtable[2, 2, 4],
-     ovrtable[2, 2, 4]) = get_y_xy(hs_data)
-    (hamtable[1, 2, 5], ovrtable[1, 2, 5], hamtable[2, 2, 5],
-     ovrtable[2, 2, 5]) = get_y_yz(hs_data)
-    (hamtable[1, 2, 6], ovrtable[1, 2, 6], hamtable[2, 2, 6],
-     ovrtable[2, 2, 6]) = get_y_xz(hs_data)
-    (hamtable[1, 2, 7], ovrtable[1, 2, 7], hamtable[2, 2, 7],
-     ovrtable[2, 2, 7]) = get_y_x2y2(hs_data)
-    (hamtable[1, 2, 8], ovrtable[1, 2, 8], hamtable[2, 2, 8],
-     ovrtable[2, 2, 8]) = get_y_3z2r2(hs_data)
-    hamtable[0, 3, 4:9], ovrtable[0, 3, 4:9] = ([44, 45, 46, 47, 48],
-                                                [44, 45, 46, 47, 48])
-    (hamtable[1, 3, 4], ovrtable[1, 3, 4], hamtable[2, 3, 4],
-     ovrtable[2, 3, 4]) = get_z_xy(hs_data)
-    (hamtable[1, 3, 5], ovrtable[1, 3, 5], hamtable[2, 3, 5],
-     ovrtable[2, 3, 5]) = get_z_yz(hs_data)
-    (hamtable[1, 3, 6], ovrtable[1, 3, 6], hamtable[2, 3, 6],
-     ovrtable[2, 3, 6]) = get_z_xz(hs_data)
-    (hamtable[1, 3, 7], ovrtable[1, 3, 7], hamtable[2, 3, 7],
-     ovrtable[2, 3, 7]) = get_z_x2y2(hs_data)
-    (hamtable[1, 3, 8], ovrtable[1, 3, 8], hamtable[2, 3, 8],
-     ovrtable[2, 3, 8]) = get_z_3z2r2(hs_data)
-    for ii in range(nls, nls+nlp):
-        for jj in range(nls+nlp, nld):
-            hamtable[0, ii, jj] = hamtable[0, jj, ii]
-            ovrtable[0, ii, jj] = ovrtable[0, jj, ii]
-            hamtable[1:, jj, ii] = -hamtable[1:, ii, jj]
-            ovrtable[1:, jj, ii] = -ovrtable[1:, ii, jj]
-    return hamtable, ovrtable
-
-
-def getdd(data, hamtable, ovrtable):
-    getpd(data, hamtable, ovrtable)
-    hamtable[4, 4], ovrtable[4, 4] = get_xy_xy(data)
-    hamtable[4, 5], ovrtable[4, 5] = get_xy_yz(data)
-    hamtable[4, 6], ovrtable[4, 6] = get_xy_xz(data)
-    hamtable[4, 7], ovrtable[4, 7] = get_xy_x2y2(data)
-    hamtable[4, 8], ovrtable[4, 8] = get_xy_3z2r2(data)
-    hamtable[5, 5], ovrtable[5, 5] = get_yz_yz(data)
-    hamtable[5, 6], ovrtable[5, 6] = get_yz_xz(data)
-    hamtable[5, 7], ovrtable[5, 7] = get_yz_x2y2(data)
-    hamtable[5, 8], ovrtable[5, 8] = get_yz_3z2r2(data)
-    hamtable[6, 6], ovrtable[6, 6] = get_xz_xz(data)
-    hamtable[6, 7], ovrtable[6, 7] = get_xz_x2y2(data)
-    hamtable[6, 8], ovrtable[6, 8] = get_xz_3z2r2(data)
-    hamtable[7, 7], ovrtable[7, 7] = get_x2y2_x2y2(data)
-    hamtable[7, 8], ovrtable[7, 8] = get_x2y2_3z2r2(data)
-    hamtable[8, 8], ovrtable[8, 8] = get_3z2r2_3z2r2(data)
-    for ii in range(nls+nlp, nld):
-        for jj in range(nls+nlp, ii+nls):
-            hamtable[:, ii, jj] = hamtable[:, jj, ii]
-            ovrtable[:, ii, jj] = ovrtable[:, jj, ii]
-    return hamtable, ovrtable
-
-
-def sk_tranml(para):
-    htable = para['hamtable']
-    stable = para['ovrtable']
-    hinfo = para['haminfo']
-    nind2 = len(htable)
-    ham = t.zeros(nind2)
-    ovr = t.zeros(nind2)
-    for inind2 in range(0, nind2):
-        ihtable = htable[inind2]
-        istable = stable[inind2]
-        ihinfo = hinfo[inind2]
-        rr = para['rr_ij'][inind2]
-        dd = para['dd_ij'][inind2]
-        x, y, z = rr/dd
-        if ihinfo < 10:
-            ham[inind2], ovr[inind2] = ihtable[0], istable[0]
-        elif ihinfo == 10:
-            ham[inind2], ovr[inind2] = hs_s_s(x, y, z, ihtable[0], istable[0])
-        elif ihinfo == 11:
-            ham[inind2], ovr[inind2] = hs_s_x(x, y, z, ihtable[0], istable[0])
-        elif ihinfo == 12:
-            ham[inind2], ovr[inind2] = hs_s_y(x, y, z, ihtable[0], istable[0])
-        elif ihinfo == 13:
-            ham[inind2], ovr[inind2] = hs_s_z(x, y, z, ihtable[0], istable[0])
-        elif ihinfo == 21:
-            ham[inind2], ovr[inind2] = hs_x_x(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-        elif ihinfo == 22:
-            ham[inind2], ovr[inind2] = hs_x_y(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-        elif ihinfo == 23:
-            ham[inind2], ovr[inind2] = hs_x_z(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-        elif ihinfo == 32:
-            ham[inind2], ovr[inind2] = hs_y_y(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-        elif ihinfo == 33:
-            ham[inind2], ovr[inind2] = hs_y_z(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-        elif ihinfo == 43:
-            ham[inind2], ovr[inind2] = hs_z_z(x, y, z, ihtable[0], istable[0],
-               ihtable[1], istable[1])
-    para['hammat'] = ham
-    para['overmat'] = ovr
-    return para
-
-
-def sk_transpline(para):
-    pass
-
-
-def get_s_s(hs_data):
-    return hs_data[9], hs_data[19]
-
-
-def get_s_x(hs_data):
-    return hs_data[8], hs_data[18]
-
-
-def get_s_y(hs_data):
-    return hs_data[8], hs_data[18]
-
-
-def get_s_z(hs_data):
-    return hs_data[8], hs_data[18]
-
-
-def get_s_xy(hs_data):
-    return hs_data[7], hs_data[17]
-
-
-def get_s_yz(hs_data):
-    return hs_data[7], hs_data[17]
-
-
-def get_s_xz(hs_data):
-    return hs_data[7], hs_data[17]
-
-
-def get_s_x2y2(hs_data):
-    return hs_data[7], hs_data[17]
-
-
-def get_s_3z2r2(hs_data):
-    return hs_data[7], hs_data[17]
-
-
-def get_x_s(hs_data):
-    return get_s_x(hs_data)[0], get_s_x(hs_data)[1]
-
-
-def get_x_x(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_x_y(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_x_z(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_x_xy(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_x_yz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_x_xz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_x_x2y2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_x_3z2r2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_y_s(hs_data):
-    return get_s_y(hs_data)[0], get_s_y(hs_data)[1]
-
-
-def get_y_x(hs_data):
-    return (get_x_y(hs_data)[0], get_x_y(hs_data)[1],
-            get_x_y(hs_data)[2], get_x_y(hs_data)[3])
-
-
-def get_y_y(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_y_z(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_y_xy(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_y_yz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_y_xz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_y_x2y2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_y_3z2r2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_z_s(hs_data):
-    return get_s_z(hs_data)[0], get_s_z(hs_data)[1]
-
-
-def get_z_x(hs_data):
-    return (get_x_z(hs_data)[0], get_x_z(hs_data)[1],
-            get_x_z(hs_data)[2], get_x_z(hs_data)[3])
-
-
-def get_z_y(hs_data):
-    return (get_y_z(hs_data)[0], get_y_z(hs_data)[1],
-            get_y_z(hs_data)[2], get_y_z(hs_data)[3])
-
-
-def get_z_z(hs_data):
-    return hs_data[5], hs_data[15], hs_data[6], hs_data[16]
-
-
-def get_z_xy(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_z_yz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_z_xz(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_z_x2y2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_z_3z2r2(hs_data):
-    return hs_data[3], hs_data[13], hs_data[4], hs_data[14]
-
-
-def get_xy_s(hs_data):
-    return get_s_xy(hs_data)[0], get_s_xy(hs_data)[1]
-
-
-def get_xy_x(hs_data):
-    return (get_x_xy(hs_data)[0], get_x_xy(hs_data)[1],
-            get_x_xy(hs_data)[2], get_x_xy(hs_data)[3])
-
-
-def get_xy_y(hs_data):
-    return (get_y_xy(hs_data)[0], get_y_xy(hs_data)[1],
-            get_y_xy(hs_data)[2], get_y_xy(hs_data)[3])
-
-
-def get_xy_z(hs_data):
-    return (get_z_xy(hs_data)[0], get_z_xy(hs_data)[1],
-            get_z_xy(hs_data)[2], get_z_xy(hs_data)[3])
-
-
-def get_xy_xy(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_xy_yz(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_xy_xz(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_xy_x2y2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_xy_3z2r2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_yz_s(hs_data):
-    return get_s_yz(hs_data)[0], get_s_yz(hs_data)[1]
-
-
-def get_yz_x(hs_data):
-    return (get_x_yz(hs_data)[0], get_x_yz(hs_data)[1],
-            get_x_yz(hs_data)[2], get_x_yz(hs_data)[3])
-
-
-def get_yz_y(hs_data):
-    return (get_y_yz(hs_data)[0], get_y_yz(hs_data)[1],
-            get_y_yz(hs_data)[2], get_y_yz(hs_data)[3])
-
-
-def get_yz_z(hs_data):
-    return (get_z_yz(hs_data)[0], get_z_yz(hs_data)[1],
-            get_z_yz(hs_data)[2], get_z_yz(hs_data)[3])
-
-
-def get_yz_xy(hs_data):
-    return (get_xy_yz(hs_data)[0],
-            get_xy_yz(hs_data)[1],
-            get_xy_yz(hs_data)[2],
-            get_xy_yz(hs_data)[3],
-            get_xy_yz(hs_data)[4],
-            get_xy_yz(hs_data)[5])
-
-
-def get_yz_yz(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_yz_xz(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_yz_x2y2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_yz_3z2r2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_xz_s(hs_data):
-    return get_s_xz(hs_data)[0], get_s_xz(hs_data)[1]
-
-
-def get_xz_x(hs_data):
-    return (get_x_xz(hs_data)[0],
-            get_x_xz(hs_data)[1],
-            get_x_xz(hs_data)[2],
-            get_x_xz(hs_data)[3])
-
-
-def get_xz_y(hs_data):
-    return (get_y_xz(hs_data)[0],
-            get_y_xz(hs_data)[1],
-            get_y_xz(hs_data)[2],
-            get_y_xz(hs_data)[3])
-
-
-def get_xz_z(hs_data):
-    return (get_z_xz(hs_data)[0],
-            get_z_xz(hs_data)[1],
-            get_z_xz(hs_data)[2],
-            get_z_xz(hs_data)[3])
-
-
-def get_xz_xy(hs_data):
-    return (get_xy_xz(hs_data)[0],
-            get_xy_xz(hs_data)[1],
-            get_xy_xz(hs_data)[2],
-            get_xy_xz(hs_data)[3],
-            get_xy_xz(hs_data)[4],
-            get_xy_xz(hs_data)[5])
-
-
-def get_xz_yz(hs_data):
-    return (get_yz_xz(hs_data)[0],
-            get_yz_xz(hs_data)[1],
-            get_yz_xz(hs_data)[2],
-            get_yz_xz(hs_data)[3],
-            get_yz_xz(hs_data)[4],
-            get_yz_xz(hs_data)[5])
-
-
-def get_xz_3z2r2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_xz_x2y2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_xz_xz(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11],
-            hs_data[2], hs_data[12])
-
-
-def get_x2y2_s(hs_data):
-    return (get_s_x2y2(hs_data)[0],
-            get_s_x2y2(hs_data)[1])
-
-
-def get_x2y2_x(hs_data):
-    return (get_x_x2y2(hs_data)[0],
-            get_x_x2y2(hs_data)[1],
-            get_x_x2y2(hs_data)[2],
-            get_x_x2y2(hs_data)[3])
-
-
-def get_x2y2_y(hs_data):
-    return (get_y_x2y2(hs_data)[0],
-            get_y_x2y2(hs_data)[1],
-            get_y_x2y2(hs_data)[2],
-            get_y_x2y2(hs_data)[3])
-
-
-def get_x2y2_z(hs_data):
-    return (get_z_x2y2(hs_data)[0],
-            get_z_x2y2(hs_data)[1],
-            get_z_x2y2(hs_data)[2],
-            get_z_x2y2(hs_data)[3])
-
-
-def get_x2y2_xy(hs_data):
-    return (get_xy_x2y2(hs_data)[0],
-            get_xy_x2y2(hs_data)[1],
-            get_xy_x2y2(hs_data)[2],
-            get_xy_x2y2(hs_data)[3],
-            get_xy_x2y2(hs_data)[4],
-            get_xy_x2y2(hs_data)[5])
-
-
-def get_x2y2_yz(hs_data):
-    return (get_yz_x2y2(hs_data)[0],
-            get_yz_x2y2(hs_data)[1],
-            get_yz_x2y2(hs_data)[2],
-            get_yz_x2y2(hs_data)[3],
-            get_yz_x2y2(hs_data)[4],
-            get_yz_x2y2(hs_data)[5])
-
-
-def get_x2y2_xz(hs_data):
-    return (get_xz_x2y2(hs_data)[0],
-            get_xz_x2y2(hs_data)[1],
-            get_xz_x2y2(hs_data)[2],
-            get_xz_x2y2(hs_data)[3],
-            get_xz_x2y2(hs_data)[4],
-            get_xz_x2y2(hs_data)[5])
-
-
-def get_x2y2_x2y2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_x2y2_3z2r2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
-def get_3z2r2_s(hs_data):
-    return (get_s_3z2r2(hs_data)[0],
-            get_s_3z2r2(hs_data)[1])
-
-
-def get_3z2r2_x(hs_data):
-    return (get_x_3z2r2(hs_data)[0],
-            get_x_3z2r2(hs_data)[1],
-            get_x_3z2r2(hs_data)[2],
-            get_x_3z2r2(hs_data)[3])
-
-
-def get_3z2r2_y(hs_data):
-    return (get_y_3z2r2(hs_data)[0],
-            get_y_3z2r2(hs_data)[1],
-            get_y_3z2r2(hs_data)[2],
-            get_y_3z2r2(hs_data)[3])
-
-
-def get_3z2r2_z(hs_data):
-    return (get_z_3z2r2(hs_data)[0],
-            get_z_3z2r2(hs_data)[1],
-            get_z_3z2r2(hs_data)[2],
-            get_z_3z2r2(hs_data)[3])
-
-
-def get_3z2r2_xy(hs_data):
-    return (get_xy_3z2r2(hs_data)[0],
-            get_xy_3z2r2(hs_data)[1],
-            get_xy_3z2r2(hs_data)[2],
-            get_xy_3z2r2(hs_data)[3],
-            get_xy_3z2r2(hs_data)[4],
-            get_xy_3z2r2(hs_data)[5])
-
-
-def get_3z2r2_yz(hs_data):
-    return (get_yz_3z2r2(hs_data)[0],
-            get_yz_3z2r2(hs_data)[1],
-            get_yz_3z2r2(hs_data)[2],
-            get_yz_3z2r2(hs_data)[3],
-            get_yz_3z2r2(hs_data)[4],
-            get_yz_3z2r2(hs_data)[5])
-
-
-def get_3z2r2_xz(hs_data):
-    return (get_xz_3z2r2(hs_data)[0],
-            get_xz_3z2r2(hs_data)[1],
-            get_xz_3z2r2(hs_data)[2],
-            get_xz_3z2r2(hs_data)[3],
-            get_xz_3z2r2(hs_data)[4],
-            get_xz_3z2r2(hs_data)[5])
-
-
-def get_3z2r2_x2y2(hs_data):
-    return (get_x2y2_3z2r2(hs_data)[0],
-            get_x2y2_3z2r2(hs_data)[1],
-            get_x2y2_3z2r2(hs_data)[2],
-            get_x2y2_3z2r2(hs_data)[3],
-            get_x2y2_3z2r2(hs_data)[4],
-            get_x2y2_3z2r2(-hs_data)[5])
-
-
-def get_3z2r2_3z2r2(hs_data):
-    return (hs_data[0], hs_data[10], hs_data[1], hs_data[11], hs_data[2],
-            hs_data[12])
-
-
 def hs_s_s(x, y, z, hss0, sss0):
     return hss0, sss0
-
-
-def h_s_s(x, y, z, hss0):
-    return h_ss0
-
-
-def s_s_s(x, y, z, sss0):
-    return sss0
 
 
 def hs_s_x(x, y, z, hsp0, ssp0):
     return x * hsp0, x * ssp0
 
 
-def h_s_x(x, y, z, hsp0):
-    return x*hsp0
-
-
-def s_s_x(x, y, z, ssp0):
-    return x*ssp0
-
-
 def hs_s_y(x, y, z, hsp0, ssp0):
     return y*hsp0, y*ssp0
-
-
-def h_s_y(x, y, z, hsp0):
-    return y*hsp0
-
-
-def s_s_y(x, y, z, ssp0):
-    return y*ssp0
 
 
 def hs_s_z(x, y, z, hsp0, ssp0):
     return z*hsp0, z*ssp0
 
 
-def h_s_z(x, y, z, hsp0):
-    return z*hsp0
-
-
-def s_s_z(x, y, z, ssp0):
-    return z*ssp0
-
-
 def hs_s_xy(x, y, z, hsd0, ssd0):
     return t.sqrt(t.tensor([3.]))*x*y*hsd0, t.sqrt(t.tensor([3.]))*x*y*ssd0
-
-
-def h_s_xy(x, y, z, hsd0):
-    return t.sqrt(t.tensor([3.]))*x*y*hsd0
-
-
-def s_s_xy(x, y, z, ssd0):
-    return t.sqrt(t.tensor([3.]))*x*y*ssd0
 
 
 def hs_s_yz(x, y, z, hsd0, ssd0):
     return t.sqrt(t.tensor([3.]))*y*z*hsd0, t.sqrt(t.tensor([3.]))*y*z*ssd0
 
 
-def h_s_yz(x, y, z, hsd0):
-    return t.sqrt(t.tensor([3.]))*y*z*hsd0
-
-
-def s_s_yz(x, y, z, ssd0):
-    return t.sqrt(t.tensor([3.]))*y*z*ssd0
-
-
 def hs_s_xz(x, y, z, hsd0, ssd0):
     return t.sqrt(t.tensor([3.]))*x*z*hsd0, t.sqrt(t.tensor([3.]))*x*z*ssd0
-
-
-def h_s_xz(x, y, z, hsd0):
-    return t.sqrt(t.tensor([3.]))*x*z*hsd0
-
-
-def s_s_xz(x, y, z, ssd0):
-    return t.sqrt(t.tensor([3.]))*x*z*ssd0
 
 
 def hs_s_x2y2(x, y, z, hsd0, ssd0):
@@ -2077,48 +1298,16 @@ def hs_x_s(x, y, z, hsp0, ssp0):
     return hs_s_x(-x, -y, -z, hsp0, ssp0)[0], hs_s_x(-x, -y, -z, hsp0, ssp0)[1]
 
 
-def h_x_s(x, y, z, hsp0):
-    return h_s_x(-x, -y, -z, hsp0)
-
-
-def s_x_s(x, y, z, ssp0):
-    return hs_s_x(-x, -y, -z, ssp0)
-
-
 def hs_x_x(x, y, z, hpp0, spp0, hpp1, spp1):
     return x**2*hpp0+(1-x**2)*hpp1, x**2*spp0+(1-x**2)*spp1
-
-
-def h_x_x(x, y, z, hpp0, hpp1):
-    return x**2*hpp0+(1-x**2)*hpp1
-
-
-def s_x_x(x, y, z, spp0, spp1):
-    return x**2*spp0+(1-x**2)*spp1
 
 
 def hs_x_y(x, y, z, hpp0, spp0, hpp1, spp1):
     return x*y*hpp0-x*y*hpp1, x*y*spp0-x*y*spp1
 
 
-def h_x_y(x, y, z, hpp0, hpp1):
-    return x*y*hpp0-x*y*hpp1
-
-
-def s_x_y(x, y, z, spp0, spp1):
-    return x*y*spp0-x*y*spp1
-
-
 def hs_x_z(x, y, z, hpp0, spp0, hpp1, spp1):
     return x*z*hpp0-x*z*hpp1, x*z*spp0-x*z*spp1
-
-
-def h_x_z(x, y, z, hpp0, hpp1):
-    return x*z*hpp0-x*z*hpp1
-
-
-def s_x_z(x, y, z, spp0, spp1):
-    return x*z*spp0-x*z*spp1
 
 
 def hs_x_xy(x, y, z, hpd0, spd0, hpd1, spd1):
@@ -2150,49 +1339,18 @@ def hs_y_s(x, y, z, hsp0, ssp0):
     return hs_s_y(-x, -y, -z, hsp0, ssp0)[0], hs_s_y(-x, -y, -z, hsp0, ssp0)[1]
 
 
-def h_y_s(x, y, z, hsp0):
-    return h_s_y(-x, -y, -z, hsp0)
-
-
-def s_y_s(x, y, z, ssp0):
-    return hs_s_y(-x, -y, -z, ssp0)
-
-
 def hs_y_x(x, y, z, hpp0, spp0, hpp1, spp1):
     return hs_x_y(-x, -y, -z, hpp0, spp0, hpp1, spp1)[0], hs_x_y(
             -x, -y, -z, hpp0, spp0, hpp1, spp1)[1]
-
-
-def h_y_x(x, y, z, hpp0, hpp1):
-    return hs_x_y(-x, -y, -z, hpp0, hpp1)
-
-
-def s_y_x(x, y, z, spp0, spp1):
-    return s_x_y(-x, -y, -z, spp0, spp1)
 
 
 def hs_y_y(x, y, z, hpp0, spp0, hpp1, spp1):
     return y**2*hpp0+(1-y**2)*hpp1, y**2*spp0+(1-y**2)*spp1
 
 
-def h_y_y(x, y, z, hpp0, hpp1):
-    return y**2*hpp0+(1-y**2)*hpp1
-
-
-def s_y_y(x, y, z, spp0, spp1):
-    return y**2*spp0+(1-y**2)*spp1
-
-
 def hs_y_z(x, y, z, hpp0, spp0, hpp1, spp1):
     return y*z*hpp0-y*z*hpp1, y*z*spp0-y*z*spp1
 
-
-def h_y_z(x, y, z, hpp0, hpp1):
-    return y*z*hpp0-y*z*hpp1
-
-
-def s_y_z(x, y, z, spp0, spp1):
-    return y*z*spp0-y*z*spp1
 
 
 def hs_y_xy(x, y, z, hpd0, spd0, hpd1, spd1):
@@ -2224,25 +1382,10 @@ def hs_z_s(x, y, z, hsp0, ssp0):
     return hs_s_z(-x, -y, -z, hsp0, ssp0)[0], hs_s_z(-x, -y, -z, hsp0, ssp0)[1]
 
 
-def h_z_s(x, y, z, hsp0):
-    return h_s_z(-x, -y, -z, hsp0)
-
-
-def s_z_s(x, y, z, ssp0):
-    return s_s_z(-x, -y, -z, ssp0)
-
 
 def hs_z_x(x, y, z, hpp0, spp0, hpp1, spp1):
     return hs_x_z(-x, -y, -z, hpp0, spp0, hpp1, spp1)[0], hs_x_z(
             -x, -y, -z, hpp0, spp0, hpp1, spp1)[1]
-
-
-def h_z_x(x, y, z, hpp0, hpp1):
-    return h_x_z(-x, -y, -z, hpp0, hpp1)
-
-
-def s_z_x(x, y, z, spp0, spp1):
-    return s_x_z(-x, -y, -z, spp0, spp1)
 
 
 def hs_z_y(x, y, z, hpp0, spp0, hpp1, spp1):
@@ -2250,25 +1393,9 @@ def hs_z_y(x, y, z, hpp0, spp0, hpp1, spp1):
             -x, -y, -z, hpp0, spp0, hpp1, spp1)[1]
 
 
-def h_z_y(x, y, z, hpp0, hpp1):
-    return h_y_z(-x, -y, -z, hpp0, hpp1)
-
-
-def s_z_y(x, y, z, spp0, spp1):
-    return s_y_z(-x, -y, -z, spp0, spp1)
-
-
 def hs_z_z(x, y, z, hpp0, spp0, hpp1, spp1):
     return (z**2*hpp0+(1-z**2)*hpp1,
             z**2*spp0+(1-z**2)*spp1)
-
-
-def h_z_z(x, y, z, hpp0, hpp1):
-    return z**2*hpp0+(1-z**2)*hpp1
-
-
-def s_z_z(x, y, z, spp0, spp1):
-    return z**2*spp0+(1-z**2)*spp1
 
 
 def hs_z_xy(x, y, z, hpd0, spd0, hpd1, spd1):
