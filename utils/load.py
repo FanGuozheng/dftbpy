@@ -149,6 +149,11 @@ class LoadData:
         self.para['nhdf_max'] = nmax_
         self.para['nhdf_min'] = nmin_
 
+        # return training dataset number
+        if self.para['task'] == 'opt':
+            self.para['ntrain'] = nmax_
+
+
     def load_ani_old(self):
         """Load the data from hdf type input files."""
         ntype = self.para['hdf_num']
@@ -206,6 +211,7 @@ class LoadData:
                 icoor = fpinput['geometry'][iname]
                 self.para['coorall'].append(t.from_numpy(np.asarray(icoor)))
                 self.para['natomall'].append(len(icoor))
+            self.para['ntrain'] = int(self.para['n_dataset'][0])
 
     def loadrefdata(self, ref, Directory, dire, nfile):
         """Load the data from DFT calculations."""

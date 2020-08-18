@@ -19,7 +19,8 @@ def plot_ml_compr(para):
     if para['LMBD_DFTB']:
         plot_pol(para)
 
-    # plot_energy(para)
+    plot_energy(para)
+    plot_charge(para)
     plot_loss(para)
 
     # plot integral
@@ -309,6 +310,45 @@ def plot_dip_f(para):
     plt.show()
 
 
+def plot_charge(para):
+    """Plot polarizability [ntrain, nsteps, natom] in .data."""
+    dire = para['dire_data']
+    if para['ref'] == 'aims':
+        polref = dire + '/*.dat'
+    elif para['ref'] == 'dftbplus' or para['ref'] == 'dftbase':
+        polref = dire + '/refqatom.dat'
+    elif para['ref'] == 'dftb':
+        polref = dire + '/*.dat'
+    ntrain = para['ntrain']
+    fpopt, fpref = open(dire + '/qatombp.dat', 'r'), open(polref, 'r')
+    nstep = para['nsteps']
+    nstepmax = int(nstep.max())
+    natommax = int(max(para['natomall']))
+    dref = np.zeros((ntrain, natommax), dtype=float)
+    dopt = np.zeros((ntrain, nstepmax, natommax), dtype=float)
+
+    print('plot charge values')
+    for ifile in range(ntrain):
+        nstep_ = int(nstep[ifile])
+        nat = int(para['natomall'][ifile])
+        dref[ifile, :nat] = np.fromfile(fpref, dtype=float, count=nat, sep=' ')
+        dopt[ifile, :nstep_, :nat] = np.fromfile(
+            fpopt, dtype=float, count=nat*nstep_, sep=' ').reshape(nstep_, nat)
+    icount = 1
+    print("charge", dref, '\n', dopt)
+
+    for ifile in range(ntrain):
+        nstep_ = int(nstep[ifile])
+        for ist in range(nstep_):
+            plt.plot(icount, sum(abs(dref[ifile, :] - dopt[ifile, ist, :])), 'x')
+            print("charge", dref[ifile, :] - dopt[ifile, ist, :])
+            icount += 1
+    plt.xlabel('steps * molecules')
+    plt.ylabel('sum of charge absolute difference')
+    plt.legend()
+    plt.show()
+
+
 def plot_pol(para):
     """Plot polarizability [ntrain, nsteps, natom] in .data."""
     dire = para['dire_data']
@@ -386,7 +426,7 @@ def plot_energy(para):
     dire = para["dire_data"]
     if para['ref'] == 'aims':
         enerref = dire + '/energyaims.dat'
-    elif para['ref'] == 'dftbplus':
+    elif para['ref'] == 'dftbplus' or para['ref'] == 'dftbase':
         enerref = dire + '/energydftbplus.dat'
     elif para['ref'] == 'dftb':
         enerref = dire + '/energydftb.dat'
@@ -413,6 +453,7 @@ def plot_energy(para):
     plt.ylabel('energy absolute difference')
     plt.legend()
     plt.show()
+    print("dataref", dataref, "\n dataopt", dataopt)
 
 
 def plot_energy_f(para):

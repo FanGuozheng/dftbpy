@@ -35,10 +35,16 @@ def init_dftb_ml(para):
 
     # read json type geometry
     if para['dataType'] == 'json':
-        para['pythondata_dire'] = '../data'  # path of data
-        para['pythondata_file'] = 'CH4_data'  # name of data in defined path
-        para['n_dataset'] = ['50']
-        para['dire_interpSK'] = os.path.join(path, '../slko')
+
+        # path of data
+        para['pythondata_dire'] = '../data/json'
+
+        # name of data in defined path
+        para['pythondata_file'] = 'H2_data'
+
+        # number of files to be loaded
+        para['n_dataset'] = ['1']
+        # para['dire_interpSK'] = os.path.join(path, '../slko')
 
     # read ANI dataset
     elif para['dataType'] == 'ani':

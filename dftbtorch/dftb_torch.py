@@ -1004,6 +1004,9 @@ class Analysis:
         """Calculate PDOS."""
         # E: define for testing
         self.para['pdos_E'] = t.linspace(-2, 2, 10, dtype=t.float64)
+        # print("self.para['eigenvec']", self.para['eigenvec'])
+        # print("self.para['overmat']", self.para['overmat'])
+        # print("self.para['eigenvalue']", self.para['eigenvalue'])
 
         # calculate pdos
         self.para['pdos'] = dos.PDoS(

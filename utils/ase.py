@@ -13,6 +13,9 @@ import os
 import dftbplus.asedftb as asedftb
 import dftbtorch.dftb_torch as dftb_torch
 from utils.save import SaveData
+ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
+DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
+               "O": -3.0861916005}
 
 
 class DFTB:
@@ -35,6 +38,7 @@ class DFTB:
         if self.setenv:
             self.set_env()
 
+        # transfer all eV to H
         self.ev_hat = self.para["AUEV"]
 
     def set_env(self):
@@ -64,23 +68,38 @@ class DFTB:
         # source and set environment for python, ase before calculations
         self.save = SaveData(self.para)
         os.system('source ase_env.sh')
+
+        # if calculate, deal with pdos or not
         if self.para['Lpdos']:
             self.para['pdosdftbplus'] = []
+
+        # save eigenvalue as reference eigenvalue
+        if 'eigval' in self.para['target']:
+            self.para['refeigval'] = []
+
+        self.para['refenergy'], self.para['refqatom'] = [], []
 
         for ibatch in range(nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
             ispecie = ''.join(self.para['symbols'][ibatch])
 
-            # run each molecule in batches
-            self.ase_idftb(coorall[ibatch], ispecie)
+            self.coor = coorall[ibatch]
 
-            # process result data for each calculations
+            # get the number of atom
+            self.para['natom'] = len(self.coor)
+
+            # run each molecule in batches
+            self.ase_idftb(ispecie)
+
+            # process each result (overmat, eigenvalue, eigenvect)
             self.process_iresult()
+
+            if 'eigval' in self.para['target']:
+                self.para['refeigval'].append(self.para['eigenvalue'])
 
             # calculate PDOS or not
             if self.para['Lpdos']:
-                self.para['natom'] = len(coorall[ibatch])
 
                 # calculate PDOS
                 dftb_torch.Analysis(self.para).pdos()
@@ -90,6 +109,14 @@ class DFTB:
                 self.save.save2D(self.para['pdos'].numpy(),
                                  name='pdosref.dat', dire='.data', ty='a')
 
+                # save charge
+                self.save.save1D(self.para['refqatom'][ibatch].numpy(),
+                                 name='refqatom.dat', dire='.data', ty='a')
+
+        # save energy
+        self.save.save1D(np.asarray(self.para['refenergy']),
+                         name='energydftbplus.dat', dire='.data', ty='a')
+
 
         # deal with DFTB data
         self.process_results()
@@ -97,10 +124,10 @@ class DFTB:
         # remove DFTB files
         self.remove()
 
-    def ase_idftb(self, coor, moleculespecie):
+    def ase_idftb(self, moleculespecie):
         """Build DFTB input by ASE."""
         # set Atoms with molecule specie and coordinates
-        mol = Atoms(moleculespecie, positions=coor[:, 1:])
+        mol = Atoms(moleculespecie, positions=self.coor[:, 1:])
 
         # set DFTB caulation parameters
         cal = Dftb(Hamiltonian_='DFTB',
@@ -140,6 +167,15 @@ class DFTB:
         self.save.save1D(self.para['eigenvalue'],
                          name='HLdftbplus.dat', dire='.data', ty='a')
 
+        # read detailed.out and return energy, charge
+        E_tot, Q_ = read_detailed_out(self.para['natom'])
+
+        # calculate formation energy
+        E_f = self.cal_optfor_energy(E_tot)
+
+        # add each molecule properties
+        self.para['refenergy'].append(E_f), self.para['refqatom'].append(Q_)
+
     def remove(self):
         """Remove all DFTB data after calculations."""
         os.system('rm dftb+ ase_env.sh band.out charges.bin detailed.out')
@@ -149,6 +185,13 @@ class DFTB:
     def process_results(self):
         pass
 
+    def cal_optfor_energy(self, energy):
+        natom = self.para['natom']
+        for iat in range(0, natom):
+            idx = int(self.coor[iat, 0])
+            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
+            energy = energy - DFTB_ENERGY[iname]
+        return energy
 
 class Aims:
 
@@ -196,7 +239,7 @@ def get_eigenvec(filename):
 
     # transfer list to ==> numpy(float64) ==> torch
     eigenvec = np.asarray(string).reshape(nstr, nstr)
-    return t.from_numpy(eigenvec)
+    return t.from_numpy(eigenvec).T
 
 
 def get_eigenvalue(filename, eV_Hat):
@@ -215,3 +258,16 @@ def get_eigenvalue(filename, eV_Hat):
     eigenval = t.from_numpy(np.asarray(eigenval_)) / eV_Hat
     occ = t.from_numpy(np.asarray(occ_))
     return eigenval, occ
+
+
+def read_detailed_out(natom):
+    """Read output file detailed.out."""
+    qatom = []
+    text = ''.join(open('detailed.out', 'r').readlines())
+    E_tot_ = re.search('(?<=Total energy:).+(?=\n)', text, flags = re.DOTALL | re.MULTILINE).group(0)
+    # E_tot = re.findall(r"[Total energy:]?-+\d*\.\d+", text)
+    text2 = re.search('(?<=Atom       Population\n).+(?=\n)', text, flags = re.DOTALL | re.MULTILINE).group(0)
+    E_tot = re.findall(r"[-+]?\d*\.\d+", E_tot_)[0]
+    qatom_ = re.findall(r"[-+]?\d*\.\d+", text2)[:natom]
+    [qatom.append(float(ii)) for ii in qatom_]
+    return float(E_tot), t.from_numpy(np.asarray(qatom))

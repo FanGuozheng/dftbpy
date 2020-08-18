@@ -43,12 +43,11 @@ def opt(para):
 
     # load dataset, here is hdf type
     LoadData(para, int(para['n_dataset'][0]))
-    para['ntrain'] = para['nhdf_max']
 
     if para['dataType'] == 'ani':
         para['nfile'] = para['nhdf_max']
     elif para['dataType'] == 'json':
-        para['nfile'] = para['n_dataset'][0]
+        para['nfile'] = int(para['n_dataset'][0])
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
