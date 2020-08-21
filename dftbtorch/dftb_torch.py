@@ -160,7 +160,7 @@ class Initialization:
                 self.slako.get_sk_spldata()
 
     def get_this_hubbert(self):
-        """Get Hubbert for current calculation."""
+        """Get Hubbert for current calculation, nou orbital resolved."""
         # create temporal Hubbert list
         this_U = []
         # only support not orbital resolved U
@@ -454,7 +454,7 @@ class SCF:
         # choose density basis type: Gaussian profile
         if self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
-                                              self.para['coor'])
+                                              self.para['coor'][:, 1:])
 
         # expexponential normalized spherical charge density
         elif self.para['scc_den_basis'] == 'exp_spher':
@@ -762,7 +762,7 @@ class Mixing:
             self.beta = t.zeros((self.nit, self.nit), dtype=t.float64)
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
-        """This code is to deal with the 0th iteration."""
+        """Deal with the first iteration."""
         if iiter == 0:
             qmix.append(qzero)
             if self.para['mixMethod'] == 'broyden':
@@ -1003,7 +1003,7 @@ class Analysis:
     def pdos(self):
         """Calculate PDOS."""
         # E: define for testing
-        self.para['pdos_E'] = t.linspace(-2, 2, 10, dtype=t.float64)
+        self.para['pdos_E'] = t.linspace(-20, 20, 1000, dtype=t.float64)
         # print("self.para['eigenvec']", self.para['eigenvec'])
         # print("self.para['overmat']", self.para['overmat'])
         # print("self.para['eigenvalue']", self.para['eigenvalue'])
@@ -1011,7 +1011,7 @@ class Analysis:
         # calculate pdos
         self.para['pdos'] = dos.PDoS(
             # C eigen vector
-            self.para['eigenvec'],
+            self.para['eigenvec'].T,
 
             # overlap
             self.para['overmat'],
@@ -1019,5 +1019,8 @@ class Analysis:
             # PDOS energy
             self.para['pdos_E'],
 
-            # eigenvalue
-            self.para['eigenvalue'], sigma=5E-1)
+            # eigenvalue, use eV
+            self.para['eigenvalue'] * self.para['AUEV'],
+
+            # gaussian smearing
+            sigma=1E-1)

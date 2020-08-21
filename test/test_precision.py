@@ -1038,6 +1038,7 @@ def single_test(para):
     nonscc_CH4(para)
 
     # test charge of SCC CH4 molecule
+    # scc_CH4_nonsym(para)
     scc_CH4(para)
 
 
@@ -1074,7 +1075,7 @@ if __name__ == '__main__':
     t.set_printoptions(precision=15)
 
     para = {}
-    para["test_precision"] = "normal"
+    para["test_precision"] = "single"
 
     # test a single molecule
     if para["test_precision"] == "single":

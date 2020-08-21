@@ -24,7 +24,7 @@ def init_dftb_ml(para):
     #                              load data
     # **********************************************************************
     # optional datatype: ANI, json
-    para['dataType'] = 'ani'
+    para['dataType'] = 'hdf'
 
     # get the current path
     path = os.getcwd()
@@ -32,6 +32,19 @@ def init_dftb_ml(para):
 
     # define path of feature related files
     para['direfeature'] = '.'
+
+    # read hdf (with coordinates, reference physical properties) type
+    if para['dataType'] == 'hdf':
+
+        # path of data
+        para['pythondata_dire'] = '../data/dataset'
+
+        # name of data in defined path
+        para['pythondata_file'] = 'testfile.hdf5'
+
+        # number of files to be loaded
+        para['n_dataset'] = ['1']
+        # para['dire_interpSK'] = os.path.join(path, '../slko')
 
     # read json type geometry
     if para['dataType'] == 'json':
@@ -152,6 +165,9 @@ def init_dftb_ml(para):
     # *********************************************************************
     #                              DFTB-ML
     # *********************************************************************
+    # run referecne calculations or directly get read reference properties
+    para['run_reference'] = False
+
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
     para['reference'] = 'dftbase'
 
@@ -175,14 +191,14 @@ def init_dftb_ml(para):
         para['aims_bin'] = 'aims.171221_1.scalapack.mpi.x+'
 
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
-    para['target'] = ['pdos']
+    para['target'] = ['eigval']
 
     # define weight in loss function
     para['dipole_loss_ratio'] = 1
     para['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    para['mlsteps'] = 4
+    para['mlsteps'] = 3
 
     # how many steps to save the DFTB-ML data !!
     para['save_steps'] = 1
@@ -191,7 +207,7 @@ def init_dftb_ml(para):
     para['opt_step_min'] = 2
 
     # learning rate !!
-    para['lr'] = 5E-1
+    para['lr'] = 5E-3
 
     # define loss function: MSELoss, L1Loss
     para['loss_function'] = 'MSELoss'
@@ -327,9 +343,9 @@ def init_dftb_ml(para):
                                          4.954041702122E-01,
                                          4.954041702122E-01]), dtype=t.float64)
 
-    # ********************************************************************
-    #                          DFTB parameter
-    # ********************************************************************
+    # *********************************************************************
+    #                          DFTB parameter                             #
+    # *********************************************************************
     # if read parameter from dftb_in (default input name)
     para['LReadInput'] = False
 
@@ -382,11 +398,11 @@ def init_dftb_ml(para):
     # max of SCF loop
     para['maxIter'] = 60
 
+    # density basis: exp_spher, gaussian
+    para['scc_den_basis'] = 'exp_spher'
+
     # if smaller than t_zero_max, treated as zero
     para['t_zero_max'] = 5
-
-    # density basis for second order gamma
-    para['scc_den_basis'] = 'gaussian'
 
     # periodic condition
     para['Lperiodic'] = False
@@ -407,6 +423,9 @@ def init_dftb_ml(para):
     para['Lplot_ham'] = True
     para['Lplot_feature'] = False
     para['hamold'] = 0
+
+    # generate reference
+    para['ref_save_type'] = 'hdf'
 
 
 def init_dftb(para):
@@ -457,7 +476,7 @@ def init_dftb(para):
     para['maxIter'] = 60
 
     # density basis: exp_spher, gaussian
-    para['scc_den_basis'] = 'exp_spher'
+    para['scc_den_basis'] = 'gaussian'
 
     # ****************************** SKF, H, S ******************************
     # skf: directly read or interpolate from a list of skf files

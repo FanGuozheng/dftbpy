@@ -9,6 +9,7 @@ import numpy as np
 import sys
 from torch.autograd import Variable
 import torch as t
+import h5py
 import write_output as write
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.parameters as parameters
@@ -46,8 +47,9 @@ def opt(para):
 
     if para['dataType'] == 'ani':
         para['nfile'] = para['nhdf_max']
-    elif para['dataType'] == 'json':
+    elif para['dataType'] == 'json' or para['dataType'] == 'hdf':
         para['nfile'] = int(para['n_dataset'][0])
+        para['ntrain'] = int(para['n_dataset'][0])
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
@@ -160,20 +162,45 @@ class RunML:
         # get the constant parameters for DFTB
         parameters.dftb_parameter(self.para)
 
-        if self.para['ref'] == 'dftb':
-            self.dftb_ref()
-        elif self.para['ref'] == 'aims':
-            self.aims_ref(self.para)
-        elif self.para['ref'] == 'dftbplus':
-            self.dftbplus_ref(self.para)
+        # run reference calculations (e.g., DFTB+ ...) before ML
+        if self.para['run_reference']:
+            if self.para['ref'] == 'dftb':
+                self.dftb_ref()
+            elif self.para['ref'] == 'aims':
+                self.aims_ref(self.para)
+            elif self.para['ref'] == 'dftbplus':
+                self.dftbplus_ref(self.para)
 
-        # DFTB+ as reference
-        elif self.para['ref'] == 'dftbase':
-            DFTB(self.para, setenv=True).run_dftb(self.nbatch, para['coorall'])
+            # DFTB+ as reference
+            elif self.para['ref'] == 'dftbase':
+                DFTB(self.para, setenv=True).run_dftb(self.nbatch, para['coorall'])
 
-        # FHI-aims as reference
-        elif self.para['ref'] == 'aimsase':
-            Aims(self.para).run_aims(self.nbatch, para['coorall'])
+            # FHI-aims as reference
+            elif self.para['ref'] == 'aimsase':
+                Aims(self.para).run_aims(self.nbatch, para['coorall'])
+
+        # read reference properties from defined dataset
+        elif not self.para['run_reference']:
+            if self.para['dataType'] == 'hdf':
+                self.get_hdf_data()
+
+    def get_hdf_data(self):
+        hdffile = os.path.join(self.para['pythondata_dire'],
+                               self.para['pythondata_file'])
+
+        self.para['coorall'] = []
+        self.para['refeigval'] = []
+        self.para['specie_all'] = ['C', 'H']  # tempory code!!!
+        f = h5py.File(hdffile, 'r')
+        for ibatch in range(self.para['nfile']):
+            coorname = str(ibatch) + 'coor'
+            eigenvalname = str(ibatch) + 'eigenvalue'
+
+            coor = f[coorname].value
+            eigenvalue = t.tensor(f[eigenvalname].value, dtype=t.float64)
+
+            self.para['coorall'].append(coor)
+            self.para['refeigval'].append(eigenvalue)
 
     def dftb_ref(self):
         """Calculate reference (DFTB_torch)"""
@@ -496,8 +523,8 @@ class RunML:
                 self.genml.genml_init_compr()
             self.para['LreadSKFinterp'] = False  # read SKF list only once
 
-            homo_lumo_ref = para['refhomo_lumo'][ibatch]
-            dipref = para['refdipole'][ibatch]
+            # homo_lumo_ref = para['refhomo_lumo'][ibatch]
+            # dipref = para['refdipole'][ibatch]
             if para['LMBD_DFTB']:
                 pol_ref = para['refalpha_mbd'][ibatch][:nat]
                 volref = para['refvol'][ibatch][:nat]
@@ -513,9 +540,10 @@ class RunML:
             if not para['Lml_compr_global']:
                 para['compr_ml'] = \
                     para['compr_init'].detach().clone().requires_grad_(True)
-                optimizer = t.optim.SGD([para['compr_ml']], lr=para['lr'])
+                # optimizer = t.optim.SGD([para['compr_ml']], lr=para['lr'])
+                optimizer = t.optim.Adam([para['compr_ml']], lr=para['lr'])
             elif para['Lml_compr_global']:
-                optimizer = t.optim.SGD([para['compr_all']], lr=para['lr'])
+                optimizer = t.optim.Adam([para['compr_all']], lr=para['lr'])
 
             # for each molecule we will run mlsteps
             savestep_ = 0
@@ -538,7 +566,7 @@ class RunML:
                     homo_lumo = para['homo_lumo']
                     dipole = para['dipole']
                     gap = t.abs(homo_lumo[1] - homo_lumo[0])
-                    gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
+                    # gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
                     eigval = para['eigenvalue']
                     qatomall = para['qatomall']
                     energy = para['energy']
@@ -552,6 +580,7 @@ class RunML:
                         hstable = para['hammat']
                         loss = criterion(hstable, hatableref)
                     elif 'eigval' in para['target']:
+                        print("eigval, eigvalref", eigval, eigvalref)
                         loss = criterion(eigval, eigvalref)
                     elif 'qatomall' in para['target']:
                         loss = criterion(qatomall, qatomall_ref)
@@ -596,7 +625,7 @@ class RunML:
                     print('average loss: {}'.format(loss_))
                     print('compr_ml.grad', para['compr_ml'].grad.detach())
                     print("para['compr_ml']", para['compr_ml'])
-                    print('homo_lumo: {}, homo_lumo_ref: {}'.format(
+                    '''print('homo_lumo: {}, homo_lumo_ref: {}'.format(
                         homo_lumo, homo_lumo_ref))
                     self.save.save1D(para['homo_lumo'].detach().numpy(),
                                      name='HLbp.dat', dire='.data', ty='a')
@@ -604,7 +633,7 @@ class RunML:
                         print('dipole: {}, dipref: {}'.format(dipole, dipref))
                     if 'energy' in para['target']:
                         print('energy: {}, energyref: {}'.format(
-                                energy, energy_ref))
+                                energy, energy_ref))'''
                     if para['LMBD_DFTB']:
                         self.save.save1D(para['alpha_mbd'].detach().numpy(),
                                          name='polbp.dat', dire='.data', ty='a')

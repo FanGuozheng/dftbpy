@@ -2,15 +2,15 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import re
+import os
 import numpy as np
 import torch as t
 from ase import Atoms
+import h5py
 from ase.build import molecule
 from ase.calculators.dftb import Dftb
 from ase.optimize import QuasiNewton
 from ase.io import write
-import os
-import dftbplus.asedftb as asedftb
 import dftbtorch.dftb_torch as dftb_torch
 from utils.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
@@ -67,16 +67,21 @@ class DFTB:
         """Run batch systems with ASE-DFTB."""
         # source and set environment for python, ase before calculations
         self.save = SaveData(self.para)
-        os.system('source ase_env.sh')
 
         # if calculate, deal with pdos or not
         if self.para['Lpdos']:
             self.para['pdosdftbplus'] = []
 
-        # save eigenvalue as reference eigenvalue
+        # save eigenvalue as reference eigenvalue for ML
         if 'eigval' in self.para['target']:
             self.para['refeigval'] = []
 
+        # create data
+        if self.para['task'] == 'get_hdf_data':
+            os.system('rm testfile.hdf5')
+            self.f = h5py.File('testfile.hdf5', 'w')
+
+        # create reference list for following ML
         self.para['refenergy'], self.para['refqatom'] = [], []
 
         for ibatch in range(nbatch):
@@ -84,10 +89,11 @@ class DFTB:
             # so that satisfy ase.Atoms style
             ispecie = ''.join(self.para['symbols'][ibatch])
 
+            # get coordinates of a single molecule
             self.coor = coorall[ibatch]
 
             # get the number of atom
-            self.para['natom'] = len(self.coor)
+            self.para['natom'] = self.para['natomall'][ibatch]
 
             # run each molecule in batches
             self.ase_idftb(ispecie)
@@ -95,28 +101,37 @@ class DFTB:
             # process each result (overmat, eigenvalue, eigenvect)
             self.process_iresult()
 
-            if 'eigval' in self.para['target']:
-                self.para['refeigval'].append(self.para['eigenvalue'])
+            # creat reference data as hdf type
+            if self.para['task'] == 'get_hdf_data':
+                self.write_hdf5(ibatch)
 
-            # calculate PDOS or not
-            if self.para['Lpdos']:
+            # save dftb results as reference .txt
+            elif self.para['task'] == 'opt':
+                if 'eigval' in self.para['target']:
+                    self.para['refeigval'].append(self.para['eigenvalue'])
 
-                # calculate PDOS
-                dftb_torch.Analysis(self.para).pdos()
-                self.para['pdosdftbplus'].append(self.para['pdos'])
+                # calculate PDOS or not
+                if self.para['Lpdos']:
 
-                # save PDOS
-                self.save.save2D(self.para['pdos'].numpy(),
-                                 name='pdosref.dat', dire='.data', ty='a')
+                    # calculate PDOS
+                    dftb_torch.Analysis(self.para).pdos()
+                    self.para['pdosdftbplus'].append(self.para['pdos'])
 
-                # save charge
-                self.save.save1D(self.para['refqatom'][ibatch].numpy(),
-                                 name='refqatom.dat', dire='.data', ty='a')
+                    # save PDOS
+                    self.save.save2D(self.para['pdos'].numpy(),
+                                     name='pdosref.dat', dire='.data', ty='a')
 
-        # save energy
-        self.save.save1D(np.asarray(self.para['refenergy']),
-                         name='energydftbplus.dat', dire='.data', ty='a')
+                    # save charge
+                    self.save.save1D(self.para['refqatom'][ibatch].numpy(),
+                                     name='refqatom.dat', dire='.data', ty='a')
 
+                    # save eigenvalue
+                    self.save.save1D(self.para['eigenvalue'],
+                                     name='HLdftbplus.dat', dire='.data', ty='a')
+
+                # save energy
+                self.save.save1D(np.asarray(self.para['refenergy']),
+                                 name='energydftbplus.dat', dire='.data', ty='a')
 
         # deal with DFTB data
         self.process_results()
@@ -136,6 +151,8 @@ class DFTB:
                    Hamiltonian_MaxAngularMomentum_='',
                    Hamiltonian_MaxAngularMomentum_H='s',
                    Hamiltonian_MaxAngularMomentum_C='p',
+                   Hamiltonian_MaxAngularMomentum_N='p',
+                   Hamiltonian_MaxAngularMomentum_O='p',
                    Options_='',
                    Options_WriteHS='Yes',
                    Analysis_='',
@@ -164,8 +181,6 @@ class DFTB:
 
         # read final eigenvalue
         self.para['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
-        self.save.save1D(self.para['eigenvalue'],
-                         name='HLdftbplus.dat', dire='.data', ty='a')
 
         # read detailed.out and return energy, charge
         E_tot, Q_ = read_detailed_out(self.para['natom'])
@@ -175,6 +190,23 @@ class DFTB:
 
         # add each molecule properties
         self.para['refenergy'].append(E_f), self.para['refqatom'].append(Q_)
+
+    def write_hdf5(self, ibatch):
+        # get the name of each molecule and its properties
+        eigval_name = str(ibatch) + 'eigenvalue'
+        eigval = self.para['eigenvalue']
+        self.f.create_dataset(eigval_name, eigval.shape, data=eigval)
+
+        # coordinate name
+        coor_name = str(ibatch) + 'coor'
+        coor = self.para['coorall'][ibatch]
+        self.f.create_dataset(coor_name, coor.shape, data=coor)
+
+        # specie name (list)
+        # sym_name = str(ibatch) + 'symbols'
+        # symbol = self.para['symbols'][ibatch]
+        # self.f.create_dataset(sym_name, len(symbol), data=symbol)
+
 
     def remove(self):
         """Remove all DFTB data after calculations."""
@@ -198,10 +230,10 @@ class Aims:
     def __init__(self, para, setenv=False):
         self.para = para
 
-        # DFTB+ binary name, normally dftb+
+        # FHI-aims binary name, normally aims
         self.dftb_bin = self.para['aims_bin']
 
-        # DFTB+ binary path
+        # GHI-aims binary path
         self.dftb_path = para['aims_ase_path']
 
         # set environment before calculations

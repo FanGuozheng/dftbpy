@@ -9,7 +9,7 @@ from utils.load import LoadData
 def plot_ml_compr(para):
     """Plot for DFTB-ML optimization."""
     read_nstep(para)  # read how many steps have been saved each molecule
-    plot_humolumo(para)
+    # plot_humolumo(para)
 
     # plot dipole
     if para['Ldipole']:
@@ -19,8 +19,8 @@ def plot_ml_compr(para):
     if para['LMBD_DFTB']:
         plot_pol(para)
 
-    plot_energy(para)
-    plot_charge(para)
+    # plot_energy(para)
+    # plot_charge(para)
     plot_loss(para)
 
     # plot integral
@@ -28,12 +28,12 @@ def plot_ml_compr(para):
         plot_spl(para)
 
     # plot compression radius
-    if para['Lml_skf']:
-        plot_compr(para)
+    '''if para['Lml_skf']:
+        plot_compr(para)'''
 
     # plot PDOS
-    if para['Lpdos']:
-        plot_pdos(para)
+    '''if para['Lpdos']:
+        plot_pdos(para)'''
 
 
 
@@ -922,34 +922,29 @@ def plot_pdos(para):
 
     print('plot PDOS')
     for ifile in range(ntrain):
-        natom = int(para['natomall'][ifile])
         nstep_ = int(nstep[ifile])
-        neigen = para['shape_pdos'][ifile][0]
+        lenE1_, lenE2_ = para['shape_pdos'][ifile]
         datafpr[ifile, :, :] = \
-            np.fromfile(fpr, dtype=float, count=neigen*lenE2,
-                        sep=' ').reshape(neigen, lenE2)
+            np.fromfile(fpr, dtype=float, count=lenE1_*lenE2_,
+                        sep=' ').reshape(lenE1_, lenE2_)
 
         datafpbp[ifile, :nstep_, :, :] = \
-            np.fromfile(fpbp, dtype=float, count=neigen*lenE2*nstep_,
-                        sep=' ').reshape(nstep_, neigen, lenE2)
+            np.fromfile(fpbp, dtype=float, count=lenE1_*lenE2_*nstep_,
+                        sep=' ').reshape(nstep_, lenE1_, lenE2_)
 
-    icount = 1
-    color = ['r', 'y', 'c', 'b']
+    # color = ['r', 'y', 'c', 'b']
     for ifile in range(ntrain):
         nstep_ = int(nstep[ifile])
-        neigen = para['shape_pdos'][ifile][0]
-        nE = para['shape_pdos'][ifile][1]
+        lenE1_, lenE2_ = para['shape_pdos'][ifile]
 
-        for ilen in range(neigen):
+        for ilen in range(lenE1_):
 
-            count = np.linspace(icount, icount + nE - 1, nE)
-            plt.plot(count, datafpr[ifile][ilen], 'k')
+            plt.plot(para['pdos_E'], datafpr[ifile, ilen, :], 'k')
             for istep in range(nstep_):
-                plt.plot(count, datafpbp[ifile, istep][ilen], color[istep])
+                plt.plot(para['pdos_E'], datafpbp[ifile, istep, ilen, :], '*r')
 
-            icount += nE
-    plt.ylabel('compression radius of each atom')
-    plt.xlabel('steps * molecule')
+    plt.ylabel('projected density of states')
+    plt.xlabel('E (eV)')
     plt.show()
 
 
