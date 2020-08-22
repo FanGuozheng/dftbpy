@@ -229,7 +229,7 @@ def init_dftb_ml(para):
         para['LreadSKFinterp'] = True
 
         # if optimize onsite in DFTB-ML
-        para['Lonsite'] = False
+        para['Lonsite'] = True
 
         # grid of compression radius is uniform or not !!
         para['typeSKinterp'] = 'uniform'
@@ -258,6 +258,9 @@ def init_dftb_ml(para):
         # after opt_ml_step*nbatch molecule, perform ML predict compR!!!!!!
         para['opt_ml_step'] = 0.5
         para['opt_ml_all'] = False
+
+        # smooth the tail when read the skf
+        para['smooth_tail'] = True
 
         # if any compR < 2.2, break DFTB-ML loop
         para['compr_min'] = 2.2
@@ -476,7 +479,7 @@ def init_dftb(para):
     para['maxIter'] = 60
 
     # density basis: exp_spher, gaussian
-    para['scc_den_basis'] = 'gaussian'
+    para['scc_den_basis'] = 'exp_spher'
 
     # ****************************** SKF, H, S ******************************
     # skf: directly read or interpolate from a list of skf files
@@ -595,7 +598,7 @@ def init_dftb_interp(para):
 
     # para['Lml_compr_global'] = False
     # if interpolate or optimize onsite
-    para['Lonsite'] = False
+    para['Lonsite'] = True
 
     # total atom specie in last step
     para['atomspecie_old'] = []

@@ -4,6 +4,7 @@
 import json
 import os
 import scipy
+import time
 import numpy as np
 import torch as t
 err = 1E-4
@@ -25,7 +26,71 @@ intergraltyperef = {'[2, 2, 0, 0]': 0, '[2, 2, 1, 0]': 1, '[2, 2, 2, 0]': 2,
                     '[0, 1, 0, 1]': 18, '[0, 0, 0, 1]': 19}
 
 
-class ReadInt:
+def interpskf(para, skftype, atomspecie, dire_interpSK):
+    """Read .skf data from skgen with various compression radius.
+
+    Args:
+        para: dictionary which store parameters
+        skftype: the type (parameters in skgen) of the skf file, such as
+            superposition type
+        atomspecie: the species of atom in dataset
+        dire_interpSK: path of skf files
+
+    Returns:
+        interpolation integrals with dimension [nspecie, nspecie, ncompress,
+                                                ncompress, distance, 20]
+
+    """
+    time0 = time.time()
+
+    # optimize wavefunction compression radius
+    if skftype == 'wavefunction':
+        nametail = '_wav'
+
+    # optimize density compression radius
+    elif skftype == 'density':
+        nametail = '_den'
+
+    # optimize all the compression radius and keep all the same
+    elif skftype == 'all':
+        nametail = '_all'
+
+    # read skf according to atom specie
+    for namei in atomspecie:
+        for namej in atomspecie:
+
+            # get atom number and read corresponding directory
+            if para['atomno_' + namei] < para['atomno_' + namej]:
+
+                # generate folder name
+                dire = dire_interpSK + '/' + namei + \
+                    '_' + namej + nametail
+
+                # get integral by interpolation
+                SkInterpolator(para, gridmesh=0.2).readskffile(
+                    namei, namej, dire)
+            else:
+
+                # generate folder name
+                dire = dire_interpSK + '/' + namej + \
+                    '_' + namei + nametail
+
+                # get integral by interpolation
+                SkInterpolator(para, gridmesh=0.2).readskffile(
+                    namei, namej, dire)
+
+    # get total time
+    time1 = time.time()
+    time_ = time1 - time0
+    dire_ = para['dire_data']
+
+    # save to log
+    with open(os.path.join(dire_, 'log.dat'), 'a') as fp:
+        fp.write('Reading all the SKF files time is: ' + str(time_) + '\n')
+        fp.close
+
+
+class ReadIn:
     """Read from .hsd input file.
 
     Returns:
@@ -131,7 +196,7 @@ class ReadInt:
             else:
                 para['general_tol'] = 1e-4
 
-            # ******************** skf parameter *********************
+            # ********************** skf parameter **********************
             # the number of points for interpolation when read .skf
             if 'ninterp' in fpinput['skf']:
                 para['ninterp'] = fpinput['skf']['ninterp']
@@ -148,7 +213,7 @@ class ReadInt:
             else:
                 para['delta_r_skf'] = 1E-5
 
-            # ******************** analysis parameter *********************
+            # ************************ analysis *************************
             # if write dipole or not
             if 'Ldipole' in fpinput['analysis']:
                 dipole = fpinput['analysis']['Ldipole']
@@ -185,7 +250,7 @@ class ReadInt:
             else:
                 para['dipole'] = True
 
-            # ****************** geometry parameter **********************
+            # *********************** geometry **************************
             # periodic or molecule
             if 'periodic' in fpinput['general']:
                 period = fpinput['general']['periodic']
@@ -249,10 +314,11 @@ class ReadInt:
         self.para['atomNumber'] = self.para['coor'][:, 0]
 
     def cal_coor(self):
-        """Generate vector, distance according to input geometry.
+        """Generate vector, distance ... according to input geometry.
 
         Args:
             coor: [natom, 4], the first column is atom number
+
         Returns:
             natomtype: the type of atom, the 1st is 0, the 2nd different is 1
             atomind: how many orbitals of each atom in DFTB calculations
@@ -563,7 +629,9 @@ class ReadSlaKo:
 class SkInterpolator:
     """Interpolate SKF from a list of .skf files.
 
-    These files with various compression radius
+    Returns:
+        Integrals with various compression radius
+
     """
 
     def __init__(self, para, gridmesh):
@@ -579,9 +647,12 @@ class SkInterpolator:
         """Read a list of .skf files.
 
         Args:
-            all .skf file, atom names, directory
+            filename: getfilenamelist
+            atom species
+            path of .skf files
+
         Returns:
-            gridmesh_points, onsite_spe_u, mass_rcut, integrals
+            gridmesh_points, onsite_spe_u, mass_rcut, H0 and S integrals
 
         """
         # atom name pair
@@ -628,7 +699,7 @@ class SkInterpolator:
             data = np.fromfile(fp, dtype=float, count=20, sep=' ')
             mass_rcut[icount, :] = t.from_numpy(data)
 
-            # read all the integrals
+            # read all the integrals, float64 precision
             data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
             data.shape = (int(ngridpoint[icount]), 20)
             integrals.append(data)
@@ -637,6 +708,7 @@ class SkInterpolator:
             self.para['rest'].append(fp.read())
             icount += 1
 
+        # read repulsive parameters
         if self.para['Lrepulsive']:
             fp = open(os.path.join(
                 directory, namei + '-' + namej + '.rep'), "r")
@@ -657,9 +729,10 @@ class SkInterpolator:
             datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
             self.para['repend' + nameij] = t.from_numpy(datarepend)
 
-        self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 5)
-        superskf = t.zeros(ncompr, ncompr,
-                           self.para['skf_line_tail' + nameij], 20)
+        # 5 more lines to smooth the tail, 4 more lines for interpolation
+        self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 9)
+
+        # read onsite parameters
         if self.para['Lonsite']:
             mass_rcut_ = t.zeros((ncompr, ncompr, 20), dtype=t.float64)
             onsite_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
@@ -669,29 +742,50 @@ class SkInterpolator:
         ngridpoint_ = t.zeros((ncompr, ncompr), dtype=t.float64)
         grid_dist_ = t.zeros((ncompr, ncompr), dtype=t.float64)
 
+        # build integrals with various compression radius
+        superskf = t.zeros((ncompr, ncompr,
+                            self.para['skf_line_tail' + nameij], 20),
+                           dtype=t.float64)
+
         # transfer 1D [nfile, n] to 2D [ncompr, ncompr, n]
-        for skfi in range(0, nfile):
+        for skfi in range(nfile):
             rowi = int(skfi // ncompr)
             colj = int(skfi % ncompr)
+
+            # number of grid points
             ingridpoint = int(ngridpoint[skfi])
             superskf[rowi, colj, :ingridpoint, :] = \
                 t.from_numpy(integrals[skfi])
+
+            # grid distance and number grid points
             grid_dist_[rowi, colj] = grid_dist[skfi]
             ngridpoint_[rowi, colj] = ngridpoint[skfi]
+
+            # smooth the tail
+            if self.para['smooth_tail']:
+                self.polytozero(grid_dist_, superskf, ngridpoint_, rowi, colj)
+
+            # transfer from 1D [nfile, n] to 2D [ncompr, ncompr, n]
             if self.para['Lonsite']:
                 mass_rcut_[rowi, colj, :] = mass_rcut[skfi, :]
                 onsite_[rowi, colj, :] = onsite[skfi, :]
                 spe_[rowi, colj] = spe[skfi]
                 uhubb_[rowi, colj, :] = uhubb[skfi, :]
                 occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
+
+                # if orbital resolved
                 if not self.para['Lorbres']:
                     uhubb_[rowi, colj, :] = uhubb[skfi, -1]
+
+        # transfer onsite, Hubbert ... to dictionary
         if self.para['Lonsite']:
             self.para['massrcut_rall' + nameij] = mass_rcut_
             self.para['onsite_rall' + nameij] = onsite_
             self.para['spe_rall' + nameij] = spe_
             self.para['uhubb_rall' + nameij] = uhubb_
             self.para['occ_skf_rall' + nameij] = occ_skf_
+
+        # save integrals, gridmesh values to dictionary
         self.para['nfile_rall' + nameij] = nfile
         self.para['grid_dist_rall' + nameij] = grid_dist_
         self.para['ngridpoint_rall' + nameij] = ngridpoint_
@@ -759,17 +853,20 @@ class SkInterpolator:
         interporbital = funcubic(interpr2, interpr1)
         return interporbital
 
-    def polytozero(self, hs_skf, ninterpline):
-        """Here, we fit the tail of skf file (5lines, 5th order)."""
-        ni = ninterpline
-        dx = self.gridmesh * 5
-        ytail = hs_skf[ni - 1, :]
-        ytailp = (hs_skf[ni - 1, :] - hs_skf[ni - 2, :]) / self.gridmesh
-        ytailp2 = (hs_skf[ni - 2, :]-hs_skf[ni - 3, :]) / self.gridmesh
-        ytailpp = (ytailp - ytailp2) / self.gridmesh
-        xx = np.array([self.gridmesh * 4, self.gridmesh * 3, self.gridmesh * 2,
-                       self.gridmesh, 0.0])
-        nline = ninterpline
+    def polytozero(self, griddist, hs_skf, ninterpline, rowi, colj):
+        """Fit the tail of skf file (5lines, 5th order).
+
+        griddist: gridmesh distance, 2D
+        ninterpline: number of grid points, 2D
+        hs_skf: integrals, 4D
+        """
+        ni = int(ninterpline[rowi, colj])
+        dx = float(griddist[rowi, colj]) * 5
+        ytail = hs_skf[rowi, colj, ni - 1, :]
+        ytailp = (hs_skf[rowi, colj, ni - 1, :] - hs_skf[rowi, colj, ni - 2, :]) / griddist[rowi, colj]
+        ytailp2 = (hs_skf[rowi, colj, ni - 2, :]-hs_skf[rowi, colj, ni - 3, :]) / griddist[rowi, colj]
+        ytailpp = (ytailp - ytailp2) / griddist[rowi, colj]
+        xx = t.tensor([4, 3, 2, 1, 0.0], dtype=t.float64) * griddist[rowi, colj]
         for xxi in xx:
             dx1 = ytailp * dx
             dx2 = ytailpp * dx * dx
@@ -778,8 +875,8 @@ class SkInterpolator:
             ff = 6.0 * ytail - 3.0 * dx1 + 0.5 * dx2
             xr = xxi / dx
             yy = ((ff * xr + ee) * xr + dd) * xr * xr * xr
-            hs_skf[nline, :] = yy
-            nline += 1
+            hs_skf[rowi, colj, ni, :] = yy
+            ni += 1
         return hs_skf
 
     def saveskffile(self, ninterpfile, atomnameall, skffile, hs_skf,

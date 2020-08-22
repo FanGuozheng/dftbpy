@@ -19,8 +19,7 @@ def test_accuracy(para, name, dire,
     """Read the corresponding data from normal DFTB+ code.
 
     Args:
-        H0: CH4_H0_half.dat
-        S: CH4_S_half.dat
+        H0, S
 
     """
     print('\n', '-' * 35, 'test accuracy:', name, '-' * 35)
@@ -29,87 +28,48 @@ def test_accuracy(para, name, dire,
 
     if LH0:
         dataH0 = para['dataH']
-        data_ = abs((dataH0 - para['hammat']) / abs(dataH0)).sum()
-        if data_ < 1e-14 * nat ** 2:
-            print('average H0 error is smaller than 1E-14')
-        elif data_ < 1e-12 * nat ** 2:
-            print('average H0 error is smaller than 1E-12')
-        elif data_ < 1e-10 * nat ** 2:
-            print('average H0 error is smaller than 1E-10')
-        elif data_ < 1e-6 * nat ** 2:
-            print('average H0 error is smaller than 1E-6')
-        elif data_ < 1e-4 * nat ** 2:
-            print('average H0 error is smaller than 1E-4')
-        else:
-            print('Warning: average H0 error is larger than 1E-4: {}'.format(
-                    abs(dataH0 - para['qatomall']).sum() / nat))
+        data_ = abs((dataH0 - para['hammat']) / abs(dataH0)).sum() / (nat ** 2)
+        print_('H0', data_)
     if LS0:
         dataS = para['dataS']
-        data_ = abs((dataS - para['overmat']) / abs(dataS)).sum()
-        if data_ < 1e-14 * nat ** 2:
-            print('average S error is smaller than 1E-14')
-        elif data_ < 1e-12 * nat ** 2:
-            print('average S error is smaller than 1E-12')
-        elif data_ < 1e-10 * nat ** 2:
-            print('average S error is smaller than 1E-10')
-        elif data_ < 1e-6 * nat ** 2:
-            print('average S error is smaller than 1E-6')
-        elif data_ < 1e-4 * nat ** 2:
-            print('average S error is smaller than 1E-4')
-        else:
-            print('Warning: average S error is larger than 1E-4: {}'.format(
-                    abs(dataS - para['qatomall']).sum() / nat))
+        data_ = abs((dataS - para['overmat']) / abs(dataS)).sum() / (nat ** 2)
+        print_('overlap', data_)
     if Lq:
         dataq = para['dataq']
-        data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum()
-        if data_ < 1e-14 * nat:
-            print('average charge error is smaller than 1E-14')
-        elif data_ < 1e-12 * nat:
-            print('average charge error is smaller than 1E-12')
-        elif data_ < 1e-10 * nat:
-            print('average charge error is smaller than 1E-10')
-        elif data_ < 1e-8 * nat:
-            print('average charge error is smaller than 1E-8')
-        elif data_ < 1e-6 * nat:
-            print('average charge error is smaller than 1E-6')
-        elif data_ < 1e-4 * nat:
-            print('average charge error is smaller than 1E-4')
-        else:
-            print('Warning: average charge error is larger than 1E-4: ',
-                  '{}'.format(abs(dataq - para['qatomall']).sum() / nat))
-
+        data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum() / nat
+        print_('charge', data_)
     if Lp:
         datats = para['datats']
-        data_ = abs((datats - para['alpha_ts']) / abs(datats)).sum()
-        if data_ < 1e-14 * nat:
-            print('average alpha_ts error is smaller than 1E-14')
-        elif data_ < 1e-12 * nat:
-            print('average alpha_ts error is smaller than 1E-12')
-        elif data_ < 1e-10 * nat:
-            print('average alpha_ts error is smaller than 1E-10')
-        elif data_ < 1e-6 * nat:
-            print('average alpha_ts error is smaller than 1E-6')
-        elif data_ < 1e-4 * nat:
-            print('average alpha_ts error is smaller than 1E-4')
-        else:
-            print('Warning: average alpha_ts0 error is larger than 1E-4: ',
-                  '{}'.format(abs(datats - para['alpha_ts']).sum() / nat))
+        data_ = abs((datats - para['alpha_ts']) / abs(datats)).sum() / nat
+        print_('TS-polarizability', data_)
         datambd = para['datambd']
-        data_ = abs((datambd - para['alpha_mbd']) / abs(datambd)).sum()
-        if data_ < 1e-14 * nat:
-            print('average alpha_mbd error is smaller than 1E-14')
-        elif data_ < 1e-12 * nat:
-            print('average alpha_mbd error is smaller than 1E-12')
-        elif data_ < 1e-10 * nat:
-            print('average alpha_mbd error is smaller than 1E-10')
-        elif data_ < 1e-6 * nat:
-            print('average alpha_mbd error is smaller than 1E-6')
-        elif data_ < 1e-4 * nat:
-            print('average alpha_mbd error is smaller than 1E-4')
-        else:
-            print('Warning: average alpha_mbd error is larger than 1E-4: ',
-                  '{}'.format(abs(datambd - para['alpha_mbd']).sum() / nat))
-    print('-' * 33, 'end test accuracy:', name, '-' * 33, '\n')
+        data_ = abs((datambd - para['alpha_mbd']) / abs(datambd)).sum() / nat
+        print_('MBD-polarizability', data_)
+
+
+def print_(properties, precision):
+    """Print the test results."""
+    if precision < 1e-14:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-14))
+    elif precision < 1e-12:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-12))
+    elif precision < 1e-10:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-10))
+    elif precision < 1e-8:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-8))
+    elif precision < 1e-6:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-6))
+    elif precision < 1e-4:
+        print('average difference of {} is smaller than {}'.format(
+            properties, 1e-4))
+    else:
+        print('Warning: average error of {} is larger than 1E-4: {}'.format(
+            properties, precision))
 
 
 def read_dftbplus_data(para, dire, H0=None, S=None, q=None, p=None):
@@ -1075,7 +1035,7 @@ if __name__ == '__main__':
     t.set_printoptions(precision=15)
 
     para = {}
-    para["test_precision"] = "single"
+    para["test_precision"] = "normal"
 
     # test a single molecule
     if para["test_precision"] == "single":

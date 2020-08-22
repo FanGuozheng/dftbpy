@@ -4,14 +4,12 @@ implement pytorch to DFTB
 """
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
-import time
 import numpy as np
 import torch as t
 import bisect
 from slakot import SKspline, SKTran
 from electront import DFTBelect
-from readt import ReadSlaKo, ReadInt, SkInterpolator
+import readt
 from periodic import Periodic
 from matht import EigenSolver
 import parameters
@@ -60,10 +58,10 @@ class Initialization:
         self.slako = SKspline(self.para)
 
         # read
-        self.readsk = ReadSlaKo(self.para)
+        self.readsk = readt.ReadSlaKo(self.para)
 
         # read input
-        self.readin = ReadInt(self.para)
+        self.readin = readt.ReadIn(self.para)
 
         # save data
         self.save = SaveData(self.para)
@@ -128,7 +126,10 @@ class Initialization:
             if self.para['LreadSKFinterp']:
 
                 # read all corresponding skf files by defined parameters
-                self.interpskf()
+                readt.interpskf(self.para,
+                                self.para['typeSKinterpR'],
+                                self.para['atomspecie'],
+                                self.para['dire_interpSK'])
 
         # perform machine learning
         if self.para['Lml']:
@@ -141,7 +142,10 @@ class Initialization:
                 self.para['atomspecie'] = self.para['specie_all']
 
                 # read all corresponding skf files by defined parameters
-                self.interpskf()
+                readt.interpskf(self.para,
+                                self.para['typeSKinterpR'],
+                                self.para['atomspecie'],
+                                self.para['dire_interpSK'])
 
             # ML variables is ACSF parameters
             # read all corresponding skf files by defined parameters
@@ -151,7 +155,10 @@ class Initialization:
                 self.para['atomspecie'] = self.para['specie_all']
 
                 # read all corresponding skf files by defined parameters
-                self.interpskf()
+                readt.interpskf(self.para,
+                                self.para['typeSKinterpR'],
+                                self.para['atomspecie'],
+                                self.para['dire_interpSK'])
 
             # get integrals directly from spline interpolation
             elif self.para['Lml_HS'] and self.para['LreadSKFinterp']:
@@ -189,56 +196,6 @@ class Initialization:
 
                 # SK transformations
                 SKTran(self.para)
-
-    def interpskf(self):
-        """Read .skf data from skgen with various compR."""
-        time0 = time.time()
-
-        # optimize wavefunction compression radius
-        if self.para['typeSKinterpR'] == 'wavefunction':
-            nametail = '_wav'
-
-        # optimize density compression radius
-        elif self.para['typeSKinterpR'] == 'density':
-            nametail = '_den'
-
-        # optimize all the compression radius and keep all the same
-        elif self.para['typeSKinterpR'] == 'all':
-            nametail = '_all'
-
-        # read skf according to atom specie
-        for namei in self.para['atomspecie']:
-            for namej in self.para['atomspecie']:
-
-                # get atom number and read corresponding directory
-                if self.para['atomno_' + namei] < self.para['atomno_' + namej]:
-
-                    # generate folder name
-                    dire = self.para['dire_interpSK'] + '/' + namei + \
-                        '_' + namej + nametail
-
-                    # get integral by interpolation
-                    SkInterpolator(self.para, gridmesh=0.2).readskffile(
-                        namei, namej, dire)
-                else:
-
-                    # generate folder name
-                    dire = self.para['dire_interpSK'] + '/' + namej + \
-                        '_' + namei + nametail
-
-                    # get integral by interpolation
-                    SkInterpolator(self.para, gridmesh=0.2).readskffile(
-                        namei, namej, dire)
-
-        # get total time
-        time1 = time.time()
-        time_ = time1 - time0
-        dire_ = self.para['dire_data']
-
-        # save to log
-        with open(os.path.join(dire_, 'log.dat'), 'a') as fp:
-            fp.write('Reading all the SKF files time is: ' + str(time_) + '\n')
-            fp.close
 
 
 class Rundftbpy:

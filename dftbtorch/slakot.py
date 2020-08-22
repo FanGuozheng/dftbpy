@@ -350,7 +350,7 @@ class SKTran:
                 self.skpp_vec(hsall, xx, yy, zz, iat, jat, li, lj)
 
     def skss_vec(self, hs, x, y, z, i, j):
-        """Return ss integral after sk transformations.
+        """Return H0, S of ss after sk transformations.
 
         Parameters:
             hs: H, S tables with dimension [natom, natom, 20]
@@ -359,7 +359,7 @@ class SKTran:
         return hs[i, j, 9], hs[i, j, 19]
 
     def sksp_vec(self, hs, x, y, z, i, j, li, lj):
-        """Return ss, sp integral after sk transformations.
+        """Return H0, S of ss, sp after sk transformations.
 
         Parameters:
             hs: H, S tables with dimension [natom, natom, 20]
@@ -415,7 +415,7 @@ class SKTran:
         return H, S
 
     def skpp_vec(self, hs, x, y, z, i, j, li, lj):
-        """Return ss, sp, pp integral after sk transformations."""
+        """Return H0, S of ss, sp, pp after sk transformations."""
         H = t.tensor([[
             # SS, SP_y, SP_z, SP_x
             hs[i, j, 9],

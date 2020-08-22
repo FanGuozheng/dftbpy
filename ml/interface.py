@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import CoulombMatrix
-from readt import ReadInt
+from readt import ReadIn
 from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
