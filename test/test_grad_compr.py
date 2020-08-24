@@ -21,7 +21,6 @@ from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
 from utils.ase import DFTB, Aims
-from utils.run_calculation import RUNDFTB
 import dftbtorch.parser as parser
 # DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
@@ -151,19 +150,17 @@ class RunML:
     def ref(self):
         """Run different reference calculations according to reference type"""
         os.system('rm .data/*.dat')
-
-        self.nbatch = self.para['nfile']
-        self.para['refhomo_lumo'] = t.zeros((self.nbatch, 2), dtype=t.float64)
-        self.para['refenergy'] = t.zeros((self.nbatch), dtype=t.float64)
-        self.para['refdipole'] = t.zeros((self.nbatch, 3), dtype=t.float64)
-        self.para['specieall'] = []
-        self.para['refeigval'] = []
-
         # get the constant parameters for DFTB
         parameters.dftb_parameter(self.para)
 
         # run reference calculations (e.g., DFTB+ ...) before ML
         if self.para['run_reference']:
+            self.nbatch = self.para['nfile']
+            self.para['refhomo_lumo'] = t.zeros((self.nbatch, 2), dtype=t.float64)
+            self.para['refenergy'] = t.zeros((self.nbatch), dtype=t.float64)
+            self.para['refdipole'] = t.zeros((self.nbatch, 3), dtype=t.float64)
+            self.para['specieall'] = []
+            self.para['refeigval'] = []
             if self.para['ref'] == 'dftb':
                 self.dftb_ref()
             elif self.para['ref'] == 'aims':
@@ -185,22 +182,53 @@ class RunML:
                 self.get_hdf_data()
 
     def get_hdf_data(self):
+        """Read data from hdf for reference or the following ML."""
+        # join the path and hdf data
         hdffile = os.path.join(self.para['pythondata_dire'],
                                self.para['pythondata_file'])
-
         self.para['coorall'] = []
         self.para['refeigval'] = []
-        self.para['specie_all'] = ['C', 'H']  # tempory code!!!
-        f = h5py.File(hdffile, 'r')
-        for ibatch in range(self.para['nfile']):
-            coorname = str(ibatch) + 'coor'
-            eigenvalname = str(ibatch) + 'eigenvalue'
+        self.para['refdipole'] = []
+        self.para['refenergy'] = []
 
-            coor = f[coorname].value
-            eigenvalue = t.tensor(f[eigenvalname].value, dtype=t.float64)
+        # read global parameters
+        with h5py.File(hdffile) as f:
+            self.para['specie_all'] = f['globalgroup'].attrs['specie_all']
+            molecule = [ikey.encode() for ikey in f.keys()]
 
-            self.para['coorall'].append(coor)
-            self.para['refeigval'].append(eigenvalue)
+            # get rid of b-prefix
+            molecule2 = [istr.decode('utf-8') for istr in molecule]
+
+            # delete group which is not related to atom species
+            ind = molecule2.index('globalgroup')
+            del molecule2[ind]
+
+        self.nbatch = 0
+        # get the coordinates
+        if self.para['hdf_mixture']:
+            for ibatch in range(self.para['nfile']):
+                for igroup in molecule2:
+                    with h5py.File(hdffile) as f:
+
+                        # coordinates: not tensor now !!!
+                        namecoor = str(ibatch) + 'coordinate'
+                        self.para['coorall'].append(
+                            t.from_numpy(f[igroup][namecoor].value))
+
+                        # eigenvalue
+                        nameeig = str(ibatch) + 'eigenvalue'
+                        self.para['refeigval'].append(
+                            t.from_numpy(f[igroup][nameeig].value))
+
+                        # dipole
+                        namedip = str(ibatch) + 'dipole'
+                        self.para['refdipole'].append(
+                            t.from_numpy(f[igroup][namedip].value))
+
+                        # formation energy
+                        nameEf = str(ibatch) + 'formationenergy'
+                        self.para['refenergy'].append(f[igroup][nameEf].value)
+                    self.nbatch += 1
 
     def dftb_ref(self):
         """Calculate reference (DFTB_torch)"""
@@ -344,7 +372,7 @@ class RunML:
         """Calculate reference (DFTB+)"""
         self.pre_dftbplus()
 
-        for ibatch in range(0, self.nbatch):
+        for ibatch in range(self.nbatch):
             # get the coor of ibatch, and start initialization
             para['ibatch'] = ibatch
             if type(para['coorall'][ibatch]) is t.Tensor:
@@ -449,7 +477,7 @@ class RunML:
         coorall = para['coorall']
 
         # calculate one by one to optimize para
-        for ibatch in range(0, self.nbatch):
+        for ibatch in range(self.nbatch):
             eigref = para['refhomo_lumo'][ibatch]
             if 'dipole' in range(0, self.nbatch):
                 dipref = t.zeros((3), dtype=t.float64)

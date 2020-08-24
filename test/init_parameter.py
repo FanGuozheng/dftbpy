@@ -23,7 +23,7 @@ def init_dftb_ml(para):
     # **********************************************************************
     #                              load data
     # **********************************************************************
-    # optional datatype: ANI, json
+    # optional datatype: ani, json, hdf
     para['dataType'] = 'hdf'
 
     # get the current path
@@ -35,6 +35,8 @@ def init_dftb_ml(para):
 
     # read hdf (with coordinates, reference physical properties) type
     if para['dataType'] == 'hdf':
+        # run referecne calculations or directly get read reference properties
+        para['run_reference'] = False
 
         # path of data
         para['pythondata_dire'] = '../data/dataset'
@@ -43,8 +45,11 @@ def init_dftb_ml(para):
         para['pythondata_file'] = 'testfile.hdf5'
 
         # number of files to be loaded
-        para['n_dataset'] = ['1']
+        para['n_dataset'] = ['2']
         # para['dire_interpSK'] = os.path.join(path, '../slko')
+
+        # mix different molecule specie type
+        para['hdf_mixture'] = True
 
     # read json type geometry
     if para['dataType'] == 'json':
@@ -61,6 +66,9 @@ def init_dftb_ml(para):
 
     # read ANI dataset
     elif para['dataType'] == 'ani':
+        # run referecne calculations or directly get read reference properties
+        para['run_reference'] = True
+
         hdffilelist = []
 
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
@@ -165,9 +173,6 @@ def init_dftb_ml(para):
     # *********************************************************************
     #                              DFTB-ML
     # *********************************************************************
-    # run referecne calculations or directly get read reference properties
-    para['run_reference'] = False
-
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
     para['reference'] = 'dftbase'
 
@@ -198,7 +203,7 @@ def init_dftb_ml(para):
     para['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    para['mlsteps'] = 3
+    para['mlsteps'] = 1
 
     # how many steps to save the DFTB-ML data !!
     para['save_steps'] = 1

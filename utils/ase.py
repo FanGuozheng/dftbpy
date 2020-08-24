@@ -63,8 +63,11 @@ class DFTB:
         # source the ase_env.sh bash file
         os.system('source ase_env.sh')
 
-    def run_dftb(self, nbatch, coorall):
+    def run_dftb(self, nbatch, coorall, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
+        if begin is None:
+            begin = 0
+
         # source and set environment for python, ase before calculations
         self.save = SaveData(self.para)
 
@@ -76,34 +79,33 @@ class DFTB:
         if 'eigval' in self.para['target']:
             self.para['refeigval'] = []
 
-        # create data
-        if self.para['task'] == 'get_hdf_data':
-            os.system('rm testfile.hdf5')
-            self.f = h5py.File('testfile.hdf5', 'w')
-
         # create reference list for following ML
         self.para['refenergy'], self.para['refqatom'] = [], []
+        self.para['refdipole'] = []
 
-        for ibatch in range(nbatch):
+        for ibatch in range(begin, nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
-            ispecie = ''.join(self.para['symbols'][ibatch])
+            if group is None:
+                self.para['natom'] = self.para['natomall'][ibatch]
+                ispecie = ''.join(self.para['symbols'][ibatch])
+            else:
+                ispecie = group.attrs['specie']
+                self.para['natom'] = group.attrs['natom']
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]
 
-            # get the number of atom
-            self.para['natom'] = self.para['natomall'][ibatch]
-
             # run each molecule in batches
-            self.ase_idftb(ispecie)
+            print("ibatch", ibatch, "specie", ispecie)
+            self.ase_idftb(ispecie, self.coor[:, 1:])
 
-            # process each result (overmat, eigenvalue, eigenvect)
+            # process each result (overmat, eigenvalue, eigenvect, dipole)
             self.process_iresult()
 
             # creat reference data as hdf type
             if self.para['task'] == 'get_hdf_data':
-                self.write_hdf5(ibatch)
+                self.write_hdf5(hdf, ibatch, ispecie, begin, group=group)
 
             # save dftb results as reference .txt
             elif self.para['task'] == 'opt':
@@ -139,10 +141,10 @@ class DFTB:
         # remove DFTB files
         self.remove()
 
-    def ase_idftb(self, moleculespecie):
+    def ase_idftb(self, moleculespecie, coor):
         """Build DFTB input by ASE."""
         # set Atoms with molecule specie and coordinates
-        mol = Atoms(moleculespecie, positions=self.coor[:, 1:])
+        mol = Atoms(moleculespecie, positions=coor)
 
         # set DFTB caulation parameters
         cal = Dftb(Hamiltonian_='DFTB',
@@ -183,29 +185,69 @@ class DFTB:
         self.para['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
 
         # read detailed.out and return energy, charge
-        E_tot, Q_ = read_detailed_out(self.para['natom'])
+        self.E_tot, self.Q_, self.dip = read_detailed_out(self.para['natom'])
 
         # calculate formation energy
-        E_f = self.cal_optfor_energy(E_tot)
+        self.E_f = self.cal_optfor_energy(self.E_tot)
 
         # add each molecule properties
-        self.para['refenergy'].append(E_f), self.para['refqatom'].append(Q_)
+        self.para['refenergy'].append(self.E_f)
+        self.para['refqatom'].append(self.Q_)
+        self.para['refdipole'].append(self.dip)
 
-    def write_hdf5(self, ibatch):
+    def write_hdf5(self, hdf, ibatch, ispecie, begin, group=None):
+        """Write each molecule DFTB calculation results to hdf type data."""
         # get the name of each molecule and its properties
-        eigval_name = str(ibatch) + 'eigenvalue'
-        eigval = self.para['eigenvalue']
-        self.f.create_dataset(eigval_name, eigval.shape, data=eigval)
-
+        num = ibatch - begin
         # coordinate name
-        coor_name = str(ibatch) + 'coor'
-        coor = self.para['coorall'][ibatch]
-        self.f.create_dataset(coor_name, coor.shape, data=coor)
+        if group is None:
+            coor_name = ispecie + str(num) + 'coordinate'
+            hdf.create_dataset(coor_name, data=self.coor)
+        else:
+            coor_name = str(num) + 'coordinate'
+            group.create_dataset(coor_name, data=self.coor)
 
-        # specie name (list)
-        # sym_name = str(ibatch) + 'symbols'
-        # symbol = self.para['symbols'][ibatch]
-        # self.f.create_dataset(sym_name, len(symbol), data=symbol)
+        # eigenvalue
+        if group is None:
+            eigval_name = ispecie + str(num) + 'eigenvalue'
+            eigval = self.para['eigenvalue']
+            hdf.create_dataset(eigval_name, data=eigval)
+        else:
+            eigval_name = str(num) + 'eigenvalue'
+            eigval = self.para['eigenvalue']
+            group.create_dataset(eigval_name, data=eigval)
+
+        # dipole name
+        if group is None:
+            dip_name = ispecie + str(num) + 'dipole'
+            hdf.create_dataset(dip_name, data=self.dip)
+        else:
+            dip_name = str(num) + 'dipole'
+            group.create_dataset(dip_name, data=self.dip)
+
+        # formation energy
+        if group is None:
+            ener_name = ispecie + str(num) + 'formationenergy'
+            hdf.create_dataset(ener_name, data=self.E_f)
+        else:
+            ener_name = str(num) + 'formationenergy'
+            group.create_dataset(ener_name, data=self.E_f)
+
+        # total energy
+        if group is None:
+            ener_name = ispecie + str(num) + 'totalenergy'
+            hdf.create_dataset(ener_name, data=self.E_tot)
+        else:
+            ener_name = str(num) + 'totalenergy'
+            group.create_dataset(ener_name, data=self.E_tot)
+
+        # total charge
+        if group is None:
+            q_name = ispecie + str(num) + 'charge'
+            hdf.create_dataset(q_name, data=self.Q_)
+        else:
+            q_name = str(num) + 'charge'
+            group.create_dataset(q_name, data=self.Q_)
 
 
     def remove(self):
@@ -294,12 +336,24 @@ def get_eigenvalue(filename, eV_Hat):
 
 def read_detailed_out(natom):
     """Read output file detailed.out."""
-    qatom = []
+    qatom, dip = [], []
     text = ''.join(open('detailed.out', 'r').readlines())
-    E_tot_ = re.search('(?<=Total energy:).+(?=\n)', text, flags = re.DOTALL | re.MULTILINE).group(0)
-    # E_tot = re.findall(r"[Total energy:]?-+\d*\.\d+", text)
-    text2 = re.search('(?<=Atom       Population\n).+(?=\n)', text, flags = re.DOTALL | re.MULTILINE).group(0)
+    E_tot_ = re.search('(?<=Total energy:).+(?=\n)',
+                       text, flags = re.DOTALL | re.MULTILINE).group(0)
     E_tot = re.findall(r"[-+]?\d*\.\d+", E_tot_)[0]
+
+    # read charge
+    text2 = re.search('(?<=Atom       Population\n).+(?=\n)',
+                      text, flags = re.DOTALL | re.MULTILINE).group(0)
     qatom_ = re.findall(r"[-+]?\d*\.\d+", text2)[:natom]
     [qatom.append(float(ii)) for ii in qatom_]
-    return float(E_tot), t.from_numpy(np.asarray(qatom))
+
+    # read dipole (Debye)
+    text3 = re.search('(?<=Dipole moment:).+(?=\n)',
+                      text, flags = re.DOTALL | re.MULTILINE).group(0)
+    dip_ = re.findall(r"[-+]?\d*\.\d+", text3)[-3::]
+    [dip.append(float(ii)) for ii in dip_]
+
+    return float(E_tot), \
+        t.from_numpy(np.asarray(qatom)), \
+            t.from_numpy(np.asarray(dip))
