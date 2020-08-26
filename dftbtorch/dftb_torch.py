@@ -95,7 +95,7 @@ class Initialization:
         # generate vector, distance ... from coordinate
         self.readin.cal_coor()
 
-        # read skf fike
+        # read skf fike from normal skf or list of skf files
         self.read_sk()
 
         # get Hubbert for each if use gaussian density basis
@@ -116,13 +116,13 @@ class Initialization:
         # do not perform machine learning
         if not self.para['Lml']:
 
-            # get integral from directly reading skf file
+            # get integral from directly reading normal skf file
             if not self.para['LreadSKFinterp']:
 
-                # read skf file by atom specie
+                # read normal skf file by atom specie
                 self.readsk.read_sk_specie()
 
-            # get integral from a list of skf file by interpolation
+            # get integral from a list of skf file (compr) by interpolation
             if self.para['LreadSKFinterp']:
 
                 # read all corresponding skf files by defined parameters
@@ -131,12 +131,13 @@ class Initialization:
                                 self.para['atomspecie'],
                                 self.para['dire_interpSK'])
 
-        # perform machine learning
-        if self.para['Lml']:
+        # machine learning is on
+        # read a list of skf files with various compression radius
+        if self.para['Lml'] and self.para['LreadSKFinterp']:
 
             # ML variables is skf parameters (compression radius)
-            # read all corresponding skf files by defined parameters
-            if self.para['Lml_skf'] and self.para['LreadSKFinterp']:
+            # read all corresponding skf files (different compression radius)
+            if self.para['Lml_skf']:
 
                 # replace local specie with global specie
                 self.para['atomspecie'] = self.para['specie_all']
@@ -148,8 +149,8 @@ class Initialization:
                                 self.para['dire_interpSK'])
 
             # ML variables is ACSF parameters
-            # read all corresponding skf files by defined parameters
-            elif self.para['Lml_acsf'] and self.para['LreadSKFinterp']:
+            # read all corresponding skf files (different compression radius)
+            elif self.para['Lml_acsf']:
 
                 # replace local specie with global specie
                 self.para['atomspecie'] = self.para['specie_all']
@@ -161,7 +162,7 @@ class Initialization:
                                 self.para['dire_interpSK'])
 
             # get integrals directly from spline interpolation
-            elif self.para['Lml_HS'] and self.para['LreadSKFinterp']:
+            elif self.para['Lml_HS']:
 
                 self.readsk.read_sk_specie()
                 self.slako.get_sk_spldata()

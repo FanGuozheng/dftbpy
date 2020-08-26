@@ -1,14 +1,17 @@
 """Slater-Koster integrals related."""
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import time
 import sys
 import numpy as np
 import torch as t
 import matplotlib.pyplot as plt
+import h5py
 import matht
 from scipy import interpolate
 from matht import Bspline, DFTBmath, BicubInterp
+ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
 class SKTran:
@@ -17,10 +20,11 @@ class SKTran:
     def __init__(self, para):
         """Initialize parameters.
 
-        Required args: integral, distance
+        Args:
+            integral
+            geometry (distance)
         Returns:
             [natom, natom, 20] matrix for each calculation
-
         """
         self.para = para
         self.math = DFTBmath(self.para)
@@ -28,28 +32,17 @@ class SKTran:
         # if machine learning or not
         if not self.para['Lml']:
 
-            # directly get integrals from .skf or offer integrals
+            # read integrals from .skf with various compression radius
             if not self.para['LreadSKFinterp']:
                 self.get_sk_all()
 
-                # build H0 and S with full, symmetric matrices
-                if self.para['HSsym'] == 'symall':
-                    self.sk_tran_symall()
+            # build H0 and S with full, symmetric matrices
+            if self.para['HSsym'] == 'symall':
+                self.sk_tran_symall()
 
-                # build H0 and S with only half matrices
-                elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tran_half()
-
-            # use interpolation to get integral with various compression radius
-            if self.para['LreadSKFinterp']:
-
-                # build H0 and S with full, symmetric matrices
-                if self.para['HSsym'] == 'symall':
-                    self.sk_tran_symall()
-
-                # build H0 and S with only half matrices
-                elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tran_half(para)
+            # build H0 and S with only half matrices
+            elif self.para['HSsym'] == 'symhalf':
+                self.sk_tran_half()
 
         # machine learning is True, some method only apply in this case
         if self.para['Lml']:
@@ -550,9 +543,59 @@ class SKinterp:
     def __init__(self, para):
         """Initialize parameters."""
         self.para = para
+        self.math = DFTBmath(self.para)
 
-    def genskf_interp_ij(self):
-        """Generate sk integral with various compression radius.
+    def genskf_interp_dist_vec(self):
+        """Generate integral along distance dimension."""
+        time0 = time.time()
+        self.para['hs_compr_all'] = []
+        distance = self.para['distance']
+
+        # index of row, column of distance matrix, no digonal
+        ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
+        dist_1d = distance[ind[0], ind[1]]
+
+        # get the skf with hdf type
+        hdfsk = os.path.join(self.para['dire_hdfSK'], self.para['name_hdfSK'])
+
+        # read all skf according to atom number (species) and indices and add
+        # these skf to a list, attention: hdf only store numpy type data
+        skf = []
+        with h5py.File(hdfsk, 'r') as f:
+            [skf.append(f[ATOMNAME[int(self.para['coor'][i, 0])] +
+                          ATOMNAME[int(self.para['coor'][j, 0])] +
+                          '/hs_all_rall'][:]) for i, j in ind.T]
+
+            # get the grid sidtance, which should be the same
+            grid_dist = f['globalgroup'].attrs['grid_dist']
+
+        # get the distance according to indices (upper triangle elements)
+        ind_ = dist_1d / grid_dist
+
+        # index of distance in each skf
+        indd = []
+        [indd.append(int(i + self.para['ninterp'] / 2 + 1)) for i in ind_]
+
+        # get integrals with ninterp (normally 8) line for interpolation
+        yy = []
+        [yy.append(iskf[:, :, j - self.para['ninterp'] - 1:j - 1, :])
+         for iskf, j in zip(skf, indd)]
+
+        # get the distances corresponding to the integrals
+        xx = []
+        [xx.append(t.linspace(i - self.para['ninterp'], i,
+                              self.para['ninterp']) * grid_dist) for i in indd]
+        time2 = time.time()
+        [self.para['hs_compr_all'].append(
+            self.math.poly_interp_4d(ixx, t.from_numpy(iyy), idd))
+            for ixx, iyy, idd in zip(xx, yy, dist_1d)]
+
+        timeend = time.time()
+        print('time of distance interpolation: ', timeend - time2)
+        print('total time of distance interpolation in skf: ', timeend - time0)
+
+    def genskf_interp_dist(self):
+        """Generate sk integral with various compression radius along distance.
 
         Args:
             atomnameall (list): all the atom name
@@ -562,6 +605,7 @@ class SKinterp:
             hs_compr_all (out): [natom, natom, ncompr, ncompr, 20]
 
         """
+        time0 = time.time()
         # all atom name for current calculation
         atomname = self.para['atomnameall']
 
@@ -579,7 +623,7 @@ class SKinterp:
 
         # get i and j atom with various compression radius at certain dist
         print('build matrix: [N, N, N_R, N_R, 20]')
-        print('N is number of atom, N_R is number of compression')
+        print('N is number of atom in molecule, N_R is number of compression')
 
         for iatom in range(natom):
             for jatom in range(natom):
@@ -594,6 +638,8 @@ class SKinterp:
                 self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
                     self.para['hs_ij']
 
+        # get the time after interpolation
+        time2 = time.time()
         for iat in atomspecie:
 
             # onsite is the same, therefore read [0, 0] instead
@@ -603,6 +649,9 @@ class SKinterp:
             uhubb[:] = self.para['uhubb' + iat + iat]
             self.para['onsite' + iat + iat] = onsite
             self.para['uhubb' + iat + iat] = uhubb
+        timeend = time.time()
+        print('time of distance interpolation: ', time2 - time0)
+        print('total time of distance interpolation in skf: ', timeend - time0)
 
     def genskf_interp_ijd_old(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
@@ -668,7 +717,7 @@ class SKinterp:
                     self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
                 # col = skfijd.shape[1]
                 self.para['hs_ij'][icompr, jcompr, :] = \
-                    DFTBmath(self.para).sk_interp(dij, nameij)
+                    self.math.sk_interp(dij, nameij)
 
     def genskf_interp_ijd_4d(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
@@ -683,7 +732,7 @@ class SKinterp:
         self.para['hs_all' + nameij] = \
             self.para['hs_all_rall' + nameij][:, :, :, :]
         self.para['hs_ij'][:, :, :] = \
-            DFTBmath(self.para).sk_interp_4d(dij, nameij, ncompr)
+            self.math.sk_interp_4d(dij, nameij, ncompr)
 
     def genskf_interp_r(self, para):
         """Generate interpolation of SKF with given compression radius.
@@ -776,6 +825,11 @@ class SKinterp:
         self.para['hs_all'] = hs_ij
         timelist.append(time.time())
         print('total time genskf_interp_compr:', timelist[-1] - timelist[1])
+
+    def genskf_interp_compr_vec(self):
+        """Generate interpolation of SKF with given compression radius."""
+        pass
+
 
 class SKspline:
     """Get integral from spline."""

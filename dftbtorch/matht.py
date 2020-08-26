@@ -55,6 +55,7 @@ class DFTBmath:
         tail = 5 * incr
         rmax = (ngridpoint - 1) * incr + tail
         ind = int(rr / incr)
+        # ind = t.round(rr / incr)
         leng = ngridpoint
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
@@ -63,7 +64,7 @@ class DFTBmath:
         elif ind < leng:  # => polynomial fit
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
-            for ii in range(0, ninterp):
+            for ii in range(ninterp):
                 xa[ii] = (ilast - ninterp + ii) * incr
             yb[:, :] = datalist[ilast - ninterp - 1: ilast - 1]
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1

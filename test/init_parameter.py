@@ -45,11 +45,19 @@ def init_dftb_ml(para):
         para['pythondata_file'] = 'testfile.hdf5'
 
         # number of files to be loaded
-        para['n_dataset'] = ['2']
-        # para['dire_interpSK'] = os.path.join(path, '../slko')
+        para['n_dataset'] = ['1']
 
         # mix different molecule specie type
         para['hdf_mixture'] = True
+
+        # if read SKF from a list of files with interpolation, instead from hdf
+        para['LreadSKFinterp'] = False
+
+        # dire of skf with hdf type
+        para['dire_hdfSK'] = '/home/gz_fan/Documents/ML/dftb/slko/hdf'
+
+        # name of skf with hdf type
+        para['name_hdfSK'] = 'skf.hdf5'
 
     # read json type geometry
     if para['dataType'] == 'json':
@@ -62,7 +70,9 @@ def init_dftb_ml(para):
 
         # number of files to be loaded
         para['n_dataset'] = ['1']
-        # para['dire_interpSK'] = os.path.join(path, '../slko')
+
+        # if read SKF from a list of files with interpolation
+        para['LreadSKFinterp'] = True
 
     # read ANI dataset
     elif para['dataType'] == 'ani':
@@ -92,6 +102,9 @@ def init_dftb_ml(para):
         # test the molecule specie is the same
         assert len(para['n_dataset']) == len(para['n_test'])
 
+        # if read SKF from a list of files with interpolation
+        para['LreadSKFinterp'] = True
+
     # read QM7 dataset
     elif para['dataType'] == 'qm7':
 
@@ -106,6 +119,9 @@ def init_dftb_ml(para):
 
         # how many used to test !!
         para['n_test'] = ['5']
+
+        # if read SKF from a list of files with interpolation
+        para['LreadSKFinterp'] = True
 
         # test the molecule specie is the same
         assert len(para['n_dataset']) == len(para['n_test'])
@@ -214,6 +230,9 @@ def init_dftb_ml(para):
     # learning rate !!
     para['lr'] = 5E-3
 
+    # optimizer
+    para['optimizer'] = 'Adam'
+
     # define loss function: MSELoss, L1Loss
     para['loss_function'] = 'MSELoss'
 
@@ -229,9 +248,6 @@ def init_dftb_ml(para):
 
     # optimize compression radius: by interpolation or by ML prediction
     if para['Lml_skf'] or para['Lml_acsf']:
-
-        # if read SKF from a list of files with interpolation
-        para['LreadSKFinterp'] = True
 
         # if optimize onsite in DFTB-ML
         para['Lonsite'] = True
@@ -431,6 +447,9 @@ def init_dftb_ml(para):
     para['Lplot_ham'] = True
     para['Lplot_feature'] = False
     para['hamold'] = 0
+
+    # save log during DFTB-ML as: txt, hdf (binary)
+    para['log_save_type'] = 'hdf'
 
     # generate reference
     para['ref_save_type'] = 'hdf'
