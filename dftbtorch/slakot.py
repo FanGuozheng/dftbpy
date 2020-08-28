@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import h5py
 import matht
 from scipy import interpolate
-from matht import Bspline, DFTBmath, BicubInterp
+from matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec)
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
@@ -553,6 +553,7 @@ class SKinterp:
 
         # index of row, column of distance matrix, no digonal
         ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
+        self.para['this_triuind_offdiag'] = ind
         dist_1d = distance[ind[0], ind[1]]
 
         # get the skf with hdf type
@@ -795,36 +796,41 @@ class SKinterp:
         """
         natom = self.para['natom']
         atomname = self.para['atomnameall']
-        bicubic = BicubInterp()
-        hs_ij = t.zeros(natom, natom, 20)
-        timelist = [0]
-        timelist.append(time.time())
+        time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
-        icount = 0
-        for iatom in range(natom):
-            iname = atomname[iatom]
-            icompr = self.para['compr_ml'][iatom]
-            xmesh = self.para[iname + '_compr_grid']
-            for jatom in range(natom):
-                jname = atomname[jatom]
-                ymesh = self.para[jname + '_compr_grid']
-                jcompr = self.para['compr_ml'][jatom]
-                zmeshall = self.para['hs_compr_all'][iatom, jatom]
-                if iatom != jatom:
-                    for icol in range(0, 20):
-                        hs_ij[iatom, jatom, icol] = \
-                            bicubic.bicubic_2d(
-                                    xmesh, ymesh, zmeshall[:, :, icol],
-                                    icompr, jcompr)
-                    '''hs_ij[iatom, jatom, :] = bicubic.bicubic_3d(
-                            xmesh, ymesh, zmeshall[:, :, :], icompr, jcompr)'''
-                icount += 1
-                timelist.append(time.time())
+        if self.para['interp_compr_type'] == 'BiCubVec':
+            bicubic = BicubInterpVec(self.para)
+            zmesh = self.para['hs_compr_all']
+            compr = self.para['compr_ml']
+            mesh = t.stack([self.para[iname + '_compr_grid'] for iname in atomname])
+            hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
+
+        elif self.para['interp_compr_type'] == 'BiCub':
+            icount = 0
+            bicubic = BicubInterp()
+            hs_ij = t.zeros(natom, natom, 20)
+            for iatom in range(natom):
+                iname = atomname[iatom]
+                icompr = self.para['compr_ml'][iatom]
+                xmesh = self.para[iname + '_compr_grid']
+                for jatom in range(natom):
+                    jname = atomname[jatom]
+                    ymesh = self.para[jname + '_compr_grid']
+                    jcompr = self.para['compr_ml'][jatom]
+                    zmeshall = self.para['hs_compr_all'][iatom, jatom]
+                    if iatom != jatom:
+                        for icol in range(0, 20):
+                            hs_ij[iatom, jatom, icol] = \
+                                bicubic.bicubic_2d(
+                                        xmesh, ymesh, zmeshall[:, :, icol],
+                                        icompr, jcompr)
+                    icount += 1
+
         self.para['hs_all'] = hs_ij
-        timelist.append(time.time())
-        print('total time genskf_interp_compr:', timelist[-1] - timelist[1])
+        timeend = time.time()
+        print('total time genskf_interp_compr:', timeend - time0)
 
     def genskf_interp_compr_vec(self):
         """Generate interpolation of SKF with given compression radius."""

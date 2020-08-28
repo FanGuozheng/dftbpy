@@ -20,7 +20,7 @@ import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from utils.load import LoadData
 from utils.save import SaveData
-from utils.ase import DFTB, Aims
+from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 # DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
@@ -156,11 +156,10 @@ class RunML:
             run_reference (L): if run calculations or read from defined file
             nfile (Int): number of total molecules
         """
-        os.system('rm .data/*.dat')
         # get the constant parameters for DFTB
         parameters.dftb_parameter(self.para)
 
-        # check data and path, get path for saving data
+        # check data and path, rm *.dat, get path for saving data
         self.dire_res = check_data(self.para, rmdata=True)
 
         # run reference calculations (e.g., DFTB+ ...) before ML

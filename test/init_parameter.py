@@ -24,7 +24,7 @@ def init_dftb_ml(para):
     #                              load data
     # **********************************************************************
     # optional datatype: ani, json, hdf
-    para['dataType'] = 'hdf'
+    para['dataType'] = 'ani'
 
     # get the current path
     path = os.getcwd()
@@ -249,6 +249,9 @@ def init_dftb_ml(para):
     # optimize compression radius: by interpolation or by ML prediction
     if para['Lml_skf'] or para['Lml_acsf']:
 
+        # interpolation of compression radius: BiCub, BiCubVec
+        para['interp_compr_type'] = 'BiCubVec'
+
         # if optimize onsite in DFTB-ML
         para['Lonsite'] = True
 
@@ -316,7 +319,7 @@ def init_dftb_ml(para):
         assert len(para['O_compr_grid']) == para['ncompr']
 
         # set initial compression radius
-        para['H_init_compr'] = 3.5
+        para['H_init_compr'] = 3.6
         para['C_init_compr'] = 3.5
         para['N_init_compr'] = 3.5
         para['O_init_compr'] = 3.5

@@ -395,6 +395,11 @@ class ReadIn:
         # the name of all the atoms
         self.para['atomnameall'] = atomnamelist
 
+        # get the triu_indices without diagonal of this molecule
+        self.para['this_triuind_offdiag'] = t.triu_indices(distance.shape[0],
+                                                           distance.shape[0],
+                                                           1)
+
         # calculate neighbour, for solid
         self.cal_neighbour()
 
