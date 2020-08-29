@@ -339,21 +339,20 @@ def read_detailed_out(natom):
     qatom, dip = [], []
     text = ''.join(open('detailed.out', 'r').readlines())
     E_tot_ = re.search('(?<=Total energy:).+(?=\n)',
-                       text, flags = re.DOTALL | re.MULTILINE).group(0)
+                       text, flags=re.DOTALL | re.MULTILINE).group(0)
     E_tot = re.findall(r"[-+]?\d*\.\d+", E_tot_)[0]
 
     # read charge
     text2 = re.search('(?<=Atom       Population\n).+(?=\n)',
-                      text, flags = re.DOTALL | re.MULTILINE).group(0)
+                      text, flags=re.DOTALL | re.MULTILINE).group(0)
     qatom_ = re.findall(r"[-+]?\d*\.\d+", text2)[:natom]
     [qatom.append(float(ii)) for ii in qatom_]
 
     # read dipole (Debye)
     text3 = re.search('(?<=Dipole moment:).+(?=\n)',
-                      text, flags = re.DOTALL | re.MULTILINE).group(0)
+                      text, flags=re.DOTALL | re.MULTILINE).group(0)
     dip_ = re.findall(r"[-+]?\d*\.\d+", text3)[-3::]
     [dip.append(float(ii)) for ii in dip_]
 
     return float(E_tot), \
-        t.from_numpy(np.asarray(qatom)), \
-            t.from_numpy(np.asarray(dip))
+        t.from_numpy(np.asarray(qatom)), t.from_numpy(np.asarray(dip))

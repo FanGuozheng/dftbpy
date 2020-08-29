@@ -39,7 +39,6 @@ def interpskf(para, skftype, atomspecie, dire_interpSK):
     Returns:
         interpolation integrals with dimension [nspecie, nspecie, ncompress,
                                                 ncompress, distance, 20]
-
     """
     time0 = time.time()
 

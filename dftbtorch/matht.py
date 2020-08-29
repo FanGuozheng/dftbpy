@@ -930,12 +930,13 @@ class BicubInterpVec:
          [f_x(0, 0), f_x(0, 1), f_xy(0, 0), f_xy(0, 1)],
          [f_x(1, 0), f_x(1, 1), f_xy(1, 0), f_xy(1, 1)]]
         a_mat = coeff * famt * coeff_
-        Then returns:
-            p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
+
         Args:
-            xmesh, ymesh: x (2D), [natom, ngrid_point]
-            zmesh: z (4D), [ijatom, ngrid_point, ngrid_point, 20]
+            xmesh: x (2D), [natom, ngrid_point]
+            zmesh: z (5D), [natom, natom, ngrid_point, ngrid_point, 20]
             ix, iy: the interpolation point
+        Returns:
+            p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         """
         # check if xi, yi is out of range of xmesh, ymesh
         xmin = t.gt(xi, self.para['compr_min'])
@@ -957,10 +958,12 @@ class BicubInterpVec:
         self.nx0 = []
         for iat in range(len(xi)):
 
-            # xi or yi
+            # xi[iat] is in one of the grid point
             if xi[iat] in xmesh[iat]:
                 self.nx0.append(np.searchsorted(
                     xmesh[iat].detach().numpy(), xi[iat].detach().numpy()))
+
+            # xi[iat] is between two grid points
             else:
                 self.nx0.append(np.searchsorted(
                     xmesh[iat].detach().numpy(), xi[iat].detach().numpy()) - 1)
@@ -969,6 +972,7 @@ class BicubInterpVec:
         # previous grid points, so is the 0, 1 ... along x, and y axes
         self.nx_1, self.nx1, self.nx2, self.nind = [], [], [], []
         [self.nind.append(i) for i in range(len(xi))]
+        [self.nx1.append(i + 1) for i in self.nx0]
 
         # get the grid indices of the surrounding two points
         # xmesh, and ymesh is the same, we can write index togetehr
@@ -980,16 +984,13 @@ class BicubInterpVec:
             # the same, there will be no gradient (the derivative is zero then)
             else:
                 self.nx_1.append(i)
-            if i <= self.nind[-2]:
+            if i <= self.nind[-3]:
                 self.nx2.append(i + 2)
 
             # if x, y is in the last grid mesh, self.nx2 and self.nx1 will be
             # the same, there will be no gradient (the derivative is zero then)
             else:
-                self.nx2.append(i)
-
-        # build nearest grid points indices
-        [self.nx1.append(i + 1) for i in self.nx0]
+                self.nx2.append(i + 1)
 
         # this is to transfer x or y to fraction, with natom element
         x_ = (xi - xmesh.T[self.nx0, self.nind]) / (xmesh.T[
@@ -1004,7 +1005,7 @@ class BicubInterpVec:
 
         # get four nearest grid points derivative over x, y, xy
         f02, f03, f12, f13, f20, f21, f30, f31, f22, f23, f32, f33 = \
-            self.fmat1th(zmesh, f00, f10, f01, f11)
+            self.fmat1th(xmesh, zmesh, f00, f10, f01, f11)
         fmat = t.stack([t.stack([f00, f01, f02, f03]),
                         t.stack([f10, f11, f12, f13]),
                         t.stack([f20, f21, f22, f23]),
@@ -1015,47 +1016,64 @@ class BicubInterpVec:
 
     def fmat0th(self, zmesh):
         """Construct f(0/1, 0/1) in fmat."""
-        f00 = t.cat([[zmesh[i, j, self.nx0[i], self.nx0[j]]
-                        for j in self.nind] for i in self.nind])
-        f10 = t.stack([zmesh[self.nind, i, self.nx1, self.nx0[i]]
-                       for i in self.nind])
-        f01 = t.stack([zmesh[self.nind, i, self.nx0, self.nx1[i]]
-                       for i in self.nind])
-        f11 = t.stack([zmesh[self.nind, i, self.nx1, self.nx1[i]]
-                       for i in self.nind])
+        f00 = t.stack([t.stack([zmesh[i, j, self.nx0[i], self.nx0[j]]
+                                for j in self.nind]) for i in self.nind])
+        f10 = t.stack([t.stack([zmesh[i, j, self.nx1[i], self.nx0[j]]
+                                for j in self.nind]) for i in self.nind])
+        f01 = t.stack([t.stack([zmesh[i, j, self.nx0[i], self.nx1[j]]
+                                for j in self.nind]) for i in self.nind])
+        f11 = t.stack([t.stack([zmesh[i, j, self.nx1[i], self.nx1[j]]
+                                for j in self.nind]) for i in self.nind])
         return f00, f10, f01, f11
 
-    def fmat1th(self, zmesh, f00, f10, f01, f11):
-        """Get the first order derivative over x, y and xy."""
-        print(self.nind, zmesh.shape, self.nx_1, self.nx0)
-        f_10 = t.stack([zmesh[self.nind, i, self.nx_1, self.nx0[i]]
-                        for i in self.nind])
-        f_11 = t.stack([zmesh[self.nind, i, self.nx_1, self.nx1[i]]
-                        for i in self.nind])
-        f0_1 = t.stack([zmesh[self.nind, i, self.nx0, self.nx_1[i]]
-                        for i in self.nind])
-        f02 = t.stack([zmesh[self.nind, i, self.nx0, self.nx2[i]]
-                       for i in self.nind])
-        f1_1 = t.stack([zmesh[self.nind, i, self.nx1, self.nx_1[i]]
-                        for i in self.nind])
-        f12 = t.stack([zmesh[self.nind, i, self.nx1, self.nx2[i]]
-                       for i in self.nind])
-        f20 = t.stack([zmesh[self.nind, i, self.nx2, self.nx0[i]]
-                       for i in self.nind])
-        f21 = t.stack([zmesh[self.nind, i, self.nx2, self.nx1[i]]
-                       for i in self.nind])
-        fy00 = f01 - f0_1
-        fy01 = f02 - f00
-        fy10 = f11 - f1_1
-        fy11 = f12 - f10
-        fx00 = f10 - f_10
-        fx01 = f20 - f00
-        fx10 = f11 - f_11
-        fx11 = f21 - f01
-        fxy00 = fy00 * fx00
-        fxy01 = fx01 * fy01
-        fxy10 = fx10 * fy10
-        fxy11 = fx11 * fy11
+    def fmat1th(self, xmesh, zmesh, f00, f10, f01, f11):
+        """Get the 1st derivative of four grid points over x, y and xy."""
+        f_10 = t.stack([t.stack([zmesh[i, j, self.nx_1[i], self.nx0[j]]
+                                 for j in self.nind]) for i in self.nind])
+        f_11 = t.stack([t.stack([zmesh[i, j, self.nx_1[i], self.nx1[j]]
+                                 for j in self.nind]) for i in self.nind])
+        f0_1 = t.stack([t.stack([zmesh[i, j, self.nx0[i], self.nx_1[j]]
+                                 for j in self.nind]) for i in self.nind])
+        f02 = t.stack([t.stack([zmesh[i, j, self.nx0[i], self.nx2[j]]
+                                for j in self.nind]) for i in self.nind])
+        f1_1 = t.stack([t.stack([zmesh[i, j, self.nx1[i], self.nx_1[j]]
+                                 for j in self.nind]) for i in self.nind])
+        f12 = t.stack([t.stack([zmesh[i, j, self.nx1[i], self.nx2[j]]
+                                for j in self.nind]) for i in self.nind])
+        f20 = t.stack([t.stack([zmesh[i, j, self.nx2[i], self.nx0[j]]
+                                for j in self.nind]) for i in self.nind])
+        f21 = t.stack([t.stack([zmesh[i, j, self.nx2[i], self.nx1[j]]
+                                for j in self.nind]) for i in self.nind])
+
+        # calculate the derivative: (F(1) - F(-1) / (2 * grid)
+        # if there is no previous or next grdi point, it will be:
+        # (F(1) - F(0) / grid or (F(0) - F(-1) / grid
+        fy00 = t.stack([t.stack([(f01[i, j] - f0_1[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fy01 = t.stack([t.stack([(f02[i, j] - f00[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fy10 = t.stack([t.stack([(f11[i, j] - f1_1[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fy11 = t.stack([t.stack([(f12[i, j] - f10[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fx00 = t.stack([t.stack([(f10[i, j] - f_10[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fx01 = t.stack([t.stack([(f20[i, j] - f00[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fx10 = t.stack([t.stack([(f11[i, j] - f_11[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fx11 = t.stack([t.stack([(f21[i, j] - f01[i, j]) /
+                                 (self.nx1[j] - self.nx_1[i])
+                                 for j in self.nind]) for i in self.nind])
+        fxy00, fxy11 = fy00 * fx00, fx11 * fy11
+        fxy01, fxy10 = fx01 * fy01, fx10 * fy10
         return fy00, fy01, fy10, fy11, fx00, fx01, fx10, fx11, fxy00, fxy01, \
             fxy10, fxy11
 

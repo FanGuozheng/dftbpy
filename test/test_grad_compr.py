@@ -172,10 +172,6 @@ class RunML:
             if self.para['ref'] == 'dftb':
                 self.dftb_ref()
 
-            # run FHI-aims as reference
-            elif self.para['ref'] == 'aims':
-                self.aims_ref(self.para)
-
             # run DFTB+ as reference
             elif self.para['ref'] == 'dftbplus':
                 self.dftbplus_ref(self.para)
@@ -1188,10 +1184,17 @@ def check_data(para, rmdata=False):
 
 if __name__ == "__main__":
     """Main function for optimizing DFTB parameters, testing DFTB."""
+    # automatically test the gradient problem
     t.autograd.set_detect_anomaly(True)
+
+    # set the print precision
     t.set_printoptions(precision=15)
+
+    # set the data type precision
     t.set_default_dtype(d=t.float64)
     para = {}
+
+    # interface to shell terminal and get the default task
     parser.parser_cmd_args(para)
     if para['task'] == 'opt':
         opt(para)
