@@ -118,12 +118,12 @@ def nonscc_CH4(para):
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
                               0.88758063039831003, 0.88758063039830970,
-                              0.88758063039831003], dtype=t.float64)
+                              0.88758063039831003])
     test_accuracy(para, 'CH4', './data', Lq=True)
 
 
@@ -139,18 +139,18 @@ def scc_CH4(para):
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([4.3646063221278348, 0.9088484194680416,
                               0.9088484194680417, 0.9088484194680415,
-                              0.9088484194680422], dtype=t.float64)
+                              0.9088484194680422])
     para['datats'] = t.tensor([9.79705420433358, 2.57029836887912,
                                2.57029836887912, 2.57029836887912,
-                               2.57029836887912], dtype=t.float64)
+                               2.57029836887912])
     para['datambd'] = t.tensor([10.5834157921756, 1.82998716394802,
                                 1.82998716394802, 1.82998716394802,
-                                1.82998716394802], dtype=t.float64)
+                                1.82998716394802])
     test_accuracy(para, 'CH4', './data', Lq=True, Lp=True)
 
 
@@ -170,7 +170,7 @@ def nonscc_CH4_nonsym(para):
     para['atomNumber'] = para['coor'][:, 0]
     para['dataq'] = t.tensor([4.4997361516795538, 0.9005492428500024,
                               0.8953750140152250, 0.8641715463062267,
-                              0.8401680451489958], dtype=t.float64)
+                              0.8401680451489958])
     main(para)
     test_accuracy(para, 'CH4_nonsym', './data', Lq=True)
 
@@ -193,13 +193,13 @@ def scc_CH4_nonsym(para):
     main(para)
     para['dataq'] = t.tensor([4.4046586991616872, 0.9243139211840105,
                               0.9189034167482688, 0.8876746127630650,
-                              0.8644493501429688], dtype=t.float64)
+                              0.8644493501429688])
     para['datats'] = t.tensor([9.93812348342835, 2.76774226013437,
                                2.73426821500725, 2.45225760746137,
-                               2.29442053432681], dtype=t.float64)
+                               2.29442053432681])
     para['datambd'] = t.tensor([10.6544331300661, 2.13683704440973,
                                 2.15230148694062, 1.63880440230659,
-                                1.42140268339990], dtype=t.float64)
+                                1.42140268339990])
     test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=True)
 
 
@@ -212,10 +212,10 @@ def nonscc_H2(para):
     para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
+            [1, 0.5000000000, 0.5000000000, 0.5000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
+    para['dataq'] = t.tensor([1.00000000, 1.00000000])
     test_accuracy(para, 'H2', './data', Lq=True)
 
 
@@ -231,10 +231,10 @@ def scc_H2(para):
     para['LMBD_DFTB'] = True
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 0.5000000000, 0.5000000000, 0.5000000000]]), dtype=t.float64)
+            [1, 0.5000000000, 0.5000000000, 0.5000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
-    para['dataq'] = t.tensor([1.00000000, 1.00000000], dtype=t.float64)
+    para['dataq'] = t.tensor([1.00000000, 1.00000000])
     para['datats'] = t.tensor([2.96106578790466, 2.96106578790466],
                               dtype=t.float64)
     para['datambd'] = t.tensor([2.66188170934323, 2.66188170934323],
@@ -299,7 +299,7 @@ def nonscc_CO2(para):
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([6.6135557981748079, 2.7109071259517026,
-                              6.6755370758734962], dtype=t.float64)
+                              6.6755370758734962])
     test_accuracy(para, 'CO2', './data', Lq=True)
 
 
@@ -319,11 +319,11 @@ def scc_CO2(para):
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
     para['dataq'] = t.tensor([6.4270792466227178, 3.1244580919585441,
-                              6.4484626614187430], dtype=t.float64)
+                              6.4484626614187430])
     para['datats'] = t.tensor([5.29721592768678, 7.83915424274904,
-                               5.32206102771691], dtype=t.float64)
+                               5.32206102771691])
     para['datambd'] = t.tensor([5.33032172678994, 7.09741229651905,
-                                5.41673616918169], dtype=t.float64)
+                                5.41673616918169])
     test_accuracy(para, 'CO2', './data', Lq=True, Lp=False)
 
 
@@ -416,10 +416,10 @@ def nonscc_C2H6O(para):
                               6.7603868320346310, 0.8969363587360036,
                               0.9021808864900093, 0.8933849747787559,
                               0.9216715792067960, 0.9061965403164295,
-                              0.5690890672147806], dtype=t.float64)
+                              0.5690890672147806])
     para['dataq'] = t.tensor([4.36754301, 3.78261076, 6.76038683, 0.89693636,
                               0.90218089, 0.89338497, 0.92167158, 0.90619654,
-                              0.56908907], dtype=t.float64)
+                              0.56908907])
     test_accuracy(para, 'C2H6O', './data', Lq=True)
 
 
@@ -448,17 +448,17 @@ def scc_C2H6O(para):
                               6.5028095628105218, 0.9296529355508590,
                               0.9342688752419560, 0.9036781748891559,
                               0.9481281985300407, 0.9659838956731005,
-                              0.6818627536487445], dtype=t.float64)
+                              0.6818627536487445])
     para['datats'] = t.tensor([9.84660891982198, 8.98857943866821,
                                5.35847589393927, 2.70480456707182,
                                2.72124081467918, 2.56503906488386,
                                2.77880305439828, 2.88633663053240,
-                               1.76563961688359], dtype=t.float64)
+                               1.76563961688359])
     para['datambd'] = t.tensor([10.7704481153938, 10.4206620417722,
                                 5.17107415784681, 1.87077049923922,
                                 1.75948649387994, 1.62631948159624,
                                 1.72253860663783, 1.87086245531241,
-                                1.29692091396141], dtype=t.float64)
+                                1.29692091396141])
     test_accuracy(para, 'C2H6O', './data', Lq=True, Lp=True)
 
 
@@ -474,17 +474,20 @@ def scc_CH4_compr(para):
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
     para['atomNumber'] = para['coor'][:, 0]
     dftb_torch.Initialization(para)
-    test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.RunML(para).get_compr_specie()
+    test_grad_compr.GenMLPara(para).genml_init_compr()
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SlaKo(para).genskf_interp_compr()
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_compr', './data', q='CH4_scc_sym_q.dat')
+    para['dataq'] = t.tensor([4.3646063221278348, 0.9088484194680416,
+                              0.9088484194680417, 0.9088484194680415,
+                              0.9088484194680422])
+    test_accuracy(para, 'CH4', './data', Lq=True)
 
 
 def nonscc_CH4_compr(para):
@@ -500,17 +503,20 @@ def nonscc_CH4_compr(para):
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]), dtype=t.float64)
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
     para['atomNumber'] = para['coor'][:, 0]
     dftb_torch.Initialization(para)
-    test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.RunML(para).get_compr_specie()
+    test_grad_compr.GenMLPara(para).genml_init_compr()
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SlaKo(para).genskf_interp_compr()
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_compr', './data', q='CH4_nonscc_sym_q.dat')
+    para['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
+                              0.88758063039831003, 0.88758063039830970,
+                              0.88758063039831003])
+    test_accuracy(para, 'CH4', './data', Lq=True)
 
 
 def nonscc_CH4_compr_nongrid(para):
@@ -530,15 +536,17 @@ def nonscc_CH4_compr_nongrid(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     dftb_torch.Initialization(para)
-    test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.RunML(para).get_compr_specie()
+    test_grad_compr.GenMLPara(para).genml_init_compr()
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SlaKo(para).genskf_interp_compr()
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_nonscc_nonsym_C2.2_H2.2', './data',
-                  q='CH4_nonscc_9compr.dat')
+    para['dataq'] = t.tensor([4.4997361516795538, 0.9005492428500024,
+                              0.8953750140152250, 0.8641715463062267,
+                              0.8401680451489958])
+    test_accuracy(para, 'CH4_nonsym', './data', Lq=True)
 
 
 def scc_CH4_compr_nongrid(para):
@@ -557,15 +565,23 @@ def scc_CH4_compr_nongrid(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     dftb_torch.Initialization(para)
-    test_grad_compr.GenMLPara(para).get_spllabel()
-    test_grad_compr.RunML(para).get_compr_specie()
+    test_grad_compr.GenMLPara(para).genml_init_compr()
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SlaKo(para).genskf_interp_compr()
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    test_accuracy(para, 'CH4_scc_nonsym_C2.2_H2.2', './data',
-                  q='CH4_scc_9compr.dat')
+    para['dataq'] = t.tensor([4.4046586991616872, 0.9243139211840105,
+                              0.9189034167482688, 0.8876746127630650,
+                              0.8644493501429688])
+    para['datats'] = t.tensor([9.93812348342835, 2.76774226013437,
+                               2.73426821500725, 2.45225760746137,
+                               2.29442053432681])
+    para['datambd'] = t.tensor([10.6544331300661, 2.13683704440973,
+                                2.15230148694062, 1.63880440230659,
+                                1.42140268339990])
+    test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=False)
 
 
 def scc_H(para):
@@ -591,7 +607,7 @@ def scc_C(para):
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
     para['coor'] = t.tensor((
-            [[6, 0.0000000000, 0.0000000000, 0.0000000000]]), dtype=t.float64)
+            [[6, 0.0000000000, 0.0000000000, 0.0000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
     main(para)
 
@@ -649,12 +665,12 @@ def test_compr_para(para):
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
     para['onsiteH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
+            [0.0E+00, 0.0E+00, -2.386005440483E-01]))
     para['onsiteC'] = t.tensor((
             [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
             dtype=t.float64)
     para['uhubbH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
+            [0.0E+00, 0.0E+00, 4.196174261214E-01]))
     para['uhubbC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
             dtype=t.float64)
@@ -725,9 +741,9 @@ def test_compr_para_10points(para):
     nkk = len(kk)
     nrr = para['CH4_scc_compr'].shape[0]
 
-    qatomall = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
-    qdiff = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
-    qdiff2 = t.zeros((2, nkk, nrr), dtype=t.float64)
+    qatomall = t.zeros((2, nkk, nrr, 5))
+    qdiff = t.zeros((2, nkk, nrr, 5))
+    qdiff2 = t.zeros((2, nkk, nrr))
 
     with open(os.path.join('.data', 'test_compr_para_q.hsd'), 'w') as fpq:
 
@@ -833,7 +849,7 @@ def test_compr_para_15points(para):
             [2., 2.1, 2.23, 2.4, 2.6, 2.84, 3.14, 3.52, 3.97, 4.54, 5.23,
              6.08, 7.12, 8.41, 10.00],
             [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
-             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+             4.66, 5.52, 6.64, 8.10, 10.]]))
     para['C_compr_grid_tol'] = t.tensor(([
             [2., 2.57, 3.14, 3.71, 4.28, 4.85, 5.42, 6.00, 6.57, 7.14,
              7.71, 8.28, 8.85, 9.42, 10.],
@@ -848,7 +864,7 @@ def test_compr_para_15points(para):
             [2., 2.1, 2.23, 2.4, 2.6, 2.84, 3.14, 3.52, 3.97, 4.54, 5.23,
              6.08, 7.12, 8.41, 10.00],
             [2., 2.06, 2.14, 2.24, 2.38, 2.56, 2.79, 3.09, 3.49, 4.00,
-             4.66, 5.52, 6.64, 8.10, 10.]]), dtype=t.float64)
+             4.66, 5.52, 6.64, 8.10, 10.]]))
     assert para['H_compr_grid_tol'].shape == para['C_compr_grid_tol'].shape
 
     kk = ['00', '10', '15', '18', '20', '23', '30']
@@ -856,9 +872,9 @@ def test_compr_para_15points(para):
     nkk = len(kk)
     nrr = para['CH4_scc_compr'].shape[0]
 
-    qatomall = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
-    qdiff = t.zeros((2, nkk, nrr, 5), dtype=t.float64)
-    qdiff2 = t.zeros((2, nkk, nrr), dtype=t.float64)
+    qatomall = t.zeros((2, nkk, nrr, 5))
+    qdiff = t.zeros((2, nkk, nrr, 5))
+    qdiff2 = t.zeros((2, nkk, nrr))
 
     with open(os.path.join('.data', 'test_compr_para_q.hsd'), 'w') as fpq:
 
@@ -1031,11 +1047,17 @@ if __name__ == '__main__':
         interpolate integral from a lsit of SKF with various parameters
 
     """
-    # set the precision = 15
+    # set the print precision
     t.set_printoptions(precision=15)
 
+    # set the data precision
+    t.set_default_dtype(d=t.float64)
+
+    # define global dictionary
     para = {}
-    para["test_precision"] = "normal"
+
+    # define the main task
+    para["test_precision"] = "single"
 
     # test a single molecule
     if para["test_precision"] == "single":

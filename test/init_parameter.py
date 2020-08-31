@@ -24,7 +24,7 @@ def init_dftb_ml(para):
     #                              load data
     # **********************************************************************
     # optional datatype: ani, json, hdf
-    para['dataType'] = 'hdf'
+    para['dataType'] = 'ani'
 
     # get the current path
     path = os.getcwd()
@@ -190,7 +190,7 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    para['reference'] = 'dftbase'
+    para['reference'] = 'aimsase'
 
     if para['reference'] == 'dftbase':
 
@@ -248,6 +248,9 @@ def init_dftb_ml(para):
 
     # optimize compression radius: by interpolation or by ML prediction
     if para['Lml_skf'] or para['Lml_acsf']:
+
+        # interpolation of compression radius: BiCub, BiCubVec
+        para['interp_compr_type'] = 'BiCubVec'
 
         # if optimize onsite in DFTB-ML
         para['Lonsite'] = True
@@ -316,7 +319,7 @@ def init_dftb_ml(para):
         assert len(para['O_compr_grid']) == para['ncompr']
 
         # set initial compression radius
-        para['H_init_compr'] = 3.5
+        para['H_init_compr'] = 3.6
         para['C_init_compr'] = 3.5
         para['N_init_compr'] = 3.5
         para['O_init_compr'] = 3.5
@@ -563,11 +566,17 @@ def init_dftb_interp(para):
     # periodic condition
     para['Lperiodic'] = False
 
+    # if calculate PDOS
+    para['Lpdos'] = True
+
     # mixing method: simple, anderson, broyden
     para['mixMethod'] = 'anderson'
 
     # mixing factor
     para['mixFactor'] = 0.2
+
+    # if smaller than t_zero_max, treated as zero
+    para['t_zero_max'] = 5
 
     # convergence_tol method: energy, charge
     para['convergenceType'] = 'energy'
@@ -583,6 +592,9 @@ def init_dftb_interp(para):
 
     # max interation step
     para['maxIter'] = 60
+
+    # density basis: exp_spher, gaussian
+    para['scc_den_basis'] = 'exp_spher'
 
     # general eigenvalue method: cholesky, lowdin_qr
     para['eigenmethod'] = 'cholesky'
@@ -620,9 +632,8 @@ def init_dftb_interp(para):
     para['vdw_self_consistent'] = False
     para['beta'] = 1.05
 
-    # para['Lml_compr_global'] = False
-    # if interpolate or optimize onsite
-    para['Lonsite'] = True
+    para['Lml_compr_global'] = False
+    para['sk_tran'] = 'new'
 
     # total atom specie in last step
     para['atomspecie_old'] = []
@@ -630,17 +641,49 @@ def init_dftb_interp(para):
     # get integral from interpolation
     para['LreadSKFinterp'] = True
 
+    # deine Hubbert is orbital resolved or not
+    para['Lorbres'] = False
+
     # SKF compression radius: all (all radius the same), wavefunction
     para['typeSKinterpR'] = 'all'
 
-    # directory of SKF file
-    para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
+    # smooth the tail when read the skf
+    para['smooth_tail'] = True
 
     # initial compression radius of H
     para['H_init_compr'] = 2.5
 
     # initial compression radius of C
     para['C_init_compr'] = 3.0
+
+    # interpolation of compression radius: BiCub, BiCubVec
+    para['interp_compr_type'] = 'BiCubVec'
+
+    # if optimize onsite in DFTB-ML
+    para['Lonsite'] = True
+
+    # grid of compression radius is uniform or not !!
+    para['typeSKinterp'] = 'uniform'
+
+    # skgen compression radius parameters: all, wavefunction, density
+    para['typeSKinterpR'] = 'all'
+
+    # the grid point of compression radius is not uniform
+    if para['typeSKinterp'] == 'nonuniform':
+        para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
+
+    # the grid point of compression radius is uniform
+    elif para['typeSKinterp'] == 'uniform':
+        para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
+
+    # number of grid points, should be equal to atom_compr_grid
+    para['ncompr'] = 10
+
+    # if any compR < 2.2, break DFTB-ML loop
+    para['compr_min'] = 2.2
+
+    # if any compR > 9, break DFTB-ML loop
+    para['compr_max'] = 9
 
     # grid points of compression radius of H
     para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
@@ -651,19 +694,19 @@ def init_dftb_interp(para):
                                      5.00, 5.50, 6.00]), dtype=t.float64)
 
     # onsite of H
-    para['onsiteH'] = t.tensor((
+    para['onsiteHH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
 
     # onsite of C
-    para['onsiteC'] = t.tensor((
+    para['onsiteCC'] = t.tensor((
             [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
             dtype=t.float64)
 
     # Hubbert of H
-    para['uhubbH'] = t.tensor((
+    para['uhubbHH'] = t.tensor((
             [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
 
     # Hubber of C
-    para['uhubbC'] = t.tensor((
+    para['uhubbCC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
             dtype=t.float64)
