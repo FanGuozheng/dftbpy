@@ -242,21 +242,21 @@ class RunML:
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'coordinate'
                         self.para['coorall'].append(
-                            t.from_numpy(f[igroup][namecoor].value))
+                            t.from_numpy(f[igroup][namecoor][()]))
 
                         # eigenvalue
                         nameeig = str(ibatch) + 'eigenvalue'
                         self.para['refeigval'].append(
-                            t.from_numpy(f[igroup][nameeig].value))
+                            t.from_numpy(f[igroup][nameeig][()]))
 
                         # dipole
                         namedip = str(ibatch) + 'dipole'
                         self.para['refdipole'].append(
-                            t.from_numpy(f[igroup][namedip].value))
+                            t.from_numpy(f[igroup][namedip][()]))
 
                         # formation energy
                         nameEf = str(ibatch) + 'formationenergy'
-                        self.para['refenergy'].append(f[igroup][nameEf].value)
+                        self.para['refenergy'].append(f[igroup][nameEf][()])
 
                     # total molecule number
                     self.nbatch += 1
