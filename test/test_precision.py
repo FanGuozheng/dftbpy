@@ -36,7 +36,7 @@ def test_accuracy(para, name, dire,
         print_('overlap', data_)
     if Lq:
         dataq = para['dataq']
-        data_ = abs((dataq - para['qatomall']) / abs(dataq)).sum() / nat
+        data_ = abs((dataq - para['charge']) / abs(dataq)).sum() / nat
         print_('charge', data_)
     if Lp:
         datats = para['datats']
@@ -766,11 +766,11 @@ def test_compr_para_10points(para):
                     para['compr_ml'] = para['compr_init']
                     slakot.SlaKo(para).genskf_interp_compr()
                     test_grad_compr.RunCalc(para).idftb_torchspline()
-                    qatomall[iscc, ik, ir, :] = para['qatomall']
+                    qatomall[iscc, ik, ir, :] = para['charge']
 
                     if para['scc'] == 'scc':
                         qdiff[iscc, ik, ir, :] = \
-                            para['CH4_scc_compr'][ir, :] - para['qatomall']
+                            para['CH4_scc_compr'][ir, :] - para['charge']
                         qdiff2[iscc, ik, ir] = \
                             sum(abs(qdiff[iscc, ik, ir, :]) /
                                 abs(para['CH4_scc_compr'][ir, :])) / 5
@@ -778,13 +778,13 @@ def test_compr_para_10points(para):
                         print('2:', qdiff2[iscc, ik, ir])
                     elif para['scc'] == 'nonscc':
                         qdiff[iscc, ik, ir, :] = \
-                            para['CH4_nonscc_compr'][ir, :] - para['qatomall']
+                            para['CH4_nonscc_compr'][ir, :] - para['charge']
                         qdiff2[iscc, ik, ir] = \
                             sum(abs(qdiff[iscc, ik, ir, :]) /
                                 abs(para['CH4_scc_compr'][ir, :])) / 5
                         print('1:', sum(abs(qdiff[iscc, ik, ir, :])) / 5)
                         print('2:', qdiff2[iscc, ik, ir])
-                    np.savetxt(fpq, para['qatomall'].numpy(),
+                    np.savetxt(fpq, para['charge'].numpy(),
                                fmt="%s", newline=" ")
                     fpq.write('\n')
                     np.savetxt(fpq, qdiff[iscc, ik, ir, :].numpy(),
@@ -897,11 +897,11 @@ def test_compr_para_15points(para):
                     para['compr_ml'] = para['compr_init']
                     slakot.SlaKo(para).genskf_interp_compr()
                     test_grad_compr.RunCalc(para).idftb_torchspline()
-                    qatomall[iscc, ik, ir, :] = para['qatomall']
+                    qatomall[iscc, ik, ir, :] = para['charge']
 
                     if para['scc'] == 'scc':
                         qdiff[iscc, ik, ir, :] = \
-                            para['CH4_scc_compr'][ir, :] - para['qatomall']
+                            para['CH4_scc_compr'][ir, :] - para['charge']
                         qdiff2[iscc, ik, ir] = \
                             sum(abs(qdiff[iscc, ik, ir, :]) /
                                 abs(para['CH4_scc_compr'][ir, :])) / 5
@@ -909,12 +909,12 @@ def test_compr_para_15points(para):
                         print('2:', qdiff2[iscc, ik, ir])
                     elif para['scc'] == 'nonscc':
                         qdiff[iscc, ik, ir, :] = \
-                            para['CH4_nonscc_compr'][ir, :] - para['qatomall']
+                            para['CH4_nonscc_compr'][ir, :] - para['charge']
                         qdiff2[iscc, ik, ir] = \
                             sum(abs(qdiff[iscc, ik, ir, :]) /
                                 abs(para['CH4_scc_compr'][ir, :])) / 5
 
-                    np.savetxt(fpq, para['qatomall'].numpy(),
+                    np.savetxt(fpq, para['charge'].numpy(),
                                fmt="%s", newline=" ")
                     fpq.write('\n')
                     np.savetxt(fpq, qdiff[iscc, ik, ir, :].numpy(),
@@ -1057,7 +1057,7 @@ if __name__ == '__main__':
     para = {}
 
     # define the main task
-    para["test_precision"] = "single"
+    para["test_precision"] = "compr"
 
     # test a single molecule
     if para["test_precision"] == "single":

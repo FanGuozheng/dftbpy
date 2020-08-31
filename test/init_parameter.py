@@ -88,7 +88,7 @@ def init_dftb_ml(para):
         para['hdffile'] = hdffilelist
 
         # determine the type of molecule: str(integer), 'all' !!
-        para['hdf_num'] = [['1']]
+        para['hdf_num'] = [['all']]
 
         # how many molecules for each molecule specie !!
         para['n_dataset'] = ['1']
@@ -190,9 +190,9 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    para['reference'] = 'aimsase'
+    para['reference'] = 'aims'
 
-    if para['reference'] == 'dftbase':
+    if para['reference'] == 'dftbase' or para['reference'] == 'dftbplus':
 
         # path of binary, executable DFTB file
         para['dftb_ase_path'] = '/home/gz_fan/Documents/ML/dftb/test/dftbplus'
@@ -203,16 +203,59 @@ def init_dftb_ml(para):
         # path slater-koster file
         para['skf_ase_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
 
-    if para['reference'] == 'aimsase':
+    if para['reference'] == 'aimsase' or para['reference'] == 'aims':
 
         # path of binary, executable FHI-aims file
         para['aims_ase_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/bin'
 
         # name of binary, executable FHI-aims file
-        para['aims_bin'] = 'aims.171221_1.scalapack.mpi.x+'
+        para['aims_bin'] = 'aims.171221_1.scalapack.mpi.x'
 
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
-    para['target'] = ['eigval']
+    para['target'] = ['dipole']
+
+    # If turn on some calculations related to these physical properties
+    # turn on anyway
+    if 'energy' in para['target']:
+        para['Lenergy'] = True
+        para['Lrepulsive'] = True
+    else:
+        para['Lenergy'] = True
+        para['Lrepulsive'] = True
+
+    # calculate, read, save the eigenvalue
+    if 'eigval' in para['target']:
+        para['Leigval'] = True
+    else:
+        para['Leigval'] = False
+
+    # calculate, read, save the MBD-DFTB
+    if 'polarizability' in para['target']:
+        para['LMBD_DFTB'] = True
+        # mbd_vdw_n_quad_pts = para['n_omega_grid']
+        para['n_omega_grid'] = 15
+        para['vdw_self_consistent'] = False
+        para['beta'] = 1.05
+    else:
+        para['LMBD_DFTB'] = False
+
+    # calculate, read, save the PDOS
+    if 'pdos' in para['target']:
+        para['Lpdos'] = True
+    else:
+        para['Lpdos'] = False
+
+    # calculate, read, save the dipole
+    if 'dipole' in para['target']:
+        para['Ldipole'] = True
+    else:
+        para['Ldipole'] = False
+
+    # calculate, read, save the HOMO LUMO
+    if 'homo_lumo' in para['target']:
+        para['LHL'] = True
+    else:
+        para['LHL'] = False
 
     # define weight in loss function
     para['dipole_loss_ratio'] = 1
@@ -222,7 +265,7 @@ def init_dftb_ml(para):
     para['mlsteps'] = 1
 
     # how many steps to save the DFTB-ML data !!
-    para['save_steps'] = 1
+    para['save_steps'] = 2
 
     # minimum steps
     para['opt_step_min'] = 2
@@ -376,17 +419,6 @@ def init_dftb_ml(para):
     # if read parameter from dftb_in (default input name)
     para['LReadInput'] = False
 
-    # if perform MBD-DFTB calculation
-    para['LMBD_DFTB'] = False
-
-    # mbd_vdw_n_quad_pts = para['n_omega_grid']
-    para['n_omega_grid'] = 15
-    para['vdw_self_consistent'] = False
-    para['beta'] = 1.05
-
-    # if calculate PDOS
-    para['Lpdos'] = True
-
     # general eigenvalue methodin DFTB-ML: cholesky, lowdin_qr !!
     para['eigenmethod'] = 'cholesky'
 
@@ -433,12 +465,6 @@ def init_dftb_ml(para):
 
     # periodic condition
     para['Lperiodic'] = False
-
-    # calculate dipole or not
-    para['Ldipole'] = False
-
-    # calculate repulsive or not
-    para['Lrepulsive'] = False
 
     # coordinate type: 'C': cartesian...
     para['coorType'] = 'C'

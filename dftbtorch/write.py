@@ -87,7 +87,7 @@ class Print:
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
         # print charge
-        print('\n charge (e): ', self.para['qatomall'])
+        print('\n charge (e): ', self.para['charge'])
 
         # print dipole
         print('\n dipole (eAng): ', self.para['dipole'])

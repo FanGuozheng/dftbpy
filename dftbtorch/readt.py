@@ -324,6 +324,7 @@ class ReadIn:
 
         """
         # transfer from angstrom to bohr
+        print(self.para['coor'])
         self.para['coor'][:, 1:] = self.para['coor'][:, 1:] / self.para['BOHR']
         coor = self.para['coor']
 

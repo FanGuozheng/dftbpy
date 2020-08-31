@@ -97,7 +97,6 @@ class DFTB:
             self.coor = coorall[ibatch]
 
             # run each molecule in batches
-            print("ibatch", ibatch, "specie", ispecie)
             self.ase_idftb(ispecie, self.coor[:, 1:])
 
             # process each result (overmat, eigenvalue, eigenvect, dipole)

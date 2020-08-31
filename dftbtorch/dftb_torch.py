@@ -211,14 +211,22 @@ class Rundftbpy:
         """Run (SCC-) DFTB."""
         self.para = para
 
+        # analyze DFTB result
+        self.analysis = Analysis(self.para)
+
+        # print DFTB calculation information
+        self.print_ = Print(self.para)
+
         # print title before DFTB calculations
-        Print(self.para).print_scf_title()
+        self.print_.print_scf_title()
 
         # calculate (SCC-) DFTB
         self.runscf()
 
         # calculate repulsive term
         self.run_repulsive()
+
+        self.run_analysis()
 
     def runscf(self):
         """Run DFTB with multi interface.
@@ -254,6 +262,20 @@ class Rundftbpy:
         """Calculate repulsive term."""
         if self.para['Lrepulsive']:
             Repulsive(self.para)
+
+    def run_analysis(self):
+        """Analyse the DFTB calculation results and print."""
+        if self.para['scc'] == 'scc':
+            self.analysis.dftb_energy(shift_=self.para['shift'],
+                                      qatom=self.para['charge'])
+        elif self.para['scc'] == 'nonscc':
+            self.analysis.dftb_energy()
+
+        # claculate physical properties
+        self.analysis.sum_property()
+
+        # print and write non-SCC DFTB results
+        self.print_.print_dftb_tail()
 
 
 class SCF:
@@ -357,17 +379,8 @@ class SCF:
         self.para['eigenvec'] = C
 
         # calculate mulliken charges
-        self.para['qatomall'] = self.elect.mulliken(
+        self.para['charge'] = self.elect.mulliken(
             self.para['HSsym'], over, self.para['denmat'])
-
-        # claculate DFTB energy
-        self.analysis.dftb_energy()
-
-        # claculate physical properties
-        self.analysis.sum_property()
-
-        # print and write non-SCC DFTB results
-        self.print_.print_dftb_tail()
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -485,7 +498,7 @@ class SCF:
                 break
 
         # return eigenvalue and charge
-        self.para['eigenvalue'], self.para['qatomall'] = epsilon, q_mixed
+        self.para['eigenvalue'], self.para['charge'] = epsilon, q_mixed
 
         # return density matrix
         self.para['denmat'] = denmat
@@ -493,12 +506,8 @@ class SCF:
         # return the eigenvector
         self.para['eigenvec'] = C
 
-        # return final energy
-        self.analysis.dftb_energy(shift_, qatom=q_mixed)
-
-        # print and write non-SCC DFTB results
-        self.analysis.sum_property()
-        self.print_.print_dftb_tail()
+        # return the final shift
+        self.para['shift'] = shift_
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -522,22 +531,6 @@ class SCF:
         for iat in range(0, self.nat):
             for jind in range(self.atind[iat], self.atind[iat + 1]):
                 shiftorb_[jind] = shift_[iat]
-
-        # Hamiltonian = H0 + H2
-        '''icount = 0
-        if self.para['HSsym'] == 'symall':
-            eigm = self.hmat
-            overm = self.smat
-        else:
-            eigm = t.zeros(self.atind[self.nat], self.atind[self.nat])
-            overm = t.zeros(self.atind[self.nat], self.atind[self.nat])
-            for iind in range(0, self.atind[self.nat]):
-                for jind in range(0, iind + 1):
-                    eigm[jind, iind] = self.hmat[icount]
-                    overm[jind, iind] = self.smat[icount]
-                    eigm[iind, jind] = self.hmat[icount]
-                    overm[iind, jind] = self.smat[icount]
-                    icount += 1'''
 
         icount = 0
         if self.para['HSsym'] == 'symall':
@@ -595,9 +588,8 @@ class SCF:
         energy = energy - 0.5 * ecoul
 
         # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['qatomall'] = eigval_, qatom_
+        self.para['eigenvalue'], self.para['charge'] = eigval_, qatom_
         self.para['denmat'] = denmat_
-        self.analysis.sum_property(), self.print_.print_dftb_tail()
 
     def convergence(self, iiter, maxiter, diff_):
         """Convergence for SCC loops."""
@@ -736,7 +728,7 @@ class Mixing:
             elif self.para['mixMethod'] == 'anderson':
                 qmix_ = self.anderson_mix(iiter, qmix, qatom, qdiff)
             qmix.append(qmix_)
-        self.para['qatomall'] = qatom
+        self.para['charge'] = qatom
 
     def simple_mix(self, oldqatom, qatom, qdiff):
         """Simple mixing method."""
@@ -899,19 +891,20 @@ class Analysis:
             # get Coulomb energy
             self.para['coul_energy'] = shift_ @ (qatom + qzero) / 2
 
+            # self.para
+            self.para['electronic_energy'] = self.para['H0_energy'] - \
+                self.para['coul_energy']
+
             # add up energy
             if self.para['Lrepulsive']:
-                self.para['energy'] = self.para['H0_energy'] + \
-                    self.para['rep_energy'] - self.para['coul_energy']
-            else:
-                self.para['energy'] = self.para['H0_energy'] + \
-                    self.para['coul_energy']
+                self.para['energy'] = self.para['electronic_energy'] + \
+                    self.para['rep_energy']
 
     def sum_property(self):
         """Get alternative DFTB results."""
         nocc = self.para['nocc']
         eigval = self.para['eigenvalue']
-        qzero, qatom = self.para['qzero'], self.para['qatomall']
+        qzero, qatom = self.para['qzero'], self.para['charge']
 
         # get HOMO-LUMO, not orbital resolved
         self.para['homo_lumo'] = eigval[int(nocc) - 1:int(nocc) + 1] * \
