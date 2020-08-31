@@ -6,6 +6,7 @@ import os
 import numpy as np
 import torch as t
 from ase import Atoms
+import subprocess
 import h5py
 from ase.build import molecule
 from ase.calculators.dftb import Dftb
@@ -53,15 +54,8 @@ class DFTB:
         path_bin = os.path.join(os.getcwd(), self.dftb_bin)
 
         # set ase environemt
-        with open('ase_env.sh', 'w') as fp:
-            fp.write('export ASE_DFTB_COMMAND="' + path_bin + ' > PREFIX.out"')
-            fp.write('\n')
-            fp.write('export DFTB_PREFIX=' + self.slko_path)
-            fp.write('\n')
-        fp.close()
-
-        # source the ase_env.sh bash file
-        os.system('source ase_env.sh')
+        os.environ['ASE_DFTB_COMMAND'] = path_bin + ' > PREFIX.out'
+        os.environ['DFTB_PREFIX'] = self.slko_path
 
     def run_dftb(self, nbatch, coorall, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
@@ -86,6 +80,7 @@ class DFTB:
         for ibatch in range(begin, nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
+            print('ibatch', ibatch)
             if group is None:
                 self.para['natom'] = self.para['natomall'][ibatch]
                 ispecie = ''.join(self.para['symbols'][ibatch])
@@ -169,7 +164,7 @@ class DFTB:
         try:
             mol.get_potential_energy()
         except UnboundLocalError:
-            mol.calc.__dict__["parameters"]['Options_WriteHS']='No'
+            mol.calc.__dict__["parameters"]['Options_WriteHS'] = 'No'
             mol.get_potential_energy()
 
     def process_iresult(self):
@@ -248,10 +243,9 @@ class DFTB:
             q_name = str(num) + 'charge'
             group.create_dataset(q_name, data=self.Q_)
 
-
     def remove(self):
         """Remove all DFTB data after calculations."""
-        os.system('rm dftb+ ase_env.sh band.out charges.bin detailed.out')
+        os.system('rm dftb+ band.out charges.bin detailed.out')
         os.system('rm dftb_in.hsd dftb.out dftb_pin.hsd eigenvec.bin')
         os.system('rm eigenvec.out geo_end.gen hamsqr1.dat oversqr.dat')
 

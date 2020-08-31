@@ -192,7 +192,7 @@ class RunML:
         elif not self.para['run_reference']:
 
             # read reference from hdf
-            if self.para['dataType'] == 'hdf':
+            if self.para['ref'] == 'hdf':
                 self.get_hdf_data()
 
     def build_ref_data(self):
@@ -541,8 +541,8 @@ class RunML:
             self.para['LreadSKFinterp'] = False
 
             # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-            if self.para['dataType'] == 'hdf':
-                self.slako.genskf_interp_dist_vec()
+            if self.para['ref'] == 'hdf':
+                self.slako.genskf_interp_dist_hdf()
             else:
                 self.slako.genskf_interp_dist()
 
@@ -574,8 +574,8 @@ class RunML:
                     self.genml.genml_init_compr()
 
                 # 2D interpolation with compression radius of atom pairs
-                if self.para['dataType'] == 'hdf':
-                    self.slako.genskf_interp_compr_vec()
+                if self.para['ref'] == 'hdf':
+                    self.slako.genskf_interp_compr()
                 else:
                     self.slako.genskf_interp_compr()
 

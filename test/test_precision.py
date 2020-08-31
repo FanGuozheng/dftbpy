@@ -468,7 +468,14 @@ def scc_CH4_compr(para):
     Before DFTB calculations, we will also test H0 and S.
     """
     initpara.init_dftb_interp(para)
-    para['scc'] = 'scc'  # nonscc, scc, xlbomd
+    # initial compression radius of H
+    para['H_init_compr'] = 2.5
+
+    # initial compression radius of C
+    para['C_init_compr'] = 3.0
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'scc'
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -497,7 +504,14 @@ def nonscc_CH4_compr(para):
 
     """
     initpara.init_dftb_interp(para)
-    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
+    # initial compression radius of H
+    para['H_init_compr'] = 2.5
+
+    # initial compression radius of C
+    para['C_init_compr'] = 3.0
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'nonscc'
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -522,11 +536,92 @@ def nonscc_CH4_compr(para):
 def nonscc_CH4_compr_nongrid(para):
     """Test eigen values, charges of CH4 by using SCC DFTB.
 
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
+    initpara.init_dftb_interp(para)
+    # initial compression radius of H
+    para['H_init_compr'] = 2.2
+
+    # initial compression radius of C
+    para['C_init_compr'] = 2.7
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'nonscc'
+    para['coor'] = t.tensor(([
+            [6, 0.0000000000, 0.0000000000, 0.0000000000],
+            [1, 0.6287614522, 0.6287614522, 0.6287614522],
+            [1, -0.6287614522, -0.6287614522, 0.6287614522],
+            [1, -0.6287614522, 0.6287614522, -0.6287614522],
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
+    para['atomNumber'] = para['coor'][:, 0]
+    dftb_torch.Initialization(para)
+    test_grad_compr.GenMLPara(para).genml_init_compr()
+
+    # build the ref data
+    para['compr_ml'] = para['compr_init']
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
+    test_grad_compr.RunCalc(para).idftb_torchspline()
+    para['dataq'] = t.tensor([4.432334830876546, 0.89191629228086289,
+                              0.89191629228086433, 0.89191629228086344,
+                              0.89191629228086411])
+    test_accuracy(para, 'non-SCC CH4 symmetrical non-grid point',
+                  './data', Lq=True)
+
+
+def scc_CH4_compr_nongrid(para):
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
+    Before DFTB calculations, we will also test H0 and S.
+
+    """
+    initpara.init_dftb_interp(para)
+    # initial compression radius of H
+    para['H_init_compr'] = 2.2
+
+    # initial compression radius of C
+    para['C_init_compr'] = 2.7
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'scc'
+    para['coor'] = t.tensor(([
+            [6, 0.0000000000, 0.0000000000, 0.0000000000],
+            [1, 0.6287614522, 0.6287614522, 0.6287614522],
+            [1, -0.6287614522, -0.6287614522, 0.6287614522],
+            [1, -0.6287614522, 0.6287614522, -0.6287614522],
+            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
+    para['atomNumber'] = para['coor'][:, 0]
+    dftb_torch.Initialization(para)
+    test_grad_compr.GenMLPara(para).genml_init_compr()
+
+    # build the ref data
+    para['compr_ml'] = para['compr_init']
+    slakot.SKinterp(para).genskf_interp_dist()
+    slakot.SKinterp(para).genskf_interp_compr()
+    test_grad_compr.RunCalc(para).idftb_torchspline()
+    para['dataq'] = t.tensor([4.344983266502259, 0.91375418337443615,
+                              0.91375418337443592, 0.91375418337443526,
+                              0.91375418337443604])
+    test_accuracy(para, 'SCC CH4 symmetrical non-grid point',
+                  './data', Lq=True)
+
+
+def nonscc_nonsymCH4_compr_nongrid(para):
+    """Test eigen values, charges of CH4 by using SCC DFTB.
+
     Before DFTB calculations, we will also test H0 and S;
 
     """
     initpara.init_dftb_interp(para)
-    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
+    # initial compression radius of H
+    para['H_init_compr'] = 2.2
+
+    # initial compression radius of C
+    para['C_init_compr'] = 2.7
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'nonscc'
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -543,19 +638,24 @@ def nonscc_CH4_compr_nongrid(para):
     slakot.SKinterp(para).genskf_interp_dist()
     slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    para['dataq'] = t.tensor([4.4997361516795538, 0.9005492428500024,
-                              0.8953750140152250, 0.8641715463062267,
-                              0.8401680451489958])
-    test_accuracy(para, 'CH4_nonsym', './data', Lq=True)
+    para['dataq'] = t.tensor([4.484911884572298, 0.91035699703592665,
+                              0.90308465186766396, 0.86536815155461833,
+                              0.83627831496949412])
+    test_accuracy(para, 'Non-SCC CH4 non-symmetrical non-grid point',
+                  './data', Lq=True)
 
 
-def scc_CH4_compr_nongrid(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+def scc_nonsymCH4_compr_nongrid(para):
+    """Test eigen values, charges of CH4 by using SCC DFTB."""
     initpara.init_dftb_interp(para)
-    para['scc'] = 'scc'  # nonscc, scc, xlbomd
+    # initial compression radius of H
+    para['H_init_compr'] = 2.2
+
+    # initial compression radius of C
+    para['C_init_compr'] = 2.7
+
+    # nonscc, scc, xlbomd
+    para['scc'] = 'scc'
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -572,23 +672,15 @@ def scc_CH4_compr_nongrid(para):
     slakot.SKinterp(para).genskf_interp_dist()
     slakot.SKinterp(para).genskf_interp_compr()
     test_grad_compr.RunCalc(para).idftb_torchspline()
-    para['dataq'] = t.tensor([4.4046586991616872, 0.9243139211840105,
-                              0.9189034167482688, 0.8876746127630650,
-                              0.8644493501429688])
-    para['datats'] = t.tensor([9.93812348342835, 2.76774226013437,
-                               2.73426821500725, 2.45225760746137,
-                               2.29442053432681])
-    para['datambd'] = t.tensor([10.6544331300661, 2.13683704440973,
-                                2.15230148694062, 1.63880440230659,
-                                1.42140268339990])
-    test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=False)
+    para['dataq'] = t.tensor([4.388307607607844, 0.93181547074361015,
+                              0.92499369526174935, 0.89058299898052096,
+                              0.86430022740627610])
+    test_accuracy(para, 'SCC CH4 non-symmetrical non-grid point',
+                  './data', Lq=True)
 
 
 def scc_H(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB."""
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
@@ -599,10 +691,7 @@ def scc_H(para):
 
 
 def scc_C(para):
-    '''
-    Test eigen values, charges of CH4 by using SCC DFTB;
-    Before DFTB calculations, we will also test H0 and S;
-    '''
+    """Test eigen values, charges of CH4 by using SCC DFTB."""
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
@@ -613,14 +702,14 @@ def scc_C(para):
 
 
 def generate_compr():
-    '''
+    """
     We use R = a * k ** n + b to generate series compression radius
     here we set k = np.array([1.1, 1.15, 1.2, 1.3])
     n equals to the number of compression radius grids
     and satisfy:
         a * k ** 1 + b = 2
         a * k ** 15 + b = 10
-    '''
+    """
     k = np.array([1.1, 1.15, 1.2, 1.3, 1.5])
     for ik in range(len(k)):
         ii = k[ik]
@@ -633,9 +722,7 @@ def generate_compr():
 
 
 def test_compr_para(para):
-    '''
-    test the best k value in generate_compr
-    '''
+    """Test the best k value in generate_compr."""
     para['scclist'] = ['scc', 'nonscc']  # nonscc, scc, xlbomd
     para['Lml'] = True  # only perform DFTB part without ML
     para['Lperiodic'] = False
@@ -1021,7 +1108,8 @@ def single_test(para):
 def compr_test(para):
     """Test DFTB with compression radius, but not for ML."""
     testlist_compr = ['scc_CH4', 'nonscc_CH4', 'nonscc_CH4_compr_nongrid',
-                      'scc_CH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
+                      'scc_CH4_compr_nongrid', 'nonscc_nonsymCH4_compr_nongrid',
+                      'scc_nonsymCH4_compr_nongrid', 'scc_CO', 'nonscc_CO']
     if 'nonscc_CH4' in testlist_compr:
         nonscc_CH4_compr(para)
     if 'scc_CH4' in testlist_compr:
@@ -1030,6 +1118,10 @@ def compr_test(para):
         nonscc_CH4_compr_nongrid(para)
     if 'scc_CH4_compr_nongrid' in testlist_compr:
         scc_CH4_compr_nongrid(para)
+    if 'nonscc_nonsymCH4_compr_nongrid' in testlist_compr:
+        nonscc_nonsymCH4_compr_nongrid(para)
+    if 'scc_nonsymCH4_compr_nongrid' in testlist_compr:
+        scc_nonsymCH4_compr_nongrid(para)
 
     # test_compr_para(para)  # common parameters for 10 or 15 points
     # test_compr_para_10points(para)

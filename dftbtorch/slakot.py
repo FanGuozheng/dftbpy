@@ -545,51 +545,56 @@ class SKinterp:
         self.para = para
         self.math = DFTBmath(self.para)
 
-    def genskf_interp_dist_vec(self):
+    def genskf_interp_dist_hdf(self):
         """Generate integral along distance dimension."""
         time0 = time.time()
+        ninterp = self.para['ninterp']
         self.para['hs_compr_all'] = []
         distance = self.para['distance']
 
         # index of row, column of distance matrix, no digonal
-        ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
-        self.para['this_triuind_offdiag'] = ind
-        dist_1d = distance[ind[0], ind[1]]
-
+        # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
+        # dist_1d = distance[ind[0], ind[1]]
         # get the skf with hdf type
         hdfsk = os.path.join(self.para['dire_hdfSK'], self.para['name_hdfSK'])
 
         # read all skf according to atom number (species) and indices and add
         # these skf to a list, attention: hdf only store numpy type data
-        skf = []
+        '''with h5py.File(hdfsk, 'r') as f:
+            skf = np.stack([np.stack([
+                f[ATOMNAME[int(self.para['coor'][i, 0])] +
+                  ATOMNAME[int(self.para['coor'][j, 0])] +
+                  '/hs_all_rall'][:] for j in range(len(distance))])
+                for i in range(len(distance))])'''
         with h5py.File(hdfsk, 'r') as f:
-            [skf.append(f[ATOMNAME[int(self.para['coor'][i, 0])] +
-                          ATOMNAME[int(self.para['coor'][j, 0])] +
-                          '/hs_all_rall'][:]) for i, j in ind.T]
-
             # get the grid sidtance, which should be the same
             grid_dist = f['globalgroup'].attrs['grid_dist']
 
         # get the distance according to indices (upper triangle elements)
-        ind_ = dist_1d / grid_dist
+        ind_ = distance.numpy() / grid_dist
 
         # index of distance in each skf
-        indd = []
-        [indd.append(int(i + self.para['ninterp'] / 2 + 1)) for i in ind_]
+        indd = (ind_ + self.para['ninterp'] / 2 + 1).astype(int)
 
         # get integrals with ninterp (normally 8) line for interpolation
-        yy = []
-        [yy.append(iskf[:, :, j - self.para['ninterp'] - 1:j - 1, :])
-         for iskf, j in zip(skf, indd)]
+        with h5py.File(hdfsk, 'r') as f:
+            yy = [[f[ATOMNAME[int(self.para['coor'][i, 0])] +
+                     ATOMNAME[int(self.para['coor'][j, 0])] +
+                    '/hs_all_rall'][:][:, :, indd[i, j]- ninterp - 1: indd[i, j] - 1, :]
+                   for j in range(len(distance))]
+                  for i in range(len(distance))]
+        # skf[:, :, j - self.para['ninterp'] - 1:j - 1, :]
 
         # get the distances corresponding to the integrals
-        xx = []
-        [xx.append(t.linspace(i - self.para['ninterp'], i,
-                              self.para['ninterp']) * grid_dist) for i in indd]
+        xx = [[t.linspace(indd[i, j] - ninterp, indd[i, j], ninterp) * grid_dist
+               for j in range(len(distance))] for i in range(len(distance))]
         time2 = time.time()
-        [self.para['hs_compr_all'].append(
-            self.math.poly_interp_4d(ixx, t.from_numpy(iyy), idd))
-            for ixx, iyy, idd in zip(xx, yy, dist_1d)]
+
+        self.para['hs_compr_all'] = t.stack([t.stack([
+            self.math.poly_check(
+                xx[i][j], t.from_numpy(yy[i][j]), distance[i, j])
+            for j in range(len(distance))])
+            for i in range(len(distance))])
 
         timeend = time.time()
         print('time of distance interpolation: ', timeend - time2)

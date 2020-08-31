@@ -7,9 +7,11 @@ import scipy
 import scipy.io
 import numpy as np
 import torch as t
+import h5py
 from torch.autograd import Variable
 from collections import Counter
 import utils.pyanitools as pya
+from utils.aset import DFTB, Aims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
@@ -22,21 +24,31 @@ class LoadData:
     Returns:
         coorall: all the coordination of molecule
         symbols: all the atoms in each molecule
-        specie: the specie in molecule
+        specie: the specie in each molecule
+        specie_global: all the species in dataset
         speciedict: Counter(symbols)
-
     """
 
     def __init__(self, para, itrain, itest=0):
         """Initialize parameters."""
         self.para = para
+
+        # load training data
         self.itrain = itrain
+
+        # load test data
         self.itest = itest
+
+        # dataset is ani
         if self.para['dataType'] == 'ani':
             self.load_ani()
             self.get_specie_all()
+
+        # dataset is qm7
         elif self.para['dataType'] == 'qm7':
             self.loadqm7()
+
+        # dataset is json
         elif self.para['dataType'] == 'json':
             self.load_json_data()
             self.get_specie_all()
@@ -153,36 +165,66 @@ class LoadData:
         if self.para['task'] == 'opt':
             self.para['ntrain'] = nmax_
 
+    def load_data_hdf(self, path=None, filename=None):
+        """Load data from original dataset, ani ... and write as hdf."""
+        if path is not None and filename is not None:
+            path_file = os.path.join(path, filename)
+            os.system('rm ' + path_file)
 
-    def load_ani_old(self):
-        """Load the data from hdf type input files."""
-        ntype = self.para['hdf_num']
-        hdf5filelist = self.para['hdffile']
-        icount = 0
-        self.para['coorall'] = []
-        self.para['natomall'] = []
-        for hdf5file in hdf5filelist:
+        # default path is '.', default name is 'testfile.hdf5'
+        else:
+            path_file = 'testfile.hdf5'
+            os.system('rm ' + path_file)
+
+        # the global atom species in dataset (training data)
+        self.para['specie_all'] = []
+
+        # number of molecules in dataset
+        nmol = 0
+        for hdf5file in self.para['hdffile']:
             adl = pya.anidataloader(hdf5file)
             for data in adl:
-                icount += 1
-                if icount == ntype:
-                    for icoor in data['coordinates']:
-                        row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                        coor = t.zeros((row, col + 1), dtype=t.float64)
-                        for iat in range(0, len(data['species'])):
-                            coor[iat, 0] = ATOMNUM[data['species'][iat]]
-                            coor[iat, 1:] = t.from_numpy(icoor[iat, :])
-                        self.para['natomall'].append(coor.shape[0])
-                        self.para['coorall'].append(coor)
-                    symbols = data['species']
-                    specie = set(symbols)
-                    speciedict = Counter(symbols)
-                    self.para['symbols'] = symbols
-                    self.para['specie'] = specie
-                    self.para['atomspecie'] = []
-                    [self.para['atomspecie'].append(ispecie) for
-                     ispecie in specie]
-                    self.para['speciedict'] = speciedict
+
+                # this loop will write information of the same molecule with
+                # different geometries
+                atom_num = []
+
+                # get atom number of each atom
+                [atom_num.append(ATOMNUM[spe]) for spe in data['species']]
+
+                # number of molecule in current molecule species
+                imol = len(data['coordinates'])
+
+                # the code will write molecule from range(0, end)
+                nend = min(self.itrain, imol)
+
+                # number of atom in molecule
+                natom = len(data['coordinates'][0])
+
+                # write all coordinates to list "corrall" and first column is
+                # atom number
+                self.para['coorall'] = []
+                self.para['coorall'].extend(
+                    [np.insert(coor, 0, atom_num, axis=1)
+                     for coor in np.asarray(
+                             data['coordinates'][:nend], dtype=float)])
+
+                # write the current atom species in molecule to list "symbols"
+                # use metadata instead
+                ispecie = ''.join(data['species'])
+
+                # write global atom species
+                for ispe in data['species']:
+                    if ispe not in self.para['specie_all']:
+                        self.para['specie_all'].append(ispe)
+
+                # write metadata
+                with h5py.File(path_file, 'a') as self.f:
+                    self.g = self.f.create_group(ispecie)
+                    self.g.attrs['specie'] = ispecie
+                    self.g.attrs['natom'] = natom
+                    DFTB(self.para, setenv=True).run_dftb(
+                        nend, self.para['coorall'], hdf=self.f, group=self.g)
 
     def load_json_data(self):
         """Load the data from json type input files."""

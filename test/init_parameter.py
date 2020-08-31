@@ -33,32 +33,6 @@ def init_dftb_ml(para):
     # define path of feature related files
     para['direfeature'] = '.'
 
-    # read hdf (with coordinates, reference physical properties) type
-    if para['dataType'] == 'hdf':
-        # run referecne calculations or directly get read reference properties
-        para['run_reference'] = False
-
-        # path of data
-        para['pythondata_dire'] = '../data/dataset'
-
-        # name of data in defined path
-        para['pythondata_file'] = 'testfile.hdf5'
-
-        # number of files to be loaded
-        para['n_dataset'] = ['1']
-
-        # mix different molecule specie type
-        para['hdf_mixture'] = True
-
-        # if read SKF from a list of files with interpolation, instead from hdf
-        para['LreadSKFinterp'] = False
-
-        # dire of skf with hdf type
-        para['dire_hdfSK'] = '/home/gz_fan/Documents/ML/dftb/slko/hdf'
-
-        # name of skf with hdf type
-        para['name_hdfSK'] = 'skf.hdf5'
-
     # read json type geometry
     if para['dataType'] == 'json':
 
@@ -91,7 +65,7 @@ def init_dftb_ml(para):
         para['hdf_num'] = [['all']]
 
         # how many molecules for each molecule specie !!
-        para['n_dataset'] = ['1']
+        para['n_dataset'] = ['2']
 
         # used to test (optimize ML algorithm parameters) !!
         para['n_test'] = ['1']
@@ -190,9 +164,35 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    para['reference'] = 'aims'
+    para['reference'] = 'hdf'
 
-    if para['reference'] == 'dftbase' or para['reference'] == 'dftbplus':
+    # read hdf (with coordinates, reference physical properties) type
+    if para['reference'] == 'hdf':
+        # run referecne calculations or directly get read reference properties
+        para['run_reference'] = False
+
+        # path of data
+        para['pythondata_dire'] = '../data/dataset'
+
+        # name of data in defined path
+        para['pythondata_file'] = 'testfile.hdf5'
+
+        # number of files to be loaded
+        para['n_dataset'] = ['10']
+
+        # mix different molecule specie type
+        para['hdf_mixture'] = True
+
+        # if read SKF from a list of files with interpolation, instead from hdf
+        para['LreadSKFinterp'] = False
+
+        # dire of skf with hdf type
+        para['dire_hdfSK'] = '/home/gz_fan/Documents/ML/dftb/slko/hdf'
+
+        # name of skf with hdf type
+        para['name_hdfSK'] = 'skf.hdf5'
+
+    if para['reference'] in ('dftbase', 'dftbplus'):
 
         # path of binary, executable DFTB file
         para['dftb_ase_path'] = '/home/gz_fan/Documents/ML/dftb/test/dftbplus'
@@ -218,10 +218,10 @@ def init_dftb_ml(para):
     # turn on anyway
     if 'energy' in para['target']:
         para['Lenergy'] = True
-        para['Lrepulsive'] = True
+        para['Lrepulsive'] = False
     else:
         para['Lenergy'] = True
-        para['Lrepulsive'] = True
+        para['Lrepulsive'] = False
 
     # calculate, read, save the eigenvalue
     if 'eigval' in para['target']:
@@ -337,23 +337,19 @@ def init_dftb_ml(para):
 
         # compression radius of H
         para['H_compr_grid'] = t.tensor((
-                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
-                dtype=t.float64)
+                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
         # compression radius of C
         para['C_compr_grid'] = t.tensor((
-                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
-                dtype=t.float64)
+                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
         # compression radius of N
         para['N_compr_grid'] = t.tensor((
-                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
-                dtype=t.float64)
+                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
         # compression radius of O
         para['O_compr_grid'] = t.tensor((
-                [2.00, 2.50, 3.00, 3.50, 4.00, 4.50, 5.00, 6.00, 8.00, 10.00]),
-                dtype=t.float64)
+                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
         # test the grid points length
         assert len(para['H_compr_grid']) == para['ncompr']
@@ -676,12 +672,6 @@ def init_dftb_interp(para):
     # smooth the tail when read the skf
     para['smooth_tail'] = True
 
-    # initial compression radius of H
-    para['H_init_compr'] = 2.5
-
-    # initial compression radius of C
-    para['C_init_compr'] = 3.0
-
     # interpolation of compression radius: BiCub, BiCubVec
     para['interp_compr_type'] = 'BiCubVec'
 
@@ -712,12 +702,12 @@ def init_dftb_interp(para):
     para['compr_max'] = 9
 
     # grid points of compression radius of H
-    para['H_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['H_compr_grid'] = t.tensor(([
+        2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
     # grid points of compression radius of C
-    para['C_compr_grid'] = t.tensor(([2.00, 2.50, 3.00, 3.50, 4.00, 4.50,
-                                     5.00, 5.50, 6.00]), dtype=t.float64)
+    para['C_compr_grid'] = t.tensor(([
+        2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
     # onsite of H
     para['onsiteHH'] = t.tensor((

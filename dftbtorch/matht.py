@@ -216,6 +216,12 @@ class DFTBmath:
             nline += 1
         return hs_skf
 
+    def poly_check(self, xp, yp, rr):
+        if rr > 1e-2:
+            return self.poly_interp_4d(xp, yp, rr)
+        else:
+            return t.zeros(yp.shape[0], yp.shape[1], yp.shape[3])
+
     def poly_interp_4d(self, xp, yp, rr):
         """Interpolation from DFTB+ (lib_math) with uniform grid.
 
@@ -939,10 +945,10 @@ class BicubInterpVec:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         """
         # check if xi, yi is out of range of xmesh, ymesh
-        xmin = t.gt(xi, self.para['compr_min'])
-        xmax = t.lt(xi, self.para['compr_max'])
-        ymin = t.gt(yi, self.para['compr_min'])
-        ymax = t.lt(yi, self.para['compr_max'])
+        xmin = t.ge(xi, self.para['compr_min'])
+        xmax = t.le(xi, self.para['compr_max'])
+        ymin = t.ge(yi, self.para['compr_min'])
+        ymax = t.le(yi, self.para['compr_max'])
         assert False not in xmin
         assert False not in xmax
         assert False not in ymin
