@@ -248,6 +248,8 @@ def plot_dip(para):
         dipref = dire + '/dipdftbplus.dat'
     elif para['ref'] == 'dftb':
         dipref = dire + '/dipdftb.dat'
+    elif para['ref'] == 'hdf':
+        dipref = dire + '/diphdf.dat'
     ntrain = para['ntrain']
     fpopt, fpref = open(dire + '/dipbp.dat', 'r'), open(dipref, 'r')
     nstep = para['nsteps']

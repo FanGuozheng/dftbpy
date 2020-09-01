@@ -93,7 +93,6 @@ class Print:
         print('\n dipole (eAng): ', self.para['dipole'])
 
         # print energy
-        print('\n energy (Hartree): ', self.para['energy'])
         print('\n TS energy (Hartree): ', self.para['H0_energy'])
 
         # print SCC energy
@@ -102,8 +101,13 @@ class Print:
 
         # print repulsive energy
         if self.para['Lrepulsive']:
-            print('\n repulsive energy (Hartree): ',
-                  self.para['rep_energy'])
+            print('\n repulsive energy (Hartree): ', self.para['rep_energy'])
+            print('\n total energy (Hartree): ', self.para['energy'])
+
+        # do not calculate repulsive energy
+        else:
+            print('\n repulsive energy (Hartree): ', 0.)
+            print('\n total energy (Hartree): ', self.para['energy'])
 
         # print MBD-DFTB information
         if self.para['LMBD_DFTB']:

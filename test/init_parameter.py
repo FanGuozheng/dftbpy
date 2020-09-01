@@ -178,7 +178,7 @@ def init_dftb_ml(para):
         para['pythondata_file'] = 'testfile.hdf5'
 
         # number of files to be loaded
-        para['n_dataset'] = ['10']
+        para['n_dataset'] = ['2']
 
         # mix different molecule specie type
         para['hdf_mixture'] = True
@@ -262,7 +262,7 @@ def init_dftb_ml(para):
     para['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    para['mlsteps'] = 1
+    para['mlsteps'] = 2
 
     # how many steps to save the DFTB-ML data !!
     para['save_steps'] = 2

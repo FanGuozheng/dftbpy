@@ -161,11 +161,11 @@ class RunML:
         # check data and path, rm *.dat, get path for saving data
         self.dire_res = check_data(self.para, rmdata=True)
 
+        # build reference data
+        self.build_ref_data()
+
         # run reference calculations (e.g., DFTB+ ...) before ML
         if self.para['run_reference']:
-
-            # build reference data
-            self.build_ref_data()
 
             # run DFTB python code as reference
             if self.para['ref'] == 'dftb':
@@ -210,13 +210,12 @@ class RunML:
         hdffile = os.path.join(self.para['pythondata_dire'],
                                self.para['pythondata_file'])
         self.para['coorall'] = []
-        self.para['refeigval'] = []
-        self.para['refdipole'] = []
-        self.para['refenergy'] = []
 
         # read global parameters
         with h5py.File(hdffile) as f:
             self.para['specie_all'] = f['globalgroup'].attrs['specie_all']
+
+            # get the molecule species
             molecule = [ikey.encode() for ikey in f.keys()]
 
             # get rid of b-prefix
@@ -231,7 +230,7 @@ class RunML:
         if self.para['hdf_mixture']:
 
             # loop for molecules in each molecule specie
-            for ibatch in range(self.para['nfile']):
+            for ibatch in range(int(self.para['n_dataset'][0])):
 
                 # each molecule specie
                 for igroup in molecule2:
@@ -258,6 +257,12 @@ class RunML:
 
                     # total molecule number
                     self.nbatch += 1
+                    self.save_ref_idata('hdf', ibatch,
+                                        LWHL=self.para['LHL'],
+                                        LWeigenval=self.para['Leigval'],
+                                        LWenergy=self.para['Lenergy'],
+                                        LWdipole=self.para['Ldipole'],
+                                        LWpol=self.para['LMBD_DFTB'])
 
     def dftb_ref(self):
         """Calculate reference with DFTB(torch)"""
@@ -427,7 +432,8 @@ class RunML:
             energy = energy - DFTB_ENERGY[iname]
         return energy
 
-    def save_ref_idata(self, ref, LWHL=False, LWeigenval=False, LWenergy=False,
+    def save_ref_idata(self, ref, ibatch,
+                       LWHL=False, LWeigenval=False, LWenergy=False,
                        LWdipole=False, LWpol=False):
         """Save data for single molecule calculation."""
         if LWHL:
@@ -440,13 +446,11 @@ class RunML:
                              name='eigval'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWenergy:
-            self.para['refenergy'] = self.para['energy']
-            self.save.save1D(self.para['energy'].detach().numpy(),
+            self.save.save1D(self.para['refenergy'][ibatch],
                              name='energy'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWdipole:
-            self.para['refdipole'] = self.para['dipole'][:]
-            self.save.save2D(self.para['dipole'].detach().numpy(),
+            self.save.save1D(self.para['refdipole'][ibatch].detach().numpy(),
                              name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
         if LWpol:
             self.save.save2D(self.para['alpha_mbd'].detach().numpy(),

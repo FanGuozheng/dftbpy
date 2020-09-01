@@ -868,25 +868,16 @@ class Analysis:
         # get occupancy
         occ = self.para['occ']
 
+        # product of occupancy and eigenvalue
+        self.para['H0_energy'] = eigval @ occ
+
         # non-SCC DFTB energy
         if self.para['scc'] == 'nonscc':
-
-            # product of occupancy and eigenvalue
-            self.para['H0_energy'] = eigval @ occ
-
-            # add up energy
-            if self.para['Lrepulsive']:
-                self.para['energy'] = self.para['H0_energy'] + \
-                    self.para['rep_energy']
-            else:
-                self.para['energy'] = self.para['H0_energy']
+            self.para['electronic_energy'] = self.para['H0_energy']
 
         # SCC energy
         if self.para['scc'] == 'scc':
             qzero = self.para['qzero']
-
-            # product of occupancy and eigenvalue
-            self.para['H0_energy'] = eigval @ occ
 
             # get Coulomb energy
             self.para['coul_energy'] = shift_ @ (qatom + qzero) / 2
@@ -895,10 +886,14 @@ class Analysis:
             self.para['electronic_energy'] = self.para['H0_energy'] - \
                 self.para['coul_energy']
 
-            # add up energy
-            if self.para['Lrepulsive']:
-                self.para['energy'] = self.para['electronic_energy'] + \
-                    self.para['rep_energy']
+        # add repulsive energy
+        if self.para['Lrepulsive']:
+            self.para['energy'] = self.para['electronic_energy'] + \
+                self.para['rep_energy']
+
+        # total energy without repulsive energy
+        else:
+            self.para['energy'] = self.para['electronic_energy']
 
     def sum_property(self):
         """Get alternative DFTB results."""
