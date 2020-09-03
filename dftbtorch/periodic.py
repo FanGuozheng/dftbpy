@@ -9,21 +9,22 @@ class Periodic:
         self.para = para
 
     def get_neighbour(self, cutoff):
-        '''
-        Input:
+        """
+        Get the number of neighbouring atoms.
+
+        Parameters:
             distance between all atoms
-        '''
-        atomspecie = self.para['atomspecie']
-        atomnameall = self.para['atomnameall']
+        """
         natom = self.para['natom']
         self.para['neighbour'] = t.zeros(natom)
-        for iat in range(0, natom):
+        for iat in range(natom):
             icount = 0
-            for jat in range(0, natom):
+            for jat in range(natom):
                 if iat < jat:
-                    nameij = atomnameall[iat] + atomnameall[jat]
-                    if cutoff == 'repulsive':
-                        cutoff_ = self.para['cutoff_rep' + nameij]
-                    if self.para['distance'][iat, jat] < cutoff_:
-                        icount += 1
+
+                    # the cutoff will be the same for different atom pairs
+                    if cutoff == 'repulsive' and not self.para['cutoff_atom_resolve']:
+                        cutoff_ = self.para['cutoff_rep']
+                        if self.para['distance'][iat, jat] < cutoff_:
+                            icount += 1
             self.para['neighbour'][iat] = icount

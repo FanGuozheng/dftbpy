@@ -21,7 +21,7 @@ from utils.load import LoadData
 from utils.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
-# DireSK = '/home/gz_fan/Documents/ML/dftb/slko'
+import dftbmalt.utils.maths as maths
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
@@ -41,13 +41,18 @@ def opt(para):
     initpara.init_dftb_ml(para)
 
     # load dataset, here is hdf type
-    LoadData(para, int(para['n_dataset'][0]))
-
     if para['dataType'] == 'ani':
-        para['nfile'] = para['nhdf_max']
-    elif para['dataType'] == 'json' or para['dataType'] == 'hdf':
-        para['nfile'] = int(para['n_dataset'][0])
-        para['ntrain'] = int(para['n_dataset'][0])
+        LoadData(para, para['n_dataset'][0]).load_ani()
+        LoadData(para, para['n_dataset'][0]).get_specie_all()
+
+    # dataset is qm7
+    elif para['dataType'] == 'qm7':
+        LoadData(para, para['n_dataset'][0]).loadqm7()
+
+    # dataset is json
+    elif para['dataType'] == 'json':
+        LoadData(para, para['n_dataset'][0]).load_json_data()
+        LoadData(para, para['n_dataset'][0]).get_specie_all()
 
     # run reference calculations, either dft or dftb
     runml = RunML(para)
@@ -319,6 +324,10 @@ class RunML:
         dftb = write.Dftbplus(self.para)
         bdftb = os.path.join(self.para['dftb_ase_path'], self.para['dftb_bin'])
 
+        # copy executable dftb+ as ./dftbplus/dftb+
+        self.dir_ref = os.getcwd() + '/dftbplus'
+        os.system('cp ' + bdftb + ' ./dftbplus/dftb+')
+
         # check binary FHI-aims
         if os.path.isfile(bdftb) is False:
             raise FileNotFoundError("Could not find binary, executable DFTB+")
@@ -330,24 +339,24 @@ class RunML:
             # check if atom specie is the same to the former
             self.runcal.dftbplus(para, ibatch, self.dir_ref)
 
-            # calculate formation energy
-            energy = write.Dftbplus(self.para).read_energy(
-                    self.para, ibatch + 1, self.dir_ref)
-            self.para['refenergy'][ibatch] = self.cal_for_energy(
-                    energy[-1], para['coor'])
-            self.para['homo_lumo'] = dftb.read_bandenergy(
-                self.para, self.para['nfile'], self.dir_ref)
-            self.para['dipole'] = dftb.read_dipole(
-                self.para, self.para['nfile'], self.dir_ref, 'debye', 'eang')
-            self.para['alpha_mbd'] = dftb.read_alpha(
-                self.para, self.para['nfile'], self.dir_ref)
+        # calculate formation energy
+        self.para['totalenergy'] = write.Dftbplus(self.para).read_energy(
+            self.para, self.nbatch, self.dir_ref)
+        self.para['refenergy'] = self.cal_for_energy(
+            self.para['totalenergy'], para['coor'])
+        self.para['homo_lumo'] = dftb.read_bandenergy(
+            self.para, self.para['nfile'], self.dir_ref)
+        self.para['refdipole'] = dftb.read_dipole(
+            self.para, self.para['nfile'], self.dir_ref, 'debye', 'eang')
+        self.para['alpha_mbd'] = dftb.read_alpha(
+            self.para, self.para['nfile'], self.dir_ref)
 
-            # save results for each single molecule
-            self.save_ref_idata(ref='dftbplus', LWHL=self.para['LHL'],
-                                LWeigenval=self.para['Leigval'],
-                                LWenergy=self.para['Lenergy'],
-                                LWdipole=self.para['Ldipole'],
-                                LWpol=self.para['LMBD_DFTB'])
+        # save results for each single molecule
+        self.save_ref_data(ref='dftbplus', LWHL=self.para['LHL'],
+                           LWeigenval=self.para['Leigval'],
+                           LWenergy=self.para['Lenergy'],
+                           LWdipole=self.para['Ldipole'],
+                           LWpol=self.para['LMBD_DFTB'])
 
     def aims_ref(self, para):
         """Calculate reference (FHI-aims)"""
@@ -381,9 +390,10 @@ class RunML:
         # read results, including energy, dipole ...
         self.para['totalenergy'] = write.FHIaims(self.para).read_energy(
             self.para, self.nbatch, self.dir_ref)
-        self.para['energy'] = self.cal_for_energy(
-            self.para['totalenergy'], para['coor'])
-        self.para['dipole'] = write.FHIaims(self.para).read_dipole(
+        if self.para['mlenergy'] == 'formationenergy':
+            self.para['refenergy'] = self.cal_for_energy(
+                self.para['totalenergy'], para['coor'])
+        self.para['refdipole'] = write.FHIaims(self.para).read_dipole(
             self.para, self.nbatch, self.dir_ref, 'eang', 'eang')
         self.para['homo_lumo'] = write.FHIaims(self.para).read_bandenergy(
             self.para, self.nbatch, self.dir_ref)
@@ -393,11 +403,11 @@ class RunML:
             self.para, self.nbatch, self.dir_ref)
 
         # save results
-        self.save_ref_idata(ref='aims', LWHL=self.para['LHL'],
-                            LWeigenval=self.para['Leigval'],
-                            LWenergy=self.para['Lenergy'],
-                            LWdipole=self.para['Ldipole'],
-                            LWpol=self.para['LMBD_DFTB'])
+        self.save_ref_data(ref='aims', LWHL=self.para['LHL'],
+                           LWeigenval=self.para['Leigval'],
+                           LWenergy=self.para['Lenergy'],
+                           LWdipole=self.para['Ldipole'],
+                           LWpol=self.para['LMBD_DFTB'])
 
     def cal_for_energy(self, energy, coor):
         """calculate formation energy for molecule"""
@@ -410,10 +420,12 @@ class RunML:
                         ATOMNUM.values()).index(idx)]
                     energy[ibatch] -= AIMS_ENERGY[iname]
         elif self.para['ref'] == 'dftb' or self.para['ref'] == 'dftbplus':
-            for iat in range(0, natom):
-                idx = int(coor[iat, 0])
-                iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-                energy = energy - DFTB_ENERGY[iname]
+            for ibatch in range(self.nbatch):
+                natom = len(self.para['coorall'][ibatch])
+                for iat in range(0, natom):
+                    idx = int(coor[iat, 0])
+                    iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
+                    energy = energy - DFTB_ENERGY[iname]
         return energy
 
     def get_coor(self, ibatch):
@@ -432,10 +444,32 @@ class RunML:
             energy = energy - DFTB_ENERGY[iname]
         return energy
 
-    def save_ref_idata(self, ref, ibatch,
-                       LWHL=False, LWeigenval=False, LWenergy=False,
-                       LWdipole=False, LWpol=False):
-        """Save data for single molecule calculation."""
+    def save_ref_idata(self, ref, ibatch, LWHL=False, LWeigenval=False,
+                       LWenergy=False, LWdipole=False, LWpol=False):
+        """Save data for single molecule calculation result."""
+        if LWHL:
+            self.para['refhomo_lumo'] = self.para['homo_lumo']
+            self.save.save1D(self.para['homo_lumo'].detach().numpy(),
+                             name='HL'+ref+'.dat', dire=self.dire_res, ty='a')
+        if LWeigenval:
+            self.para['refeigval'] = self.para['eigenvalue']
+            self.save.save1D(self.para['eigenvalue'].detach().numpy(),
+                             name='eigval'+ref+'.dat',
+                             dire=self.dire_res, ty='a')
+        if LWenergy:
+            self.save.save1D(self.para['refenergy'][ibatch],
+                             name='energy'+ref+'.dat',
+                             dire=self.dire_res, ty='a')
+        if LWdipole:
+            self.save.save1D(self.para['refdipole'][ibatch].detach().numpy(),
+                             name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
+        if LWpol:
+            self.save.save1D(self.para['alpha_mbd'].detach().numpy(),
+                             name='pol'+ref+'.dat', dire=self.dire_res, ty='a')
+
+    def save_ref_data(self, ref, LWHL=False, LWeigenval=False,
+                       LWenergy=False, LWdipole=False, LWpol=False):
+        """Save data for all molecule calculation results."""
         if LWHL:
             self.para['refhomo_lumo'] = self.para['homo_lumo']
             self.save.save2D(self.para['homo_lumo'].detach().numpy(),
@@ -446,11 +480,14 @@ class RunML:
                              name='eigval'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWenergy:
-            self.save.save1D(self.para['refenergy'][ibatch],
-                             name='energy'+ref+'.dat',
+            self.save.save1D(self.para['refenergy'],
+                             name='refenergy'+ref+'.dat',
+                             dire=self.dire_res, ty='a')
+            self.save.save1D(self.para['totalenergy'],
+                             name='totalenergy'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWdipole:
-            self.save.save1D(self.para['refdipole'][ibatch].detach().numpy(),
+            self.save.save2D(self.para['refdipole'].detach().numpy(),
                              name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
         if LWpol:
             self.save.save2D(self.para['alpha_mbd'].detach().numpy(),
@@ -706,7 +743,9 @@ class RunML:
                 loss = self.criterion(cpa, vol_ratio_ref)
             elif 'pdos' in para['target']:
                 pdosref = self.para['pdosdftbplus'][ibatch]
-                loss = self.criterion(para['pdos'], pdosref)
+                loss = maths.hellinger(para['pdos'], pdosref).sum()
+                print("loss", loss, "\n para['pdos']", para['pdos'], "\n pdosref", pdosref)
+                # loss = self.criterion(para['pdos'], pdosref)
                 self.para['shape_pdos'][ibatch][0] = self.para['pdos'].shape[0]
                 self.para['shape_pdos'][ibatch][1] = self.para['pdos'].shape[1]
             elif len(para['target']) == 2:

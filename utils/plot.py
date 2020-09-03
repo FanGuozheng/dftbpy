@@ -240,7 +240,7 @@ def plot_homolumo_pred_weight(para, dire, ref=None, dftbplus=None):
 
 
 def plot_dip(para):
-    """Plot dipole [ntrain, nsteps, 3] in .data."""
+    """Plot dipole [nfile, nsteps, 3] in .data."""
     dire = para['dire_data']
     if para['ref'] == 'aims':
         dipref = dire + '/dipaims.dat'
@@ -250,21 +250,21 @@ def plot_dip(para):
         dipref = dire + '/dipdftb.dat'
     elif para['ref'] == 'hdf':
         dipref = dire + '/diphdf.dat'
-    ntrain = para['ntrain']
+    nfile = para['nfile']
     fpopt, fpref = open(dire + '/dipbp.dat', 'r'), open(dipref, 'r')
     nstep = para['nsteps']
     nstepmax = int(nstep.max())
-    dref = np.zeros((ntrain, 3), dtype=float)
-    dopt = np.zeros((ntrain, nstepmax, 3), dtype=float)
+    dref = np.zeros((nfile, 3), dtype=float)
+    dopt = np.zeros((nfile, nstepmax, 3), dtype=float)
 
     print('plot dipole values')
-    for ifile in range(ntrain):
+    for ifile in range(nfile):
         nstep_ = int(nstep[ifile])
         dref[ifile, :] = np.fromfile(fpref, dtype=float, count=3, sep=' ')
         dopt[ifile, :nstep_, :] = np.fromfile(
             fpopt, dtype=float, count=3*nstep_, sep=' ').reshape(nstep_, 3)
     icount = 1
-    for ifile in range(ntrain):
+    for ifile in range(nfile):
         nstep_ = int(nstep[ifile])
         count = np.linspace(icount, icount + nstep_ - 1, nstep_)
         p1, = plt.plot(count, abs(dref[ifile, 0] - dopt[ifile, :nstep_, 0]))
@@ -489,21 +489,21 @@ def plot_energy_f(para):
 
 
 def plot_loss(para):
-    """Plot energy [ntrain, nsteps] in .data."""
+    """Plot energy [nfile, nsteps] in .data."""
     dire = para['dire_data']
-    ntrain = para['ntrain']
+    nfile = para['nfile']
     fploss = open(dire + '/lossbp.dat', 'r')
     nstep = para['nsteps']
     nstepmax = int(nstep.max())
-    dataloss = np.zeros((ntrain, nstepmax), dtype=float)
+    dataloss = np.zeros((nfile, nstepmax), dtype=float)
 
     print('plot loss values')
-    for ifile in range(ntrain):
+    for ifile in range(nfile):
         nstep_ = int(nstep[ifile])
         dataloss[ifile, :nstep_] = np.fromfile(
             fploss, dtype=float, count=nstep_, sep=' ')
     icount = 1
-    for ifile in range(ntrain):
+    for ifile in range(nfile):
         nstep_ = int(nstep[ifile])
         count = np.linspace(icount, icount + nstep_ - 1, nstep_)
         plt.plot(count, dataloss[ifile, :nstep_])

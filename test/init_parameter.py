@@ -61,11 +61,11 @@ def init_dftb_ml(para):
         # transfer to list
         para['hdffile'] = hdffilelist
 
-        # determine the type of molecule: str(integer), 'all' !!
-        para['hdf_num'] = [['all']]
+        # determine the type of molecule specie: str(integer), 'all' !!
+        para['hdf_num'] = [['1']]
 
         # how many molecules for each molecule specie !!
-        para['n_dataset'] = ['2']
+        para['n_dataset'] = ['1']
 
         # used to test (optimize ML algorithm parameters) !!
         para['n_test'] = ['1']
@@ -164,7 +164,7 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    para['reference'] = 'hdf'
+    para['reference'] = 'dftbase'
 
     # read hdf (with coordinates, reference physical properties) type
     if para['reference'] == 'hdf':
@@ -176,9 +176,6 @@ def init_dftb_ml(para):
 
         # name of data in defined path
         para['pythondata_file'] = 'testfile.hdf5'
-
-        # number of files to be loaded
-        para['n_dataset'] = ['2']
 
         # mix different molecule specie type
         para['hdf_mixture'] = True
@@ -203,7 +200,7 @@ def init_dftb_ml(para):
         # path slater-koster file
         para['skf_ase_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
 
-    if para['reference'] == 'aimsase' or para['reference'] == 'aims':
+    if para['reference'] in ('aimsase', 'aims'):
 
         # path of binary, executable FHI-aims file
         para['aims_ase_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/bin'
@@ -211,8 +208,11 @@ def init_dftb_ml(para):
         # name of binary, executable FHI-aims file
         para['aims_bin'] = 'aims.171221_1.scalapack.mpi.x'
 
+        # path of atom specie parameters
+        para['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
+
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
-    para['target'] = ['dipole']
+    para['target'] = ['pdos']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway
@@ -222,6 +222,9 @@ def init_dftb_ml(para):
     else:
         para['Lenergy'] = True
         para['Lrepulsive'] = False
+
+    # the machine learning energy type
+    para['mlenergy'] = 'formationenergy'
 
     # calculate, read, save the eigenvalue
     if 'eigval' in para['target']:
@@ -458,6 +461,10 @@ def init_dftb_ml(para):
 
     # if smaller than t_zero_max, treated as zero
     para['t_zero_max'] = 5
+
+    # if for different atom species, cutoff will be set separately
+    para['cutoff_atom_resolve'] = False
+    para['cutoff_rep'] = 4.5
 
     # periodic condition
     para['Lperiodic'] = False

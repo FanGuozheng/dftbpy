@@ -639,10 +639,20 @@ class Repulsive():
         """Calculate repulsive energy."""
         self.rep_energy = t.zeros((self.nat), dtype=t.float64)
         atomnameall = self.para['atomnameall']
-        for iat in range(0, self.nat):
+
+        # repulsive cutoff not atom specie resolved
+        if not self.para['cutoff_atom_resolve']:
+            cutoff_ = self.para['cutoff_rep']
+
+        for iat in range(self.nat):
             for jat in range(iat + 1, self.nat):
                 nameij = atomnameall[iat] + atomnameall[jat]
-                cutoff_ = self.para['cutoff_rep' + nameij]
+
+                # repulsive cutoff atom specie resolved
+                if self.para['cutoff_atom_resolve']:
+                    cutoff_ = self.para['cutoff_rep' + nameij]
+
+                # compare distance and cutoff
                 distanceij = self.para['distance'][iat, jat]
                 if distanceij < cutoff_:
                     ienergy = self.cal_rep_atomij(distanceij, nameij)
@@ -955,6 +965,7 @@ class Analysis:
         # print("self.para['eigenvalue']", self.para['eigenvalue'])
 
         # calculate pdos
+
         self.para['pdos'] = dos.PDoS(
             # C eigen vector
             self.para['eigenvec'].T,

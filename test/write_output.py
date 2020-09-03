@@ -135,7 +135,7 @@ class Dftbplus:
     def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
         """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'dip.dat'))
-        dipole = np.zeros((nfile, 3))
+        dipole = np.zeros((nfile, 3), dtype=float)
         for ifile in range(0, nfile):
             idipole = np.fromfile(fp, dtype=float, count=3, sep=' ')
             if unit == 'eang' and outunit == 'debye':

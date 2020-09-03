@@ -17,7 +17,7 @@ class Print:
         # non SCC molecule
         if not self.para['Lperiodic'] and self.para['scc'] == 'nonscc':
             print('*' * 80)
-            print(' ' * 27, 'non-periodic non-SCC-DFTB')
+            print(' ' * 25, 'non-periodic non-SCC-DFTB')
             print('*' * 80)
 
         # SCC molecule
@@ -29,13 +29,13 @@ class Print:
         # XLBOMD molecule
         elif not self.para['Lperiodic'] and self.para['scc'] == 'xlbomd':
             print('*' * 80)
-            print(' ' * 28, 'non-periodic xlbomd-DFTB')
+            print(' ' * 25, 'non-periodic xlbomd-DFTB')
             print('*' * 80)
 
         # SCC solid
         elif self.para['Lperiodic'] and self.para['scc'] == 'scc':
             print('*' * 80)
-            print(' ' * 32, 'periodic SCC-DFTB')
+            print(' ' * 30, 'periodic SCC-DFTB')
             print('*' * 80)
 
     def print_energy(self, iiter, energy):

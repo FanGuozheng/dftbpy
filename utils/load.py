@@ -11,7 +11,7 @@ import h5py
 from torch.autograd import Variable
 from collections import Counter
 import utils.pyanitools as pya
-from utils.aset import DFTB, Aims
+from utils.aset import DFTB, RunASEAims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
@@ -21,6 +21,7 @@ class LoadData:
     Args:
         dataType: the data type, hdf, json...
         hdf_num: how many dataset in one hdf file
+
     Returns:
         coorall: all the coordination of molecule
         symbols: all the atoms in each molecule
@@ -29,68 +30,84 @@ class LoadData:
         speciedict: Counter(symbols)
     """
 
-    def __init__(self, para, itrain, itest=0):
+    def __init__(self, para, itrain):
         """Initialize parameters."""
         self.para = para
 
-        # load training data
+        # load training data: interger number or string 'all'
         self.itrain = itrain
-
-        # load test data
-        self.itest = itest
-
-        # dataset is ani
-        if self.para['dataType'] == 'ani':
-            self.load_ani()
-            self.get_specie_all()
-
-        # dataset is qm7
-        elif self.para['dataType'] == 'qm7':
-            self.loadqm7()
-
-        # dataset is json
-        elif self.para['dataType'] == 'json':
-            self.load_json_data()
-            self.get_specie_all()
 
     def load_ani(self):
         """Load the data from hdf type input files."""
-        hdf5filelist = self.para['hdffile']
-        maxnfile = max(self.itrain, self.itest)
-        minnfile = min(self.itrain, self.itest)
+        # define the output
         self.para['coorall'] = []
         self.para['natomall'] = []
         self.para['symbols'] = []
         self.para['specie'] = []
         self.para['specie_global'] = []
         self.para['speciedict'] = []
+
+        # temporal coordinates for all
         coorall_ = []
+
+        # temporal molecule species for all
         specie_hdf = []
+
+        # temporal number of molecules in all molecule species
+        nmolecule = []
+
+        # number which control reading ani_gdb_s01~08.h5
         ihdf = 0
-        nmolecule = 0  # number of molecule type
-        nmin_ = 0
-        nmax_ = 0
-        assert len(hdf5filelist) == len(self.para['hdf_num'])
-        for hdf5file in hdf5filelist:
+
+        # number of molecule type
+        nmoleculespecie = 0
+
+        # hdf data: ani_gdb_s01.h5 ~ ani_gdb_s08.h5
+        for hdf5file in self.para['hdffile']:
             ntype = self.para['hdf_num'][ihdf]
+
+            # update ihdf, define iadl
             ihdf += 1
             iadl = 0
+
+            # load each ani_gdb_s0*.h5 data in datalist
             adl = pya.anidataloader(hdf5file)
+
+            # loop for each molecule specie
             for data in adl:
+                # iadl represent the nth molecule specie
                 iadl += 1
+
+                # read molecule specie according to input parameters
                 if 'all' in ntype or str(iadl) in ntype:
-                    coorall_.append(data['coordinates'][:maxnfile])
+
+                    # get the number of molecule in each molecule specie
+                    if self.itrain == 'all':
+                        imol = len(data['coordinates'])
+                    else:
+                        imol = int(self.itrain)
+
+                    nmolecule.append(imol)
+                    coorall_.append(data['coordinates'][:imol])
                     specie_hdf.append(data['species'])
-                    nmolecule += 1
-        if self.para['hdf_mixture']:  # if mix different type of molecule
-            for ifile in range(minnfile):
-                for imolecule in range(nmolecule):
+                    nmoleculespecie += 1
+
+        # get the min number of molecules in all molecule specie
+        minnmolecule = min(nmolecule)
+
+        # mix different type of molecule specie
+        if self.para['hdf_mixture']:
+            for ifile in range(minnmolecule):
+
+                # all molecule specie
+                for imolecule in range(nmoleculespecie):
                     icoor = coorall_[imolecule][ifile]
                     ispecie = specie_hdf[imolecule]
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    # check global atom specie
+
+                    # get the global atom species
                     for iat in range(len(ispecie)):
                         coor[iat, 0] = ATOMNUM[ispecie[iat]]
                         ispe = ispecie[iat]
@@ -101,69 +118,32 @@ class LoadData:
                     self.para['symbols'].append(ispecie)
                     self.para['specie'].append(list(dict.fromkeys(ispecie)))
                     self.para['speciedict'].append(Counter(ispecie))
-                    nmin_ += 1
-                    nmax_ += 1
-            for ifile in range(minnfile, maxnfile):
-                for imolecule in range(nmolecule):
-                    icoor = coorall_[imolecule][ifile]
-                    ispecie = specie_hdf[imolecule]
-                    row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                    coor = t.zeros((row, col + 1), dtype=t.float64)
-                    coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    for iat in range(len(ispecie)):
-                        coor[iat, 0] = ATOMNUM[ispecie[iat]]
-                        ispe = ispecie[iat]
-                        if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)
-                    self.para['natomall'].append(coor.shape[0])
-                    self.para['coorall'].append(coor)
-                    self.para['symbols'].append(ispecie)
-                    self.para['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.para['speciedict'].append(Counter(ispecie))
-                    nmax_ += 1
+
+        # do not mix molecule species
         else:
-            for imolecule in range(nmolecule):
-                for ifile in range(minnfile):
+            for imolecule in range(nmoleculespecie):
+
+                # get the global atom species
+                specie0 = specie_hdf[imolecule]
+
+                for iat in range(len(specie0)):
+                    if specie0[iat] not in self.para['specie_global']:
+                        self.para['specie_global'].append(ispe)
+
+                for ifile in range(minnmolecule):
                     icoor = coorall_[imolecule][ifile]
                     ispecie = specie_hdf[imolecule]
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    '''for iat in range(len(ispecie)):
-                        coor[iat, 0] = ATOMNUM[ispecie[iat]]
-                        ispe = ispecie[iat]
-                        if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)'''
                     self.para['natomall'].append(coor.shape[0])
                     self.para['coorall'].append(coor)
                     self.para['symbols'].append(ispecie)
                     self.para['specie'].append(list(dict.fromkeys(ispecie)))
                     self.para['speciedict'].append(Counter(ispecie))
-                    nmin_ += 1
-                    nmax_ += 1
-                for ifile in range(minnfile, maxnfile):
-                    icoor = coorall_[imolecule][ifile]
-                    ispecie = specie_hdf[imolecule]
-                    row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                    coor = t.zeros((row, col + 1), dtype=t.float64)
-                    coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    '''for iat in range(len(ispecie)):
-                        coor[iat, 0] = ATOMNUM[ispecie[iat]]
-                        ispe = ispecie[iat]
-                        if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)'''
-                    self.para['natomall'].append(coor.shape[0])
-                    self.para['coorall'].append(coor)
-                    self.para['symbols'].append(ispecie)
-                    self.para['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.para['speciedict'].append(Counter(ispecie))
-                    nmax_ += 1
-        self.para['nhdf_max'] = nmax_
-        self.para['nhdf_min'] = nmin_
 
         # return training dataset number
-        if self.para['task'] == 'opt':
-            self.para['ntrain'] = nmax_
+        self.para['nfile'] = len(self.para['coorall'])
 
     def load_data_hdf(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
@@ -180,7 +160,6 @@ class LoadData:
         self.para['specie_all'] = []
 
         # number of molecules in dataset
-        nmol = 0
         for hdf5file in self.para['hdffile']:
             adl = pya.anidataloader(hdf5file)
             for data in adl:
@@ -223,8 +202,18 @@ class LoadData:
                     self.g = self.f.create_group(ispecie)
                     self.g.attrs['specie'] = ispecie
                     self.g.attrs['natom'] = natom
-                    DFTB(self.para, setenv=True).run_dftb(
-                        nend, self.para['coorall'], hdf=self.f, group=self.g)
+
+                    # run dftb with ase interface
+                    if self.para['reference'] == 'dftbase':
+                        DFTB(self.para, setenv=True).run_dftb(
+                            nend, self.para['coorall'],
+                            hdf=self.f, group=self.g)
+
+                    # run FHI-aims with ase interface
+                    elif self.para['reference'] == 'aimsase':
+                        RunASEAims(self.para, setenv=True).run_aims(
+                            nend, self.para['coorall'],
+                            hdf=self.f, group=self.g)
 
     def load_json_data(self):
         """Load the data from json type input files."""
