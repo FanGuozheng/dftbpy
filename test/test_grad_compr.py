@@ -17,8 +17,8 @@ import utils.plot as plot
 import init_parameter as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
-from utils.load import LoadData
-from utils.save import SaveData
+from IO.load import LoadData
+from IO.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 import dftbmalt.utils.maths as maths
@@ -744,7 +744,6 @@ class RunML:
             elif 'pdos' in para['target']:
                 pdosref = self.para['pdosdftbplus'][ibatch]
                 loss = maths.hellinger(para['pdos'], pdosref).sum()
-                print("loss", loss, "\n para['pdos']", para['pdos'], "\n pdosref", pdosref)
                 # loss = self.criterion(para['pdos'], pdosref)
                 self.para['shape_pdos'][ibatch][0] = self.para['pdos'].shape[0]
                 self.para['shape_pdos'][ibatch][1] = self.para['pdos'].shape[1]

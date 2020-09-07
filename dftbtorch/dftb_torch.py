@@ -1,3 +1,4 @@
+
 """Main DFTB code.
 
 implement pytorch to DFTB
@@ -9,14 +10,14 @@ import torch as t
 import bisect
 from slakot import SKspline, SKTran
 from electront import DFTBelect
-import readt
+import IO.readt as readt
 from periodic import Periodic
 from matht import EigenSolver
 import parameters
 import dftbtorch.parser as parser
 from mixer import Simple, Anderson, Broyden
 from mbd import MBD
-from utils.save import SaveData
+from IO.save import SaveData
 from write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
 
@@ -958,13 +959,8 @@ class Analysis:
 
     def pdos(self):
         """Calculate PDOS."""
-        # E: define for testing
-        self.para['pdos_E'] = t.linspace(-20, 20, 1000, dtype=t.float64)
-        # print("self.para['eigenvec']", self.para['eigenvec'])
-        # print("self.para['overmat']", self.para['overmat'])
-        # print("self.para['eigenvalue']", self.para['eigenvalue'])
-
         # calculate pdos
+        self.para['pdos_E'] = t.linspace(-20, 20, 1000, dtype=t.float64)
 
         self.para['pdos'] = dos.PDoS(
             # C eigen vector

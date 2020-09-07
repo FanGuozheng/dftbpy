@@ -10,10 +10,10 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import CoulombMatrix
-from readt import ReadIn
+from IO.readt import ReadIn
 from ml.feature import ACSF as acsfml
-from utils.load import LoadData
-from utils.save import SaveData
+from IO.load import LoadData
+from IO.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 

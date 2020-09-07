@@ -2,8 +2,8 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import init_parameter as initpara
-from utils.load import LoadData
+import dftbtorch.init_parameter as initpara
+from IO.load import LoadData
 
 
 def plot_ml_compr(para):

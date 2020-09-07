@@ -1007,7 +1007,6 @@ class BicubInterpVec:
 
         # get four nearest grid points values, each will be: [natom, natom, 20]
         f00, f10, f01, f11 = self.fmat0th(zmesh)
-        print(self.nind, xmat.shape, f00.shape, zmesh.shape)
 
         # get four nearest grid points derivative over x, y, xy
         f02, f03, f12, f13, f20, f21, f30, f31, f22, f23, f32, f33 = \
@@ -1016,7 +1015,6 @@ class BicubInterpVec:
                         t.stack([f10, f11, f12, f13]),
                         t.stack([f20, f21, f22, f23]),
                         t.stack([f30, f31, f32, f33])])
-        print(coeff.shape, fmat.shape)
         a_mat = t.einsum('ii,ijlmn,jj->ijlmn', coeff, fmat, coeff_)
         return t.einsum('ij,iijkn,ik->jkn', xmat, a_mat, xmat)
 

@@ -13,7 +13,7 @@ from ase.calculators.dftb import Dftb
 from ase.calculators.aims import Aims
 from ase.io import write
 import dftbtorch.dftb_torch as dftb_torch
-from utils.save import SaveData
+from IO.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
                "O": -3.0861916005}

@@ -62,13 +62,13 @@ def init_dftb_ml(para):
         para['hdffile'] = hdffilelist
 
         # determine the type of molecule specie: str(integer), 'all' !!
-        para['hdf_num'] = [['1']]
+        para['hdf_num'] = [['all']]
 
         # how many molecules for each molecule specie !!
-        para['n_dataset'] = ['1']
+        para['n_dataset'] = ['2']
 
         # used to test (optimize ML algorithm parameters) !!
-        para['n_test'] = ['1']
+        para['n_test'] = ['2']
 
         # mix different molecule specie type
         para['hdf_mixture'] = True
