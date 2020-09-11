@@ -21,7 +21,7 @@ from torch.autograd import Variable
 class DFTBmath:
     """Interpolation method for SKF in DFTB.
 
-    see interpolation.F90 in DFTB+
+    see interpolation.F90 in DFTB+.
     """
 
     def __init__(self, para):
@@ -343,6 +343,140 @@ class DFTBmath:
         return yy
 
 
+def eig_solve(a, b=None,  **kwargs):
+    """Solves a standard or generalised eigenvalue problem of the form
+    (Az = λBz) for a real symmetric matrix and will apply eigenvalue
+    broadening during the backwards to improve gradient stability.
+
+    Parameters
+    ----------
+    a : `torch.tensor` [`float`]
+        Real symmetric matrix for which the eigenvalues & eigenvectors
+        are to be computed. This is typically the Fock matrix.
+    b : `torch.tensor` [`float`], optional
+        Complementary positive definite real symmetric matrix for the
+        generalised eigenvalue problem. Typically the overlap matrix.
+
+    **kwargs
+        Additional keyword arguments:
+            ``scheme``:
+                Selects the scheme to transform a generalised eigenvalue
+                problem into a standard one. Available schemes are:
+                    - "clsk" for Cholesky.
+                    - "lodw" for Löwdin.
+                (`str`) [DEFAULT='clsk']
+            ``direct_inv``:
+                If True then the matrix inversion will be computed directly
+                rather than via a call to torch.solve. [DEFAULT=False]
+            ``b_method``:
+                Defines broadening method used, options are:
+                    - "cond" for conditional broadening.
+                    - "lrnz" for Lorentzian broadening.
+                    - None for no broadening.
+                See the SymEigB docstring for more information on the
+                different methods (`str`, None). [DEFAULT='cb']
+            ``bf``:
+                Broadening factor to control broadening intensity. This
+                is only relevant when ``b_method``!=None. (`float`)
+                [DEFAULT=1E-12]
+
+    Returns
+    -------
+    eval : `torch.tensor` [`float`]
+        Eigenvalues, in ascending order.
+    evec : `torch.tensor` [`float`]
+        Corresponding orthonormal eigenvectors if the input ``a``.
+
+    Notes
+    -----
+    A more detailed discussion of the impacts of broadening and the
+    differences between the various broadening methods can be found
+    in the docstring of the ``SymEigB`` class.
+
+    Only generalised eigenvalue problems of the form Az = λBz can be
+    solved by this function.
+
+    Mathematical discussions regarding the Cholesky decomposition are
+    made with reference to the  "Generalized Symmetric Definite
+    Eigenproblems" chapter of Lapack. [Lapack]_
+
+
+    References
+    ----------
+    .. [Lapack] www.netlib.org/lapack/lug/node54.html (Accessed 10/08/2020)
+
+
+    Todo
+    ----
+    - Implement Löwdin Orthogonalisation scheme. [Priority: Low]
+    - Pass through standard torch keyword arguments. [Priority: QOL]
+    - Reduce functions overhead. [Priority: Low]
+
+    """
+
+    def call_solver(mat):
+        """This deals with which eigen-solver should be called and what
+        parameters should be passed though.
+
+        Parameters
+        ----------
+        mat : `torch.tensor` [`float`]
+            Matrix whose eigen-values/vectors are to be computed.
+
+        Returns
+        -------
+        evals, evecs : `torch.tensor`
+            The eigen-values/vectors
+        """
+        # Identify which broadening method is to be used
+        b_method = kwargs.get('b_method', 'cond')
+
+        if b_method is not None:  # If applying broadening
+            return SymEigB.apply(mat, b_method, kwargs.get('bf', 1E-12))
+        else:  # If not applying broadening
+            return t.symeig(mat, eigenvectors=True)
+
+    # If this is a standard eigenvalue problem
+    if b is None:
+        # Then no special methods are required, just compute & return the
+        # eigen-values/vectors
+        return call_solver(a)
+
+    # Otherwise either a Cholesky decomposition or Löwdin Orthogonalisation must
+    # be performed. Identify which scheme is to be used:
+    scheme = kwargs.get('scheme', 'clsk')
+
+    if scheme == 'clsk':  # For Cholesky decomposition scheme
+        # Perform Cholesky factorization (A = LL^{T}) of B to attain L
+        l = t.cholesky(b)
+
+        # Compute the inverse of L:
+        if kwargs.get('direct_inv', False):
+            # Via the direct method if specifically requested
+            l_inv = t.inverse(l)
+        else:
+            # Otherwise compute via an indirect method (default)
+            l_inv = t.solve(t.eye(a.shape[-1], dtype=a.dtype), l)[0]
+
+        # To obtain C, perform the reduction operation C = L^{-1}AL^{-T}
+        c = l_inv @ a @ l_inv.T
+
+        # The eigenvalues of Az = λBz are the same as Cy = λy; hence:
+        eval, evec_ = call_solver(c)
+
+        # The eigenvectors, however, are not, so they must be recovered: z = L^{-T}y
+        evec = t.mm(l_inv.T, evec_)
+
+        # Return the eigenvalues and eigenvectors
+        return eval, evec
+
+    elif scheme == 'lodw':  # For Löwdin Orthogonalisation scheme
+        raise NotImplementedError('Löwdin is not yet implemented')
+
+    else:  # If an unknown scheme was specified
+        raise ValueError('Unknown scheme selected.')
+
+
 class EigenSolver:
     """Eigen solver for general eigenvalue problem.
 
@@ -353,89 +487,147 @@ class EigenSolver:
 
     """
 
-    def __init__(self, para):
+    def __init__(self, eigenmethod='cholesky'):
         """Initialize parameters."""
-        self.para = para
+        self.eigenmethod = eigenmethod
 
-    def eigen(self, matrixa, matrixb):
-        """Choose different mothod for general eigenvalue problem."""
-        if self.para['eigenmethod'] == 'cholesky':
-            eigval, eigm_ab = self.cholesky_new(matrixa, matrixb)
-        elif self.para['eigenmethod'] == 'lowdin_qr':
-            eigval, eigm_ab = self.lowdin_qr(matrixa, matrixb)
-        return eigval, eigm_ab
+    def eigen(self, A, B=None, **kwargs):
+        """Choose different mothod for (general) eigenvalue problem.
 
-    def cholesky(self, matrixa, matrixb):
+        Parameters
+        ----------
+        A : `torch.tensor` [`float`]
+            Real symmetric matrix for which the eigenvalues & eigenvectors
+            are to be computed. This is typically the Fock matrix.
+        B : `torch.tensor` [`float`], optional
+            Complementary positive definite real symmetric matrix for the
+            generalised eigenvalue problem. Typically the overlap matrix.
+        self.eigenmethod: [`string`], optional
+            Choose the method for general eigenvalue problem.
+        """
+        if A.dim() == 3:
+            self.batch = True
+            self.nb = len(A)
+        else:
+            self.batch = False
+
+        # simple eigenvalue problem
+        if B is None:
+            eigval, eigvec = t.symeig(A, eigenvectors=True)
+
+        # general eigenvalue problem
+        else:
+            # test the shape size
+            assert A.shape == B.shape
+
+            # select decomposition method cholesky
+            if self.eigenmethod == 'cholesky':
+                eigval, eigvec = self.cholesky(A, B)
+
+            # select decomposition method lowdin
+            elif self.eigenmethod == 'lowdin':
+                eigval, eigvec = self.lowdin_qr(A, B)
+
+        # return eigenvalue and eigenvector
+        return eigval, eigvec
+
+    def cholesky(self, A, B, direct_inv=False):
         """Cholesky decomposition.
 
+        Parameters
+        ----------
+        A : `torch.tensor` [`float`]
+            Real symmetric matrix for which the eigenvalues & eigenvectors
+            are to be computed. This is typically the Fock matrix.
+        B : `torch.tensor` [`float`], optional
+            Complementary positive definite real symmetric matrix for the
+            generalised eigenvalue problem. Typically the overlap matrix.
+
+        Notes
+        -----
         Cholesky decomposition of B: B = LL^{T}
-        transfer general eigenvalue problem AX = (lambda)BX ==>
-            (L^{-1}AL^{-T})(L^{T}X) = (lambda)(L^{T}X)
-        matrix_a: here is Fock operator
-        matrix_b: here is overlap
+        transfer general eigenvalue problem:
+            AX = λBX ==> (L^{-1}AL^{-T})(L^{T}X) = λ(L^{T}X)
+
         """
-        chol_l = t.cholesky(matrixb)
-        # self.para['eigval'] = chol_l
-        linv_a = t.mm(t.inverse(chol_l), matrixa)
-        l_invtran = t.inverse(chol_l.t())
-        linv_a_linvtran = t.mm(linv_a, l_invtran)
-        eigval, eigm = t.symeig(linv_a_linvtran, eigenvectors=True)
-        eigm_ab = t.mm(l_invtran, eigm)
-        return eigval, eigm_ab
+        # get the decomposition L, B = LL^{T}
+        chol_l = t.cholesky(B)
 
-    def cholesky_new(self, matrixa, matrixb):
-        """Cholesky decomposition.
+        # directly use inverse matrix
+        if direct_inv:
+            # L^{-1} @ A
+            linv_a = t.inverse(chol_l) @ A
+            linvt = t.inverse(chol_l.T)
 
-        difference from _cholesky is avoiding the use of inverse matrix
-        """
-        chol_l = t.cholesky(matrixb)
-        row = matrixa.shape[1]
-        A1, LU_A = t.solve(matrixa, chol_l)
-        A2, LU_A1 = t.solve(A1.t(), chol_l)
-        A3 = A2.t()
-        eigval, eigm = t.symeig(A3, eigenvectors=True)
-        l_inv, _ = t.solve(t.eye((row), dtype=t.float64), chol_l.t())
-        eigm_ab = t.mm(l_inv, eigm)
-        return eigval, eigm_ab
+            # (L^{-1} @ A) @ L^{-T}
+            linv_a_linvt = linv_a @ linvt
 
-    def lowdin_symeig(self, matrixa, matrixb):
-        """Use t.symeig to decompose B to realize Löwdin orthonormalization.
+        else:
+            # L^{-1} @ A
+            linv_a, _ = t.solve(A, chol_l)
 
-        BX = (lambda)X, then omega = lambda.diag()
-        S_{-1/2} = Xomega_{-1/2}X_{T}
-        AX' = (lambda)BX' ==>
-        (S_{-1/2}AS_{-1/2})(S_{1/2}X') = (lambda)(S_{1/2}X')
-        matrix_a: here is Fock operator
-        matrix_b: here is overlap
-        """
-        lam_b, l_b = t.symeig(matrixb, eigenvectors=True)
-        lam_sqrt_inv = t.sqrt(1 / lam_b)
-        S_sym = t.mm(l_b, t.mm(lam_sqrt_inv.diag(), l_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
-        eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
-        eigvec = t.mm(S_sym, eigvec_)
-        # eigval3, eigvec_ = t.symeig(lam_b_2d, eigenvectors=True)
+            # (L^{-1} @ A) @ L^{-T}
+            if self.batch:
+
+                # stack the self.nb L^{-1} @ A matrices
+                linvt, _ = t.solve(t.stack([t.eye(
+                    chol_l.shape[-1], dtype=chol_l.dtype) for i in range(self.nb)]),
+                    t.stack([ic.T for ic in chol_l]))
+
+                # get L^{-T} @ (L^{-1} @ A)^{T}
+                linv_a_linvt_, _ = t.solve(
+                    t.stack([ila.T for ila in linv_a]), chol_l)
+
+                # the transpose of linv_a_linvt_, that is (L^{-1} @ A) @ L^{-T}
+                linv_a_linvt = t.stack([ilal.T for ilal in linv_a_linvt_])
+            else:
+                linvt, _ = t.solve(t.eye(chol_l.shape[0], dtype=chol_l.dtype),
+                                   chol_l.T)
+                linv_a_linvt_, _ = t.solve(linv_a.T, chol_l)
+                linv_a_linvt = linv_a_linvt_.T
+
+        # get eigenvalue of (L^{-1} @ A) @ L^{-T}
+        eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+
+        # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
+        eigvec = linvt @ eigvec_
         return eigval, eigvec
 
-    def lowdin_svd_sym(self, matrixa, matrixb):
-        """Use SVD and sym to decompose B to realize Löwdin orthonormalization.
+    def lowdin_symeig(self, A, B):
+        """Löwdin orthonormalization.
 
-        B: B = USV_{T}
-        S_{-1/2} = US_{-1/2}V_{T}
-        AX = (lambda)BX ==>
-        (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
+        Parameters
+        ----------
+        A : `torch.tensor` [`float`]
+            Real symmetric matrix for which the eigenvalues & eigenvectors
+            are to be computed. This is typically the Fock matrix.
+        B : `torch.tensor` [`float`], optional
+            Complementary positive definite real symmetric matrix for the
+            generalised eigenvalue problem. Typically the overlap matrix.
+
+        Notes
+        -----
+        BX = λX, if λ' = λ.diag(), then get S^{-1/2} = X λ'^{-1/2} X^{T},
+        AX' = λBX' ==> (S^{-1/2}AS^{-1/2})(S^{1/2}X') = λ(S_{1/2}X')
+        The sqrt and inverse is not friendly to gradient!!
+
         """
-        ub, sb, vb = t.svd(matrixb)
-        sb_sqrt_inv = t.sqrt(1 / sb)
-        S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        # construct S^{-1/2} = X λ^{-1/2} X^{T}, where SX = λX
+        lam_, l_vec = t.symeig(B, eigenvectors=True)
+        lam_sqrt_inv = t.sqrt(lam_.inverse())
+        S_sym = t.mm(l_vec, t.mm(lam_sqrt_inv.diag(), l_vec.t()))
+
+        # build H' (SHS), where H' = S^{-1/2}AS^{-1/2})
+        SHS = t.mm(S_sym, t.mm(A, S_sym))
+
+        # get eigenvalue and eigen vector of H'
         eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
+
+        # get eigenvector of H from H'
         eigvec = t.mm(S_sym, eigvec_)
         return eigval, eigvec
 
-    def lowdin_svd(self, matrixa, matrixb):
+    def lowdin_svd(self, A, B):
         """Only SVD to decompose B to realize Löwdin orthonormalization.
 
         SVD decomposition of B: B = USV_{T}
@@ -445,29 +637,38 @@ class EigenSolver:
         matrix_a: Fock operator
         matrix_b: overlap matrix
         """
-        ub, sb, vb = t.svd(matrixb)
+        ub, sb, vb = t.svd(B)
         sb_sqrt_inv = t.sqrt(1 / sb)
         S_sym = t.mm(ub, t.mm(sb_sqrt_inv.diag(), vb.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        SHS = t.mm(S_sym, t.mm(A, S_sym))
 
         ub2, sb2, vb2 = t.svd(SHS)
         eigvec = t.mm(S_sym, ub2)
         return sb2, eigvec
 
-    def lowdin_qr_eig(self, matrixa, matrixb):
-        """Use QR to decompose B to realize Löwdin orthonormalization.
+    def lowdin_qr_eig(self, A, B):
+        """Löwdin orthonormalization.
 
-        QR decomposition of B: B = USV_{T}
-        S_{-1/2} = US_{-1/2}V_{T}
-        AX = (lambda)BX ==>
-        (S_{-1/2}AS_{-1/2})(S_{1/2}X) = (lambda)(S_{1/2}X)
-        matrix_a: Fock operator
-        matrix_b: overlap matrix
+        Parameters
+        ----------
+        A : `torch.tensor` [`float`]
+            Real symmetric matrix for which the eigenvalues & eigenvectors
+            are to be computed. This is typically the Fock matrix.
+        B : `torch.tensor` [`float`], optional
+            Complementary positive definite real symmetric matrix for the
+            generalised eigenvalue problem. Typically the overlap matrix.
+
+        Notes
+        -----
+        B = USV_{T}, B^{-1/2} = US^{-1/2}V^{T},
+        AX' = λBX' ==> (S^{-1/2}AS^{-1/2})(S^{1/2}X') = λ(S_{1/2}X')
+        The sqrt and inverse is not friendly to gradient!!
+
         """
         Bval = []
-        rowa = matrixb.shape[0]
+        rowa = B.shape[0]
         eigvec_b = t.eye(rowa)
-        Bval.append(matrixb)
+        Bval.append(B)
         icount = 0
         while True:
             Q_, R_ = t.qr(Bval[-1])
@@ -484,12 +685,12 @@ class EigenSolver:
         eigval_b = Bval[-1]
         diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
         S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        SHS = t.mm(S_sym, t.mm(A, S_sym))
         eigval, eigvec_ = t.symeig(SHS, eigenvectors=True)
         eigvec = t.mm(S_sym, eigvec_)
         return eigval, eigvec
 
-    def lowdin_qr(self, matrixa, matrixb):
+    def lowdin_qr(self, A, B):
         """Use QR to decompose B to realize Löwdin orthonormalization.
 
         QR decomposition of B: B = USV_{T}
@@ -500,14 +701,14 @@ class EigenSolver:
         matrix_b: overlap matrix
         """
         Bval, ABval = [], []
-        rowb, colb = matrixb.shape[0], matrixb.shape[1]
-        rowa, cola = matrixa.shape[0], matrixa.shape[1]
+        rowb, colb = B.shape[0], B.shape[1]
+        rowa, cola = A.shape[0], A.shape[1]
         assert rowa == rowb == cola == colb
         eigvec_b = t.eye((rowa), dtype=t.float64)
         eigvec_ab = t.eye((rowa), dtype=t.float64)
         eigval = t.zeros((rowb), dtype=t.float64)
         eigvec = t.zeros((rowa, rowb), dtype=t.float64)
-        Bval.append(matrixb)
+        Bval.append(B)
         icount = 0
         while True:
             Q_, R_ = t.qr(Bval[-1])
@@ -524,7 +725,7 @@ class EigenSolver:
         eigval_b = Bval[-1]
         diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
         S_sym = t.mm(eigvec_b, t.mm(diagb_sqrt_inv, eigvec_b.t()))
-        SHS = t.mm(S_sym, t.mm(matrixa, S_sym))
+        SHS = t.mm(S_sym, t.mm(A, S_sym))
 
         ABval.append(SHS)
         icount = 0
@@ -541,7 +742,7 @@ class EigenSolver:
         eigval_ab = ABval[-1].diag()
         eigvec_ = t.mm(S_sym, eigvec_ab)
         sort = eigval_ab.sort()
-        for ii in range(0, matrixb.shape[0]):
+        for ii in range(0, B.shape[0]):
             eigval[ii] = eigval_ab[int(t.tensor(sort[1])[ii])]
             eigvec[:, ii] = eigvec_[:, int(t.tensor(sort[1])[ii])]
         return eigval, eigvec

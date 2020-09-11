@@ -314,7 +314,7 @@ class SCF:
         self.smat = para['overmat']
 
         # eigen solver
-        self.eigen = EigenSolver(self.para)
+        self.eigen = EigenSolver(self.para['eigenmethod'])
 
         # analyze DFTB result
         self.analysis = Analysis(self.para)
