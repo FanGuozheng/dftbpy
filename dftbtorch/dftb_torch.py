@@ -296,6 +296,15 @@ class SCF:
 
     def __init__(self, para):
         """Parameters for SCF."""
+        assert para['hammat'].shape == para['overmat'].shape
+
+        # if calculate a single system or multi systems
+        if para['hammat'].dim() == 3:
+            self.batch = True
+            self.nb = para['hammat'].shape[0]
+        elif para['hammat'].dim() == 2:
+            self.batch = False
+
         self.para = para
 
         # number of atom in molecule
@@ -374,14 +383,28 @@ class SCF:
 
         # build density according to occupancies and eigenvector
         C_scaled = t.sqrt(occupancies) * C
-        self.para['denmat'] = C_scaled @ C_scaled.T
 
-        # return the eigenvector
-        self.para['eigenvec'] = C
+        # if calculate a single system or multi systems
+        if not self.batch:
+            self.para['denmat'] = C_scaled @ C_scaled.T
 
-        # calculate mulliken charges
-        self.para['charge'] = self.elect.mulliken(
-            self.para['HSsym'], over, self.para['denmat'])
+            # return the eigenvector
+            self.para['eigenvec'] = C
+
+            # calculate mulliken charges
+            self.para['charge'] = self.elect.mulliken(
+                self.para['HSsym'], over, self.para['denmat'])
+        else:
+            self.para['denmat'] = C_scaled @ t.stack([C_scaled[i].T
+                                                      for i in range(self.nb)])
+
+            # return the eigenvector
+            self.para['eigenvec'] = C
+
+            # calculate mulliken charges
+            self.para['charge'] = t.stack([self.elect.mulliken(
+                self.para['HSsym'], over[i], self.para['denmat'][i])
+                for i in range(self.nb)])
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -430,7 +453,11 @@ class SCF:
 
         # expexponential normalized spherical charge density
         elif self.para['scc_den_basis'] == 'exp_spher':
-            gmat = self.elect.gmatrix()
+            if not self.batch:
+                gmat = self.elect.gmatrix(self.para['distance'])
+            elif self.batch:
+                gmat = t.stack([self.elect.gmatrix(self.para['distance'][i])
+                                for i in range(self.nb)])
 
         # Warning the next line will creates linked references
         self.para['qzero'] = qzero = self.para['qatom']
@@ -467,15 +494,30 @@ class SCF:
             #       rather than being remapped to [0, 1].
             #   2) Multiply the scaled coefficients by their transpose.
             C_scaled = t.sqrt(occupancies) * C
-            rho = C_scaled @ C_scaled.T
 
-            # Housekeeping functions:
-            # Append the density matrix to "denmat", this is needed by MBD at
-            # least.
-            denmat.append(rho)
+            # if calculate a single system or multi systems
+            if not self.batch:
+                rho = C_scaled @ C_scaled.T
 
-            # calculate mulliken charges
-            q_new = self.elect.mulliken(self.para['HSsym'], over, rho)
+                # Append the density matrix to "denmat", this is needed by MBD
+                # at least.
+                denmat.append(rho)
+
+                # calculate mulliken charges
+                q_new = self.elect.mulliken(self.para['HSsym'], over, rho)
+
+            elif self.batch:
+                rho = C_scaled @ t.stack(
+                    [C_scaled[i].T for i in range(self.nb)])
+
+                # Append the density matrix to "denmat", this is needed by MBD
+                # at least.
+                denmat.append(rho)
+
+                # calculate mulliken charges
+                q_new = t.stack([self.elect.mulliken(
+                    self.para['HSsym'], over[i], rho[i])
+                    for i in range(self.nb)])
 
             # Last mixed charge is the current step now
             q_mixed = self.mixer(q_new, q_mixed)

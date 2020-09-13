@@ -59,7 +59,7 @@ class DFTBelect:
         # return occupation of electrons
         return occ
 
-    def gmatrix(self):
+    def gmatrix(self, distance):
         """Build the gamma (2D) in second-order term.
         Args:
             distance
@@ -67,9 +67,6 @@ class DFTBelect:
         Returns:
             Gamma matrix in second order
         """
-        # get distance
-        distance = self.para['distance']
-
         nameall = self.para['atomnameall']
         gmat = t.empty((self.nat, self.nat), dtype=t.float64)
         for iatom in range(self.nat):
