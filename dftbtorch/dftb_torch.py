@@ -298,10 +298,12 @@ class SCF:
         """Parameters for SCF."""
         assert para['hammat'].shape == para['overmat'].shape
 
-        # if calculate a single system or multi systems
+        # multi systems
         if para['hammat'].dim() == 3:
             self.batch = True
             self.nb = para['hammat'].shape[0]
+
+        # a single system
         elif para['hammat'].dim() == 2:
             self.batch = False
 
@@ -337,29 +339,42 @@ class SCF:
         # print DFTB calculation information
         self.print_ = Print(self.para)
 
-        # get electron information, such as initial charge
-        self.analysis.get_qatom()
-
         # mixing method is simple method
         if para['mixMethod'] == 'simple':
             self.mixer = Simple(mix_param=self.para['mixFactor'])
 
         # mixing method is anderson
-        if para['mixMethod'] == 'anderson':
+        elif para['mixMethod'] == 'anderson':
             self.mixer = Anderson(mix_param=self.para['mixFactor'],
                                   init_mix_param=self.para['mixFactor'],
                                   generations=2)
 
         # mixing method is broyden
-        if para['mixMethod'] == 'broyden':
+        elif para['mixMethod'] == 'broyden':
             self.mixer = Broyden(mix_param=self.para['mixFactor'],
                                  init_mix_param=self.para['mixFactor'],
                                  generations=self.para['maxIter'])
 
     def scf_npe_nscc(self):
         """DFTB for non-SCC, non-perodic calculation."""
-        # initial neutral charge
-        self.para['qzero'] = self.para['qatom']
+        # get electron information, such as initial charge
+        if not self.batch:
+            qatom = self.analysis.get_qatom()
+            nelectron = sum(qatom)
+
+            # initial neutral charge
+            self.para['qzero'] = qatom
+
+        # multi systems
+        elif self.batch:
+            qatom = t.stack(
+                [self.analysis.get_qatom() for i in range(self.nb)])
+
+            # qatom here is 2D, add up the along the rows
+            nelectron = qatom.sum(axis=1)
+
+            # initial neutral charge
+            self.para['qzero'] = qatom
 
         # number of orbitals
         ind_nat = self.atind[self.nat]
@@ -379,13 +394,14 @@ class SCF:
         self.para['eigenvalue'], C = self.eigen.eigen(ham, over)
 
         # calculate the occupation of electrons
-        occupancies = self.elect.fermi(self.para['eigenvalue'])
-
-        # build density according to occupancies and eigenvector
-        C_scaled = t.sqrt(occupancies) * C
+        occupancies = self.elect.fermi(self.para['eigenvalue'], nelectron,
+                                       self.para['tElec'], batch=self.batch)
 
         # if calculate a single system or multi systems
         if not self.batch:
+
+            # build density according to occupancies and eigenvector
+            C_scaled = t.sqrt(occupancies) * C
             self.para['denmat'] = C_scaled @ C_scaled.T
 
             # return the eigenvector
@@ -395,6 +411,11 @@ class SCF:
             self.para['charge'] = self.elect.mulliken(
                 self.para['HSsym'], over, self.para['denmat'])
         else:
+
+            # build density according to occupancies and eigenvector
+            C_scaled = t.stack([t.sqrt(occupancies[i]) * C[i]
+                                for i in range(self.nb)])
+
             self.para['denmat'] = C_scaled @ t.stack([C_scaled[i].T
                                                       for i in range(self.nb)])
 
@@ -402,9 +423,9 @@ class SCF:
             self.para['eigenvec'] = C
 
             # calculate mulliken charges
-            self.para['charge'] = t.stack([self.elect.mulliken(
-                self.para['HSsym'], over[i], self.para['denmat'][i])
-                for i in range(self.nb)])
+            self.para['charge'] = t.stack(
+                [self.elect.mulliken(self.para['HSsym'], over[i], self.para['denmat'][i])
+                 for i in range(self.nb)])
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -446,21 +467,28 @@ class SCF:
             # replace H0, S name for convenience
             ham, over = self.hmat, self.smat
 
-        # choose density basis type: Gaussian profile
-        if self.para['scc_den_basis'] == 'gaussian':
-            gmat = self.elect._gamma_gaussian(self.para['this_U'],
-                                              self.para['coor'][:, 1:])
+        # single system
+        if not self.batch:
+            # choose density basis type: Gaussian profile
+            if self.para['scc_den_basis'] == 'gaussian':
+                gmat = self.elect._gamma_gaussian(self.para['this_U'],
+                                                  self.para['coor'][:, 1:])
 
-        # expexponential normalized spherical charge density
-        elif self.para['scc_den_basis'] == 'exp_spher':
-            if not self.batch:
+            # expexponential normalized spherical charge density
+            elif self.para['scc_den_basis'] == 'exp_spher':
                 gmat = self.elect.gmatrix(self.para['distance'])
-            elif self.batch:
+
+            # get the electron of each atom and total system electron
+            qatom = self.analysis.get_qatom()
+            nelectron = sum(qatom)
+            self.para['qzero'] = qzero = qatom
+
+        # multi systems
+        elif self.batch:
+            if self.para['scc_den_basis'] == 'exp_spher':
                 gmat = t.stack([self.elect.gmatrix(self.para['distance'][i])
                                 for i in range(self.nb)])
 
-        # Warning the next line will creates linked references
-        self.para['qzero'] = qzero = self.para['qatom']
         denmat = []
 
         q_mixed = qzero.clone()
@@ -487,7 +515,7 @@ class SCF:
             epsilon, C = self.eigen.eigen(F, over)
 
             # Calculate the occupation of electrons via the fermi method
-            occupancies = self.elect.fermi(epsilon)
+            occupancies = self.elect.fermi(epsilon, nelectron, self.para['tElec'], batch=self.batch)
 
             # To get the density matrix "rho":
             #   1) Scale C by occupancies, which remain in the domain ∈[0, 2]
@@ -980,11 +1008,8 @@ class Analysis:
         # get each intial atom charge
         [qat.append(self.para['val_' + name[iat]]) for iat in range(self.nat)]
 
-        # sum up all atom charge
-        self.para['nelectrons'] = sum(qat)
-
         # return charge information
-        self.para['qatom'] = t.Tensor(qat).double()
+        return t.tensor(qat, dtype=t.float64)
 
     def get_dipole(self, qzero, qatom):
         """Read and process dipole data."""

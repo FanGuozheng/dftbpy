@@ -3,6 +3,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import torch as t
+from torch.nn.utils.rnn import pad_sequence
+import torch.nn.functional as F
 
 
 class DFTBelect:
@@ -18,40 +20,65 @@ class DFTBelect:
         # atom orbital index
         self.atind = self.para['atomind']
 
-    def fermi(self, eigval):
+    def fermi(self, eigval, nelectron, telec, batch=False):
         """Fermi-Dirac distributions."""
-        # define occupied electron matrix
-        occ = t.zeros((self.atind[self.nat]), dtype=t.float64)
+        # single system
+        if not batch:
 
-        # total electron number
-        nelect = self.para['nelectrons']
+            # make sure the electron number is positive integer
+            assert nelectron >= 1
 
-        # total orbital number
-        norbs = int(self.atind[self.nat])
+            # define occupied electron matrix
+            occ = t.zeros((self.atind[self.nat]), dtype=t.float64)
 
-        # system temperature
-        telec = self.para['tElec']
+            # the occupied state
+            nef = int(nelectron / 2)
 
-        # make sure the electron number is positive integer
-        assert nelect >= 1
+            # zero temperature
+            if telec < self.para['t_zero_max']:
 
-        # the occupied state
-        nef = int(nelect / 2)
+                # full occupied state
+                occ[: nef] = 2
 
-        # zero temperature
-        if telec < self.para['t_zero_max']:
+                # no unpaired electron (total electrons are even)
+                if nelectron % 2 == 0:
+                    self.para['nocc'] = nef
 
-            # full occupied state
-            occ[: nef] = 2
+                # unpaired electron
+                elif nelectron % 2 == 1:
+                    occ[nef] = 1
+                    self.para['nocc'] = nef + 1
 
-            # no unpaired electrons
-            if nelect % 2 == 0:
-                self.para['nocc'] = nef
+        # multi system
+        elif batch:
 
-            # exist unpaired electrons
-            elif nelect % 2 == 1:
-                occ[nef] = 1
-                self.para['nocc'] = nef + 1
+            # make sure each element in electron tensor is positive integer
+            assert False not in t.ge(nelectron, 1)
+
+            # the occupied state
+            nelectron_ = nelectron.clone().detach() / 2
+            nef = t.tensor(nelectron_, dtype=t.int16)
+
+            # zero temperature
+            if telec < self.para['t_zero_max']:
+
+                # occupied state, if occupied, then return 2
+                occ_ = pad_sequence([t.ones(inef) * 2 for inef in nef]).T
+
+                # pad the unoccupied states with 0
+                occ = F.pad(input=occ_, pad=(0, occ_.shape[-1]), value=0)
+
+                # get odd total electrons index
+                nind = t.nonzero(nelectron % 2, as_tuple=True)
+
+                # select total electrons which is odd and add 1
+                nelectron[nind] += 1
+
+                # occupied states of the system with odd electrons: (n + 1) / 2
+                self.para['nocc'] = nelectron / 2
+
+                # add 1 to occ if total electron is odd
+                # [occ[i, nef[i]] for i in nind]
 
         # return occupied electron in each state
         self.para['occ'] = occ
