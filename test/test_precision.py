@@ -1149,7 +1149,7 @@ if __name__ == '__main__':
     para = {}
 
     # define the main task
-    para["test_precision"] = "compr"
+    para["test_precision"] = "single"
 
     # test a single molecule
     if para["test_precision"] == "single":

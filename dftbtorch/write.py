@@ -38,28 +38,70 @@ class Print:
             print(' ' * 30, 'periodic SCC-DFTB')
             print('*' * 80)
 
-    def print_energy(self, iiter, energy):
+    def print_energy(self, iiter, energy, batch, nbatch=None, Lprint=False):
         """Print energy in each SCC loops."""
         # for the 0th loop, dE == energy
         if iiter == 0:
             dE = energy[iiter].detach()
 
-            # print title
-            print('iteration', ' ' * 8, 'energy', ' ' * 20, 'dE')
+            # single system
+            if not batch:
 
-            # print 0th loop energy
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
-            return dE
+                # print the first title line
+                print('iteration', ' ' * 8, 'energy', ' ' * 20, 'dE')
+                energy_ = energy[iiter].squeeze(0)
+                dE_ = dE.squeeze(0)
 
-        # print dE and energy
+                # print 0th loop energy
+                print(f'{iiter:5} {energy_.detach():25}', f'{dE_:25}')
+                return dE
+
+            # multi system
+            elif batch:
+
+                # if print the energy
+                if Lprint:
+                    assert nbatch is not None
+                    # print the first title line
+                    print('iteration', ' ' * 8,
+                          'energy list', ' ' * 20, 'dE list')
+
+                    # print 0th loop energy
+                    for i in range(nbatch):
+                        print(f'{iiter:5} {energy[iiter].detach():25}',
+                              f'{dE:25}')
+                return dE
+
+        # for loops >= 1
         elif iiter >= 1:
 
-            # get energy
-            dE = energy[iiter].detach() - energy[iiter - 1].detach()
+            # single system
+            if not batch:
 
-            # print nth loop energy
-            print(f'{iiter:5} {energy[iiter].detach():25}', f'{dE:25}')
-            return dE
+                # get energy
+                dE = energy[iiter].detach() - energy[iiter - 1].detach()
+                energy_ = energy[iiter].squeeze(0)
+                dE_ = dE.squeeze(0)
+
+                # print nth loop energy
+                print(f'{iiter:5} {energy_.detach():25}', f'{dE_:25}')
+                return dE
+
+            # multi system
+            elif batch:
+
+                # get energy
+                dE = energy[iiter].detach() - energy[iiter - 1].detach()
+
+                # if print the energy
+                if Lprint:
+                    assert nbatch is not None
+
+                    # print nth loop energy
+                    for i in range(nbatch):
+                        print(f'{iiter:5} {energy[iiter].detach():25}',
+                              f'{dE:25}')
+                return dE
 
     def print_charge(self, iiter, charge, nat):
         """Print charge in each SCC loops."""

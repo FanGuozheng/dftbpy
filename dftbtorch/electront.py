@@ -17,19 +17,16 @@ class DFTBelect:
         # number of atom
         self.nat = self.para['natom']
 
-        # atom orbital index
-        self.atind = self.para['atomind']
-
     def fermi(self, eigval, nelectron, telec, batch=False):
         """Fermi-Dirac distributions."""
         # single system
-        if not batch:
+        '''if not batch:
 
             # make sure the electron number is positive integer
             assert nelectron >= 1
 
             # define occupied electron matrix
-            occ = t.zeros((self.atind[self.nat]), dtype=t.float64)
+            occ = t.zeros((self.para['atomind'][self.nat]), dtype=t.float64)
 
             # the occupied state
             nef = int(nelectron / 2)
@@ -47,38 +44,38 @@ class DFTBelect:
                 # unpaired electron
                 elif nelectron % 2 == 1:
                     occ[nef] = 1
-                    self.para['nocc'] = nef + 1
+                    self.para['nocc'] = nef + 1'''
 
         # multi system
-        elif batch:
+        # if not batch:
 
-            # make sure each element in electron tensor is positive integer
-            assert False not in t.ge(nelectron, 1)
+        # make sure each element in electron tensor is positive integer
+        assert False not in t.ge(nelectron, 1)
 
-            # the occupied state
-            nelectron_ = nelectron.clone().detach() / 2
-            nef = t.tensor(nelectron_, dtype=t.int16)
+        # the occupied state
+        nef = nelectron.clone().detach() / 2
 
-            # zero temperature
-            if telec < self.para['t_zero_max']:
+        # zero temperature
+        if telec < self.para['t_zero_max']:
 
-                # occupied state, if occupied, then return 2
-                occ_ = pad_sequence([t.ones(inef) * 2 for inef in nef]).T
+            # occupied state, if occupied, then return 2
+            print('nelectron', nelectron)
+            occ_ = pad_sequence([t.ones(int(inef)) * 2 for inef in nef]).T
 
-                # pad the unoccupied states with 0
-                occ = F.pad(input=occ_, pad=(0, occ_.shape[-1]), value=0)
+            # pad the unoccupied states with 0
+            occ = F.pad(input=occ_, pad=(0, occ_.shape[-1]), value=0)
 
-                # get odd total electrons index
-                nind = t.nonzero(nelectron % 2, as_tuple=True)
+            # get odd total electrons index
+            nind = t.nonzero(nelectron % 2, as_tuple=True)
 
-                # select total electrons which is odd and add 1
-                nelectron[nind] += 1
+            # select total electrons which is odd and add 1
+            nelectron[nind] += 1
 
-                # occupied states of the system with odd electrons: (n + 1) / 2
-                self.para['nocc'] = nelectron / 2
+            # occupied states of the system with odd electrons: (n + 1) / 2
+            self.para['nocc'] = nelectron / 2
 
-                # add 1 to occ if total electron is odd
-                # [occ[i, nef[i]] for i in nind]
+            # add 1 to occ if total electron is odd
+            # [occ[i, nef[i]] for i in nind]
 
         # return occupied electron in each state
         self.para['occ'] = occ
@@ -294,7 +291,7 @@ class DFTBelect:
         shift = (qatom - qzero) @ gmat
         return shift
 
-    def mulliken(self, sym, overmat, denmat):
+    def mulliken(self, sym, overmat, denmat, atomindex):
         """Calculate Mulliken charge with 2D density, overlap matrices."""
         # sum overlap and density by hadamard product, get charge by orbital
         qatom_orbital = (denmat * overmat).sum(dim=1)
@@ -306,7 +303,7 @@ class DFTBelect:
         for iat in range(self.nat):
 
             # get the sum of orbital of ith atom
-            init, end = int(self.atind[iat]), int(self.atind[iat + 1])
+            init, end = int(atomindex[iat]), int(atomindex[iat + 1])
             qatom[iat] = sum(qatom_orbital[init: end])
 
         return qatom

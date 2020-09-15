@@ -542,7 +542,7 @@ def init_dftb(para):
     para['LreadSKFinterp'] = False
 
     # if calculate PDOS
-    para['Lpdos'] = True
+    para['Lpdos'] = False
 
     # orbital resolved: if Ture, only use Hubbert of s orbital
     para['Lorbres'] = False
