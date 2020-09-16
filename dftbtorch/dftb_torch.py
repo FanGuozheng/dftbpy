@@ -8,17 +8,17 @@ implement pytorch to DFTB
 import numpy as np
 import torch as t
 import bisect
-from slakot import SKspline, SKTran
-from electront import DFTBelect
+from dftbtorch.slakot import SKspline, SKTran
+from dftbtorch.electront import DFTBelect
 import IO.readt as readt
-from periodic import Periodic
-from matht import EigenSolver
-import parameters
+from dftbtorch.periodic import Periodic
+from dftbtorch.matht import EigenSolver
+import dftbtorch.parameters as parameters
 import dftbtorch.parser as parser
-from mixer import Simple, Anderson, Broyden
-from mbd import MBD
+from DFTBMaLT.dftbmalt.dftb.mixer import Simple, Anderson  # Broyden
+from dftbtorch.mbd import MBD
 from IO.save import SaveData
-from write import Print
+from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
 
 
@@ -400,31 +400,16 @@ class SCF:
         # get eigenvector and eigenvalue (and cholesky decomposition)
         self.para['eigenvalue'], C = self.eigen.eigen(self.ham, self.over)
 
-        # calculate the occupation of electrons
+        # batch calculation of the occupation of electrons
         occupancies = self.elect.fermi(self.para['eigenvalue'], nelectron,
                                        self.para['tElec'], batch=self.batch)
 
-        # if calculate a single system or multi systems
-        '''if not self.batch:
-
-            # build density according to occupancies and eigenvector
-            C_scaled = t.sqrt(occupancies) * C
-            self.para['denmat'] = C_scaled @ C_scaled.T
-
-            # return the eigenvector
-            self.para['eigenvec'] = C
-
-            # calculate mulliken charges
-            self.para['charge'] = self.elect.mulliken(
-                self.para['HSsym'], over, self.para['denmat'], self.para['atomind'])
-        else:'''
-
         # build density according to occupancies and eigenvector
-        C_scaled = t.stack([t.sqrt(occupancies[i]) * C[i]
-                            for i in range(self.nb)])
+        # ==> t.stack([t.sqrt(occupancies[i]) * C[i] for i in range(self.nb)])
+        C_scaled = t.sqrt(occupancies).unsqueeze(1).expand_as(C) * C
 
-        self.para['denmat'] = C_scaled @ t.stack([C_scaled[i].T
-                                                  for i in range(self.nb)])
+        # batch calculation of density, normal code is: C_scaled @ C_scaled.T
+        self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
         # return the eigenvector
         self.para['eigenvec'] = C
@@ -467,18 +452,7 @@ class SCF:
             self.para['distance'] = self.para['distance'].unsqueeze(0)
             self.ham, self.over = self.ham.unsqueeze(0), self.over.unsqueeze(0)
             atomind = t.tensor(self.para['atomind']).unsqueeze(0)
-            # if self.para['scc_den_basis'] == 'gaussian':
-            #    gmat = self.elect._gamma_gaussian(self.para['this_U'],
-            #                                      self.para['coor'][:, 1:])
 
-            # expexponential normalized spherical charge density
-            # elif self.para['scc_den_basis'] == 'exp_spher':
-            #    gmat = self.elect.gmatrix(self.para['distance'])
-
-            # get the electron of each atom and total system electron
-            # qatom = self.analysis.get_qatom()
-            # nelectron = sum(qatom)
-            # self.para['qzero'] = qzero = qatom
         elif self.batch:
             atomind = t.tensor(self.para['atomind'])
 
@@ -487,8 +461,9 @@ class SCF:
         if self.para['scc_den_basis'] == 'exp_spher':
             gmat = t.stack([self.elect.gmatrix(self.para['distance'][i])
                             for i in range(self.nb)])
-        else:
-            raise NotImplementedError()
+        # elif self.para['scc_den_basis'] == 'gaussian':
+        #    gmat = self.elect._gamma_gaussian(self.para['this_U'],
+        #                                      self.para['coor'][:, 1:])
         qatom = t.stack(
             [self.analysis.get_qatom() for i in range(self.nb)])
 
@@ -500,23 +475,9 @@ class SCF:
         q_mixed = qzero.clone()
         for iiter in range(maxiter):
 
-            '''if not self.batch:
-
-                # The "shift_" term is the a product of the gamma and dQ values
-                shift_ = (q_mixed - qzero) @ gmat
-
-                # "n_orbitals" should be a system constant which should not be
-                # defined here.
-                n_orbitals = t.tensor(np.diff(self.atind))
-                shiftorb_ = shift_.repeat_interleave(n_orbitals)
-                shift_mat = t.unsqueeze(shiftorb_, 1) + shiftorb_
-
-            # repeats must be 0-dim or 1-dim tensor
-            else:'''
-
             # The "shift_" term is the a product of the gamma and dQ values
-            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i]
-                              for i in range(self.nb)])
+            # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
+            shift_ = t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat)
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
@@ -532,7 +493,6 @@ class SCF:
             # relative value for true vectorisation. shift_mat is precomputed
             # to make the code easier to understand, however it will be removed
             # later in the development process to save on memory allocation.
-            print(self.over.shape, shift_mat.shape, shift_, n_orbitals)
             F = self.ham + 0.5 * self.over * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
@@ -541,28 +501,12 @@ class SCF:
             # Calculate the occupation of electrons via the fermi method
             occupancies = self.elect.fermi(epsilon, nelectron, self.para['tElec'], self.batch)
 
-            # if calculate a single system or multi systems
-            '''if not self.batch:
-                # To get the density matrix "rho":
-                #   1) Scale C by occupancies, which remain in the domain ∈[0, 2]
-                #       rather than being remapped to [0, 1].
-                #   2) Multiply the scaled coefficients by their transpose.
-                C_scaled = t.sqrt(occupancies) * C
-                rho = C_scaled @ C_scaled.T
+            # build density according to occupancies and eigenvector
+            # t.stack([t.sqrt(occupancies[i]) * C[i] for i in range(self.nb)])
+            C_scaled = t.sqrt(occupancies).unsqueeze(1).expand_as(C) * C
 
-                # Append the density matrix to "denmat", this is needed by MBD
-                # at least.
-                denmat.append(rho)
-
-                # calculate mulliken charges
-                q_new = self.elect.mulliken(
-                    self.para['HSsym'], over, rho, self.para['atomind'])
-
-            elif self.batch:'''
-            C_scaled = t.stack([t.sqrt(occupancies[i]) * C[i]
-                                for i in range(self.nb)])
-            rho = C_scaled @ t.stack(
-                [C_scaled[i].T for i in range(self.nb)])
+            # batch calculation of density, normal code: C_scaled @ C_scaled.T
+            rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
             # Append the density matrix to "denmat", this is needed by MBD
             # at least.
@@ -573,7 +517,10 @@ class SCF:
                 for i in range(self.nb)])
 
             # Last mixed charge is the current step now
-            q_mixed = self.mixer(q_new, q_mixed, self.batch)
+            if not self.batch:
+                q_mixed = self.mixer(q_new.squeeze(), q_mixed.squeeze()).unsqueeze(0)
+            else:
+                q_mixed = self.mixer(q_new, q_mixed)
 
             if self.para['convergenceType'] == 'energy':
 
@@ -997,8 +944,9 @@ class Analysis:
         if self.para['scc'] == 'scc':
             qzero = self.para['qzero']
 
-            # get Coulomb energy
-            self.para['coul_energy'] = shift_ @ (qatom + qzero) / 2
+            # get Coulomb energy, normal code: shift_ @ (qatom + qzero) / 2
+            self.para['coul_energy'] = t.bmm(
+                shift_.unsqueeze(1), (qatom + qzero).unsqueeze(2)) / 2
 
             # self.para
             self.para['electronic_energy'] = self.para['H0_energy'] - \
@@ -1040,11 +988,8 @@ class Analysis:
         # name of all atoms
         name = self.para['atomnameall']
 
-        # define initial charge
-        qat = []
-
         # get each intial atom charge
-        [qat.append(self.para['val_' + name[iat]]) for iat in range(self.nat)]
+        qat = [self.para['val_' + name[iat]] for iat in range(self.nat)]
 
         # return charge information
         return t.tensor(qat, dtype=t.float64)

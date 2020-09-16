@@ -14,7 +14,7 @@ import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.parameters as parameters
 import dftbtorch.slakot as slakot
 import utils.plot as plot
-import init_parameter as initpara
+import dftbtorch.init_parameter as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from IO.load import LoadData

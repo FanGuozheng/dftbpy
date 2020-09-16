@@ -428,7 +428,7 @@ class Anderson(Mixer):
         self._F = t.zeros(size, dtype=dtype)
         self._dQs = t.zeros(size, dtype=dtype)
 
-    def __call__(self, dQ_new, dQ_old=None, batch=False, **kwargs):
+    def __call__(self, dQ_new, dQ_old=None, **kwargs):
         """This performs the actual Anderson mixing operation.
 
         Parameters
@@ -472,7 +472,7 @@ class Anderson(Mixer):
 
         # Batch-wise operations must be handled slightly different so identity
         # if this is a batch operation (i.e. multi-system)
-        # batch = dQ_new.dim() != 1
+        batch = dQ_new.dim() != 1
 
         # Increment _step_number variable (should be abstracted to a wrapper)
         self._step_number += 1

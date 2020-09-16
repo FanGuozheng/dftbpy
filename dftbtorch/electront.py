@@ -59,7 +59,6 @@ class DFTBelect:
         if telec < self.para['t_zero_max']:
 
             # occupied state, if occupied, then return 2
-            print('nelectron', nelectron)
             occ_ = pad_sequence([t.ones(int(inef)) * 2 for inef in nef]).T
 
             # pad the unoccupied states with 0

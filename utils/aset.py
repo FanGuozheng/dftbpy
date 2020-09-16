@@ -143,7 +143,7 @@ class DFTB:
 
         # set DFTB caulation parameters
         cal = Dftb(Hamiltonian_='DFTB',
-                   Hamiltonian_SCC='Yes',
+                   Hamiltonian_SCC='No',
                    Hamiltonian_SCCTolerance=1e-8,
                    Hamiltonian_MaxAngularMomentum_='',
                    Hamiltonian_MaxAngularMomentum_H='s',

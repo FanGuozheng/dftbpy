@@ -6,9 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import dftbtorch.slakot as slakot
 import dftbtorch.dftb_torch as dftb_torch
-from dftb_torch import main
+from dftbtorch.dftb_torch import main
 import test_grad_compr
-import init_parameter as initpara
+import dftbtorch.init_parameter as initpara
 
 
 def test_accuracy(para, name, dire,
@@ -133,7 +133,7 @@ def scc_CH4(para):
     What cab be test: dipole, charge, polarizability, H0, S
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
     para['coor'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
@@ -151,7 +151,7 @@ def scc_CH4(para):
     para['datambd'] = t.tensor([10.5834157921756, 1.82998716394802,
                                 1.82998716394802, 1.82998716394802,
                                 1.82998716394802])
-    test_accuracy(para, 'CH4', './data', Lq=True, Lp=True)
+    test_accuracy(para, 'CH4', './data', Lq=True, Lp=False)
 
 
 def nonscc_CH4_nonsym(para):

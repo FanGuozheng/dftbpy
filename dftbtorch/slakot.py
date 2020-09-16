@@ -8,9 +8,9 @@ import numpy as np
 import torch as t
 import matplotlib.pyplot as plt
 import h5py
-import matht
+import dftbtorch.matht as matht
 from scipy import interpolate
-from matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec)
+from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec)
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 

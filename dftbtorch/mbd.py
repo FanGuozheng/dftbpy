@@ -7,8 +7,8 @@ The code are revised based on MBD-DFTB, the name style... will not follow PEP8
 # -*- coding: utf-8 -*-
 import numpy as np
 import torch as t
-import parameters
-from matht import LinAl
+import dftbtorch.parameters as parameters
+from dftbtorch.matht import LinAl
 
 
 class MBD:
@@ -187,7 +187,7 @@ class MBD:
             tsr = self.mbdvdw_TGG(p, q, self.nat, h_, ainv_)
             mytsr[ii, :, :] = tsr
             # print('mytsr', tsr)
-            
+
         # only loops over the upper triangle
         counter = 0
         for p in range(self.nat):
@@ -311,7 +311,7 @@ class MBD:
         fermi_fn = 1.0
         dfn_pre = 0.0
 
-        
+
         # zeta = rpq_norm / Sigma_pq
         # computes the fermi damping function. The latex for this is
         # f_{damp}(R_{pq}) = \frac{1}{ 1 + exp( - Z(R_{pq}) ) }
