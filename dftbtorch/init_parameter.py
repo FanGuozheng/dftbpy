@@ -164,7 +164,7 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    para['reference'] = 'dftbase'
+    para['reference'] = 'hdf'
 
     # read hdf (with coordinates, reference physical properties) type
     if para['reference'] == 'hdf':
