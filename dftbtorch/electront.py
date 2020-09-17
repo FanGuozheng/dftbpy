@@ -62,7 +62,8 @@ class DFTBelect:
             occ_ = pad_sequence([t.ones(int(inef)) * 2 for inef in nef]).T
 
             # pad the unoccupied states with 0
-            occ = F.pad(input=occ_, pad=(0, occ_.shape[-1]), value=0)
+            occ = F.pad(input=occ_,
+                        pad=(0, eigval.shape[-1] - occ_.shape[-1]), value=0)
 
             # get odd total electrons index
             nind = t.nonzero(nelectron % 2, as_tuple=True)

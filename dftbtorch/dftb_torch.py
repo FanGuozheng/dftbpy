@@ -398,10 +398,10 @@ class SCF:
         self.para['qzero'] = qatom
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        self.para['eigenvalue'], C = self.eigen.eigen(self.ham, self.over)
+        epsilon, C = self.eigen.eigen(self.ham, self.over)
 
         # batch calculation of the occupation of electrons
-        occupancies = self.elect.fermi(self.para['eigenvalue'], nelectron,
+        occupancies = self.elect.fermi(epsilon, nelectron,
                                        self.para['tElec'], batch=self.batch)
 
         # build density according to occupancies and eigenvector
@@ -411,8 +411,9 @@ class SCF:
         # batch calculation of density, normal code is: C_scaled @ C_scaled.T
         self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
-        # return the eigenvector
+        # return the eigenvector, eigenvalue
         self.para['eigenvec'] = C
+        self.para['eigenvalue'] = epsilon
 
         # calculate mulliken charges
         self.para['charge'] = t.stack(

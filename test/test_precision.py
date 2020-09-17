@@ -181,7 +181,7 @@ def scc_CH4_nonsym(para):
     What cab be test: dipole, charge, polarizability, H0, S.
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
     para['coor'] = t.tensor((
             [[6, 3.5390060395e-02, -1.7719925381e-03, -8.0449748784e-03],
              [1, -9.5395135880e-01,  5.7158148289e-01, -1.5887808800e-01],
@@ -200,7 +200,7 @@ def scc_CH4_nonsym(para):
     para['datambd'] = t.tensor([10.6544331300661, 2.13683704440973,
                                 2.15230148694062, 1.63880440230659,
                                 1.42140268339990])
-    test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=True)
+    test_accuracy(para, 'CH4_nonsym', './data', Lq=True, Lp=False)
 
 
 def nonscc_H2(para):
@@ -228,7 +228,7 @@ def scc_H2(para):
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
     para['coor'] = t.tensor(([
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.5000000000, 0.5000000000, 0.5000000000]]))
@@ -239,7 +239,7 @@ def scc_H2(para):
                               dtype=t.float64)
     para['datambd'] = t.tensor([2.66188170934323, 2.66188170934323],
                                dtype=t.float64)
-    test_accuracy(para, 'H2', './data', Lq=True, Lp=True)
+    test_accuracy(para, 'H2', './data', Lq=True, Lp=False)
 
 
 def nonscc_CO(para):
@@ -361,7 +361,7 @@ def scc_C2H6(para):
 
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
     para['coor'] = t.tensor((
             [[6, 7.8179776669e-01,  1.5335133066e-03, 2.6934888214e-02],
              [6, -7.9243135452e-01, -3.9727156982e-03, -1.3786645606e-02],
@@ -389,7 +389,7 @@ def scc_C2H6(para):
                                 2.48102887608234, 1.63630423450018,
                                 2.37498195132055, 1.85438880204967],
                                dtype=t.float64)
-    test_accuracy(para, 'C2H6', './data', Lq=True, Lp=True)
+    test_accuracy(para, 'C2H6', './data', Lq=True, Lp=False)
 
 
 def nonscc_C2H6O(para):
@@ -430,7 +430,7 @@ def scc_C2H6O(para):
 
     """
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
-    para['LMBD_DFTB'] = True
+    para['LMBD_DFTB'] = False
     para['coor'] = t.tensor((
             [[6, -1.1924011707, -0.2497887760, -0.0266653895],
              [6,  0.1042943373,  0.5966255069,  0.0842601359],
@@ -459,7 +459,7 @@ def scc_C2H6O(para):
                                 1.75948649387994, 1.62631948159624,
                                 1.72253860663783, 1.87086245531241,
                                 1.29692091396141])
-    test_accuracy(para, 'C2H6O', './data', Lq=True, Lp=True)
+    test_accuracy(para, 'C2H6O', './data', Lq=True, Lp=False)
 
 
 def scc_CH4_compr(para):
@@ -1149,7 +1149,7 @@ if __name__ == '__main__':
     para = {}
 
     # define the main task
-    para["test_precision"] = "single"
+    para["test_precision"] = "normal"
 
     # test a single molecule
     if para["test_precision"] == "single":

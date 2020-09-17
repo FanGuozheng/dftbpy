@@ -86,10 +86,10 @@ class SKTran:
                 dd = self.para['distance'][iat, jat]
 
                 # if distance larger than cutoff, return zero
-                if dd > cutoff:
-                    print('{} - {} distance out of range'.format(iat, jat))
+                # if dd > cutoff:
+                #    print('{} - {} distance out of range'.format(iat, jat))
 
-                elif dd < 1E-1:
+                if dd < 1E-1:
 
                     # two atom are too close, exit
                     if iat != jat:
@@ -317,10 +317,10 @@ class SKTran:
             elif self.para['Lml_HS']:
                 cutoff = self.para['interpcutoff']
 
-        if dd > cutoff:
-            print('{}atom-{}atom distance out of range'.format(iat, jat))
-            print(dd, cutoff)
-        elif dd < 1E-1:
+        # if dd > cutoff:
+        #    print('{}atom-{}atom distance out of range'.format(iat, jat))
+        #    print(dd, cutoff)
+        if dd < 1E-1:
             print("ERROR, distance between", iat, "and", jat, 'is too close')
             sys.exit()
         else:

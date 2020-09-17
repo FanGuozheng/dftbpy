@@ -212,7 +212,7 @@ def init_dftb_ml(para):
         para['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
 
     # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
-    para['target'] = ['pdos']
+    para['target'] = ['dipole']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway
