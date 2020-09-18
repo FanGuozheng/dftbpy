@@ -343,13 +343,13 @@ class ReadIn:
         dvec = t.zeros((natom, natom, 3), dtype=t.float64)
 
         # define list for name of atom, l parameter and index of orbital
-        atomnamelist, atom_lmax, atomind = [], [], []
+        atom_lmax, atomind = [], []
 
         self.para['natomtype'] = []
 
         # get index of orbitals atom by atom
         atomind.append(0)
-        [atomnamelist.append(ATOMNAME[int(num) - 1]) for num in coor[:, 0]]
+        atomnamelist = [ATOMNAME[int(num) - 1] for num in coor[:, 0]]
 
         for iat in range(natom):
 
@@ -378,7 +378,10 @@ class ReadIn:
         # the type of atom, e.g, [0, 1, 1, 1, 1] for CH4 molecule
         [self.para['natomtype'].append(dictat[ati]) for ati in atomnamelist]
 
-        # total orbitals in each calculation
+        # number of orbitals (dimension of H or S)
+        self.para['norbital'] = atomind[-1]
+
+        # total orbitals in each calculation if flatten to 1D
         self.para['atomind2'] = int(atomind[natom] * (atomind[natom] + 1) / 2)
 
         # atom specie

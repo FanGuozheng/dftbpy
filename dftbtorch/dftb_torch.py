@@ -298,13 +298,19 @@ class SCF:
         """Parameters for SCF."""
         assert para['hammat'].shape == para['overmat'].shape
 
+        # H0 after SK transformation
+        self.hmat = para['hammat']
+
+        # S after SK transformation
+        self.smat = para['overmat']
+
         # multi systems
-        if para['hammat'].dim() == 3:
+        if self.hmat.dim() == self.smat.dim() == 3:
             self.batch = True
-            self.nb = para['hammat'].shape[0]
+            self.nb = self.hmat.shape[0]
 
         # a single system
-        elif para['hammat'].dim() == 2:
+        elif self.hmat.dim() == self.smat.dim() == 2:
             self.batch = False
             self.nb = 1
 
@@ -318,12 +324,6 @@ class SCF:
 
         # number of total orbital number
         self.atind2 = para['atomind2']
-
-        # H0 after SK transformation
-        self.hmat = para['hammat']
-
-        # S after SK transformation
-        self.smat = para['overmat']
 
         # eigen solver
         self.eigen = EigenSolver(self.para['eigenmethod'])
@@ -357,7 +357,7 @@ class SCF:
                                  generations=self.para['maxIter'])
 
         # get the dimension of 2D H0, S
-        ind_nat = self.atind[self.nat]
+        ind_nat = self.para['norbital']
 
         if self.para['HSsym'] == 'symhalf':
 
@@ -374,20 +374,18 @@ class SCF:
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
         if not self.batch:
-            self.para['distance'] = self.para['distance'].unsqueeze(0)
-            self.ham, self.over = self.ham.unsqueeze(0), self.over.unsqueeze(0)
-            atomind = t.tensor(self.para['atomind']).unsqueeze(0)
+            if self.para['distance'].dim() == 2:
+                self.para['distance'] = self.para['distance'].unsqueeze(0)
+
+            if self.ham.dim() == self.over.dim() == 2:
+                self.ham = self.ham.unsqueeze(0)
+                self.over = self.over.unsqueeze(0)
+
+            if t.tensor(self.para['atomind']).dim() == 1:
+                atomind = t.tensor(self.para['atomind']).unsqueeze(0)
         elif self.batch:
             atomind = t.tensor(self.para['atomind'])
 
-            # qatom = self.analysis.get_qatom()
-            # nelectron = sum(qatom)
-
-            # initial neutral charge
-            # self.para['qzero'] = qatom
-
-        # multi systems
-        # elif self.batch:
         qatom = t.stack(
             [self.analysis.get_qatom() for i in range(self.nb)])
 
@@ -401,12 +399,11 @@ class SCF:
         epsilon, C = self.eigen.eigen(self.ham, self.over)
 
         # batch calculation of the occupation of electrons
-        occupancies = self.elect.fermi(epsilon, nelectron,
-                                       self.para['tElec'], batch=self.batch)
+        occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
 
-        # build density according to occupancies and eigenvector
-        # ==> t.stack([t.sqrt(occupancies[i]) * C[i] for i in range(self.nb)])
-        C_scaled = t.sqrt(occupancies).unsqueeze(1).expand_as(C) * C
+        # build density according to occ and eigenvector
+        # ==> t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
+        C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
 
         # batch calculation of density, normal code is: C_scaled @ C_scaled.T
         self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
@@ -414,11 +411,12 @@ class SCF:
         # return the eigenvector, eigenvalue
         self.para['eigenvec'] = C
         self.para['eigenvalue'] = epsilon
+        self.para['occ'] = occ
+        self.para['nocc'] = nocc
 
         # calculate mulliken charges
         self.para['charge'] = t.stack(
-            [self.elect.mulliken(self.para['HSsym'], self.over[i],
-                                 self.para['denmat'][i], atomind[i])
+            [self.elect.mulliken(self.over[i], self.para['denmat'][i], atomind[i])
              for i in range(self.nb)])
 
     def half_to_sym(self, in_mat, dim_out):
@@ -457,14 +455,12 @@ class SCF:
         elif self.batch:
             atomind = t.tensor(self.para['atomind'])
 
-        # multi systems
-        # elif self.batch:
         if self.para['scc_den_basis'] == 'exp_spher':
             gmat = t.stack([self.elect.gmatrix(self.para['distance'][i])
                             for i in range(self.nb)])
-        # elif self.para['scc_den_basis'] == 'gaussian':
-        #    gmat = self.elect._gamma_gaussian(self.para['this_U'],
-        #                                      self.para['coor'][:, 1:])
+        elif self.para['scc_den_basis'] == 'gaussian':
+            gmat = self.elect._gamma_gaussian(self.para['this_U'],
+                                              self.para['coor'][:, 1:])
         qatom = t.stack(
             [self.analysis.get_qatom() for i in range(self.nb)])
 
@@ -485,9 +481,8 @@ class SCF:
             n_orbitals = t.tensor(np.diff(atomind))
             shiftorb_ = t.stack([shift_[i].repeat_interleave(n_orbitals[i])
                                  for i in range(self.nb)])
-            shift_mat = t.stack([
-                t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
-                for i in range(self.nb)])
+            shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
+                                 for i in range(self.nb)])
 
             # To get the Fock matrix "F"; Construct the gamma matrix "G" then
             # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
@@ -500,11 +495,11 @@ class SCF:
             epsilon, C = self.eigen.eigen(F, self.over)
 
             # Calculate the occupation of electrons via the fermi method
-            occupancies = self.elect.fermi(epsilon, nelectron, self.para['tElec'], self.batch)
+            occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
 
-            # build density according to occupancies and eigenvector
-            # t.stack([t.sqrt(occupancies[i]) * C[i] for i in range(self.nb)])
-            C_scaled = t.sqrt(occupancies).unsqueeze(1).expand_as(C) * C
+            # build density according to occ and eigenvector
+            # t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
+            C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
 
             # batch calculation of density, normal code: C_scaled @ C_scaled.T
             rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
@@ -513,8 +508,8 @@ class SCF:
             # at least.
             denmat.append(rho)
             # calculate mulliken charges
-            q_new = t.stack([self.elect.mulliken(
-                self.para['HSsym'], self.over[i], rho[i], atomind[i])
+            q_new = t.stack([
+                self.elect.mulliken(self.over[i], rho[i], atomind[i])
                 for i in range(self.nb)])
 
             # Last mixed charge is the current step now
@@ -526,7 +521,7 @@ class SCF:
             if self.para['convergenceType'] == 'energy':
 
                 # get energy: E0 + E_coul
-                conv_.append(t.stack([epsilon[i] @ occupancies[i] +
+                conv_.append(t.stack([epsilon[i] @ occ[i] +
                              0.5 * shift_[i] @ (q_mixed[i] + qzero[i])
                              for i in range(self.nb)]))
 
@@ -556,6 +551,8 @@ class SCF:
 
         # return the final shift
         self.para['shift'] = shift_
+        self.para['occ'] = occ
+        self.para['nocc'] = nocc
 
     def scf_pe_scc(self):
         """SCF for periodic."""

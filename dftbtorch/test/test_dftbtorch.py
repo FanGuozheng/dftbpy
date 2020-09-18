@@ -1,4 +1,5 @@
 """Test DFTB torch code."""
+import numpy as np
 import torch as t
 import unittest
 import logging
@@ -18,28 +19,28 @@ initpara.init_dftb_interp(para)
 # get the constant parameters for DFTB
 parameters.dftb_parameter(para)
 
-para['natom'] = 2
-para['atomnameall'] = ['H', 'H']
-para['atomind2'] = [2]
+para['natom'] = 3
+para['atomnameall'] = ['H'] * para['natom']
+para['atomind2'] = [para['natom']]
 
 
 class DFTBTorchTest(unittest.TestCase):
 
     def construct_ab(self, para):
         """construct H, S by random value."""
-        A = t.randn(2, 2)
-        B = t.randn(2, 2)
+        A = t.randn(para['natom'], para['natom'])
+        B = t.randn(para['natom'], para['natom'])
 
         # make sure A, B are symmetric, positive
         para['hammat'] = A @ A.T
         para['overmat'] = B @ B.T
 
-    def construct_ab_batch(self, size=2):
+    def construct_ab_batch(self, size=5):
         """construct H, S by random value."""
         A, B = [], []
         for i in range(size):
-            iA = t.randn(2, 2)
-            iB = t.randn(2, 2)
+            iA = t.randn(para['natom'], para['natom'])
+            iB = t.randn(para['natom'], para['natom'])
 
             # make sure A, B are symmetric, positive
             A.append(iA @ iA.T)
@@ -60,7 +61,8 @@ class DFTBTorchTest(unittest.TestCase):
         # define some input parameter for DFTB
         nat = para['natom']
         para['distance'] = t.ones(nat, nat)
-        para['atomind'] = [0, 1, 2]
+        para['atomind'] = np.linspace(0, nat, nat + 1, dtype=int).tolist()
+        para['norbital'] = para['atomind'][-1]
 
         # DFTB claculation
         SCF(para).scf_npe_nscc()
@@ -78,8 +80,9 @@ class DFTBTorchTest(unittest.TestCase):
 
         # define some input parameter for DFTB
         para['distance'] = t.ones(nat, nat).expand([nbatch, nat, nat])
-        para['atomind'] = [0, 1, 2]
-        para['atomind'] = [para['atomind']] * nbatch
+        para['atomind'] = np.linspace(0, nat, nat + 1, dtype=int).tolist()
+        para['atomind'] = [[para['atomind']] * nbatch]
+        para['norbital'] = [para['atomind'][-1]] * nbatch
 
         # DFTB claculation
         SCF(para).scf_npe_nscc()
@@ -96,7 +99,8 @@ class DFTBTorchTest(unittest.TestCase):
         # define some input parameter for DFTB
         nat = para['natom']
         para['distance'] = t.ones(nat, nat)
-        para['atomind'] = [0, 1, 2]
+        para['atomind'] = np.linspace(0, nat, nat + 1, dtype=int).tolist()
+        para['norbital'] = para['atomind'][-1]
 
         # DFTB claculation
         SCF(para).scf_npe_scc()
@@ -114,8 +118,9 @@ class DFTBTorchTest(unittest.TestCase):
 
         # define some input parameter for DFTB
         para['distance'] = t.ones(nat, nat).expand([nbatch, nat, nat])
-        para['atomind'] = [0, 1, 2]
+        para['atomind'] = np.linspace(0, nat, nat + 1, dtype=int).tolist()
         para['atomind'] = [para['atomind']] * nbatch
+        para['norbital'] = [para['atomind'][-1]] * nbatch
 
         # DFTB claculation
         SCF(para).scf_npe_scc()

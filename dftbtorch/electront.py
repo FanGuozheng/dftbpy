@@ -17,71 +17,52 @@ class DFTBelect:
         # number of atom
         self.nat = self.para['natom']
 
-    def fermi(self, eigval, nelectron, telec, batch=False):
-        """Fermi-Dirac distributions."""
-        # single system
-        '''if not batch:
+    def fermi(self, eigval, nelectron, telec=0.):
+        """Fermi-Dirac distributions without smearing.
 
-            # make sure the electron number is positive integer
-            assert nelectron >= 1
+        Parameters
+        ----------
+        eigval: `torch.tensor` [`float`]
+            eigenvalues, 2D tensor
+        nelectron: `torch.tensor` [`float`]
+            number of electrons, 2D tensor
+        telec: [`float`]
+            temperature
 
-            # define occupied electron matrix
-            occ = t.zeros((self.para['atomind'][self.nat]), dtype=t.float64)
+        Returns
+        -------
+        occ: `torch.tensor` [`float']
+            occupancies of electrons
 
-            # the occupied state
-            nef = int(nelectron / 2)
-
-            # zero temperature
-            if telec < self.para['t_zero_max']:
-
-                # full occupied state
-                occ[: nef] = 2
-
-                # no unpaired electron (total electrons are even)
-                if nelectron % 2 == 0:
-                    self.para['nocc'] = nef
-
-                # unpaired electron
-                elif nelectron % 2 == 1:
-                    occ[nef] = 1
-                    self.para['nocc'] = nef + 1'''
-
-        # multi system
-        # if not batch:
-
-        # make sure each element in electron tensor is positive integer
+        """
+        # make sure each system has at least one electron
         assert False not in t.ge(nelectron, 1)
 
-        # the occupied state
-        nef = nelectron.clone().detach() / 2
+        # the number of full occupied state
+        electron_pair = nelectron.clone().detach().int() / 2
+
+        # the left single electron
+        electron_single = (nelectron.clone().detach() % 2).unsqueeze(1)
 
         # zero temperature
         if telec < self.para['t_zero_max']:
 
-            # occupied state, if occupied, then return 2
-            occ_ = pad_sequence([t.ones(int(inef)) * 2 for inef in nef]).T
+            # occupied state for batch, if full occupied, occupied will be 2
+            # with unpaired electron, return 1
+            occ_ = pad_sequence([
+                t.cat((t.ones(electron_pair[i]) * 2, electron_single[i]), 0)
+                for i in range(nelectron.shape[0])]).T
 
-            # pad the unoccupied states with 0
+            # pad the rest unoccupied states with 0, the size of occ is
+            # the largest size in batch
             occ = F.pad(input=occ_,
                         pad=(0, eigval.shape[-1] - occ_.shape[-1]), value=0)
 
-            # get odd total electrons index
-            nind = t.nonzero(nelectron % 2, as_tuple=True)
-
-            # select total electrons which is odd and add 1
-            nelectron[nind] += 1
-
-            # occupied states of the system with odd electrons: (n + 1) / 2
-            self.para['nocc'] = nelectron / 2
-
-            # add 1 to occ if total electron is odd
-            # [occ[i, nef[i]] for i in nind]
-
-        # return occupied electron in each state
-        self.para['occ'] = occ
+            # all occupied states (include full and not full occupied)
+            nocc = (nelectron.clone().detach() / 2).ceil()
 
         # return occupation of electrons
-        return occ
+        return occ, nocc
 
     def gmatrix(self, distance):
         """Build the gamma (2D) in second-order term.
@@ -291,19 +272,21 @@ class DFTBelect:
         shift = (qatom - qzero) @ gmat
         return shift
 
-    def mulliken(self, sym, overmat, denmat, atomindex):
+    def mulliken(self, overmat, denmat, atomindex):
         """Calculate Mulliken charge with 2D density, overlap matrices."""
         # sum overlap and density by hadamard product, get charge by orbital
         qatom_orbital = (denmat * overmat).sum(dim=1)
 
         # define charge by atom
         qatom = t.zeros((self.nat), dtype=t.float64)
+        atomindex = atomindex.numpy()
 
         # transfer charge from orbital to atom
-        for iat in range(self.nat):
+        qatom = qatom_orbital[]
+        '''for iat in range(self.nat):
 
             # get the sum of orbital of ith atom
-            init, end = int(atomindex[iat]), int(atomindex[iat + 1])
-            qatom[iat] = sum(qatom_orbital[init: end])
+            init, end = atomindex[iat], atomindex[iat + 1]
+            qatom[iat] = sum(qatom_orbital[init: end])'''
 
         return qatom
