@@ -20,6 +20,7 @@ from dftbtorch.mbd import MBD
 from IO.save import SaveData
 from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
+from torch.nn.utils.rnn import pad_sequence
 
 
 def main(para):
@@ -45,7 +46,7 @@ class Initialization:
 
     """
 
-    def __init__(self, para):
+    def __init__(self, para, Lreadskf=True):
         """Interface for different applications.
 
         Args:
@@ -73,7 +74,7 @@ class Initialization:
         # check parameters from command line
         parser.parser_cmd_args(self.para)
 
-        # if define input file, now only support json
+        # if define input file, read from input (now only support json)
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
 
@@ -83,28 +84,49 @@ class Initialization:
                 # read input coordinates
                 self.readin.get_coor(para)
 
-        # define LReadInput, if LReadInput is True, read from input
-        elif 'LReadInput' not in self.para.keys():
-            if self.para['LReadInput']:
-
-                # read input parameters
-                self.readin.read_input(para)
-
-                # read input coordinates
-                self.readin.get_coor()
-
         # generate vector, distance ... from coordinate
-        self.readin.cal_coor()
+        if not self.para['Lbatch']:
+            self.readin.cal_coor()
+        elif self.para['Lbatch']:
+            self.readin.cal_coor_batch()
+
+        # check all parameters before interpolation of integrals and
+        # DFTB calculations
+        self.pre_check()
 
         # read skf fike from normal skf or list of skf files
-        self.read_sk()
+        if Lreadskf:
+            self.read_sk()
 
         # get Hubbert for each if use gaussian density basis
         if self.para['scc_den_basis'] == 'gaussian':
             self.get_this_hubbert()
 
         # deal with SK transformation
-        self.run_sk()
+        for ib in range(self.para['nbatch']):
+            self.run_sk(ib)
+
+    def pre_check(self):
+        """Check every parameters used in DFTB calculations."""
+        # a single system
+        if not self.para['Lbatch']:
+
+            # number of batch, single system will be one
+            self.para['nbatch'] = 1
+
+            # add 1 dimension to tensor
+            self.para['distance'] = self.para['distance'].unsqueeze(0)
+            self.para['coor'] = self.para['coor'].unsqueeze(0)
+            self.para['dvec'] = self.para['dvec'].unsqueeze(0)
+
+            # add 1 dimension to list
+            self.para['atomind'] = [self.para['atomind']]
+            self.para['atomnameall'] = [self.para['atomnameall']]
+            self.para['natom'] = [self.para['natom']]
+
+        else:
+            # number of batch, single system will be one
+            self.para['nbatch'] = self.para['nfile']
 
     def read_sk(self):
         """Read integrals and perform SK transformations.
@@ -182,7 +204,7 @@ class Initialization:
         # transfer to tensor
         self.para['this_U'] = t.tensor(this_U, dtype=t.float64)
 
-    def run_sk(self):
+    def run_sk(self, ibatch=None):
         """Read integrals and perform SK transformations.
 
         Read integrals from .skf
@@ -197,7 +219,7 @@ class Initialization:
             if not self.para['LreadSKFinterp']:
 
                 # SK transformations
-                SKTran(self.para)
+                SKTran(self.para, ibatch)
 
 
 class Rundftbpy:
@@ -208,9 +230,24 @@ class Rundftbpy:
         SCC, non-SCC or XLBOMD;
     """
 
-    def __init__(self, para):
+    def __init__(self, para, ibatch=None):
         """Run (SCC-) DFTB."""
         self.para = para
+
+        # for single system
+        if not self.para['Lbatch']:
+
+            # single calculation, do not define ibatch, ibatch is always 0
+            if ibatch is None:
+                self.ibatch = [0]
+
+            # this is for single calculation in batch, the nth calculation
+            else:
+                self.ibatch = [ibatch]
+
+        # batch calculation, return a list
+        elif self.para['Lbatch']:
+            self.ibatch = [ib for ib in range(ibatch)]
 
         # analyze DFTB result
         self.analysis = Analysis(self.para)
@@ -249,15 +286,15 @@ class Rundftbpy:
 
             # non-SCC-DFTB
             if self.para['scc'] == 'nonscc':
-                scf.scf_npe_nscc()
+                scf.scf_npe_nscc(self.ibatch)
 
             # SCC-DFTB
             elif self.para['scc'] == 'scc':
-                scf.scf_npe_scc()
+                scf.scf_npe_scc(self.ibatch)
 
             # XLBOMD-DFTB
             elif self.para['scc'] == 'xlbomd':
-                scf.scf_npe_xlbomd()
+                scf.scf_npe_xlbomd(self.ibatch)
 
     def run_repulsive(self):
         """Calculate repulsive term."""
@@ -273,7 +310,7 @@ class Rundftbpy:
             self.analysis.dftb_energy()
 
         # claculate physical properties
-        self.analysis.sum_property()
+        self.analysis.sum_property(self.ibatch)
 
         # print and write non-SCC DFTB results
         self.print_.print_dftb_tail()
@@ -296,34 +333,42 @@ class SCF:
 
     def __init__(self, para):
         """Parameters for SCF."""
-        assert para['hammat'].shape == para['overmat'].shape
+        self.para = para
 
-        # H0 after SK transformation
-        self.hmat = para['hammat']
+        # single systems
+        self.batch = self.para['Lbatch']
+        if not self.batch:
 
-        # S after SK transformation
-        self.smat = para['overmat']
+            # H0 after SK transformation
+            self.hmat = self.para['hammat'].unsqueeze(0)
+
+            # S after SK transformation
+            self.smat = self.para['overmat'].unsqueeze(0)
 
         # multi systems
-        if self.hmat.dim() == self.smat.dim() == 3:
-            self.batch = True
-            self.nb = self.hmat.shape[0]
+        elif self.batch:
 
-        # a single system
-        elif self.hmat.dim() == self.smat.dim() == 2:
-            self.batch = False
-            self.nb = 1
+            # H0 after SK transformation
+            self.hmat = self.para['hammat_']
 
-        self.para = para
+            # S after SK transformation
+            self.smat = self.para['overmat_']
+
+        self.nb = self.para['nbatch']
 
         # number of atom in molecule
         self.nat = para['natom']
+
+        self.para = para
 
         # number of orbital of each atom
         self.atind = para['atomind']
 
         # number of total orbital number
         self.atind2 = para['atomind2']
+
+        # the name of all atoms
+        self.atomname = self.para['atomnameall']
 
         # eigen solver
         self.eigen = EigenSolver(self.para['eigenmethod'])
@@ -370,24 +415,12 @@ class SCF:
             # replace H0, S name for convenience
             self.ham, self.over = self.hmat, self.smat
 
-    def scf_npe_nscc(self):
+    def scf_npe_nscc(self, ibatch):
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
-        if not self.batch:
-            if self.para['distance'].dim() == 2:
-                self.para['distance'] = self.para['distance'].unsqueeze(0)
-
-            if self.ham.dim() == self.over.dim() == 2:
-                self.ham = self.ham.unsqueeze(0)
-                self.over = self.over.unsqueeze(0)
-
-            if t.tensor(self.para['atomind']).dim() == 1:
-                atomind = t.tensor(self.para['atomind']).unsqueeze(0)
-        elif self.batch:
-            atomind = t.tensor(self.para['atomind'])
-
-        qatom = t.stack(
-            [self.analysis.get_qatom() for i in range(self.nb)])
+        qatom = self.analysis.get_qatom(self.atomname, self.nb)
+        # qatom = t.stack(
+        #    [self.analysis.get_qatom() for i in range(self.nb)])
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
@@ -416,7 +449,8 @@ class SCF:
 
         # calculate mulliken charges
         self.para['charge'] = t.stack(
-            [self.elect.mulliken(self.over[i], self.para['denmat'][i], atomind[i])
+            [self.elect.mulliken(
+                self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
              for i in range(self.nb)])
 
     def half_to_sym(self, in_mat, dim_out):
@@ -432,7 +466,7 @@ class SCF:
                 icount += 1
         return out_mat
 
-    def scf_npe_scc(self):
+    def scf_npe_scc(self, ibatch):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
@@ -445,24 +479,18 @@ class SCF:
         # define convergence list
         conv_ = []
 
-        # single system
-        if not self.batch:
-            # choose density basis type: Gaussian profile
-            self.para['distance'] = self.para['distance'].unsqueeze(0)
-            self.ham, self.over = self.ham.unsqueeze(0), self.over.unsqueeze(0)
-            atomind = t.tensor(self.para['atomind']).unsqueeze(0)
-
-        elif self.batch:
-            atomind = t.tensor(self.para['atomind'])
-
         if self.para['scc_den_basis'] == 'exp_spher':
-            gmat = t.stack([self.elect.gmatrix(self.para['distance'][i])
-                            for i in range(self.nb)])
+            print("ibatch", ibatch, self.para['distance'].shape, self.nat, self.para['atomnameall'])
+            gmat = t.stack([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
+                            for i in ibatch])
+
         elif self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
                                               self.para['coor'][:, 1:])
-        qatom = t.stack(
-            [self.analysis.get_qatom() for i in range(self.nb)])
+
+        qatom = self.analysis.get_qatom(self.atomname, self.nb)
+        # qatom = t.stack(
+        #    [self.analysis.get_qatom() for i in range(self.nb)])
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
@@ -478,7 +506,7 @@ class SCF:
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
-            n_orbitals = t.tensor(np.diff(atomind))
+            n_orbitals = t.tensor(np.diff(self.atind))
             shiftorb_ = t.stack([shift_[i].repeat_interleave(n_orbitals[i])
                                  for i in range(self.nb)])
             shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
@@ -509,7 +537,7 @@ class SCF:
             denmat.append(rho)
             # calculate mulliken charges
             q_new = t.stack([
-                self.elect.mulliken(self.over[i], rho[i], atomind[i])
+                self.elect.mulliken(self.over[i], rho[i], self.atind[i], self.nat[i])
                 for i in range(self.nb)])
 
             # Last mixed charge is the current step now
@@ -920,6 +948,8 @@ class Analysis:
     def __init__(self, para):
         """Initialize parameters."""
         self.para = para
+
+        # number of atom in batch
         self.nat = self.para['natom']
 
     def dftb_energy(self, shift_=None, qatom=None):
@@ -959,19 +989,20 @@ class Analysis:
         else:
             self.para['energy'] = self.para['electronic_energy']
 
-    def sum_property(self):
+    def sum_property(self, ibatch=None):
         """Get alternative DFTB results."""
         nocc = self.para['nocc']
         eigval = self.para['eigenvalue']
         qzero, qatom = self.para['qzero'], self.para['charge']
 
         # get HOMO-LUMO, not orbital resolved
-        self.para['homo_lumo'] = eigval[int(nocc) - 1:int(nocc) + 1] * \
-            self.para['AUEV']
+        self.para['homo_lumo'] = t.stack([
+            eigval[i][int(nocc[i]) - 1:int(nocc[i]) + 1] * self.para['AUEV']
+            for i in range(self.para['nbatch'])])
 
         # calculate dipole
-        self.para['dipole'] = t.stack([self.get_dipole(qzero[i], qatom[i])
-                                       for i in range(qzero.shape[0])])
+        self.para['dipole'] = t.stack([self.get_dipole(qzero[i], qatom[i], self.para['coor'][i], self.nat[i])
+                                       for i in ibatch])
 
         # calculate MBD-DFTB
         if self.para['LMBD_DFTB']:
@@ -981,22 +1012,19 @@ class Analysis:
         if self.para['Lpdos']:
             self.pdos()
 
-    def get_qatom(self):
+    def get_qatom(self, atomname, nbatch):
         """Get the basic electronic information of each atom."""
-        # name of all atoms
-        name = self.para['atomnameall']
-
         # get each intial atom charge
-        qat = [self.para['val_' + name[iat]] for iat in range(self.nat)]
+        qat = [[self.para['val_' + atomname[ib][iat]]
+                for iat in range(self.nat[ib])] for ib in range(nbatch)]
 
         # return charge information
-        return t.tensor(qat, dtype=t.float64)
+        return pad_sequence([t.tensor(iq, dtype=t.float64) for iq in qat]).T
 
-    def get_dipole(self, qzero, qatom):
+    def get_dipole(self, qzero, qatom, coor, natom):
         """Read and process dipole data."""
-        coor = self.para['coor']
         dipole = t.zeros((3), dtype=t.float64)
-        for iatom in range(0, self.nat):
+        for iatom in range(natom):
             if type(coor[iatom][:]) is list:
                 coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
                 dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t

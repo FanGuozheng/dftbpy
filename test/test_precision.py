@@ -24,7 +24,7 @@ def test_accuracy(para, name, dire,
     """
     print('\n', '-' * 35, 'test accuracy:', name, '-' * 35)
     read_dftbplus_data(para, dire, H0=H0, S=S, q=q, p=None)
-    nat = para['natom']
+    nat = para['natom'][0]
 
     if LH0:
         dataH0 = para['dataH']
@@ -74,8 +74,8 @@ def print_(properties, precision):
 
 def read_dftbplus_data(para, dire, H0=None, S=None, q=None, p=None):
     """Return according to Input Agrs."""
-    natom = para['natom']
-    ind_nat = para['atomind'][natom]
+    natom = para['natom'][0]
+    ind_nat = para['atomind'][0][natom]
 
     if H0 is not None:
         fpH = open(os.path.join(dire, H0))
@@ -1149,7 +1149,7 @@ if __name__ == '__main__':
     para = {}
 
     # define the main task
-    para["test_precision"] = "normal"
+    para["test_precision"] = "single"
 
     # test a single molecule
     if para["test_precision"] == "single":

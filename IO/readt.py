@@ -7,6 +7,7 @@ import scipy
 import time
 import numpy as np
 import torch as t
+from torch.nn.utils.rnn import pad_sequence
 err = 1E-4
 ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
             "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr",
@@ -312,6 +313,109 @@ class ReadIn:
         self.para['coor'] = t.from_numpy(np.asarray(coor))
         self.para['atomNumber'] = self.para['coor'][:, 0]
 
+    def cal_coor_batch(self):
+        """Generate vector, distance ... according to input geometry.
+
+        Args:
+            coor: [natom, 4], the first column is atom number
+
+        Returns:
+            natomtype: the type of atom, the 1st is 0, the 2nd different is 1
+            atomind: how many orbitals of each atom in DFTB calculations
+
+        """
+        nfile = self.para['nfile']
+        nmax = max(self.para['natomall'])
+        # build coor according to the largest molecule
+        self.para['coor'] = t.zeros((nfile, nmax, 4), dtype=t.float64)
+
+        # distance matrix
+        self.para['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
+
+        # normalized distance matrix
+        self.para['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+
+        # coordinate vector
+        self.para['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+
+        # transfer from angstrom to bohr
+        # coor = pad_sequence([self.para['coorall'][i]
+        #                     for i in range(self.para['nfile'])])
+
+        # atom number
+        self.para['atomNumber'] = [self.para['coorall'][ib][:, 0].tolist()
+                                   for ib in range(self.para['nfile'])]
+
+
+        self.para['natomtype'], self.para['norbital'] = [], []
+        self.para['atomind2'] = []
+        self.para['atomspecie'] = []
+        self.para['atomnameall'] = []
+        self.para['lmaxall'] = []
+        self.para['atomind'] = []
+
+        for ib in range(self.para['nfile']):
+            # define list for name of atom and index of orbital
+            atomind = []
+
+            # total number of atom
+            natom = self.para['natomall'][ib]
+
+            coor = self.para['coorall'][ib]
+            self.para['coor'][ib, :natom, 1:] = coor[:, 1:] / self.para['BOHR']
+            self.para['coor'][ib, :natom, 0] = coor[:, 0]
+
+            # get index of orbitals atom by atom
+            atomind.append(0)
+            atomnamelist = [ATOMNAME[int(num) - 1] for num in coor[:, 0]]
+
+            # get l parameter of each atom
+            atom_lmax = [VAL_ORB[ATOMNAME[int(coor[iat, 0] - 1)]]
+                         for iat in range(natom)]
+
+            for iat in range(natom):
+                atomind.append(int(atomind[iat] + atom_lmax[iat] ** 2))
+                for jat in range(natom):
+
+                    # coordinate vector between atom pair
+                    [xx, yy, zz] = coor[jat, 1:] - coor[iat, 1:]
+
+                    # distance between atom and atom
+                    dd = t.sqrt(xx * xx + yy * yy + zz * zz)
+                    self.para['distance'][ib, iat, jat] = dd
+
+                    if dd > err:
+
+                        # get normalized distance, coordinate vector matrices
+                        self.para['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
+                        self.para['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
+
+            dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
+                              dict(enumerate(set(atomnamelist))).keys()))
+
+            # the type of atom, e.g, [0, 1, 1, 1, 1] for CH4 molecule
+            self.para['natomtype'].append([dictat[ati] for ati in atomnamelist])
+
+            # number of orbitals (dimension of H or S)
+            self.para['norbital'].append(atomind[-1])
+
+            # total orbitals in each calculation if flatten to 1D
+            self.para['atomind2'].append(
+                int(atomind[natom] * (atomind[natom] + 1) / 2))
+
+            # atom specie
+            self.para['atomspecie'].append(list(set(atomnamelist)))
+
+            # l parameter and index of orbital of each atom
+            self.para['lmaxall'].append(atom_lmax)
+            self.para['atomind'].append(atomind)
+
+            # the name of all the atoms
+            self.para['atomnameall'].append(atomnamelist)
+
+            # calculate neighbour, for solid
+            # self.cal_neighbour()
+
     def cal_coor(self):
         """Generate vector, distance ... according to input geometry.
 
@@ -392,7 +496,7 @@ class ReadIn:
         self.para['dvec'], self.para['natom'] = dvec, natom
 
         # l parameter and index of orbital of each atom
-        self.para['lmaxall'], self.para['atomind'] = atom_lmax, atomind
+        self.para['lmaxall'], self.para['atomind'] = [atom_lmax], atomind
 
         # the name of all the atoms
         self.para['atomnameall'] = atomnamelist

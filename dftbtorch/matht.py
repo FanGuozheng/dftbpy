@@ -216,11 +216,15 @@ class DFTBmath:
             nline += 1
         return hs_skf
 
-    def poly_check(self, xp, yp, rr):
-        if rr > 1e-2:
-            return self.poly_interp_4d(xp, yp, rr)
-        else:
+    def poly_check(self, xp, yp, rr, issameatom):
+        if rr < 1e-1 and not issameatom:
+            raise ValueError("distance between different atoms < %f" % rr)
+        elif rr < 1e-1 and issameatom:
             return t.zeros(yp.shape[0], yp.shape[1], yp.shape[3])
+        elif rr > 12.:  # temporal code, revise !!!
+            return t.zeros(yp.shape[0], yp.shape[1], yp.shape[3])
+        else:
+            return self.poly_interp_4d(xp, yp, rr)
 
     def poly_interp_4d(self, xp, yp, rr):
         """Interpolation from DFTB+ (lib_math) with uniform grid.
@@ -232,6 +236,7 @@ class DFTBmath:
         """
         icl = 0
         nn = xp.shape[0]
+
         nn1, nn2, row, col = yp.shape[0], yp.shape[1], yp.shape[2], yp.shape[3]
         assert row == nn
         cc = t.zeros((nn1, nn2, row, col), dtype=t.float64)

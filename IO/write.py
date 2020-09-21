@@ -128,6 +128,9 @@ class Print:
 
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
+        # print atoms
+        print('list of atom:', self.para['atomnameall'])
+
         # print charge
         print('\n charge (e): ', self.para['charge'])
 

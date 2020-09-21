@@ -33,6 +33,18 @@ def init_dftb_ml(para):
     # define path of feature related files
     para['direfeature'] = '.'
 
+    # how many molecules for each molecule specie !!
+    para['n_dataset'] = ['2']
+
+    # used to test (optimize ML algorithm parameters) !!
+    para['n_test'] = ['2']
+
+    # determine the type of molecule specie: str(integer), 'all' !!
+    para['hdf_num'] = ['all']
+
+    # mix different molecule specie type
+    para['hdf_mixture'] = True
+
     # read json type geometry
     if para['dataType'] == 'json':
 
@@ -41,9 +53,6 @@ def init_dftb_ml(para):
 
         # name of data in defined path
         para['pythondata_file'] = 'H2_data'
-
-        # number of files to be loaded
-        para['n_dataset'] = ['1']
 
         # if read SKF from a list of files with interpolation
         para['LreadSKFinterp'] = True
@@ -61,18 +70,6 @@ def init_dftb_ml(para):
         # transfer to list
         para['hdffile'] = hdffilelist
 
-        # determine the type of molecule specie: str(integer), 'all' !!
-        para['hdf_num'] = [['all']]
-
-        # how many molecules for each molecule specie !!
-        para['n_dataset'] = ['2']
-
-        # used to test (optimize ML algorithm parameters) !!
-        para['n_test'] = ['2']
-
-        # mix different molecule specie type
-        para['hdf_mixture'] = True
-
         # test the molecule specie is the same
         assert len(para['n_dataset']) == len(para['n_test'])
 
@@ -87,12 +84,6 @@ def init_dftb_ml(para):
 
         # define dataset specie
         para['train_specie'] = [1, 6, 8]
-
-        # how many molecules used to optimize !!
-        para['n_dataset'] = ['5']
-
-        # how many used to test !!
-        para['n_test'] = ['5']
 
         # if read SKF from a list of files with interpolation
         para['LreadSKFinterp'] = True
@@ -176,9 +167,6 @@ def init_dftb_ml(para):
 
         # name of data in defined path
         para['pythondata_file'] = 'testfile.hdf5'
-
-        # mix different molecule specie type
-        para['hdf_mixture'] = True
 
         # if read SKF from a list of files with interpolation, instead from hdf
         para['LreadSKFinterp'] = False
@@ -424,6 +412,9 @@ def init_dftb_ml(para):
     # perform (non-) SCC DFTB: nonscc, scc
     para['scc'] = 'scc'
 
+    # batch calculation
+    para['Lbatch'] = True
+
     # convergence type
     para['convergenceType'] = 'energy'
 
@@ -498,6 +489,9 @@ def init_dftb(para):
         DFTB parameters
         Others, such as plotting parameters
     """
+    # batch calculation
+    para['Lbatch'] = False
+
     # do not get parameters from input file, from python code
     para['LReadInput'] = False
 
@@ -589,6 +583,9 @@ def init_dftb_interp(para):
         DFTB parameters
         Others, such as plotting parameters
     """
+    # batch calculation
+    para['Lbatch'] = False
+
     # define parameters in python, or read from input
     para['LReadInput'] = False
 

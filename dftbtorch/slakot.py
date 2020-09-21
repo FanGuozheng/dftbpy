@@ -17,7 +17,7 @@ ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para):
+    def __init__(self, para, ibatch):
         """Initialize parameters.
 
         Args:
@@ -28,21 +28,22 @@ class SKTran:
         """
         self.para = para
         self.math = DFTBmath(self.para)
+        self.ibatch = ibatch
 
         # if machine learning or not
         if not self.para['Lml']:
 
             # read integrals from .skf with various compression radius
             if not self.para['LreadSKFinterp']:
-                self.get_sk_all()
+                self.get_sk_all(self.ibatch)
 
             # build H0 and S with full, symmetric matrices
             if self.para['HSsym'] == 'symall':
-                self.sk_tran_symall()
+                self.sk_tran_symall(self.ibatch)
 
             # build H0 and S with only half matrices
             elif self.para['HSsym'] == 'symhalf':
-                self.sk_tran_half()
+                self.sk_tran_half(self.ibatch)
 
         # machine learning is True, some method only apply in this case
         if self.para['Lml']:
@@ -52,20 +53,20 @@ class SKTran:
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSsym'] == 'symall':
-                    self.sk_tran_symall()
+                    self.sk_tran_symall(self.ibatch)
 
                 # build H0, S with half matrices
                 elif self.para['HSsym'] == 'symhalf':
-                    self.sk_tran_half()
+                    self.sk_tran_half(self.ibatch)
 
             # directly get integrals with spline, or some other method
             elif self.para['Lml_HS']:
-                self.sk_tran_symall()
+                self.sk_tran_symall(self.ibatch)
 
-    def get_sk_all(self):
+    def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.para['natom']
+        natom = self.para['natom'][self.ibatch]
 
         # build H0 or S
         self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
@@ -75,15 +76,15 @@ class SKTran:
             for jat in range(natom):
 
                 # get the name of i, j atom pair
-                namei = self.para['atomnameall'][iat]
-                namej = self.para['atomnameall'][jat]
+                namei = self.para['atomnameall'][ibatch][iat]
+                namej = self.para['atomnameall'][ibatch][jat]
                 nameij = namei + namej
 
                 # the cutoff is from former step when reading skf file
                 cutoff = self.para['cutoffsk' + nameij]
 
                 # the distance is from cal_coor
-                dd = self.para['distance'][iat, jat]
+                dd = self.para['distance'][ibatch][iat, jat]
 
                 # if distance larger than cutoff, return zero
                 # if dd > cutoff:
@@ -190,23 +191,23 @@ class SKTran:
                 self.para['hammat'][idx] = self.para['h_o'][m]
                 self.para['overmat'][idx] = self.para['s_o'][m]
 
-    def sk_tran_symall(self):
+    def sk_tran_symall(self, ibatch):
         """Transfer H0, S according to Slater-Koster rules.
 
         writing the symmetric, full 2D H0, S.
 
         """
         # index of atom orbital
-        atomind = self.para['atomind']
+        atomind = self.para['atomind'][ibatch]
 
         # number of atom
-        natom = self.para['natom']
+        natom = self.para['natom'][ibatch]
 
         # total orbitals, equal to dimension of H0, S
         norb = atomind[natom]
 
         # atom name
-        atomname = self.para['atomnameall']
+        atomname = self.para['atomnameall'][ibatch]
 
         # atom coordinate vector (Bohr)
         dvec = self.para['dvec']
@@ -218,12 +219,12 @@ class SKTran:
         for iat in range(natom):
 
             # l of i atom
-            lmaxi = self.para['lmaxall'][iat]
+            lmaxi = self.para['lmaxall'][ibatch][iat]
 
             for jat in range(natom):
 
                 # l of j atom
-                lmaxj = self.para['lmaxall'][jat]
+                lmaxj = self.para['lmaxall'][ibatch][jat]
 
                 # temporary H, S between i and j atom
                 self.para['hams'] = t.zeros((9, 9), dtype=t.float64)
@@ -237,7 +238,7 @@ class SKTran:
                 self.para['nameij'] = atomname[iat] + atomname[jat]
 
                 # distance vector between i and j atom
-                rr = dvec[iat, jat, :]
+                rr = dvec[ibatch][iat, jat, :]
 
                 # for the same atom, where on-site should be construct
                 if iat == jat:
@@ -545,12 +546,13 @@ class SKinterp:
         self.para = para
         self.math = DFTBmath(self.para)
 
-    def genskf_interp_dist_hdf(self):
+    def genskf_interp_dist_hdf(self, ibatch, natom):
         """Generate integral along distance dimension."""
         time0 = time.time()
         ninterp = self.para['ninterp']
         self.para['hs_compr_all'] = []
-        distance = self.para['distance']
+        coor = self.para['coor'][ibatch]
+        distance = self.para['distance'][ibatch]
 
         # index of row, column of distance matrix, no digonal
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
@@ -560,12 +562,6 @@ class SKinterp:
 
         # read all skf according to atom number (species) and indices and add
         # these skf to a list, attention: hdf only store numpy type data
-        '''with h5py.File(hdfsk, 'r') as f:
-            skf = np.stack([np.stack([
-                f[ATOMNAME[int(self.para['coor'][i, 0])] +
-                  ATOMNAME[int(self.para['coor'][j, 0])] +
-                  '/hs_all_rall'][:] for j in range(len(distance))])
-                for i in range(len(distance))])'''
         with h5py.File(hdfsk, 'r') as f:
             # get the grid sidtance, which should be the same
             grid_dist = f['globalgroup'].attrs['grid_dist']
@@ -578,23 +574,18 @@ class SKinterp:
 
         # get integrals with ninterp (normally 8) line for interpolation
         with h5py.File(hdfsk, 'r') as f:
-            yy = [[f[ATOMNAME[int(self.para['coor'][i, 0])] +
-                     ATOMNAME[int(self.para['coor'][j, 0])] +
-                    '/hs_all_rall'][:][:, :, indd[i, j]- ninterp - 1: indd[i, j] - 1, :]
-                   for j in range(len(distance))]
-                  for i in range(len(distance))]
-        # skf[:, :, j - self.para['ninterp'] - 1:j - 1, :]
+            yy = [[f[ATOMNAME[int(coor[i, 0])] + ATOMNAME[int(coor[j, 0])] +
+                     '/hs_all_rall'][:][:, :, indd[i, j]- ninterp - 1: indd[i, j] - 1, :]
+                   for j in range(natom)] for i in range(natom)]
 
         # get the distances corresponding to the integrals
         xx = [[t.linspace(indd[i, j] - ninterp, indd[i, j], ninterp) * grid_dist
                for j in range(len(distance))] for i in range(len(distance))]
         time2 = time.time()
 
-        self.para['hs_compr_all'] = t.stack([t.stack([
-            self.math.poly_check(
-                xx[i][j], t.from_numpy(yy[i][j]), distance[i, j])
-            for j in range(len(distance))])
-            for i in range(len(distance))])
+        self.para['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
+            xx[i][j], t.from_numpy(yy[i][j]), distance[i, j], i==j)
+            for j in range(natom)]) for i in range(natom)])
 
         timeend = time.time()
         print('time of distance interpolation: ', timeend - time2)
@@ -789,7 +780,7 @@ class SKinterp:
                 para['uhubb' + iname + iname] = uhubb
         para['hs_all'] = hs_ij
 
-    def genskf_interp_compr(self):
+    def genskf_interp_compr(self, ibatch):
         """Generate interpolation of SKF with given compression radius.
 
         Args:
@@ -799,8 +790,8 @@ class SKinterp:
             H and S matrice ([natom, natom, 20])
 
         """
-        natom = self.para['natom']
-        atomname = self.para['atomnameall']
+        natom = self.para['natomall'][ibatch]
+        atomname = self.para['atomnameall'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
@@ -808,7 +799,10 @@ class SKinterp:
         if self.para['interp_compr_type'] == 'BiCubVec':
             bicubic = BicubInterpVec(self.para)
             zmesh = self.para['hs_compr_all']
-            compr = self.para['compr_ml']
+            if self.para['Lbatch']:
+                compr = self.para['compr_ml'][ibatch][:natom]
+            else:
+                compr = self.para['compr_ml']
             mesh = t.stack([self.para[iname + '_compr_grid'] for iname in atomname])
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 

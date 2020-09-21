@@ -14,9 +14,6 @@ class DFTBelect:
         """Initialize parameters."""
         self.para = para
 
-        # number of atom
-        self.nat = self.para['natom']
-
     def fermi(self, eigval, nelectron, telec=0.):
         """Fermi-Dirac distributions without smearing.
 
@@ -64,7 +61,7 @@ class DFTBelect:
         # return occupation of electrons
         return occ, nocc
 
-    def gmatrix(self, distance):
+    def gmatrix(self, distance, natom, atomname):
         """Build the gamma (2D) in second-order term.
         Args:
             distance
@@ -72,13 +69,12 @@ class DFTBelect:
         Returns:
             Gamma matrix in second order
         """
-        nameall = self.para['atomnameall']
-        gmat = t.empty((self.nat, self.nat), dtype=t.float64)
-        for iatom in range(self.nat):
-            namei = nameall[iatom] + nameall[iatom]
-            for jatom in range(self.nat):
+        gmat = t.empty((natom, natom), dtype=t.float64)
+        for iatom in range(natom):
+            namei = atomname[iatom] + atomname[iatom]
+            for jatom in range(natom):
                 rr = distance[iatom, jatom]
-                namej = nameall[jatom] + nameall[jatom]
+                namej = atomname[jatom] + atomname[jatom]
                 a1 = 3.2 * self.para['uhubb' + namei][2]
                 a2 = 3.2 * self.para['uhubb' + namej][2]
                 src = 1 / (a1 + a2)
@@ -272,21 +268,30 @@ class DFTBelect:
         shift = (qatom - qzero) @ gmat
         return shift
 
-    def mulliken(self, overmat, denmat, atomindex):
-        """Calculate Mulliken charge with 2D density, overlap matrices."""
+    def mulliken(self, overmat, denmat, atomindex, natom):
+        """Calculate Mulliken charge for both batch and single system.
+
+        Parameters
+        ----------
+        overmat: `torch.tensor` [`float`]
+            overlap, 3D tesnor
+        denmat: `torch.tensor` [`float`]
+            density matrix, 3D tensor
+        atomindex: `list` [`tuple` [`int`]]
+            index of orbital information for each atom
+        """
         # sum overlap and density by hadamard product, get charge by orbital
         qatom_orbital = (denmat * overmat).sum(dim=1)
 
         # define charge by atom
-        qatom = t.zeros((self.nat), dtype=t.float64)
-        atomindex = atomindex.numpy()
+        qatom = t.zeros((natom), dtype=t.float64)
 
         # transfer charge from orbital to atom
-        qatom = qatom_orbital[]
-        '''for iat in range(self.nat):
+        # qatom = qatom_orbital[]
+        for iat in range(natom):
 
             # get the sum of orbital of ith atom
             init, end = atomindex[iat], atomindex[iat + 1]
-            qatom[iat] = sum(qatom_orbital[init: end])'''
+            qatom[iat] = qatom_orbital[init: end].sum()
 
         return qatom
