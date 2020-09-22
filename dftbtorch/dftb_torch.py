@@ -481,7 +481,9 @@ class SCF:
 
         if self.para['scc_den_basis'] == 'exp_spher':
             print("ibatch", ibatch, self.para['distance'].shape, self.nat, self.para['atomnameall'])
-            gmat = t.stack([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
+            # gmat = t.stack([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
+            #                for i in ibatch])
+            gmat = pad_sequence([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
                             for i in ibatch])
 
         elif self.para['scc_den_basis'] == 'gaussian':
