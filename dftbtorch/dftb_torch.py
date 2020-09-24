@@ -20,6 +20,7 @@ from dftbtorch.mbd import MBD
 from IO.save import SaveData
 from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
+import DFTBMaLT.dftbmalt.utils.batch as utilsbatch
 from torch.nn.utils.rnn import pad_sequence
 
 
@@ -89,7 +90,6 @@ class Initialization:
             self.readin.cal_coor()
         elif self.para['Lbatch']:
             self.readin.cal_coor_batch()
-
         # check all parameters before interpolation of integrals and
         # DFTB calculations
         self.pre_check()
@@ -364,7 +364,7 @@ class SCF:
         # number of orbital of each atom
         self.atind = para['atomind']
 
-        # number of total orbital number
+        # number of total orbital number if flatten H, S into 1D
         self.atind2 = para['atomind2']
 
         # the name of all atoms
@@ -429,7 +429,7 @@ class SCF:
         self.para['qzero'] = qatom
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        epsilon, C = self.eigen.eigen(self.ham, self.over)
+        epsilon, C = self.eigen.eigen(self.ham, self.over, self.batch, self.atind)
 
         # batch calculation of the occupation of electrons
         occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
@@ -448,10 +448,9 @@ class SCF:
         self.para['nocc'] = nocc
 
         # calculate mulliken charges
-        self.para['charge'] = t.stack(
-            [self.elect.mulliken(
-                self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
-             for i in range(self.nb)])
+        self.para['charge'] = pad_sequence([self.elect.mulliken(
+            self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
+            for i in range(self.nb)]).T
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -480,11 +479,13 @@ class SCF:
         conv_ = []
 
         if self.para['scc_den_basis'] == 'exp_spher':
-            print("ibatch", ibatch, self.para['distance'].shape, self.nat, self.para['atomnameall'])
-            # gmat = t.stack([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
-            #                for i in ibatch])
-            gmat = pad_sequence([self.elect.gmatrix(self.para['distance'][i], self.nat[i], self.para['atomnameall'][i])
-                            for i in ibatch])
+            gmat_ = [self.elect.gmatrix(
+                self.para['distance'][i], self.nat[i],
+                self.para['atomnameall'][i])
+                for i in ibatch]
+
+            # pad a list of 2D gmat with different size
+            gmat = utilsbatch.pack(gmat_)
 
         elif self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
@@ -508,9 +509,10 @@ class SCF:
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
-            n_orbitals = t.tensor(np.diff(self.atind))
-            shiftorb_ = t.stack([shift_[i].repeat_interleave(n_orbitals[i])
-                                 for i in range(self.nb)])
+            n_orbitals = pad_sequence([t.tensor(np.diff(self.atind[i]))
+                                       for i in range(self.nb)]).T
+            shiftorb_ = pad_sequence([shift_[i].repeat_interleave(n_orbitals[i])
+                                      for i in range(self.nb)]).T
             shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
                                  for i in range(self.nb)])
 
@@ -522,7 +524,7 @@ class SCF:
             F = self.ham + 0.5 * self.over * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.over)
+            epsilon, C = self.eigen.eigen(F, self.over, self.batch, self.atind)
 
             # Calculate the occupation of electrons via the fermi method
             occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
@@ -538,9 +540,9 @@ class SCF:
             # at least.
             denmat.append(rho)
             # calculate mulliken charges
-            q_new = t.stack([
+            q_new = pad_sequence([
                 self.elect.mulliken(self.over[i], rho[i], self.atind[i], self.nat[i])
-                for i in range(self.nb)])
+                for i in range(self.nb)]).T
 
             # Last mixed charge is the current step now
             if not self.batch:
@@ -976,7 +978,7 @@ class Analysis:
 
             # get Coulomb energy, normal code: shift_ @ (qatom + qzero) / 2
             self.para['coul_energy'] = t.bmm(
-                shift_.unsqueeze(1), (qatom + qzero).unsqueeze(2)) / 2
+                shift_.unsqueeze(1), (qatom + qzero).unsqueeze(2)).squeeze() / 2
 
             # self.para
             self.para['electronic_energy'] = self.para['H0_energy'] - \

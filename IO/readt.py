@@ -346,7 +346,6 @@ class ReadIn:
         self.para['atomNumber'] = [self.para['coorall'][ib][:, 0].tolist()
                                    for ib in range(self.para['nfile'])]
 
-
         self.para['natomtype'], self.para['norbital'] = [], []
         self.para['atomind2'] = []
         self.para['atomspecie'] = []
@@ -362,8 +361,9 @@ class ReadIn:
             natom = self.para['natomall'][ib]
 
             coor = self.para['coorall'][ib]
-            self.para['coor'][ib, :natom, 1:] = coor[:, 1:] / self.para['BOHR']
-            self.para['coor'][ib, :natom, 0] = coor[:, 0]
+            print('coor', coor)
+            self.para['coor'][ib, :natom, 1:] = coor[:natom, 1:] / self.para['BOHR']
+            self.para['coor'][ib, :natom, 0] = coor[:natom, 0]
 
             # get index of orbitals atom by atom
             atomind.append(0)
@@ -378,7 +378,7 @@ class ReadIn:
                 for jat in range(natom):
 
                     # coordinate vector between atom pair
-                    [xx, yy, zz] = coor[jat, 1:] - coor[iat, 1:]
+                    [xx, yy, zz] = self.para['coor'][ib, jat, 1:] - self.para['coor'][ib, iat, 1:]
 
                     # distance between atom and atom
                     dd = t.sqrt(xx * xx + yy * yy + zz * zz)

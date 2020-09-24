@@ -155,6 +155,9 @@ def init_dftb_ml(para):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
+    # batch calculation
+    para['Lbatch'] = True
+
     para['reference'] = 'hdf'
 
     # read hdf (with coordinates, reference physical properties) type
@@ -411,9 +414,6 @@ def init_dftb_ml(para):
 
     # perform (non-) SCC DFTB: nonscc, scc
     para['scc'] = 'scc'
-
-    # batch calculation
-    para['Lbatch'] = True
 
     # convergence type
     para['convergenceType'] = 'energy'

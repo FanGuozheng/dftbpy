@@ -9,6 +9,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch as t
 import h5py
+import time
 import write_output as write
 import dftbtorch.dftb_torch as dftb_torch
 import dftbtorch.parameters as parameters
@@ -39,6 +40,7 @@ HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207}
 def opt(para):
     """'DFTB-ML optimization."""
     # get the default para for dftb and ML, these para will maintain unchanged
+    time_begin = time.time()
     initpara.init_dftb_ml(para)
 
     # load dataset, here is hdf type
@@ -64,6 +66,8 @@ def opt(para):
 
     # run dftb in ML process
     runml.mldftb(para)
+    time_end = time.time()
+    print("total training time:", time_end - time_begin)
 
     # plot data from ML
     if para['Lml_acsf']:
@@ -674,7 +678,7 @@ class RunML:
         ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
         over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
 
-        dftb_torch.Initialization(self.para, Lreadskf=False)
+        # dftb_torch.Initialization(self.para, Lreadskf=False)
         for ibatch in range(self.nbatch):
             self.para['hs_compr_all'] = self.para['hs_compr_all_'][ibatch]
             if self.para['ref'] == 'hdf':
@@ -700,51 +704,13 @@ class RunML:
             self.criterion = t.nn.L1Loss(reduction='sum')
 
         # get loss function
-        loss = self.get_loss(ibatch)
+        # loss = self.get_loss(ibatch)
+        loss = self.criterion(self.para['dipole'], pad_sequence(self.para['refdipole']).T)
 
         # clear gradients and define back propagation
         optimizer.zero_grad()
         loss.backward(retain_graph=True)
         optimizer.step()
-
-        '''
-        if self.para['loss_function'] == 'MSELoss':
-            self.loss_ = t.sqrt(loss.detach()) / nat
-        elif self.para['loss_function'] == 'L1Loss':
-            self.loss_ = loss.detach() / nat
-        for ibatch in range(self.nbatch):
-            savestep_ = 0
-            for it in range(para['mlsteps']):
-
-                # save and print information
-                if (it + 1) % para['save_steps'] == 0 or it == 0:
-                    savestep_ += 1
-                    self.para["nsteps"][ibatch] = savestep_
-                    print('-' * 100)
-                    print('ibatch: {} steps: {} target: {}'.format(
-                              ibatch + 1, it + 1, para['target']))
-                    print('average loss: {}'.format(self.loss_))
-                    print('compr_ml.grad', para['compr_ml'].grad.detach())
-                    print("para['compr_ml']", para['compr_ml'])
-                    print('-' * 100)
-                    self.save_idftbml()
-
-                # convergence or break condition
-                if para['Lopt_step'] and it > para['opt_step_min']:
-                    if self.loss_ < para['opt_ml_tol']:
-                        print('loss is < {}'.format(para['opt_ml_tol']))
-                        break
-                if t.lt(para['compr_ml'], para['compr_min']).all():
-                    print("there is compression R smaller than {}".format(
-                        para['compr_min']))
-                    break
-                if t.gt(para['compr_ml'], para['compr_max']).all():
-                    print("there is compression larger than {}".format(
-                        para['compr_max']))
-                    break
-        self.save.save1D(para['nsteps'].detach().numpy(),
-                         name='nsave.dat', dire='.data', ty='a')
-        '''
 
     def ml_compr(self):
         """DFTB optimization of compression radius for given dataset."""
@@ -1362,3 +1328,4 @@ if __name__ == "__main__":
     elif para['task'] == 'envpara':
         initpara.init_dftb_ml(para)
         interface.get_env_para()
+    time_end = time.time()

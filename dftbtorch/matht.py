@@ -16,6 +16,8 @@ import scipy.interpolate
 import bisect
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
+import DFTBMaLT.dftbmalt.utils.batch as utilsbatch
+from torch.nn.utils.rnn import pad_sequence
 
 
 class DFTBmath:
@@ -373,7 +375,7 @@ class EigenSolver:
         """
         self.eigenmethod = eigenmethod
 
-    def eigen(self, A, B=None, **kwargs):
+    def eigen(self, A, B=None, Lbatch=False, atomindex=None, **kwargs):
         """Choose different mothod for (general) eigenvalue problem.
 
         Parameters
@@ -385,11 +387,8 @@ class EigenSolver:
             Complementary positive definite real symmetric matrix for the
             generalised eigenvalue problem. Typically the overlap matrix.
         """
-        if A.dim() == 3:
-            self.batch = True
-            self.nb = len(A)
-        else:
-            self.batch = False
+        # get the atom orbital index of single/batch systems
+        self.atomindex = atomindex
 
         # simple eigenvalue problem
         if B is None:
@@ -402,16 +401,16 @@ class EigenSolver:
 
             # select decomposition method cholesky
             if self.eigenmethod == 'cholesky':
-                eigval, eigvec = self.cholesky(A, B)
+                eigval, eigvec = self.cholesky(A, B, Lbatch)
 
             # select decomposition method lowdin
             elif self.eigenmethod == 'lowdin':
-                eigval, eigvec = self.lowdin_qr(A, B)
+                eigval, eigvec = self.lowdin_qr(A, B, Lbatch)
 
         # return eigenvalue and eigenvector
         return eigval, eigvec
 
-    def cholesky(self, A, B, direct_inv=False):
+    def cholesky(self, A, B, Lbatch, direct_inv=False):
         """Cholesky decomposition.
 
         Parameters
@@ -430,8 +429,16 @@ class EigenSolver:
             AX = λBX ==> (L^{-1}AL^{-T})(L^{T}X) = λ(L^{T}X)
 
         """
-        # get the decomposition L, B = LL^{T}
-        chol_l = t.cholesky(B)
+        # get how many systems in batch and the largest atom index
+        nbatch = len(self.atomindex)
+        maxind = max([iindex[-1] for iindex in self.atomindex])
+        chol_l = t.empty(nbatch, maxind, maxind)
+
+        # get the decomposition L, B = LL^{T} and padding zero
+        chol_l = utilsbatch.pack(
+            [t.cholesky(B[ii][:self.atomindex[ii][-1],  # get nonzero part
+                              :self.atomindex[ii][-1]])
+             for ii in range(nbatch)])
 
         # directly use inverse matrix
         if direct_inv:
@@ -447,28 +454,30 @@ class EigenSolver:
             # get the t.eye which share the last dimension of A
             eye_ = t.eye(A.shape[-1], dtype=A.dtype)
 
+            # get L^{-1}, the 1st method only work if all sizes are the same
+            # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
+            linv = utilsbatch.pack([
+                t.solve(t.eye(self.atomindex[ii][-1]),
+                        chol_l[ii][:self.atomindex[ii][-1],
+                                   :self.atomindex[ii][-1]])[0]
+                for ii in range(nbatch)])
+
+            # get L^{-T}
+            linvt = t.stack([il.T for il in linv])
+
             # (L^{-1} @ A) @ L^{-T}
-            if self.batch:
-
-                # get L^{-1}
-                linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
-
-                # get L^{-1} @ @ L^{-T}
-                linvt = t.stack([il.T for il in linv])
-                linv_a_linvt = linv @ A @ linvt
-
-            # for simgle system
-            else:
-
-                # get L^{-1}
-                linv, _ = t.solve(eye_, chol_l)
-
-                # get L^{-1} @ @ L^{-T}
-                linvt = linv.T
-                linv_a_linvt = linv @ A @ linvt
+            linv_a_linvt = linv @ A @ linvt
 
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
-        eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+        # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
+        # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+        eigval_eigvec = [t.symeig(
+            linv_a_linvt[ii][:self.atomindex[ii][-1],
+                             :self.atomindex[ii][-1]],
+            eigenvectors=True)
+            for ii in range(nbatch)]
+        eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
+        eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])
 
         # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
         eigvec = linvt @ eigvec_
@@ -532,7 +541,7 @@ class EigenSolver:
         eigvec = S_sym @ ub2
         return sb2, eigvec
 
-    def lowdin_qr_eig(self, A, B):
+    def lowdin_qr_eig(self, A, B, Lbatch):
         """Löwdin orthonormalization.
 
         Parameters
@@ -554,9 +563,6 @@ class EigenSolver:
 
         assert A.shape == B.shape
         assert A.dtype == B.dtype
-        if A.dim() == 3:
-            self.batch = True
-            self.nb = A.shape[0]
 
         # the max iteration of QR decomposition
         niter = 20
@@ -566,11 +572,11 @@ class EigenSolver:
         BQ = t.zeros(size, dtype=A.dtype)
 
         # for single system
-        if not self.batch:
+        if not Lbatch:
             beye = t.eye(A.shape[-1], dtype=A.dtype)
 
         # for multi system
-        elif self.batch:
+        elif Lbatch:
             beye = t.eye(A.shape[-1],
                          dtype=A.dtype).unsqueeze(0).expand(A.shape)
 
@@ -608,7 +614,7 @@ class EigenSolver:
         eigvec = S_sym @ eigvec_
         return eigval, eigvec
 
-    def lowdin_qr(self, A, B):
+    def lowdin_qr(self, A, B, Lbatch):
         """Löwdin orthonormalization with QR decomposition.
 
         Parameters
@@ -625,9 +631,6 @@ class EigenSolver:
         """
         assert A.shape == B.shape
         assert A.dtype == B.dtype
-        if A.dim() == 3:
-            self.batch = True
-            self.nb = A.shape[0]
 
         # the max iteration of QR decomposition
         niter = 20
@@ -643,7 +646,7 @@ class EigenSolver:
             abeye = t.eye(A.shape[-1], dtype=A.dtype)
 
         # for multi system
-        elif self.batch:
+        elif Lbatch:
             beye = t.eye(
                 A.shape[-1], dtype=A.dtype).unsqueeze(0).expand(A.shape)
             abeye = t.eye(
@@ -672,10 +675,10 @@ class EigenSolver:
 
         # extract the  diag of last BQ as eigenvalue
         eigval_b = BQ[0]
-        if not self.batch:
+        if not Lbatch:
             diagb_sqrt_inv = t.sqrt(1 / eigval_b.diag()).diag()
             S_sym = beye @ diagb_sqrt_inv @ beye.T
-        elif self.batch:
+        elif Lbatch:
             diagb_sqrt_inv = t.stack([t.sqrt(1 / eigval_b[i].diag()).diag()
                                       for i in range(self.nb)])
             S_sym = beye @ diagb_sqrt_inv @ t.stack([beye[i].T for i in range(self.nb)])
@@ -703,7 +706,7 @@ class EigenSolver:
                 break
 
         # get eigenvalue of general AX = lambdaBX
-        if not self.batch:
+        if not Lbatch:
             eigval_ab = ABQ[0].diag()
             eigvec_ = S_sym @ abeye
 
@@ -711,7 +714,7 @@ class EigenSolver:
             eigenval, indices = t.sort(eigval_ab, -1)
             eigvec = t.stack([eigvec_.T[i] for i in indices]).T
 
-        elif self.batch:
+        elif Lbatch:
             eigval_ab = t.stack([ABQ[0][i].diag() for i in range(self.nb)])
             eigvec_ = S_sym @ abeye
 
