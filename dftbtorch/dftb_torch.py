@@ -1043,8 +1043,8 @@ class Analysis:
         self.para['pdos_E'] = t.linspace(-20, 20, 1000, dtype=t.float64)
 
         self.para['pdos'] = dos.PDoS(
-            # C eigen vector
-            self.para['eigenvec'].T,
+            # C eigen vector, the 1st dimension is batch dimension
+            self.para['eigenvec'].transpose(1, 2),
 
             # overlap
             self.para['overmat'],

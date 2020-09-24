@@ -872,7 +872,6 @@ class RunML:
             homo_lumo = para['homo_lumo']
             dipole = para['dipole']
             gap = t.abs(homo_lumo[ibatch][1] - homo_lumo[ibatch][0])
-            # gapref = t.abs(homo_lumo_ref[1] - homo_lumo_ref[0])
             eigval = para['eigenvalue']
             qatomall = para['charge']
             energy = para['energy']

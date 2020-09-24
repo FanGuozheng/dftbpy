@@ -361,7 +361,6 @@ class ReadIn:
             natom = self.para['natomall'][ib]
 
             coor = self.para['coorall'][ib]
-            print('coor', coor)
             self.para['coor'][ib, :natom, 1:] = coor[:natom, 1:] / self.para['BOHR']
             self.para['coor'][ib, :natom, 0] = coor[:natom, 0]
 
