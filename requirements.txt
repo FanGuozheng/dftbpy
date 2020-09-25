@@ -1,0 +1,11 @@
+
+# packages
+conda
+torch
+ase
+dscribe
+h5py
+
+# data
+skf data for training
+hdf dataset for training

@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import torch as t
-from torch.nn.utils.rnn import pad_sequence
+from ml.padding import pad1d
 import torch.nn.functional as F
 
 
@@ -46,9 +46,9 @@ class DFTBelect:
 
             # occupied state for batch, if full occupied, occupied will be 2
             # with unpaired electron, return 1
-            occ_ = pad_sequence([
+            occ_ = pad1d([
                 t.cat((t.ones(electron_pair[i]) * 2, electron_single[i]), 0)
-                for i in range(nelectron.shape[0])]).T
+                for i in range(nelectron.shape[0])])
 
             # pad the rest unoccupied states with 0, the size of occ is
             # the largest size in batch

@@ -20,8 +20,7 @@ from dftbtorch.mbd import MBD
 from IO.save import SaveData
 from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
-import DFTBMaLT.dftbmalt.utils.batch as utilsbatch
-from torch.nn.utils.rnn import pad_sequence
+from ml.padding import pad1d, pad2d
 
 
 def main(para):
@@ -448,9 +447,9 @@ class SCF:
         self.para['nocc'] = nocc
 
         # calculate mulliken charges
-        self.para['charge'] = pad_sequence([self.elect.mulliken(
+        self.para['charge'] = pad1d([self.elect.mulliken(
             self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
-            for i in range(self.nb)]).T
+            for i in range(self.nb)])
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -485,7 +484,7 @@ class SCF:
                 for i in ibatch]
 
             # pad a list of 2D gmat with different size
-            gmat = utilsbatch.pack(gmat_)
+            gmat = pad2d(gmat_)
 
         elif self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
@@ -509,10 +508,10 @@ class SCF:
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
-            n_orbitals = pad_sequence([t.tensor(np.diff(self.atind[i]))
-                                       for i in range(self.nb)]).T
-            shiftorb_ = pad_sequence([shift_[i].repeat_interleave(n_orbitals[i])
-                                      for i in range(self.nb)]).T
+            n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
+                                for i in range(self.nb)])
+            shiftorb_ = pad1d([shift_[i].repeat_interleave(n_orbitals[i])
+                               for i in range(self.nb)])
             shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
                                  for i in range(self.nb)])
 
@@ -540,9 +539,9 @@ class SCF:
             # at least.
             denmat.append(rho)
             # calculate mulliken charges
-            q_new = pad_sequence([
-                self.elect.mulliken(self.over[i], rho[i], self.atind[i], self.nat[i])
-                for i in range(self.nb)]).T
+            q_new = pad1d([self.elect.mulliken(
+                self.over[i], rho[i], self.atind[i], self.nat[i])
+                for i in range(self.nb)])
 
             # Last mixed charge is the current step now
             if not self.batch:
@@ -1023,7 +1022,7 @@ class Analysis:
                 for iat in range(self.nat[ib])] for ib in range(nbatch)]
 
         # return charge information
-        return pad_sequence([t.tensor(iq, dtype=t.float64) for iq in qat]).T
+        return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])
 
     def get_dipole(self, qzero, qatom, coor, natom):
         """Read and process dipole data."""

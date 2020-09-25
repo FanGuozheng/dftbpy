@@ -18,12 +18,12 @@ import utils.plot as plot
 import dftbtorch.init_parameter as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
+from ml.padding import pad1d
 from IO.load import LoadData
 from IO.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 import dftbmalt.utils.maths as maths
-from torch.nn.utils.rnn import pad_sequence
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
@@ -667,7 +667,7 @@ class RunML:
                 self.para['compr_init_'].append(self.para['compr_init'])
                 self.get_iref(ibatch, self.para['natomall'][ibatch])
         self.para['compr_ml'] = \
-            pad_sequence(self.para['compr_init_']).T.clone().requires_grad_(True)
+            pad1d(self.para['compr_init_']).clone().requires_grad_(True)
 
         # get optimizer
         if self.para['optimizer'] == 'SCG':
@@ -705,7 +705,7 @@ class RunML:
 
         # get loss function
         # loss = self.get_loss(ibatch)
-        loss = self.criterion(self.para['dipole'], pad_sequence(self.para['refdipole']).T)
+        loss = self.criterion(self.para['dipole'], pad1d(self.para['refdipole']))
 
         # clear gradients and define back propagation
         optimizer.zero_grad()
