@@ -175,7 +175,7 @@ def init_dftb_ml(para):
         para['LreadSKFinterp'] = False
 
         # dire of skf with hdf type
-        para['dire_hdfSK'] = '/home/gz_fan/Documents/ML/dftb/slko/hdf'
+        para['dire_hdfSK'] = '../slko/hdf'
 
         # name of skf with hdf type
         para['name_hdfSK'] = 'skf.hdf5'
@@ -183,13 +183,13 @@ def init_dftb_ml(para):
     if para['reference'] in ('dftbase', 'dftbplus'):
 
         # path of binary, executable DFTB file
-        para['dftb_ase_path'] = '/home/gz_fan/Documents/ML/dftb/test/dftbplus'
+        para['dftb_ase_path'] = '../test/dftbplus'
 
         # name of binary, executable DFTB file
         para['dftb_bin'] = 'dftb+'
 
         # path slater-koster file
-        para['skf_ase_path'] = '/home/gz_fan/Documents/ML/dftb/slko/mio'
+        para['skf_ase_path'] = '../slko/mio'
 
     if para['reference'] in ('aimsase', 'aims'):
 
