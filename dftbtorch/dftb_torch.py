@@ -23,7 +23,7 @@ import DFTBMaLT.dftbmalt.dftb.dos as dos
 from ml.padding import pad1d, pad2d
 
 
-def main(para):
+def dftb(para):
     """Run main DFTB code.
 
     Initialize parameters and then run DFTB

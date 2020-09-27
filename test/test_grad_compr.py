@@ -1264,7 +1264,7 @@ class RunCalc:
         para['coor'] = t.from_numpy(coor)
         dipolemall = para['dipolemall']
         eigvalall = para['eigvalall']
-        dipolem, eigval = dftb_torch.main(para)
+        dipolem, eigval = dftb_torch.dftb(para)
         dipolemall.append(dipolem)
         eigvalall.append(eigval)
         para['dipolemall'] = dipolemall
