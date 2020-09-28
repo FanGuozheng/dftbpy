@@ -118,7 +118,7 @@ def skt(systems, orbital_id, integral_feed, **kwargs):
     # ---------------------------
     # Matrices used in building getter & setter masks are initialised here.
     # These are the full (f) & block-wise (b) azimuthal identity matrices.
-    l_mat_f = orbital_id.azimuthal_matrix(mask=True, mask_lower=False)
+    l_mat_f = orbital_id.azimuthal_matrix(mask=True, mask_lower=True)
     l_mat_b = orbital_id.azimuthal_matrix(block=True, mask=True, mask_lower=False)
 
     # The masks will then gather data from the matrices initialised below to
@@ -138,6 +138,7 @@ def skt(systems, orbital_id, integral_feed, **kwargs):
         # Build a bool mask that is True wherever l_mat_b = l_pair & convert
         # it to a set of index positions (aka an index mask).
         index_mask_b = torch.where((l_mat_b == l_pair).all(dim=-1))
+        print("_SK_interactions, _SK_functions", l_mat_b, l_pair)
 
         if len(index_mask_b[0]) == 0: # Skip if no blocks of this type are found
             continue
@@ -212,6 +213,7 @@ def skt(systems, orbital_id, integral_feed, **kwargs):
             HS[index_mask_f[0], index_mask_f[2], index_mask_f[1]] = sk_data_shaped
         else:
             HS[index_mask_f[1], index_mask_f[0]] = sk_data_shaped
+        print("HS", HS)
 
     return HS
 

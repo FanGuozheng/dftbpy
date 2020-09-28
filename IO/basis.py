@@ -124,8 +124,8 @@ class Basis:
         # get orbital information for each atom, H: [0], for C: [0, 1, 1, 1]
         self._basis_list = [cls._look_up[o] for o in self.max_l_atom]
 
-        # get H/S block of each atom, for H-H: [[1]],
-        # C-C: [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]]
+        # get H/S block of each atom itself, for H: [[1]],
+        # C: [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]]
         self._basis_blocks = [cls._blocks[i] for i in self.max_l_atom]
 
         self._sub_basis_list = [cls._sub_look_up[o] for o in self.max_l_atom]
@@ -331,7 +331,6 @@ class Basis:
         l_mat = t.cat(basis_list).expand(shape)
         # Convert from an NxNx1 matrix into the NxNx2 azimuthal matrix
         l_mat = t.stack((l_mat.T, l_mat), -1)  # <-- Unmasked result
-        print("basis_blocks", basis_blocks)
 
         if mask:  # < -- If masking out parts of the matrix
             # Initialise the base mask from the on-site blocks, if relevant
@@ -344,6 +343,7 @@ class Basis:
             # Add lower triangle of the matrix to the mask
             if mask_lower:  # <-- But only if told to do so
                 mask[tuple(t.tril_indices(*shape))] = True
+                print("mask0", mask, tuple(t.tril_indices(*shape)))
 
             # If not in block mode mask/unmask the diagonals as instructed
             if not block:  # <-- Only valid for non block matrices
@@ -352,8 +352,8 @@ class Basis:
                 mask.diagonal()[:] = mask_diag
 
             # Apply the mask and set all the masked values to -1
-            print("lmat", l_mat.shape, l_mat.dtype, mask.shape, mask.dtype)
-            l_mat[mask, :] = -1
+            print("mask", l_mat, mask)
+            l_mat[mask.long(), :] = -1
 
         if sort:  # <-- Sort the angular momenta terms if requested
             l_mat = l_mat.sort(-1)[0]
