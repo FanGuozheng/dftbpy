@@ -20,7 +20,7 @@ def parser_cmd_args(para):
 
     # default SK path
     msg = 'Directory_SK (default: .)'
-    parser.add_argument('-dsk', '--directorySK', default='../slko', help=msg)
+    parser.add_argument('-dsk', '--directorySK', default='../slko/test', help=msg)
 
     # default input data path
     msg = 'Directory saving data (default: .data)'

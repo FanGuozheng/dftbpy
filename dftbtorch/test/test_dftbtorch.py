@@ -6,7 +6,7 @@ import logging
 from dftbtorch.dftb_torch import SCF, Initialization
 import dftbtorch.init_parameter as initpara
 import dftbtorch.parameters as parameters
-from dftbtorch.dftb_torch import main
+from dftbtorch.dftb_torch import dftb
 
 para = {}
 para['eigenmethod'] = 'lowdin'  # lowdin, cholesky

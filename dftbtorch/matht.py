@@ -26,9 +26,10 @@ class DFTBmath:
     see interpolation.F90 in DFTB+.
     """
 
-    def __init__(self, para):
+    def __init__(self, para, skf):
         """Initialize parameters."""
         self.para = para
+        self.skf = skf
 
     def sk_interp(self, rr, nameij):
         """Interpolation SKF according to distance from intergral tables.
@@ -40,11 +41,11 @@ class DFTBmath:
             ninterp: interpolate from up and lower SKF grid points number
 
         """
-        datalist = self.para['hs_all' + nameij]
-        incr = self.para['grid_dist' + nameij]
-        ngridpoint = self.para['ngridpoint' + nameij]
-        ninterp = self.para['ninterp']
-        delta_r = self.para['delta_r_skf']
+        datalist = self.skf['hs_all' + nameij]
+        incr = self.skf['grid_dist' + nameij]
+        ngridpoint = self.skf['ngridpoint' + nameij]
+        ninterp = self.skf['ninterp']
+        delta_r = self.skf['deltaRskf']
 
         xa = t.zeros((ninterp), dtype=t.float64)
         yb = t.zeros((ninterp, 20), dtype=t.float64)

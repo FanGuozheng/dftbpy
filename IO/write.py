@@ -5,9 +5,11 @@ import torch as t
 class Print:
     """Print DFTB results."""
 
-    def __init__(self, para):
+    def __init__(self, para, geo, skf):
         """Initialize parameters."""
         self.para = para
+        self.geo = geo
+        self.skf = skf
 
         # set print precision
         t.set_printoptions(precision=15)
@@ -129,7 +131,7 @@ class Print:
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
         # print atoms
-        print('list of atom:', self.para['atomnameall'])
+        print('list of atom:', self.geo['atomnameall'])
 
         # print charge
         print('\n charge (e): ', self.para['charge'])

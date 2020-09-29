@@ -17,7 +17,7 @@ ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para, ibatch):
+    def __init__(self, para, geometry, skf, ibatch):
         """Initialize parameters.
 
         Args:
@@ -27,14 +27,16 @@ class SKTran:
             [natom, natom, 20] matrix for each calculation
         """
         self.para = para
-        self.math = DFTBmath(self.para)
+        self.skf = skf
+        self.geometry = geometry
+        self.math = DFTBmath(self.para, self.skf)
         self.ibatch = ibatch
 
         # if machine learning or not
         if not self.para['Lml']:
 
             # read integrals from .skf with various compression radius
-            if not self.para['LreadSKFinterp']:
+            if not self.skf['LreadSKFinterp']:
                 self.get_sk_all(self.ibatch)
 
             # build H0 and S with full, symmetric matrices
@@ -66,25 +68,25 @@ class SKTran:
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.para['natom'][self.ibatch]
+        natom = self.geometry['natomall'][self.ibatch]
 
         # build H0 or S
-        self.para['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
+        self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
         for iat in range(natom):
 
             for jat in range(natom):
 
                 # get the name of i, j atom pair
-                namei = self.para['atomnameall'][ibatch][iat]
-                namej = self.para['atomnameall'][ibatch][jat]
+                namei = self.geometry['atomnameall'][ibatch][iat]
+                namej = self.geometry['atomnameall'][ibatch][jat]
                 nameij = namei + namej
 
                 # the cutoff is from former step when reading skf file
-                cutoff = self.para['cutoffsk' + nameij]
+                cutoff = self.skf['cutoffsk' + nameij]
 
                 # the distance is from cal_coor
-                dd = self.para['distance'][ibatch][iat, jat]
+                dd = self.geometry['distance'][ibatch][iat, jat]
 
                 # if distance larger than cutoff, return zero
                 # if dd > cutoff:
@@ -98,15 +100,15 @@ class SKTran:
                 else:
 
                     # get the integral by interpolation from integral table
-                    self.para['hsdata'] = self.math.sk_interp(dd, nameij)
+                    self.skf['hsdata'] = self.math.sk_interp(dd, nameij)
 
                     # make sure type is tensor
-                    self.para['hs_all'][iat, jat, :] = \
-                        self.data_type(self.para['hsdata'])
+                    self.skf['hs_all'][iat, jat, :] = \
+                        self.data_type(self.skf['hsdata'])
 
     def data_type(self, in_):
         """Make sure the output is tensor type."""
-        if type(self.para['hsdata']) is t.Tensor:
+        if type(self.skf['hsdata']) is t.Tensor:
             out_ = in_
         else:
             out_ = t.from_numpy(in_)
@@ -130,8 +132,8 @@ class SKTran:
         atomind2 = self.para['atomind2']
 
         # build 1D, half H0, S matrices
-        self.para['hammat'] = t.zeros((atomind2), dtype=t.float64)
-        self.para['overmat'] = t.zeros((atomind2), dtype=t.float64)
+        self.skf['hammat'] = t.zeros((atomind2), dtype=t.float64)
+        self.skf['overmat'] = t.zeros((atomind2), dtype=t.float64)
 
         # temporary distance matrix
         rr = t.zeros((3), dtype=t.float64)
@@ -171,8 +173,8 @@ class SKTran:
                         # controls only half H0, S will be written
                         if nn <= mm:
                             idx = int(mm * (mm + 1) / 2 + nn)
-                            self.para['hammat'][idx] = self.para['hams'][m, n]
-                            self.para['overmat'][idx] = self.para['ovrs'][m, n]
+                            self.skf['hammat'][idx] = self.skf['hams'][m, n]
+                            self.skf['overmat'][idx] = self.skf['ovrs'][m, n]
 
             # build temporary on-site
             self.para['h_o'] = t.zeros((9), dtype=t.float64)
@@ -188,8 +190,8 @@ class SKTran:
             for m in range(atomind[iat + 1] - atomind[iat]):
                 mm = atomind[iat] + m
                 idx = int(mm * (mm + 1) / 2 + mm)
-                self.para['hammat'][idx] = self.para['h_o'][m]
-                self.para['overmat'][idx] = self.para['s_o'][m]
+                self.skf['hammat'][idx] = self.skf['h_o'][m]
+                self.skf['overmat'][idx] = self.skf['s_o'][m]
 
     def sk_tran_symall(self, ibatch):
         """Transfer H0, S according to Slater-Koster rules.
@@ -198,41 +200,41 @@ class SKTran:
 
         """
         # index of atom orbital
-        atomind = self.para['atomind'][ibatch]
+        atomind = self.geometry['atomind'][ibatch]
 
         # number of atom
-        natom = self.para['natom'][ibatch]
+        natom = self.geometry['natomall'][ibatch]
 
         # total orbitals, equal to dimension of H0, S
         norb = atomind[natom]
 
         # atom name
-        atomname = self.para['atomnameall'][ibatch]
+        atomname = self.geometry['atomnameall'][ibatch]
 
         # atom coordinate vector (Bohr)
-        dvec = self.para['dvec']
+        dvec = self.geometry['dvec']
 
         # build H0, S
-        self.para['hammat'] = t.zeros((norb, norb), dtype=t.float64)
-        self.para['overmat'] = t.zeros((norb, norb), dtype=t.float64)
+        self.skf['hammat'] = t.zeros((norb, norb), dtype=t.float64)
+        self.skf['overmat'] = t.zeros((norb, norb), dtype=t.float64)
 
         for iat in range(natom):
 
             # l of i atom
-            lmaxi = self.para['lmaxall'][ibatch][iat]
+            lmaxi = self.geometry['lmaxall'][ibatch][iat]
 
             for jat in range(natom):
 
                 # l of j atom
-                lmaxj = self.para['lmaxall'][ibatch][jat]
+                lmaxj = self.geometry['lmaxall'][ibatch][jat]
 
                 # temporary H, S between i and j atom
-                self.para['hams'] = t.zeros((9, 9), dtype=t.float64)
-                self.para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
+                self.skf['hams'] = t.zeros((9, 9), dtype=t.float64)
+                self.skf['ovrs'] = t.zeros((9, 9), dtype=t.float64)
 
                 # temporary on-site
-                self.para['h_o'] = t.zeros((9), dtype=t.float64)
-                self.para['s_o'] = t.zeros((9), dtype=t.float64)
+                self.skf['h_o'] = t.zeros((9), dtype=t.float64)
+                self.skf['s_o'] = t.zeros((9), dtype=t.float64)
 
                 # name of i and j atom pair
                 self.para['nameij'] = atomname[iat] + atomname[jat]
@@ -249,16 +251,16 @@ class SKTran:
                     # write on-site between i and j to final on-site matrix
                     for m in range(atomind[iat + 1] - atomind[iat]):
                         mm = atomind[iat] + m
-                        self.para['hammat'][mm, mm] = self.para['h_o'][m]
-                        self.para['overmat'][mm, mm] = self.para['s_o'][m]
+                        self.skf['hammat'][mm, mm] = self.skf['h_o'][m]
+                        self.skf['overmat'][mm, mm] = self.skf['s_o'][m]
 
                 # build H0, S with integrals for i, j atom pair
                 else:
 
                     # get H, S with distance, initial integrals
-                    if self.para['sk_tran'] == 'new':
+                    if self.skf['sk_tran'] == 'new':
                         self.slkode_vec(rr, iat, jat, lmaxi, lmaxj)
-                    elif self.para['sk_tran'] == 'old':
+                    elif self.skf['sk_tran'] == 'old':
                         self.slkode_ij(rr, iat, jat, lmaxi, lmaxj)
 
                     # write H0, S of i, j to final H0, S
@@ -268,10 +270,8 @@ class SKTran:
 
                             # calculate the off-diagonal orbital index
                             mm = atomind[iat] + m
-                            self.para['hammat'][mm, nn] = \
-                                self.para['hams'][m, n]
-                            self.para['overmat'][mm, nn] = \
-                                self.para['ovrs'][m, n]
+                            self.skf['hammat'][mm, nn] = self.skf['hams'][m, n]
+                            self.skf['overmat'][mm, nn] = self.skf['ovrs'][m, n]
 
     def slkode_onsite(self, rr, iat, lmax):
         """Transfer i from ith atom to ith spiece."""
@@ -279,25 +279,25 @@ class SKTran:
         nameij = self.para['nameij']
 
         # s, p, d orbitals onsite
-        do, po, so = self.para['onsite' + nameij][:]
+        do, po, so = self.skf['onsite' + nameij][:]
 
         # max(l) is 1, only s orbitals is included in system
         if lmax == 1:
-            self.para['h_o'][0] = so
-            self.para['s_o'][0] = 1.0
+            self.skf['h_o'][0] = so
+            self.skf['s_o'][0] = 1.0
 
         # max(l) is 2, including p orbitals
         elif lmax == 2:
-            self.para['h_o'][0] = so
-            self.para['h_o'][1: 4] = po
-            self.para['s_o'][: 4] = 1.0
+            self.skf['h_o'][0] = so
+            self.skf['h_o'][1: 4] = po
+            self.skf['s_o'][: 4] = 1.0
 
         # max(l) is 3, including d orbital
         else:
-            self.para['h_o'][0] = so
-            self.para['h_o'][1: 4] = po
-            self.para['h_o'][4: 9] = do
-            self.para['s_o'][:] = 1.0
+            self.skf['h_o'][0] = so
+            self.skf['h_o'][1: 4] = po
+            self.skf['h_o'][4: 9] = do
+            self.skf['s_o'][:] = 1.0
 
     def slkode_ij(self, rr, iat, jat, li, lj):
         """Transfer integrals according to SK rules."""
@@ -331,16 +331,16 @@ class SKTran:
         """Generate H0, S by vectorized method."""
         lmax, lmin = max(li, lj), min(li, lj)
         xx, yy, zz = rr[:] / t.sqrt(t.sum(rr[:] ** 2))
-        hsall = self.para['hs_all']
+        hsall = self.skf['hs_all']
 
         if lmax == 1:
-            self.para['hams'][0, 0], self.para['ovrs'][0, 0] = \
+            self.skf['hams'][0, 0], self.skf['ovrs'][0, 0] = \
                 self.skss_vec(hsall, xx, yy, zz, iat, jat)
         if lmin == 1 and lmax == 2:
-            self.para['hams'][:4, :4], self.para['ovrs'][:4, :4] = \
+            self.skf['hams'][:4, :4], self.skf['ovrs'][:4, :4] = \
                 self.sksp_vec(hsall, xx, yy, zz, iat, jat, li, lj)
         if lmin == 2 and lmax == 2:
-            self.para['hams'][:4, :4], self.para['ovrs'][:4, :4] = \
+            self.skf['hams'][:4, :4], self.skf['ovrs'][:4, :4] = \
                 self.skpp_vec(hsall, xx, yy, zz, iat, jat, li, lj)
 
     def skss_vec(self, hs, x, y, z, i, j):

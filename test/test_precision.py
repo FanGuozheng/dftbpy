@@ -6,12 +6,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import dftbtorch.slakot as slakot
 import dftbtorch.dftb_torch as dftb_torch
-from dftbtorch.dftb_torch import dftb
+from dftbtorch.dftb_torch import DFTBCalculator
 import test_grad_compr
-import dftbtorch.init_parameter as initpara
 
 
-def test_accuracy(para, name, dire,
+def test_accuracy(para, geo, name, dire,
                   LH0=False, H0=None,
                   LS0=False, S=None,
                   Lq=False, q=None,
@@ -23,8 +22,8 @@ def test_accuracy(para, name, dire,
 
     """
     print('\n', '-' * 35, 'test accuracy:', name, '-' * 35)
-    read_dftbplus_data(para, dire, H0=H0, S=S, q=q, p=None)
-    nat = para['natom'][0]
+    read_dftbplus_data(para, geo, dire, H0=H0, S=S, q=q, p=None)
+    nat = geo['natomall'][0]
 
     if LH0:
         dataH0 = para['dataH']
@@ -72,10 +71,10 @@ def print_(properties, precision):
             properties, precision))
 
 
-def read_dftbplus_data(para, dire, H0=None, S=None, q=None, p=None):
+def read_dftbplus_data(para, geo, dire, H0=None, S=None, q=None, p=None):
     """Return according to Input Agrs."""
-    natom = para['natom'][0]
-    ind_nat = para['atomind'][0][natom]
+    natom = geo['natomall'][0]
+    ind_nat = geo['atomind'][0][natom]
 
     if H0 is not None:
         fpH = open(os.path.join(dire, H0))
@@ -107,24 +106,26 @@ def read_dftbplus_data(para, dire, H0=None, S=None, q=None, p=None):
         para['dataq'] = t.from_numpy(para['dataq'])
 
 
-def nonscc_CH4(para):
+def nonscc_CH4():
     """Test CH4 with non-scc DFTB
 
     What cab be test: dipole, charge, polarizability, H0, S
     """
-    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    para['coor'] = t.tensor(([
+    geometry = {}
+    geometry['coordinate'] = t.tensor(([
             [6, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.6287614522, 0.6287614522, 0.6287614522],
             [1, -0.6287614522, -0.6287614522, 0.6287614522],
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
-    para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
-    para['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
+    geometry['atomNumber'] = geometry['coordinate'][:, 0]
+    dftb_parameter = {}
+    dftb_parameter['scc'] = 'nonscc'  # nonscc, scc, xlbomd
+    DFTBCalculator(dftb_parameter, geometry)
+    dftb_parameter['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
                               0.88758063039831003, 0.88758063039830970,
                               0.88758063039831003])
-    test_accuracy(para, 'CH4', './data', Lq=True)
+    test_accuracy(dftb_parameter, geometry, 'CH4', './data', Lq=True)
 
 
 def scc_CH4(para):
@@ -141,7 +142,7 @@ def scc_CH4(para):
             [1, -0.6287614522, 0.6287614522, -0.6287614522],
             [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.3646063221278348, 0.9088484194680416,
                               0.9088484194680417, 0.9088484194680415,
                               0.9088484194680422])
@@ -171,7 +172,7 @@ def nonscc_CH4_nonsym(para):
     para['dataq'] = t.tensor([4.4997361516795538, 0.9005492428500024,
                               0.8953750140152250, 0.8641715463062267,
                               0.8401680451489958])
-    dftb(para)
+    DFTBCalculator(para)
     test_accuracy(para, 'CH4_nonsym', './data', Lq=True)
 
 
@@ -190,7 +191,7 @@ def scc_CH4_nonsym(para):
              [1, 7.1141016483e-01, -2.1603724360e-01, -7.2022646666e-01]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.4046586991616872, 0.9243139211840105,
                               0.9189034167482688, 0.8876746127630650,
                               0.8644493501429688])
@@ -214,7 +215,7 @@ def nonscc_H2(para):
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.5000000000, 0.5000000000, 0.5000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([1.00000000, 1.00000000])
     test_accuracy(para, 'H2', './data', Lq=True)
 
@@ -233,7 +234,7 @@ def scc_H2(para):
             [1, 0.0000000000, 0.0000000000, 0.0000000000],
             [1, 0.5000000000, 0.5000000000, 0.5000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([1.00000000, 1.00000000])
     para['datats'] = t.tensor([2.96106578790466, 2.96106578790466],
                               dtype=t.float64)
@@ -255,7 +256,7 @@ def nonscc_CO(para):
             [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([3.7284970028511140, 6.2715029971488887],
                              dtype=t.float64)
     test_accuracy(para, 'CO', './data', Lq=True)
@@ -274,7 +275,7 @@ def scc_CO(para):
             [8, 0.6512511036458978, -0.6512511036458978, 0.6512511036458978]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([3.8826653985894914, 6.1173346014105121],
                              dtype=t.float64)
     para['datats'] = t.tensor([10.4472195378344, 5.03433839483291],
@@ -297,7 +298,7 @@ def nonscc_CO2(para):
             [8, -2.0357279573e-03, -1.7878314480e-02, -1.1525206566e+00]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([6.6135557981748079, 2.7109071259517026,
                               6.6755370758734962])
     test_accuracy(para, 'CO2', './data', Lq=True)
@@ -317,7 +318,7 @@ def scc_CO2(para):
             [8, -2.0357279573e-03, -1.7878314480e-02, -1.1525206566e+00]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([6.4270792466227178, 3.1244580919585441,
                               6.4484626614187430])
     para['datats'] = t.tensor([5.29721592768678, 7.83915424274904,
@@ -345,7 +346,7 @@ def nonscc_C2H6(para):
              [1, -1.0138797760e+00,  3.6464625597e-01, -1.0678678751e+00]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.3325292970327069, 4.2829914231660391,
                               0.8846001605884933, 0.8603002498060950,
                               0.9483650364409464, 0.8938554239478647,
@@ -373,7 +374,7 @@ def scc_C2H6(para):
              [1, -1.0138797760e+00,  3.6464625597e-01, -1.0678678751e+00]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.2412486605036905, 4.1940082696488874,
                               0.9172216094361348, 0.8963994303673891,
                               0.9656809937193864, 0.9264392363000882,
@@ -411,7 +412,7 @@ def nonscc_C2H6O(para):
              [1,  1.1436977386, -0.9601760507,  0.5842682123]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.3675430061371792, 3.7826107550854298,
                               6.7603868320346310, 0.8969363587360036,
                               0.9021808864900093, 0.8933849747787559,
@@ -443,7 +444,7 @@ def scc_C2H6O(para):
              [1,  1.1436977386, -0.9601760507,  0.5842682123]]),
             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
     para['dataq'] = t.tensor([4.3045137517383676, 3.8291018519172604,
                               6.5028095628105218, 0.9296529355508590,
                               0.9342688752419560, 0.9036781748891559,
@@ -467,7 +468,6 @@ def scc_CH4_compr(para):
 
     Before DFTB calculations, we will also test H0 and S.
     """
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.5
 
@@ -503,7 +503,6 @@ def nonscc_CH4_compr(para):
     Before DFTB calculations, we will also test H0 and S.
 
     """
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.5
 
@@ -539,7 +538,6 @@ def nonscc_CH4_compr_nongrid(para):
     Before DFTB calculations, we will also test H0 and S.
 
     """
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.2
 
@@ -576,7 +574,6 @@ def scc_CH4_compr_nongrid(para):
     Before DFTB calculations, we will also test H0 and S.
 
     """
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.2
 
@@ -613,7 +610,6 @@ def nonscc_nonsymCH4_compr_nongrid(para):
     Before DFTB calculations, we will also test H0 and S;
 
     """
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.2
 
@@ -647,7 +643,6 @@ def nonscc_nonsymCH4_compr_nongrid(para):
 
 def scc_nonsymCH4_compr_nongrid(para):
     """Test eigen values, charges of CH4 by using SCC DFTB."""
-    initpara.init_dftb_interp(para)
     # initial compression radius of H
     para['H_init_compr'] = 2.2
 
@@ -687,18 +682,18 @@ def scc_H(para):
     para['coor'] = t.tensor(([[1, 0.0000000000, 0.0000000000, 0.0000000000]]),
                             dtype=t.float64)
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
 
 
 def scc_C(para):
-    """Test eigen values, charges of CH4 by using SCC DFTB."""
+    """Test eigen values, charges of CH4 by using SCC DFTBCalculator."""
     para['scc'] = 'scc'  # nonscc, scc, xlbomd
     para['convergenceType'], para['energy_tol'] = 'energy',  1e-6
     para['maxIter'] = 60
     para['coor'] = t.tensor((
             [[6, 0.0000000000, 0.0000000000, 0.0000000000]]))
     para['atomNumber'] = para['coor'][:, 0]
-    dftb(para)
+    DFTBCalculator(para)
 
 
 def generate_compr():
@@ -1060,9 +1055,6 @@ def normal_test(para):
                 'nonscc_C2H6', 'scc_CH4_nonsym', 'nonscc_CH4_nonsym',
                 'scc_C2H6O', 'nonscc_C2H6O']
 
-    # define DFTB parameters
-    initpara.init_dftb(para)
-
     if 'nonscc_CH4' in testlist:
         nonscc_CH4(para)
     if 'scc_CH4' in testlist:
@@ -1093,16 +1085,14 @@ def normal_test(para):
         scc_C2H6O(para)
 
 
-def single_test(para):
+def single_test():
     """test for DFTB."""
-    initpara.init_dftb(para)
-
     # test charge of non-SCC CH4 molecule
-    nonscc_CH4(para)
+    nonscc_CH4()
 
     # test charge of SCC CH4 molecule
     # scc_CH4_nonsym(para)
-    scc_CH4(para)
+    scc_CH4()
 
 
 def compr_test(para):
@@ -1145,20 +1135,17 @@ if __name__ == '__main__':
     # set the data precision
     t.set_default_dtype(d=t.float64)
 
-    # define global dictionary
-    para = {}
-
     # define the main task
-    para["test_precision"] = "single"
+    test_precision = "single"
 
     # test a single molecule
-    if para["test_precision"] == "single":
-        single_test(para)
+    if test_precision == "single":
+        single_test()
 
     # test some small molecule
-    if para["test_precision"] == "normal":
-        normal_test(para)
+    if test_precision == "normal":
+        normal_test()
 
     # test with interpolation method
-    elif para["test_precision"] == "compr":
-        compr_test(para)
+    elif test_precision == "compr":
+        compr_test()

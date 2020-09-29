@@ -20,17 +20,17 @@ def block_diag(in_tensor):
     Returns
     -------
     out_tensor : `torch.tensor`
-        Return 3D tensor where each in_tensor will be in the diagonal matrix.
+        Return 2D tensor where each in_tensor will be in the diagonal matrix.
 
     """
     # get the size of each tensor and define the output tensor
     size = [isize.shape[0] for isize in in_tensor]
-    out_tensor = t.zeros((len(in_tensor), sum(size), sum(size)),
-                         dtype=in_tensor[0].dtype)
+    out_tensor = t.zeros((sum(size), sum(size)), dtype=in_tensor[0].dtype)
 
     # copy each tensor to the diagonal
     for itensor, ivalue in enumerate(in_tensor):
-        out_tensor[itensor, :ivalue.shape[0], :ivalue.shape[1]] = ivalue
+        start, end = sum(size[:itensor]), sum(size[:itensor + 1])
+        out_tensor[start: end, start: end] = ivalue
 
     # return output
     return out_tensor

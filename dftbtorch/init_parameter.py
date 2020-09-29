@@ -478,102 +478,140 @@ def init_dftb_ml(para):
     para['ref_save_type'] = 'hdf'
 
 
-def init_dftb(para):
-    """Initialize the parameters for normal DFTB.
+def dftb_parameter(dftb_parameter=None):
+    """Return the default parameters for DFTB calculations."""
+    if dftb_parameter is None:
+        dftb_parameter = {}
 
-    Applications:
-        DFTB without gradient
-        SKF from normal SKF file
-    Returns:
-        Path of input (if you do not offer all in python)
-        DFTB parameters
-        Others, such as plotting parameters
-    """
-    # batch calculation
-    para['Lbatch'] = False
+    # batch calculation, usually True for machine learning
+    if 'Lbatch' not in dftb_parameter.keys():
+        dftb_parameter['Lbatch'] = False
 
-    # do not get parameters from input file, from python code
-    para['LReadInput'] = False
+    # read parameters from input file, if False, you can define in python
+    if 'LReadInput' not in dftb_parameter.keys():
+        dftb_parameter['LReadInput'] = False
 
-    # system perodic condition
-    para['Lperiodic'] = False
+    # SCC, non-SCC DFTB calculation
+    if 'scc' not in dftb_parameter.keys():
+        dftb_parameter['scc'] = 'scc'
 
-    # calculate dipole
-    para['Ldipole'] = True
+    # if the system perodic condition, with lattice parameter, switch to True
+    if 'Lperiodic' not in dftb_parameter.keys():
+        dftb_parameter['Lperiodic'] = False
 
-    # calculate repulsive term or not
-    para['Lrepulsive'] = False
+    # calculate repulsive term or not, if True, the code will read repulsive
+    # parameter from skf
+    if 'Lrepulsive' not in dftb_parameter.keys():
+        dftb_parameter['Lrepulsive'] = False
 
     # mixing method: simple. anderson, broyden
-    para['mixMethod'] = 'anderson'
+    if 'mixMethod' not in dftb_parameter.keys():
+        dftb_parameter['mixMethod'] = 'anderson'
 
     # mixing factor
-    para['mixFactor'] = 0.2
+    if 'mixFactor' not in dftb_parameter.keys():
+        dftb_parameter['mixFactor'] = 0.2
 
     # convergence method: energy, charge
-    para['convergenceType'] = 'energy'
+    if 'convergenceType' not in dftb_parameter.keys():
+        dftb_parameter['convergenceType'] = 'energy'
 
-    # convergence precision
-    para['convergence_tol'] = 1e-8
-
-    # delta distance when interpolate SKF integral
-    para['delta_r_skf'] = 1E-5
+    # convergence tolerance
+    if 'convergenceTolerance' not in dftb_parameter.keys():
+        dftb_parameter['convergenceTolerance'] = 1e-8
 
     # electron temperature
-    para['tElec'] = 0
-
-    # if smaller than t_zero_max, temperature treated as zero
-    para['t_zero_max'] = 5
+    if 'tElec' not in dftb_parameter.keys():
+        dftb_parameter['tElec'] = 0
 
     # max interation of SCC loop
-    para['maxIter'] = 60
+    if 'maxIteration' not in dftb_parameter.keys():
+        dftb_parameter['maxIteration'] = 60
 
-    # density basis: exp_spher, gaussian
-    para['scc_den_basis'] = 'exp_spher'
+    # density basis: spherical, gaussian
+    if 'density_profile' not in dftb_parameter.keys():
+        dftb_parameter['density_profile'] = 'spherical'
 
-    # ****************************** SKF, H, S ******************************
-    # skf: directly read or interpolate from a list of skf files
-    para['LreadSKFinterp'] = False
-
-    # if calculate PDOS
-    para['Lpdos'] = False
-
+    # ******************************** H, S ********************************
     # orbital resolved: if Ture, only use Hubbert of s orbital
-    para['Lorbres'] = False
-
-    # skf file tail distance
-    para['dist_tailskf'] = 1.0
-
-    # skf interpolation number
-    para['ninterp'] = 8
-
-    # skf directory
-    para['direSK'] = '../slko/test'
-    para['sk_tran'] = 'new'
+    if 'Lorbres' not in dftb_parameter.keys():
+        dftb_parameter['Lorbres'] = False
 
     # how to write H0, S: symhalf (write upper or lower), symall (write whole)
-    para['HSsym'] = 'symall'
+    if 'HSsym' not in dftb_parameter.keys():
+        dftb_parameter['HSsym'] = 'symall'
 
     # general eigenvalue method: cholesky, lowdin_qr
-    para['eigenmethod'] = 'cholesky'
+    if 'eigenmethod' not in dftb_parameter.keys():
+        dftb_parameter['eigenmethod'] = 'cholesky'
 
     # ****************************** MBD-DFTB ******************************
-    para['LMBD_DFTB'] = False
+    if 'LMBD_DFTB' not in dftb_parameter.keys():
+        dftb_parameter['LMBD_DFTB'] = False
 
     # omega grid
-    para['n_omega_grid'] = 15
-    para['vdw_self_consistent'] = False
-    para['beta'] = 1.05
+    if 'n_omega_grid' not in dftb_parameter.keys():
+        dftb_parameter['n_omega_grid'] = 15
+    if 'vdw_self_consistent' not in dftb_parameter.keys():
+        dftb_parameter['vdw_self_consistent'] = False
+    if 'beta' not in dftb_parameter.keys():
+        dftb_parameter['beta'] = 1.05
 
     # **************************** ML parameter ****************************
-    para['Lml'] = False
+    if 'Lml' not in dftb_parameter.keys():
+        dftb_parameter['Lml'] = False
 
     # machine learning optimize SKF parameters (compression radius...)
-    para['Lml_skf'] = False
+    if 'Lml_skf' not in dftb_parameter.keys():
+        dftb_parameter['Lml_skf'] = False
 
     # machine learning optimize integral
-    para['Lml_HS'] = False
+    if 'Lml_HS' not in dftb_parameter.keys():
+        dftb_parameter['Lml_HS'] = False
 
+    # **************************** Result *********************************
+    # calculate dipole
+    if 'Ldipole' not in dftb_parameter.keys():
+        dftb_parameter['Ldipole'] = True
+
+    # if calculate PDOS
+    if 'Lpdos' not in dftb_parameter.keys():
+        dftb_parameter['Lpdos'] = False
+
+    # return DFTB calculation parameters
+    return dftb_parameter
+
+def skf_parameter(skf=None):
+    """Return the default parameters for skf."""
+    if skf is None:
+        skf = {}
+
+    # skf: directly read or interpolate from a list of skf files
+    if 'LreadSKFinterp' not in skf.keys():
+        skf['LreadSKFinterp'] = False
+
+    # skf file tail distance
+    if 'dist_tailskf' not in skf.keys():
+        skf['dist_tailskf'] = 1.0
+
+    # skf interpolation number
+    if 'ninterp' not in skf.keys():
+        skf['ninterp'] = 8
+
+    # skf directory
+    if 'direSK' not in skf.keys():
+        skf['direSK'] = '../slko/test'
+
+    # SK transformation method
+    if 'sk_tran' not in skf.keys():
+        skf['sk_tran'] = 'new'
+
+    # delta distance when interpolate SKF integral
+    if 'deltaRskf' not in skf.keys():
+        skf['deltaRskf'] = 1E-5
+
+    # return skf
+    return skf
 
 def init_dftb_interp(para):
     """Initialize the parameters for DFTB with interpolation of SKF.

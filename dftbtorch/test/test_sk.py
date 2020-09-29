@@ -7,8 +7,8 @@ Test slater-koster transformation for batch calculation.
 """
 import numpy as np
 import torch as t
-import dftbtorch.skbatch as slaterkoster
-from IO.basis import Basis, Bases
+import dftbmalt.dftb.slaterkoster as slaterkoster
+from dftbmalt.structures.basis import Basis, Bases
 
 
 def main():
@@ -18,9 +18,9 @@ def main():
 
     if batch:
         atomic_numbers = t.tensor([[1, 1], [1, 1], [1, 1], [1, 1]])
-        max_ls = t.tensor([1, 1, 1, 1])
+        max_ls = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
     else:
-        atomic_numbers = t.tensor([1, 1])
+        atomic_numbers = t.tensor([6, 1])
         max_ls = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
 
     orbital_id = Basis(atomic_numbers, max_ls)
@@ -35,9 +35,9 @@ class GetPosition:
 
     def position(self):
         if not self.batch:
-            return t.randn(2, 2)
+            return t.randn(2, 3)
         else:
-            return t.randn(4, 2, 2)
+            return t.randn(4, 2, 3)
 
 if __name__ == "__main__":
     main()

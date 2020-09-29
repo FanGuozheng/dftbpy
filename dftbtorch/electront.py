@@ -42,7 +42,7 @@ class DFTBelect:
         electron_single = (nelectron.clone().detach() % 2).unsqueeze(1)
 
         # zero temperature
-        if telec < self.para['t_zero_max']:
+        if telec == 0.:
 
             # occupied state for batch, if full occupied, occupied will be 2
             # with unpaired electron, return 1

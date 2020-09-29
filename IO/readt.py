@@ -7,7 +7,7 @@ import scipy
 import time
 import numpy as np
 import torch as t
-from torch.nn.utils.rnn import pad_sequence
+import dftbtorch.init_parameter as initpara
 err = 1E-4
 ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
             "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr",
@@ -90,7 +90,7 @@ def interpskf(para, skftype, atomspecie, dire_interpSK):
         fp.close
 
 
-class ReadIn:
+class ReadInput:
     """Read from .hsd input file.
 
     Returns:
@@ -99,20 +99,79 @@ class ReadIn:
         read_input: read json type input file
         get_coor: read coor from json type input file
         cal_coor: calculate input coordinate, return distance, atom specie...
-
     """
 
-    def __init__(self, para):
-        """Initialize parameters for DFTB."""
-        self.para = para
+    def __init__(self, parameter=None, geometry=None, skf=None):
+        """Read parameters for DFTB from hsd, json files.
 
-    def read_input(self, para):
+        Parameters
+        ----------
+        parameter: `dictionary`
+            parameters for DFTB calculations
+        geometry: `dictionary`
+            parameters for all geometric information
+
+        Returns
+        -------
+        parameter: `dictionary`
+            update parameter for DFTB calculations
+        geometry: `dictionary`
+            update geometry for all geometric information
+        """
+        self.para = parameter
+
+        # geometry information
+        if geometry is None:
+            self.geometry = {}
+        else:
+            self.geometry = geometry
+
+        # skf information
+        if skf is None:
+            self.skf = {}
+        else:
+            self.skf = skf
+
+        # multi options for parameters: defined json file,
+        if 'LReadInput' in self.para.keys():
+            if self.para['LReadInput']:
+
+                # read parameters from input json files
+                self.dftb_parameter = self.read_input()
+
+                # read geometry
+                self.geometry = self.read_coor()
+
+                # read skf parameter
+                self.skf = self.read_skf()
+
+            # if do not read from json
+            else:
+
+                # use default value from initpara
+                self.dftb_parameter = initpara.dftb_parameter(self.para)
+                self.skf = initpara.skf_parameter(self.skf)
+
+                # geometry in this case should be given directly
+                self.geometry = self.cal_coor_batch()
+
+        # do not define LReadInput
+        else:
+
+            # if donot read from json, then use default value from initpara
+            self.dftb_parameter = initpara.dftb_parameter(self.para)
+            self.skf = initpara.skf_parameter(self.skf)
+
+            # geometry in this case should be given directly
+            self.geometry = self.cal_coor_batch()
+
+    def read_input(self):
         """Read the general information from .json file."""
         # input file name
-        filename = para['filename']
+        filename = self.para['filename']
 
         # directory of input file
-        direct = para['direInput']
+        direct = self.para['pathInput']
 
         with open(os.path.join(direct, filename), 'r') as fp:
 
@@ -122,179 +181,185 @@ class ReadIn:
             # ************** general parameter ****************
             # parameter of task
             if 'task' in fpinput['general']:
-                para['task'] = fpinput['general']['task']
+                self.para['task'] = fpinput['general']['task']
             else:
-                para['task'] = 'normal'
+                self.para['task'] = 'normal'
 
             # parameter of scc
             if 'scc' in fpinput['general']:
                 scc = fpinput['general']['scc']
                 if scc in ('scc', 'nonscc', 'xlbomd'):
-                    para['scc'] = scc
+                    self.para['scc'] = scc
                 else:
                     raise ImportError('Error: scc not defined correctly')
             else:
-                para['scc'] = False
+                self.para['scc'] = False
 
             # perform ML or not
             if 'Lml' in fpinput['general']:
                 Lml = fpinput['general']['Lml']
                 if Lml in ('T', 'True', 'true'):
-                    para['Lml'] = True
+                    self.para['Lml'] = True
                 elif Lml in ('F', 'False', 'false'):
-                    para['Lml'] = False
+                    self.para['Lml'] = False
                 else:
                     raise ImportError('Error: scc not defined correctly')
             else:
-                para['Lml'] = False
-
-            # parameter: mixFactor
-            if 'mixFactor' in fpinput['general']:
-                para['mixFactor'] = fpinput['general']['mixFactor']
-            else:
-                para['mixFactor'] = 0.2
-
-            # parameter of temperature: tElec
-            if 'tElec' in fpinput['general']:
-                para['tElec'] = fpinput['general']['tElec']
-            else:
-                para['tElec'] = 0
-
-            # if t < t_zero_max, treated t as 0
-            if 't_zero_max' in para['t_zero_max']:
-                para['t_zero_max'] = fpinput['general']['t_zero_max']
-            else:
-                para['t_zero_max'] = 5
+                self.para['Lml'] = False
 
             # parameter: mixing parameters
             if 'mixMethod' in fpinput['general']:
-                para['mixMethod'] = fpinput['general']['mixMethod']
+                self.para['mixMethod'] = fpinput['general']['mixMethod']
             else:
-                para['mixMethod'] = 'anderson'
-            if 'maxIter' in fpinput['general']:
-                para['maxIter'] = fpinput['general']['maxIter']
+                self.para['mixMethod'] = 'anderson'
+            if 'maxIteration' in fpinput['general']:
+                self.para['maxIteration'] = fpinput['general']['maxIteration']
             else:
-                para['maxIter'] = 60
+                self.para['maxIteration'] = 60
+
+            # parameter: mixFactor
+            if 'mixFactor' in fpinput['general']:
+                self.para['mixFactor'] = fpinput['general']['mixFactor']
+            else:
+                self.para['mixFactor'] = 0.2
+
+            # parameter of temperature: tElec
+            if 'tElec' in fpinput['general']:
+                self.para['tElec'] = fpinput['general']['tElec']
+            else:
+                self.para['tElec'] = 0
 
             # convergence for energy, charge ...
             if 'convergenceType' in fpinput['general']:
-                para['convergenceType'] = fpinput['general']['convergenceType']
+                self.para['convergenceType'] = \
+                    fpinput['general']['convergenceType']
             else:
-                para['convergenceType'] = 'charge'
-            if 'energy_tol' in fpinput['general']:
-                para['energy_tol'] = fpinput['general']['energy_tol']
+                self.para['convergenceType'] = 'charge'
+            if 'energyTolerance' in fpinput['general']:
+                self.para['energyTolerance'] = \
+                    fpinput['general']['energyTolerance']
             else:
-                para['energy_tol'] = 1e-6
+                self.para['energyTolerance'] = 1e-6
             if 'charge_tol' in fpinput['general']:
-                para['charge_tol'] = fpinput['general']['charge_tol']
+                self.para['chargeTolerance'] = \
+                    fpinput['general']['chargeTolerance']
             else:
-                para['charge_tol'] = 1e-6
-
-            # tolerance parameter
-            if 'general_tol' in fpinput['general']:
-                para['general_tol'] = fpinput['general']['general_tol']
-            else:
-                para['general_tol'] = 1e-4
-
-            # ********************** skf parameter **********************
-            # the number of points for interpolation when read .skf
-            if 'ninterp' in fpinput['skf']:
-                para['ninterp'] = fpinput['skf']['ninterp']
-            else:
-                para['ninterp'] = 8
-
-            # smooth the tail of integral table, the tail distance
-            if 'dist_tailskf' in fpinput['skf']:
-                para['dist_tailskf'] = fpinput['skf']['dist_tailskf']
-            else:
-                para['dist_tailskf'] = 1.0
-            if 'delta_r_skf' in fpinput['skf']:
-                para['delta_r_skf'] = fpinput['skf']['delta_r_skf']
-            else:
-                para['delta_r_skf'] = 1E-5
+                self.para['chargeTolerance'] = 1e-6
 
             # ************************ analysis *************************
             # if write dipole or not
             if 'Ldipole' in fpinput['analysis']:
                 dipole = fpinput['analysis']['Ldipole']
                 if dipole in ('True', 'T', 'true'):
-                    para['Ldipole'] = True
+                    self.para['Ldipole'] = True
                 elif dipole in ('False', 'F', 'false'):
-                    para['Ldipole'] = False
+                    self.para['Ldipole'] = False
                 else:
                     ImportError('Error: dipole not defined correctly')
             else:
-                para['Ldipole'] = True
+                self.para['Ldipole'] = True
 
             # if perform MBD-DFTB with CPA
             if 'LMBD_DFTB' in fpinput['analysis']:
                 dipole = fpinput['analysis']['LMBD_DFTB']
                 if dipole in ('True', 'T', 'true'):
-                    para['LMBD_DFTB'] = True
+                    self.para['LMBD_DFTB'] = True
                 elif dipole in ('False', 'F', 'false'):
-                    para['LMBD_DFTB'] = False
+                    self.para['LMBD_DFTB'] = False
                 else:
                     ImportError('Error: dipole not defined correctly')
             else:
-                para['LMBD_DFTB'] = True
+                self.para['LMBD_DFTB'] = True
 
             # if calculate repulsive part
             if 'Lrepulsive' in fpinput['analysis']:
                 dipole = fpinput['analysis']['Lrepulsive']
                 if dipole in ('True', 'T', 'true'):
-                    para['Lrepulsive'] = True
+                    self.para['Lrepulsive'] = True
                 elif dipole in ('False', 'F', 'false'):
-                    para['Lrepulsive'] = False
+                    self.para['Lrepulsive'] = False
                 else:
                     ImportError('Error: dipole not defined correctly')
             else:
-                para['dipole'] = True
+                self.para['dipole'] = True
 
-            # *********************** geometry **************************
             # periodic or molecule
             if 'periodic' in fpinput['general']:
                 period = fpinput['general']['periodic']
                 if period in ('True', 'T', 'true'):
-                    para['periodic'] = True
+                    self.para['periodic'] = True
                 elif period in ('False', 'F', 'false'):
-                    para['periodic'] = False
+                    self.para['periodic'] = False
                 else:
-                    para['periodic'] = False
+                    self.para['periodic'] = False
                     print('Warning: periodic not defined correctly')
             else:
-                para['periodic'] = False
+                self.para['periodic'] = False
 
+            # *********************** geometry **************************
             # type of coordinate
             if 'type' in fpinput['geometry']:
-                para['coorType'] = fpinput['geometry']['periodic']
+                self.para['coorType'] = fpinput['geometry']['periodic']
             else:
-                para['coorType'] = 'C'
+                self.para['coorType'] = 'C'
 
             # use interpolation to generate SK instead of read .skf
             if 'LreadSKFinterp' in fpinput['general']:
                 scc = fpinput['general']['LreadSKFinterp']
                 if scc in ('True', 'T', 'true'):
-                    para['LreadSKFinterp'] = True
+                    self.para['LreadSKFinterp'] = True
                 elif scc in ('False', 'F', 'false'):
-                    para['LreadSKFinterp'] = False
+                    self.para['LreadSKFinterp'] = False
                 else:
                     raise ImportError('Error: Lml_HS not defined correctly')
             else:
-                para['LreadSKFinterp'] = False
+                self.para['LreadSKFinterp'] = False
 
             # directly generate integrals
             if 'Lml_HS' in fpinput['general']:
                 scc = fpinput['general']['Lml_HS']
                 if scc in ('True', 'T', 'true'):
-                    para['Lml_HS'] = True
+                    self.para['Lml_HS'] = True
                 elif scc in ('False', 'F', 'false'):
-                    para['Lml_HS'] = False
+                    self.para['Lml_HS'] = False
                 else:
                     raise ImportError('Error: Lml_HS not defined correctly')
             else:
-                para['Lml_HS'] = False
+                self.para['Lml_HS'] = False
 
-    def get_coor(self):
+        # return DFTB calculation parameters
+        return self.para
+
+    def read_skf(self):
+        """Read skf parameter from input."""
+        # get the input file name
+        filename = self.para['filename']
+
+        # the directory of input file
+        direct = self.para['direInput']
+
+        with open(os.path.join(direct, filename), 'r') as f:
+            fpinput = json.load(f)
+
+            # the number of points for interpolation when read .skf
+            if 'ninterp' in fpinput['skf']:
+                self.skf['ninterp'] = fpinput['skf']['ninterp']
+            else:
+                self.skf['ninterp'] = 8
+
+            # smooth the tail of integral table, the tail distance
+            if 'dist_tailskf' in fpinput['skf']:
+                self.skf['dist_tailskf'] = fpinput['skf']['dist_tailskf']
+            else:
+                self.skf['dist_tailskf'] = 1.0
+            if 'delta_r_skf' in fpinput['skf']:
+                self.skf['delta_r_skf'] = fpinput['skf']['delta_r_skf']
+            else:
+                self.skf['delta_r_skf'] = 1E-5
+        # return skf
+        return self.skf
+
+    def read_coor(self):
         """Read and process coordinate, get coordinate from input."""
         # get the input file name
         filename = self.para['filename']
@@ -305,13 +370,17 @@ class ReadIn:
         with open(os.path.join(direct, filename), 'r') as f:
             fpinput = json.load(f)
             try:
-                coor = fpinput['geometry']['coor']
+                coordinate = fpinput['geometry']['coordinate']
+                atom_number = fpinput['geometry']['atomNumber']
             except IOError:
                 print('please define the coordination')
 
         # return coordinate and transfer to tensor
-        self.para['coor'] = t.from_numpy(np.asarray(coor))
-        self.para['atomNumber'] = self.para['coor'][:, 0]
+        self.geometry['coordinate'] = t.from_numpy(np.asarray(coordinate))
+        self.geometry['atomNumber'] = t.from_numpy(np.asarray(atom_number))
+
+        # return geometry information
+        return self.cal_coor_batch()
 
     def cal_coor_batch(self):
         """Generate vector, distance ... according to input geometry.
@@ -324,45 +393,48 @@ class ReadIn:
             atomind: how many orbitals of each atom in DFTB calculations
 
         """
-        nfile = self.para['nfile']
-        nmax = max(self.para['natomall'])
+        if self.geometry['coordinate'].dim() == 2:
+            nfile = 1
+            nmax = len(self.geometry['coordinate'])
+            self.geometry['natomall'] = [nmax]
+            self.geometry['coordinate'] = self.geometry['coordinate'].unsqueeze(0)
+        else:
+            nfile = self.geometry['coordinate'].shape[0]
+            nmax = max(self.para['natomall'])
+
         # build coor according to the largest molecule
-        self.para['coor'] = t.zeros((nfile, nmax, 4), dtype=t.float64)
+        # self.geometry['coordinate'] = t.zeros((nfile, nmax, 4), dtype=t.float64)
 
         # distance matrix
-        self.para['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
+        self.geometry['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
 
         # normalized distance matrix
-        self.para['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+        self.geometry['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
 
         # coordinate vector
-        self.para['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
-
-        # transfer from angstrom to bohr
-        # coor = pad_sequence([self.para['coorall'][i]
-        #                     for i in range(self.para['nfile'])])
+        self.geometry['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
 
         # atom number
-        self.para['atomNumber'] = [self.para['coorall'][ib][:, 0].tolist()
-                                   for ib in range(self.para['nfile'])]
+        self.geometry['atomNumber'] = [self.geometry['coordinate'][ib][:, 0].tolist()
+                                   for ib in range(nfile)]
 
-        self.para['natomtype'], self.para['norbital'] = [], []
-        self.para['atomind2'] = []
-        self.para['atomspecie'] = []
-        self.para['atomnameall'] = []
-        self.para['lmaxall'] = []
-        self.para['atomind'] = []
+        self.geometry['natomtype'], self.geometry['norbital'] = [], []
+        self.geometry['atomind2'] = []
+        self.geometry['atomspecie'] = []
+        self.geometry['atomnameall'] = []
+        self.geometry['lmaxall'] = []
+        self.geometry['atomind'] = []
 
-        for ib in range(self.para['nfile']):
+        for ib in range(nfile):
             # define list for name of atom and index of orbital
             atomind = []
 
             # total number of atom
-            natom = self.para['natomall'][ib]
+            natom = self.geometry['natomall'][ib]
 
-            coor = self.para['coorall'][ib]
-            self.para['coor'][ib, :natom, 1:] = coor[:natom, 1:] / self.para['BOHR']
-            self.para['coor'][ib, :natom, 0] = coor[:natom, 0]
+            coor = self.geometry['coordinate'][ib]
+            self.geometry['coordinate'][ib, :natom, 1:] = coor[:natom, 1:] / self.para['BOHR']
+            self.geometry['coordinate'][ib, :natom, 0] = coor[:natom, 0]
 
             # get index of orbitals atom by atom
             atomind.append(0)
@@ -377,43 +449,43 @@ class ReadIn:
                 for jat in range(natom):
 
                     # coordinate vector between atom pair
-                    [xx, yy, zz] = self.para['coor'][ib, jat, 1:] - self.para['coor'][ib, iat, 1:]
+                    [xx, yy, zz] = self.geometry['coordinate'][ib, jat, 1:] - self.geometry['coordinate'][ib, iat, 1:]
 
                     # distance between atom and atom
                     dd = t.sqrt(xx * xx + yy * yy + zz * zz)
-                    self.para['distance'][ib, iat, jat] = dd
+                    self.geometry['distance'][ib, iat, jat] = dd
 
                     if dd > err:
 
                         # get normalized distance, coordinate vector matrices
-                        self.para['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
-                        self.para['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
+                        self.geometry['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
+                        self.geometry['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
 
             dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                               dict(enumerate(set(atomnamelist))).keys()))
 
             # the type of atom, e.g, [0, 1, 1, 1, 1] for CH4 molecule
-            self.para['natomtype'].append([dictat[ati] for ati in atomnamelist])
+            self.geometry['natomtype'].append([dictat[ati] for ati in atomnamelist])
 
             # number of orbitals (dimension of H or S)
-            self.para['norbital'].append(atomind[-1])
+            self.geometry['norbital'].append(atomind[-1])
 
             # total orbitals in each calculation if flatten to 1D
-            self.para['atomind2'].append(
+            self.geometry['atomind2'].append(
                 int(atomind[natom] * (atomind[natom] + 1) / 2))
 
             # atom specie
-            self.para['atomspecie'].append(list(set(atomnamelist)))
+            self.geometry['atomspecie'].append(list(set(atomnamelist)))
 
             # l parameter and index of orbital of each atom
-            self.para['lmaxall'].append(atom_lmax)
-            self.para['atomind'].append(atomind)
+            self.geometry['lmaxall'].append(atom_lmax)
+            self.geometry['atomind'].append(atomind)
 
             # the name of all the atoms
-            self.para['atomnameall'].append(atomnamelist)
+            self.geometry['atomnameall'].append(atomnamelist)
 
-            # calculate neighbour, for solid
-            # self.cal_neighbour()
+            # return geometry
+            return self.geometry
 
     def cal_coor(self):
         """Generate vector, distance ... according to input geometry.
@@ -427,14 +499,14 @@ class ReadIn:
 
         """
         # transfer from angstrom to bohr
-        self.para['coor'][:, 1:] = self.para['coor'][:, 1:] / self.para['BOHR']
-        coor = self.para['coor']
+        self.geometry['coordinate'][:, 1:] = self.para['coordinate'][:, 1:] / self.para['BOHR']
+        coor = self.para['coordinate']
 
         # total number of atom
         natom = np.shape(coor)[0]
 
         # atom number
-        self.para['atomNumber'] = self.para['coor'][:, 0]
+        self.geometry['atomNumber'] = self.geometry['coordinate'][:, 0]
 
         # distance matrix
         distance = t.zeros((natom, natom), dtype=t.float64)
@@ -521,15 +593,17 @@ class ReadSlaKo:
     2. read from a list of files with given geometry, compression radius,
     onsite, etc.
     """
-
-    def __init__(self, para):
+    def __init__(self, parameter, geometry, skf, ibatch):
         """Read integral with different ways."""
-        self.para = para
+        self.para = parameter
+        self.geo = geometry
+        self.skf = skf
+        self.ibatch = ibatch
 
     def read_sk_specie(self):
         """Read the SKF table raw data according to atom specie."""
         # the atom specie in the system
-        atomspecie = self.para['atomspecie']
+        atomspecie = self.geo['atomspecie'][self.ibatch]
 
         # path of sk directory
         diresk = self.para['direSK']
@@ -551,8 +625,8 @@ class ReadSlaKo:
                 words = fp.readline().split()
 
                 # distance of grid points and number of grid points
-                self.para['grid_dist' + nameij] = float(words[0])
-                self.para['ngridpoint' + nameij] = int(words[1])
+                self.skf['grid_dist' + nameij] = float(words[0])
+                self.skf['ngridpoint' + nameij] = int(words[1])
 
                 # total integral number
                 nitem = int(words[1]) * 20
@@ -563,35 +637,35 @@ class ReadSlaKo:
                     # read the second line: onsite, U...
                     fp_line = [float(ii) for ii in fp.readline().split()]
                     fp_line_ = t.from_numpy(np.asarray(fp_line))
-                    self.para['onsite' + nameij] = fp_line_[0:3]
-                    self.para['spe' + nameij] = fp_line_[3]
-                    self.para['uhubb' + nameij] = fp_line_[4:7]
-                    self.para['occ_skf' + nameij] = fp_line_[7:10]
+                    self.skf['onsite' + nameij] = fp_line_[0:3]
+                    self.skf['spe' + nameij] = fp_line_[3]
+                    self.skf['uhubb' + nameij] = fp_line_[4:7]
+                    self.skf['occ_skf' + nameij] = fp_line_[7:10]
 
                     # if orbital resolved
                     if not self.para['Lorbres']:
-                        self.para['uhubb' + nameij][:] = fp_line_[6]
+                        self.skf['uhubb' + nameij][:] = fp_line_[6]
 
                     # read third line: mass...
                     data = np.fromfile(fp, dtype=float, count=20, sep=' ')
-                    self.para['mass_cd' + nameij] = t.from_numpy(data)
+                    self.skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
                     hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
-                    self.para['hs_all' + nameij] = hs_all
+                    self.skf['hs_all' + nameij] = hs_all
 
                 # atom specie is different
                 else:
 
                     # read the second line: mass...
                     data = np.fromfile(fp, dtype=float, count=20, sep=' ')
-                    self.para['mass_cd' + nameij] = t.from_numpy(data)
+                    self.skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
                     hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
-                    self.para['hs_all' + nameij] = hs_all
+                    self.skf['hs_all' + nameij] = hs_all
 
                 # read spline part
                 spline = fp.readline().split()
@@ -600,14 +674,14 @@ class ReadSlaKo:
                     # read first line of spline
                     nint_cutoff = fp.readline().split()
                     nint_ = int(nint_cutoff[0])
-                    self.para['nint_rep' + nameij] = nint_
-                    self.para['cutoff_rep' + nameij] = float(nint_cutoff[1])
+                    self.skf['nint_rep' + nameij] = nint_
+                    self.skf['cutoff_rep' + nameij] = float(nint_cutoff[1])
 
                     # read second line of spline
                     a123 = fp.readline().split()
-                    self.para['a1_rep' + nameij] = float(a123[0])
-                    self.para['a2_rep' + nameij] = float(a123[1])
-                    self.para['a3_rep' + nameij] = float(a123[2])
+                    self.skf['a1_rep' + nameij] = float(a123[0])
+                    self.skf['a2_rep' + nameij] = float(a123[1])
+                    self.skf['a3_rep' + nameij] = float(a123[2])
 
                     # read the rest of spline but not the last
                     datarep = np.fromfile(fp, dtype=float,
@@ -643,10 +717,10 @@ class ReadSlaKo:
     def read_sk_atom(self):
         """Read SKF table atom by atom, ATTENTION!!! not maintained."""
         atomname, natom = self.para['atomnameall'], self.para['natom']
-        self.para['onsite'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['spe'] = t.zeros((natom), dtype=t.float64)
-        self.para['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
-        self.para['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
+        self.skf['onsite'] = t.zeros((natom, 3), dtype=t.float64)
+        self.skf['spe'] = t.zeros((natom), dtype=t.float64)
+        self.skf['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
+        self.skf['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
 
         icount = 0
         for namei in atomname:
@@ -654,20 +728,20 @@ class ReadSlaKo:
                 self.read_sk(namei, namej)
                 self.get_cutoff(namei, namej)
             nameii = namei + namei
-            self.para['onsite'][icount, :] = \
-                t.FloatTensor(self.para['onsite' + nameii])
-            self.para['spe'][icount] = self.para['spe' + nameii]
+            self.skf['onsite'][icount, :] = \
+                t.FloatTensor(self.skf['onsite' + nameii])
+            self.skf['spe'][icount] = self.para['spe' + nameii]
 
             # if orbital resolved
             if not self.para['Lorbres']:
-                self.para['uhubb'][icount, :] = \
-                    t.FloatTensor(self.para['uhubb' + nameii])[-1]
+                self.skf['uhubb'][icount, :] = \
+                    t.FloatTensor(self.skf['uhubb' + nameii])[-1]
             else:
-                self.para['uhubb'][icount, :] = \
-                    t.FloatTensor(self.para['uhubb' + nameii])
+                self.skf['uhubb'][icount, :] = \
+                    t.FloatTensor(self.skf['uhubb' + nameii])
 
-            self.para['occ_atom'][icount, :] = t.FloatTensor(
-                self.para['occ_skf' + nameii])
+            self.skf['occ_atom'][icount, :] = t.FloatTensor(
+                self.skf['occ_skf' + nameii])
             icount += 1
 
     def read_sk(self, namei, namej):
@@ -690,12 +764,12 @@ class ReadSlaKo:
         if namei == namej:
             line1_temp = []
             [line1_temp.append(float(ix)) for ix in allskfdata[1]]
-            self.para['onsite' + nameij] = line1_temp[0:3]
-            self.para['spe' + nameij] = line1_temp[3]
-            self.para['uhubb' + nameij] = line1_temp[4:7]
+            self.skf['onsite' + nameij] = line1_temp[0:3]
+            self.skf['spe' + nameij] = line1_temp[3]
+            self.skf['uhubb' + nameij] = line1_temp[4:7]
             if not self.para['Lorbres']:
                 self.para['uhubb' + nameij][:] = line1_temp[6]
-            self.para['occ_skf' + nameij] = line1_temp[7:10]
+            self.skf['occ_skf' + nameij] = line1_temp[7:10]
             for imass_cd in allskfdata[2]:
                 mass_cd.append(float(imass_cd))
             for iline in range(0, ngridpoint):
@@ -705,35 +779,35 @@ class ReadSlaKo:
                 mass_cd.append(float(imass_cd))
             for iline in range(0, int(ngridpoint)):
                 hs_all.append([float(ii) for ii in allskfdata[iline + 2]])
-        self.para['grid_dist' + nameij] = grid_dist
-        self.para['ngridpoint' + nameij] = ngridpoint
-        self.para['mass_cd' + nameij] = mass_cd
-        self.para['hs_all' + nameij] = hs_all
+        self.skf['grid_dist' + nameij] = grid_dist
+        self.skf['ngridpoint' + nameij] = ngridpoint
+        self.skf['mass_cd' + nameij] = mass_cd
+        self.skf['hs_all' + nameij] = hs_all
 
     def get_cutoff(self, namei, namej):
         """Get the cutoff of atomi-atomj in .skf file."""
         nameij = namei + namej
         grid = self.para['grid_dist' + nameij]
         ngridpoint = self.para['ngridpoint' + nameij]
-        disttailsk = self.para['dist_tailskf']
+        disttailsk = self.skf['dist_tailskf']
         cutoff = grid * ngridpoint + disttailsk
         lensk = grid * ngridpoint
-        self.para['cutoffsk' + nameij] = cutoff
-        self.para['lensk' + nameij] = lensk
+        self.skf['cutoffsk' + nameij] = cutoff
+        self.skf['lensk' + nameij] = lensk
 
     def get_cutoff_all(self):
         """Get the cutoff of atomi-atomj in .skf file."""
-        atomspecie = self.para['atomspecie']
-        disttailsk = self.para['dist_tailskf']
+        atomspecie = self.geo['atomspecie'][self.ibatch]
+        disttailsk = self.skf['dist_tailskf']
         for iat in range(0, len(atomspecie)):
             for jat in range(0, len(atomspecie)):
                 nameij = atomspecie[iat] + atomspecie[jat]
-                grid = self.para['grid_dist' + nameij]
-                ngridpoint = self.para['ngridpoint' + nameij]
+                grid = self.skf['grid_dist' + nameij]
+                ngridpoint = self.skf['ngridpoint' + nameij]
                 cutoff = grid * ngridpoint + disttailsk - grid
                 lensk = grid * ngridpoint
-                self.para['cutoffsk' + nameij] = cutoff
-                self.para['lensk' + nameij] = lensk
+                self.skf['cutoffsk' + nameij] = cutoff
+                self.skf['lensk' + nameij] = lensk
 
 
 class SkInterpolator:

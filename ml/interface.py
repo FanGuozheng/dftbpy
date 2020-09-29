@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import CoulombMatrix
-from IO.readt import ReadIn
+from IO.readt import ReadInput
 from ml.feature import ACSF as acsfml
 from IO.load import LoadData
 from IO.save import SaveData
@@ -468,7 +468,7 @@ def get_env_para(para):
     os.system('rm ' + dire_ + '/env_ang.dat')
     load = LoadData(para)
     save = SaveData(para)
-    read = ReadInt(para)
+    read = ReadIntput(para)
 
     if len(para['n_dataset']) == 1:
         nbatch = max(para['ntrain'], para['npred'])
