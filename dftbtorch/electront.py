@@ -10,9 +10,11 @@ import torch.nn.functional as F
 class DFTBelect:
     """Deal with electronic calculation."""
 
-    def __init__(self, para):
+    def __init__(self, para, geometry, skf):
         """Initialize parameters."""
         self.para = para
+        self.geo = geometry
+        self.skf = skf
 
     def fermi(self, eigval, nelectron, telec=0.):
         """Fermi-Dirac distributions without smearing.
@@ -75,8 +77,8 @@ class DFTBelect:
             for jatom in range(natom):
                 rr = distance[iatom, jatom]
                 namej = atomname[jatom] + atomname[jatom]
-                a1 = 3.2 * self.para['uhubb' + namei][2]
-                a2 = 3.2 * self.para['uhubb' + namej][2]
+                a1 = 3.2 * self.skf['uhubb' + namei][2]
+                a2 = 3.2 * self.skf['uhubb' + namej][2]
                 src = 1 / (a1 + a2)
                 fac = a1 * a2 * src
                 avg = 1.6 * (fac + fac * fac * src)

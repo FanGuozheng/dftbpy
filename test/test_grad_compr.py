@@ -24,6 +24,7 @@ from IO.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 import dftbmalt.utils.maths as maths
+from ml.padding import pad1d, pad2d
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
@@ -41,7 +42,12 @@ def opt(para):
     """'DFTB-ML optimization."""
     # get the default para for dftb and ML, these para will maintain unchanged
     time_begin = time.time()
+
+    # get the initial parameters
+    para = initpara.dftb_parameter(para)
+    skf = initpara.skf_parameter()
     initpara.init_dftb_ml(para)
+    geometry = {}
 
     # load dataset, here is hdf type
     para['ref'] = para['reference']
@@ -61,7 +67,7 @@ def opt(para):
             LoadData(para, para['n_dataset'][0]).get_specie_all()
 
     # run reference calculations, either dft or dftb
-    runml = RunML(para)
+    runml = RunML(para, geometry, skf)
     runml.ref()
 
     # run dftb in ML process
@@ -103,7 +109,7 @@ def testml(para):
         dscribe.get_acsf_dim()  # get the dimension of features
         ml.get_test_para()  # get optimized weight parameter to predict compR
         for ibatch in range(para['npred']):
-            para['coor'] = para['coorall'][ibatch]
+            para['coor'] = para['coordinate'][ibatch]
             para['ibatch'] = ibatch
             ml.dataprocess_atom()
             para['compr_pred'].append(ml.ml_acsf())
@@ -150,15 +156,17 @@ class RunML:
     we have to check for each new moluecle, if there is new atom specie.
     """
 
-    def __init__(self, para):
+    def __init__(self, para, geometry, skf):
         """Initialize DFTB-ML optimization."""
         self.para = para
+        self.skf = skf
+        self.geo = geometry
 
         # some outside class or functions used during DFTB-ML
         self.save = SaveData(self.para)
-        self.slako = slakot.SKinterp(self.para)
+        self.slako = slakot.SKinterp(self.para, self.geo, self.skf)
         self.genml = GenMLPara(self.para)
-        self.runcal = RunCalc(self.para)
+        self.runcal = RunCalc(self.para, self.geo, self.skf)
 
     def ref(self):
         """Run different reference calculations according to reference type.
@@ -190,7 +198,7 @@ class RunML:
             # run DFTB+ with ASE interface as reference
             elif self.para['ref'] == 'dftbase':
                 DFTB(self.para, setenv=True).run_dftb(
-                    self.nbatch, para['coorall'])
+                    self.nbatch, para['coordinate'])
 
             # FHI-aims as reference
             elif self.para['ref'] == 'aims':
@@ -198,7 +206,7 @@ class RunML:
 
             # FHI-aims as reference
             elif self.para['ref'] == 'aimsase':
-                Aims(self.para).run_aims(self.nbatch, para['coorall'])
+                Aims(self.para).run_aims(self.nbatch, para['coordinate'])
 
         # read reference properties from defined dataset
         elif not self.para['run_reference']:
@@ -221,15 +229,15 @@ class RunML:
         # join the path and hdf data
         hdffile = os.path.join(self.para['pythondata_dire'],
                                self.para['pythondata_file'])
-        self.para['coorall'] = []
-        self.para['natomall'] = []
-        self.para['atomnameall'] = []
+        self.geo['coordinateAll'] = []
+        self.geo['natomall'] = []
+        self.geo['atomnameall'] = []
 
         # read global parameters
         with h5py.File(hdffile) as f:
 
             # get all the molecule species
-            self.para['specie_all'] = f['globalgroup'].attrs['specie_all']
+            self.skf['specie_all'] = f['globalgroup'].attrs['specie_all']
 
             # get the molecule species
             molecule = [ikey.encode() for ikey in f.keys()]
@@ -252,14 +260,14 @@ class RunML:
                 for igroup in molecule2:
 
                     # add atom name and atom number
-                    self.para['atomnameall'].append([ii for ii in igroup])
-                    self.para['natomall'].append(len(igroup))
+                    self.geo['atomnameall'].append([ii for ii in igroup])
+                    self.geo['natomall'].append(len(igroup))
 
                     with h5py.File(hdffile) as f:
 
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'coordinate'
-                        self.para['coorall'].append(
+                        self.geo['coordinateAll'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
 
                         # eigenvalue
@@ -297,15 +305,15 @@ class RunML:
                 self.para['nfile'] = int(self.para['n_dataset'][0])
 
                 # add atom name
-                self.para['atomnameall'].append([ii for ii in igroup])
-                self.para['natomall'].append(len(igroup))
+                self.geo['atomnameall'].append([ii for ii in igroup])
+                self.geo['natomall'].append(len(igroup))
 
                 # read the molecule specie data
                 with h5py.File(hdffile) as f:
 
                     # coordinates: not tensor now !!!
                     namecoor = str(ibatch) + 'coordinate'
-                    self.para['coorall'].append(
+                    self.geo['coordinateAll'].append(
                         t.from_numpy(f[igroup][namecoor][()]))
 
                     # eigenvalue
@@ -475,15 +483,15 @@ class RunML:
         """calculate formation energy for molecule"""
         if self.para['ref'] == 'aims':
             for ibatch in range(self.nbatch):
-                natom = len(self.para['coorall'][ibatch])
+                natom = len(self.para['coordinate'][ibatch])
                 for iat in range(natom):
-                    idx = int(self.para['coorall'][ibatch][iat, 0])
+                    idx = int(self.para['coordinate'][ibatch][iat, 0])
                     iname = list(ATOMNUM.keys())[list(
                         ATOMNUM.values()).index(idx)]
                     energy[ibatch] -= AIMS_ENERGY[iname]
         elif self.para['ref'] == 'dftb' or self.para['ref'] == 'dftbplus':
             for ibatch in range(self.nbatch):
-                natom = len(self.para['coorall'][ibatch])
+                natom = len(self.para['coordinate'][ibatch])
                 for iat in range(0, natom):
                     idx = int(coor[iat, 0])
                     iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
@@ -494,24 +502,23 @@ class RunML:
         """get the ith coor according to data type"""
         # for batch system
         if ibatch is None:
-            if type(self.para['coorall']) is t.Tensor:
-                pass
-            elif type(self.para['coorall']) is np.ndarray:
-                self.para['coorall'] = t.from_numpy(self.para['coorall'])
-            elif type(self.para['coorall']) is list:
-                self.para['coorall'] = self.para['coorall']
-
+            if type(self.geo['coordinateAll']) is t.Tensor:
+                coordinate = self.geo['coordinateAll']
+            elif type(self.geo['coordinateAll']) is np.ndarray:
+                coordinate = t.from_numpy(self.geo['coordinateAll'])
+            elif type(self.geo['coordinateAll']) is list:
+                coordinate = self.geo['coordinateAll']
+            self.geo['coordinate'] = pad2d(coordinate)
         # for single system
         else:
-
-            if type(self.para['coorall'][ibatch]) is t.Tensor:
-                self.para['coor'] = self.para['coorall'][ibatch][:, :]
-            elif type(self.para['coorall'][ibatch]) is np.ndarray:
-                self.para['coor'] = \
-                    t.from_numpy(self.para['coorall'][ibatch][:, :])
+            if type(self.geo['coordinateAll'][ibatch]) is t.Tensor:
+                self.geo['coordinate'] = self.geo['coordinateAll'][ibatch][:, :]
+            elif type(self.geo['coordinateAll'][ibatch]) is np.ndarray:
+                self.geo['coordinate'] = \
+                    t.from_numpy(self.geo['coordinateAll'][ibatch][:, :])
 
     def cal_optfor_energy(self, energy, coor, ibatch):
-        natom = self.para['natom'][ibatch]
+        natom = self.geo['natomall'][ibatch]
         for iat in range(natom):
             idx = int(coor[ibatch][iat, 0])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
@@ -597,7 +604,7 @@ class RunML:
                                             requires_grad=True)
             optimizer = t.optim.SGD([para['splyall_rand']], lr=5e-7)
         save = SaveData(para)
-        coorall = para['coorall']
+        coordinate = para['coordinate']
 
         # calculate one by one to optimize para
         for ibatch in range(self.nbatch):
@@ -607,10 +614,10 @@ class RunML:
                 dipref[:] = para['refdipole'][ibatch][:]
 
             # for each molecule we will run mlsteps
-            if type(coorall[ibatch]) is t.tensor:
-                para['coor'] = coorall[ibatch]
-            elif type(coorall[ibatch]) is np.array:
-                para['coor'] = t.from_numpy(coorall[ibatch])
+            if type(coordinate[ibatch]) is t.tensor:
+                para['coor'] = coordinate[ibatch]
+            elif type(coordinate[ibatch]) is np.array:
+                para['coor'] = t.from_numpy(coordinate[ibatch])
             for it in range(0, para['mlsteps']):
 
                 # dftb calculations (choose scc or nonscc)
@@ -648,24 +655,24 @@ class RunML:
 
         # initialize DFTB calculations with geometry and input parameters
         # read skf according to global atom species
-        dftb_torch.Initialization(self.para)
-        maxorb = max(self.para['norbital'])
+        dftb_torch.Initialization(self.para, self.geo, self.skf)
+        maxorb = max(self.geo['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-        self.para['hs_compr_all_'] = []
+        self.skf['hs_compr_all_'] = []
         self.para['compr_init_'] = []
 
         # get integral and compression radius
         for ibatch in range(self.nbatch):
             if self.para['ref'] == 'hdf':
-                self.para['natom'] = self.para['natomall']
-                natom = self.para['natom'][ibatch]
-                atomname = self.para['atomnameall'][ibatch]
+                self.geo['natom'] = self.geo['natomall']
+                natom = self.geo['natom'][ibatch]
+                atomname = self.geo['atomnameall'][ibatch]
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
-                self.para['hs_compr_all_'].append(self.para['hs_compr_all'])
+                self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
                 self.genml.genml_init_compr(ibatch, natom, atomname)
                 self.para['compr_init_'].append(self.para['compr_init'])
-                self.get_iref(ibatch, self.para['natomall'][ibatch])
+                self.get_iref(ibatch, self.geo['natomall'][ibatch])
         self.para['compr_ml'] = \
             pad1d(self.para['compr_init_']).clone().requires_grad_(True)
 
@@ -680,22 +687,22 @@ class RunML:
 
         # dftb_torch.Initialization(self.para, Lreadskf=False)
         for ibatch in range(self.nbatch):
-            self.para['hs_compr_all'] = self.para['hs_compr_all_'][ibatch]
+            self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
             if self.para['ref'] == 'hdf':
                 self.slako.genskf_interp_compr(ibatch)
 
             # SK transformations
-            slakot.SKTran(self.para, ibatch)
-            iorb = self.para['norbital'][ibatch]
-            ham[ibatch, :iorb, :iorb] = self.para['hammat']
-            over[ibatch, :iorb, :iorb] = self.para['overmat']
-        self.para['hammat_'] = ham
-        self.para['overmat_'] = over
-        dftb_torch.Rundftbpy(self.para, self.nbatch)
+            slakot.SKTran(self.para, self.geo, self.skf, ibatch)
+            iorb = self.geo['norbital'][ibatch]
+            ham[ibatch, :iorb, :iorb] = self.skf['hammat']
+            over[ibatch, :iorb, :iorb] = self.skf['overmat']
+        self.skf['hammat_'] = ham
+        self.skf['overmat_'] = over
+        dftb_torch.Rundftbpy(self.para, self.geo, self.skf, self.nbatch)
 
         # dftb formation energy calculations
         self.para['formation_energy'] = self.cal_optfor_energy(
-            self.para['electronic_energy'], self.para['coor'], ibatch)
+            self.para['electronic_energy'], self.geo['coordinate'], ibatch)
 
         # get loss function type
         if self.para['loss_function'] == 'MSELoss':
@@ -731,12 +738,12 @@ class RunML:
             self.get_coor(ibatch)
 
             # number of atoms in molecule
-            nat = self.para['coor'].shape[0]
+            nat = self.geo['coordinate'].shape[0]
 
             # initialize DFTB calculations with geometry and input parameters
             # read skf according to global atom species
-            dftb_torch.Initialization(self.para)
-            atomname = self.para['atomnameall'][0]
+            dftb_torch.Initialization(self.para, self.geo, self.skf)
+            atomname = self.geo['atomnameall'][0]
 
             # only read skf data once when calculate the first molecule
             self.para['LreadSKFinterp'] = False
@@ -783,7 +790,7 @@ class RunML:
                 # dftb calculations
                 self.runcal.idftb_torchspline(ibatch_)
                 self.para['formation_energy'] = self.cal_optfor_energy(
-                        self.para['electronic_energy'], self.para['coor'], ibatch_)
+                        self.para['electronic_energy'], self.geo['coordinate'], ibatch_)
 
                 # get loss function type
                 if self.para['loss_function'] == 'MSELoss':
@@ -1100,10 +1107,10 @@ class RunML:
         """Test the interpolation gradients."""
 
         # select the first molecule
-        if type(para['coorall'][0]) is t.Tensor:
-            para['coor'] = para['coorall'][0][:, :]
-        elif type(para['coorall'][0]) is np.ndarray:
-            para['coor'] = t.from_numpy(para['coorall'][0][:, :])
+        if type(para['coordinate'][0]) is t.Tensor:
+            para['coor'] = para['coordinate'][0][:, :]
+        elif type(para['coordinate'][0]) is np.ndarray:
+            para['coor'] = t.from_numpy(para['coordinate'][0][:, :])
         dftb_torch.Initialization(para)
         # interpskf(para)
         self.genml.genml_init_compr()
@@ -1237,8 +1244,10 @@ class RunCalc:
     with both ASE interface or code in write_output.py
     """
 
-    def __init__(self, para):
+    def __init__(self, para, geometry, skf):
         self.para = para
+        self.geo = geometry
+        self.skf = skf
 
     def aims(self, para, ibatch, dire):
         """DFT means FHI-aims here."""
@@ -1274,8 +1283,8 @@ class RunCalc:
     def idftb_torchspline(self, ibatch=None):
         """Perform DFTB_python with integrals."""
         # dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
-        slakot.SKTran(self.para, ibatch)
-        dftb_torch.Rundftbpy(self.para, ibatch)
+        slakot.SKTran(self.para, self.geo, self.skf, ibatch)
+        dftb_torch.Rundftbpy(self.para, self.geo, self.skf, ibatch)
 
 
 def check_data(para, rmdata=False):

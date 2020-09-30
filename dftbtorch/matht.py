@@ -221,7 +221,7 @@ class DFTBmath:
 
     def poly_check(self, xp, yp, rr, issameatom):
         if rr < 1e-1 and not issameatom:
-            raise ValueError("distance between different atoms < %f" % rr)
+            raise ValueError("distance between different atoms < ", 1e-1)
         elif rr < 1e-1 and issameatom:
             return t.zeros(yp.shape[0], yp.shape[1], yp.shape[3])
         elif rr > 12.:  # temporal code, revise !!!
@@ -1192,6 +1192,7 @@ class BicubInterpVec:
         xmat = t.stack([x_ ** 0, x_ ** 1, x_ ** 2, x_ ** 3])
 
         # get four nearest grid points values, each will be: [natom, natom, 20]
+        print("zmesh", zmesh.shape)
         f00, f10, f01, f11 = self.fmat0th(zmesh)
 
         # get four nearest grid points derivative over x, y, xy

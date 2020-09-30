@@ -434,7 +434,7 @@ class SCF:
         self.analysis = Analysis(self.para, self.geo, self.skf)
 
         # electronic DFTB calculation
-        self.elect = DFTBelect(self.para)
+        self.elect = DFTBelect(self.para, self.geo, self.skf)
 
         # mixing of charge
         self.mix = Mixing(self.para)
@@ -537,8 +537,8 @@ class SCF:
 
         if self.para['density_profile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
-                self.para['distance'][i], self.nat[i],
-                self.para['atomnameall'][i])
+                self.geo['distance'][i], self.nat[i],
+                self.geo['atomnameall'][i])
                 for i in ibatch]
 
             # pad a list of 2D gmat with different size

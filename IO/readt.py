@@ -400,7 +400,14 @@ class ReadInput:
             self.geometry['coordinate'] = self.geometry['coordinate'].unsqueeze(0)
         else:
             nfile = self.geometry['coordinate'].shape[0]
-            nmax = max(self.para['natomall'])
+            nmax = max(self.geometry['natomall'])
+
+        # if generate the atomname
+        if 'atomnameall' in self.geometry.keys():
+            latomname = False
+        else:
+            self.geometry['atomnameall'] = []
+            latomname = True
 
         # build coor according to the largest molecule
         # self.geometry['coordinate'] = t.zeros((nfile, nmax, 4), dtype=t.float64)
@@ -421,7 +428,6 @@ class ReadInput:
         self.geometry['natomtype'], self.geometry['norbital'] = [], []
         self.geometry['atomind2'] = []
         self.geometry['atomspecie'] = []
-        self.geometry['atomnameall'] = []
         self.geometry['lmaxall'] = []
         self.geometry['atomind'] = []
 
@@ -482,10 +488,11 @@ class ReadInput:
             self.geometry['atomind'].append(atomind)
 
             # the name of all the atoms
-            self.geometry['atomnameall'].append(atomnamelist)
+            if latomname:
+                self.geometry['atomnameall'].append(atomnamelist)
 
-            # return geometry
-            return self.geometry
+        # return geometry
+        return self.geometry
 
     def cal_coor(self):
         """Generate vector, distance ... according to input geometry.
@@ -643,7 +650,7 @@ class ReadSlaKo:
                     self.skf['occ_skf' + nameij] = fp_line_[7:10]
 
                     # if orbital resolved
-                    if not self.para['Lorbres']:
+                    if not self.skf['Lorbres']:
                         self.skf['uhubb' + nameij][:] = fp_line_[6]
 
                     # read third line: mass...

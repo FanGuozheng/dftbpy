@@ -14,6 +14,15 @@ from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec)
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
+class SKTranBatch:
+
+    def __init__():
+        pass
+
+    def fun1():
+        pass
+
+
 class SKTran:
     """Slater-Koster Transformations."""
 
@@ -541,18 +550,20 @@ class SKTran:
 class SKinterp:
     """Get integral from interpolation."""
 
-    def __init__(self, para):
+    def __init__(self, para, geometry, skf):
         """Initialize parameters."""
         self.para = para
-        self.math = DFTBmath(self.para)
+        self.geo = geometry
+        self.skf = skf
+        self.math = DFTBmath(self.para, self.skf)
 
     def genskf_interp_dist_hdf(self, ibatch, natom):
         """Generate integral along distance dimension."""
         time0 = time.time()
-        ninterp = self.para['ninterp']
-        self.para['hs_compr_all'] = []
-        coor = self.para['coor'][ibatch]
-        distance = self.para['distance'][ibatch]
+        ninterp = self.skf['ninterp']
+        self.skf['hs_compr_all'] = []
+        coor = self.geo['coordinate'][ibatch]
+        distance = self.geo['distance'][ibatch]
 
         # index of row, column of distance matrix, no digonal
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
@@ -570,7 +581,7 @@ class SKinterp:
         ind_ = distance.numpy() / grid_dist
 
         # index of distance in each skf
-        indd = (ind_ + self.para['ninterp'] / 2 + 1).astype(int)
+        indd = (ind_ + ninterp / 2 + 1).astype(int)
 
         # get integrals with ninterp (normally 8) line for interpolation
         with h5py.File(hdfsk, 'r') as f:
@@ -583,7 +594,7 @@ class SKinterp:
                for j in range(len(distance))] for i in range(len(distance))]
         time2 = time.time()
 
-        self.para['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
+        self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
             xx[i][j], t.from_numpy(yy[i][j]), distance[i, j], i==j)
             for j in range(natom)]) for i in range(natom)])
 
@@ -604,13 +615,13 @@ class SKinterp:
         """
         time0 = time.time()
         # all atom name for current calculation
-        atomname = self.para['atomnameall']
+        atomname = self.geo['atomnameall']
 
         # number of atom
-        natom = self.para['natom']
+        natom = self.geo['natomall']
 
         # atom specie
-        atomspecie = self.para['atomspecie']
+        atomspecie = self.geo['atomspecie']
 
         # number of compression radius grid points
         ncompr = self.para['ncompr']
@@ -624,16 +635,16 @@ class SKinterp:
 
         for iatom in range(natom):
             for jatom in range(natom):
-                dij = self.para['distance'][iatom, jatom]
+                dij = self.geo['distance'][iatom, jatom]
                 namei, namej = atomname[iatom], atomname[jatom]
                 nameij = namei + namej
                 compr_grid = self.para[namei + '_compr_grid']
-                self.para['hs_ij'] = t.zeros(ncompr, ncompr, 20)
+                self.skf['hs_ij'] = t.zeros(ncompr, ncompr, 20)
 
                 if dij > 1e-2:
                     self.genskf_interp_ijd_4d(dij, nameij, compr_grid)
-                self.para['hs_compr_all'][iatom, jatom, :, :, :] = \
-                    self.para['hs_ij']
+                self.skf['hs_compr_all'][iatom, jatom, :, :, :] = \
+                    self.skf['hs_ij']
 
         # get the time after interpolation
         time2 = time.time()
@@ -644,8 +655,8 @@ class SKinterp:
             uhubb = t.zeros((3), dtype=t.float64)
             onsite[:] = self.para['onsite' + iat + iat]
             uhubb[:] = self.para['uhubb' + iat + iat]
-            self.para['onsite' + iat + iat] = onsite
-            self.para['uhubb' + iat + iat] = uhubb
+            self.skf['onsite' + iat + iat] = onsite
+            self.skf['uhubb' + iat + iat] = uhubb
         timeend = time.time()
         print('time of distance interpolation: ', time2 - time0)
         print('total time of distance interpolation in skf: ', timeend - time0)
@@ -653,13 +664,13 @@ class SKinterp:
     def genskf_interp_ijd_old(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
         cutoff = self.para['interpcutoff']
-        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
-        for icompr in range(0, ncompr):
-            for jcompr in range(0, ncompr):
+        ncompr = int(np.sqrt(self.skf['nfile_rall' + nameij]))
+        for icompr in range(ncompr):
+            for jcompr in range(ncompr):
                 grid_dist = \
-                    self.para['grid_dist_rall' + nameij][icompr, jcompr]
+                    self.skf['grid_dist_rall' + nameij][icompr, jcompr]
                 skfijd = \
-                    self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
+                    self.skf['hs_all_rall' + nameij][icompr, jcompr, :, :]
                 col = skfijd.shape[1]
                 for icol in range(0, col):
                     if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
@@ -668,15 +679,15 @@ class SKinterp:
                         nline = int((cutoff - grid_dist) / grid_dist + 1)
                         xp = t.linspace(grid_dist, nline * grid_dist, nline)
                         yp = skfijd[:, icol][:nline]
-                        self.para['hs_ij'][icompr, jcompr, icol] = \
+                        self.skf['hs_ij'][icompr, jcompr, icol] = \
                             matht.polyInter(xp, yp, dij)
 
     def genskf_interp_ijd(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
-        cutoff = self.para['interpcutoff']
+        cutoff = self.skf['interpcutoff']
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
-        assert self.para['grid_dist_rall' + nameij][0, 0] == \
-            self.para['grid_dist_rall' + nameij][-1, -1]
+        assert self.skf['grid_dist_rall' + nameij][0, 0] == \
+            self.skf['grid_dist_rall' + nameij][-1, -1]
         grid_dist = self.para['grid_dist_rall' + nameij][0, 0]
         nline = int((cutoff - grid_dist) / grid_dist + 1)
         xp = t.linspace(grid_dist, nline * grid_dist, nline)
@@ -687,48 +698,48 @@ class SKinterp:
                 # timelist.append(time.time())
                 # print('timeijd:', timelist[-1] - timelist[-2])
                 skfijd = \
-                    self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
+                    self.skf['hs_all_rall' + nameij][icompr, jcompr, :, :]
                 col = skfijd.shape[1]
                 for icol in range(0, col):
                     if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
-                        self.para['hs_ij'][icompr, jcompr, icol] = 0.0
+                        self.skf['hs_ij'][icompr, jcompr, icol] = 0.0
                     else:
                         yp = skfijd[:, icol][:nline]
                         func = interpolate.interp1d(xp.numpy(), yp.numpy(), kind='cubic')
-                        self.para['hs_ij'][icompr, jcompr, icol] = \
+                        self.skf['hs_ij'][icompr, jcompr, icol] = \
                             t.from_numpy(func(dij))
 
     def genskf_interp_ijd_(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
         # cutoff = self.para['interpcutoff']
-        assert self.para['grid_dist_rall' + nameij][0, 0] == \
-            self.para['grid_dist_rall' + nameij][-1, -1]
-        self.para['grid_dist' + nameij] = \
-            self.para['grid_dist_rall' + nameij][0, 0]
-        self.para['ngridpoint' + nameij] = \
-            self.para['ngridpoint_rall' + nameij].min()
+        assert self.skf['grid_dist_rall' + nameij][0, 0] == \
+            self.skf['grid_dist_rall' + nameij][-1, -1]
+        self.skf['grid_dist' + nameij] = \
+            self.skf['grid_dist_rall' + nameij][0, 0]
+        self.skf['ngridpoint' + nameij] = \
+            self.skf['ngridpoint_rall' + nameij].min()
         ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
         for icompr in range(0, ncompr):
             for jcompr in range(0, ncompr):
-                self.para['hs_all' + nameij] = \
-                    self.para['hs_all_rall' + nameij][icompr, jcompr, :, :]
+                self.skf['hs_all' + nameij] = \
+                    self.skf['hs_all_rall' + nameij][icompr, jcompr, :, :]
                 # col = skfijd.shape[1]
-                self.para['hs_ij'][icompr, jcompr, :] = \
+                self.skf['hs_ij'][icompr, jcompr, :] = \
                     self.math.sk_interp(dij, nameij)
 
     def genskf_interp_ijd_4d(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""
         # cutoff = self.para['interpcutoff']
-        assert self.para['grid_dist_rall' + nameij][0, 0] == \
-            self.para['grid_dist_rall' + nameij][-1, -1]
-        self.para['grid_dist' + nameij] = \
-            self.para['grid_dist_rall' + nameij][0, 0]
-        self.para['ngridpoint' + nameij] = \
-            self.para['ngridpoint_rall' + nameij].min()
-        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
-        self.para['hs_all' + nameij] = \
-            self.para['hs_all_rall' + nameij][:, :, :, :]
-        self.para['hs_ij'][:, :, :] = \
+        assert self.skf['grid_dist_rall' + nameij][0, 0] == \
+            self.skf['grid_dist_rall' + nameij][-1, -1]
+        self.skf['grid_dist' + nameij] = \
+            self.skf['grid_dist_rall' + nameij][0, 0]
+        self.skf['ngridpoint' + nameij] = \
+            self.skf['ngridpoint_rall' + nameij].min()
+        ncompr = int(np.sqrt(self.skf['nfile_rall' + nameij]))
+        self.skf['hs_all' + nameij] = \
+            self.skf['hs_all_rall' + nameij][:, :, :, :]
+        self.skf['hs_ij'][:, :, :] = \
             self.math.sk_interp_4d(dij, nameij, ncompr)
 
     def genskf_interp_r(self, para):
@@ -758,7 +769,7 @@ class SKinterp:
                 ymesh = para[jname + '_compr_grid']
                 icompr = para['compr_ml'][iatom]
                 jcompr = para['compr_ml'][jatom]
-                zmeshall = para['hs_compr_all'][icount]
+                zmeshall = self.skf['hs_compr_all'][icount]
                 for icol in range(0, 20):
                     hs_ij[iatom, jatom, icol] = \
                         bicubic.bicubic_2d(xmesh, ymesh, zmeshall[:, :, icol],
@@ -768,17 +779,17 @@ class SKinterp:
             onsite = t.zeros(3)
             uhubb = t.zeros(3)
             for icol in range(0, 3):
-                zmesh_onsite = para['onsite_rall' + iname + iname]
-                zmesh_uhubb = para['uhubb_rall' + iname + iname]
+                zmesh_onsite = self.skf['onsite_rall' + iname + iname]
+                zmesh_uhubb = self.skf['uhubb_rall' + iname + iname]
                 onsite[icol] = \
                     bicubic.bicubic_2d(xmesh, ymesh, zmesh_onsite[:, :, icol],
                                        icompr, jcompr)
                 uhubb[icol] = \
                     bicubic.bicubic_2d(xmesh, ymesh, zmesh_uhubb[:, :, icol],
                                        icompr, jcompr)
-                para['onsite' + iname + iname] = onsite
-                para['uhubb' + iname + iname] = uhubb
-        para['hs_all'] = hs_ij
+                self.skf['onsite' + iname + iname] = onsite
+                self.skf['uhubb' + iname + iname] = uhubb
+        self.skf['hs_all'] = hs_ij
 
     def genskf_interp_compr(self, ibatch):
         """Generate interpolation of SKF with given compression radius.
@@ -790,15 +801,15 @@ class SKinterp:
             H and S matrice ([natom, natom, 20])
 
         """
-        natom = self.para['natomall'][ibatch]
-        atomname = self.para['atomnameall'][ibatch]
+        natom = self.geo['natomall'][ibatch]
+        atomname = self.geo['atomnameall'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
         if self.para['interp_compr_type'] == 'BiCubVec':
             bicubic = BicubInterpVec(self.para)
-            zmesh = self.para['hs_compr_all']
+            zmesh = self.skf['hs_compr_all']
             if self.para['Lbatch']:
                 compr = self.para['compr_ml'][ibatch][:natom]
             else:
@@ -827,7 +838,7 @@ class SKinterp:
                                         icompr, jcompr)
                     icount += 1
 
-        self.para['hs_all'] = hs_ij
+        self.skf['hs_all'] = hs_ij
         timeend = time.time()
         print('total time genskf_interp_compr:', timeend - time0)
 

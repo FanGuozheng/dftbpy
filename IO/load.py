@@ -30,9 +30,10 @@ class LoadData:
         speciedict: Counter(symbols)
     """
 
-    def __init__(self, para, itrain):
+    def __init__(self, para, geo, itrain):
         """Initialize parameters."""
         self.para = para
+        self.geo = geo
 
         # load training data: interger number or string 'all'
         self.itrain = itrain
@@ -40,12 +41,12 @@ class LoadData:
     def load_ani(self):
         """Load the data from hdf type input files."""
         # define the output
-        self.para['coorall'] = []
-        self.para['natomall'] = []
-        self.para['symbols'] = []
-        self.para['specie'] = []
-        self.para['specie_global'] = []
-        self.para['speciedict'] = []
+        self.geo['coorall'] = []
+        self.geo['natomall'] = []
+        self.geo['symbols'] = []
+        self.geo['specie'] = []
+        self.geo['specie_global'] = []
+        self.geo['speciedict'] = []
 
         # temporal coordinates for all
         coorall_ = []
@@ -113,11 +114,11 @@ class LoadData:
                         ispe = ispecie[iat]
                         if ispe not in self.para['specie_global']:
                             self.para['specie_global'].append(ispe)
-                    self.para['natomall'].append(coor.shape[0])
-                    self.para['coorall'].append(coor)
-                    self.para['symbols'].append(ispecie)
-                    self.para['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.para['speciedict'].append(Counter(ispecie))
+                    self.geo['natomall'].append(coor.shape[0])
+                    self.geo['coorall'].append(coor)
+                    self.geo['symbols'].append(ispecie)
+                    self.geo['specie'].append(list(dict.fromkeys(ispecie)))
+                    self.geo['speciedict'].append(Counter(ispecie))
 
         # do not mix molecule species
         else:
@@ -136,14 +137,14 @@ class LoadData:
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    self.para['natomall'].append(coor.shape[0])
-                    self.para['coorall'].append(coor)
-                    self.para['symbols'].append(ispecie)
-                    self.para['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.para['speciedict'].append(Counter(ispecie))
+                    self.geo['natomall'].append(coor.shape[0])
+                    self.geo['coorall'].append(coor)
+                    self.geo['symbols'].append(ispecie)
+                    self.geo['specie'].append(list(dict.fromkeys(ispecie)))
+                    self.geo['speciedict'].append(Counter(ispecie))
 
         # return training dataset number
-        self.para['nfile'] = len(self.para['coorall'])
+        self.para['nfile'] = len(self.geo['coorall'])
 
     def load_data_hdf(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
@@ -157,7 +158,7 @@ class LoadData:
             os.system('rm ' + path_file)
 
         # the global atom species in dataset (training data)
-        self.para['specie_all'] = []
+        self.geo['specie_all'] = []
 
         # number of molecules in dataset
         for hdf5file in self.para['hdffile']:
@@ -182,8 +183,8 @@ class LoadData:
 
                 # write all coordinates to list "corrall" and first column is
                 # atom number
-                self.para['coorall'] = []
-                self.para['coorall'].extend(
+                self.geo['coorall'] = []
+                self.geo['coorall'].extend(
                     [np.insert(coor, 0, atom_num, axis=1)
                      for coor in np.asarray(
                              data['coordinates'][:nend], dtype=float)])
@@ -194,8 +195,8 @@ class LoadData:
 
                 # write global atom species
                 for ispe in data['species']:
-                    if ispe not in self.para['specie_all']:
-                        self.para['specie_all'].append(ispe)
+                    if ispe not in self.geo['specie_all']:
+                        self.geo['specie_all'].append(ispe)
 
                 # write metadata
                 with h5py.File(path_file, 'a') as self.f:
@@ -206,23 +207,23 @@ class LoadData:
                     # run dftb with ase interface
                     if self.para['reference'] == 'dftbase':
                         DFTB(self.para, setenv=True).run_dftb(
-                            nend, self.para['coorall'],
+                            nend, self.geo['coorall'],
                             hdf=self.f, group=self.g)
 
                     # run FHI-aims with ase interface
                     elif self.para['reference'] == 'aimsase':
                         RunASEAims(self.para, setenv=True).run_aims(
-                            nend, self.para['coorall'],
+                            nend, self.geo['coorall'],
                             hdf=self.f, group=self.g)
 
     def load_json_data(self):
         """Load the data from json type input files."""
         dire = self.para['pythondata_dire']
         filename = self.para['pythondata_file']
-        self.para['coorall'] = []
-        self.para['natomall'] = []
-        self.para['specie'] = []
-        self.para['speciedict'] = []
+        self.geo['coorall'] = []
+        self.geo['natomall'] = []
+        self.geo['specie'] = []
+        self.geo['speciedict'] = []
 
         with open(os.path.join(dire, filename), 'r') as fp:
             fpinput = json.load(fp)
@@ -231,17 +232,17 @@ class LoadData:
                 self.para['symbols'] = fpinput['general']['symbols'].split()
                 # self.para['speciedict'] = Counter(self.para['symbols'])
 
-            specie = list(set(self.para['symbols']))
-            self.para['specie'] = specie
-            self.para['atomspecie'] = []
-            [self.para['atomspecie'].append(ispe) for ispe in specie]
-            self.para['specie'].append(self.para['atomspecie'])
-            self.para['speciedict'].append(Counter(self.para['atomspecie']))
+            specie = list(set(self.geo['symbols']))
+            self.geo['specie'] = specie
+            self.geo['atomspecie'] = []
+            [self.geo['atomspecie'].append(ispe) for ispe in specie]
+            self.geo['specie'].append(self.geo['atomspecie'])
+            self.geo['speciedict'].append(Counter(self.geo['atomspecie']))
 
             for iname in fpinput['geometry']:
                 icoor = fpinput['geometry'][iname]
-                self.para['coorall'].append(t.from_numpy(np.asarray(icoor)))
-                self.para['natomall'].append(len(icoor))
+                self.geo['coorall'].append(t.from_numpy(np.asarray(icoor)))
+                self.geo['natomall'].append(len(icoor))
             self.para['ntrain'] = int(self.para['n_dataset'][0])
 
     def loadrefdata(self, ref, Directory, dire, nfile):
