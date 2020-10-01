@@ -600,6 +600,7 @@ class ReadSlaKo:
     2. read from a list of files with given geometry, compression radius,
     onsite, etc.
     """
+
     def __init__(self, parameter, geometry, skf, ibatch):
         """Read integral with different ways."""
         self.para = parameter

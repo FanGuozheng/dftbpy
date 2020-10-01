@@ -30,13 +30,30 @@ class LoadData:
         speciedict: Counter(symbols)
     """
 
-    def __init__(self, para, geo, itrain):
+    def __init__(self, dataset=None, para=None, geometry=None, ml=None, train_sample=None):
         """Initialize parameters."""
-        self.para = para
-        self.geo = geo
+        if dataset is None:
+            self.dataset = {}
+        else:
+            self.dataset = dataset
+        if para is None:
+            self.para = {}
+        else:
+            self.para = para
+        if geometry is None:
+            self.geo = {}
+        else:
+            self.geo = geometry
+        if ml is None:
+            self.ml = {}
+        else:
+            self.ml = ml
 
         # load training data: interger number or string 'all'
-        self.itrain = itrain
+        if train_sample is None:
+            self.train_sample = train_sample
+        else:
+            self.train_sample = train_sample
 
     def load_ani(self):
         """Load the data from hdf type input files."""
@@ -64,7 +81,7 @@ class LoadData:
         nmoleculespecie = 0
 
         # hdf data: ani_gdb_s01.h5 ~ ani_gdb_s08.h5
-        for hdf5file in self.para['hdffile']:
+        for hdf5file in self.dataset['hdffile']:
             ntype = self.para['hdf_num'][ihdf]
 
             # update ihdf, define iadl
@@ -83,10 +100,10 @@ class LoadData:
                 if 'all' in ntype or str(iadl) in ntype:
 
                     # get the number of molecule in each molecule specie
-                    if self.itrain == 'all':
+                    if self.train_sample == 'all':
                         imol = len(data['coordinates'])
                     else:
-                        imol = int(self.itrain)
+                        imol = int(self.train_sample)
 
                     nmolecule.append(imol)
                     coorall_.append(data['coordinates'][:imol])
@@ -161,7 +178,7 @@ class LoadData:
         self.geo['specie_all'] = []
 
         # number of molecules in dataset
-        for hdf5file in self.para['hdffile']:
+        for hdf5file in self.dataset['hdffile']:
             adl = pya.anidataloader(hdf5file)
             for data in adl:
 
@@ -176,7 +193,7 @@ class LoadData:
                 imol = len(data['coordinates'])
 
                 # the code will write molecule from range(0, end)
-                nend = min(self.itrain, imol)
+                nend = min(self.train_sample, imol)
 
                 # number of atom in molecule
                 natom = len(data['coordinates'][0])
@@ -205,14 +222,14 @@ class LoadData:
                     self.g.attrs['natom'] = natom
 
                     # run dftb with ase interface
-                    if self.para['reference'] == 'dftbase':
+                    if self.ml['reference'] == 'dftbase':
                         DFTB(self.para, setenv=True).run_dftb(
                             nend, self.geo['coorall'],
                             hdf=self.f, group=self.g)
 
                     # run FHI-aims with ase interface
-                    elif self.para['reference'] == 'aimsase':
-                        RunASEAims(self.para, setenv=True).run_aims(
+                    elif self.ml['reference'] == 'aimsase':
+                        RunASEAims(self.para, self.ml, setenv=True).run_aims(
                             nend, self.geo['coorall'],
                             hdf=self.f, group=self.g)
 

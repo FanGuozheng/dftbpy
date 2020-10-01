@@ -4,8 +4,11 @@
 import torch as t
 
 
-def dftb_parameter(para):
+def constant_parameter(para=None):
     """Constant parameters for ML and DFTB."""
+    if para is None:
+        para = {}
+
     # unit between Hartree and eV
     para["AUEV"] = 27.2113845
 
@@ -68,6 +71,9 @@ def dftb_parameter(para):
                  '[2, 2, 2, 1]': 12, '[1, 2, 0, 1]': 13, '[1, 2, 1, 1]': 14,
                  '[1, 1, 0, 1]': 15, '[1, 1, 1, 1]': 16, '[0, 2, 0, 1]': 17,
                  '[0, 1, 0, 1]': 18, '[0, 0, 0, 1]': 19})
+
+    return para
+
 
 def mbd_parameter(para):
     """Constant parameters for MBD-DFTB+."""

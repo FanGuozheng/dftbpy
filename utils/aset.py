@@ -265,14 +265,15 @@ class DFTB:
 class RunASEAims:
     """RunASEAims will run FHI-aims with both batch or single calculations."""
 
-    def __init__(self, para, setenv=False):
+    def __init__(self, para, ml, setenv=False):
         self.para = para
+        self.ml = ml
 
         # FHI-aims binary name, normally aims
-        self.aims_bin = self.para['aims_bin']
+        self.aims_bin = self.ml['aims_bin']
 
         # GHI-aims binary path
-        self.aims_path = para['aims_ase_path']
+        self.aims_path = ml['aims_ase_path']
 
         # set environment before calculations
         if setenv:
@@ -292,7 +293,7 @@ class RunASEAims:
 
         # set ase environemt
         os.environ['ASE_AIMS_COMMAND'] = path_bin + ' > PREFIX.out'
-        os.environ['AIMS_SPECIES_DIR'] = self.para['aims_specie_path']
+        os.environ['AIMS_SPECIES_DIR'] = self.ml['aims_specie_path']
 
     def run_aims(self, nbatch, coorall, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
@@ -306,7 +307,7 @@ class RunASEAims:
             self.para['pdosdftbplus'] = []
 
         # save eigenvalue as reference eigenvalue for ML
-        if 'eigval' in self.para['target']:
+        if 'eigval' in self.ml['target']:
             self.para['refeigval'] = []
 
         # create reference list for following ML

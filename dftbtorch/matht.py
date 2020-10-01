@@ -1110,9 +1110,10 @@ class BicubInterpVec:
     reference: https://en.wikipedia.org/wiki/Bicubic_interpolation
     """
 
-    def __init__(self, para):
+    def __init__(self, para, ml):
         """Get interpolation with two variables."""
         self.para = para
+        self.ml = ml
 
     def bicubic_2d(self, xmesh, zmesh, xi, yi):
         """Build fmat.
@@ -1131,10 +1132,10 @@ class BicubInterpVec:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         """
         # check if xi, yi is out of range of xmesh, ymesh
-        xmin = t.ge(xi, self.para['compr_min'])
-        xmax = t.le(xi, self.para['compr_max'])
-        ymin = t.ge(yi, self.para['compr_min'])
-        ymax = t.le(yi, self.para['compr_max'])
+        xmin = t.ge(xi, self.ml['compr_min'])
+        xmax = t.le(xi, self.ml['compr_max'])
+        ymin = t.ge(yi, self.ml['compr_min'])
+        ymax = t.le(yi, self.ml['compr_max'])
         assert False not in xmin
         assert False not in xmax
         assert False not in ymin
@@ -1192,7 +1193,6 @@ class BicubInterpVec:
         xmat = t.stack([x_ ** 0, x_ ** 1, x_ ** 2, x_ ** 3])
 
         # get four nearest grid points values, each will be: [natom, natom, 20]
-        print("zmesh", zmesh.shape)
         f00, f10, f01, f11 = self.fmat0th(zmesh)
 
         # get four nearest grid points derivative over x, y, xy

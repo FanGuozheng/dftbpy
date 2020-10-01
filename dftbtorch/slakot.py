@@ -26,7 +26,7 @@ class SKTranBatch:
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para, geometry, skf, ibatch):
+    def __init__(self, para, geometry, skf, dataset, ml, ibatch):
         """Initialize parameters.
 
         Args:
@@ -38,6 +38,8 @@ class SKTran:
         self.para = para
         self.skf = skf
         self.geometry = geometry
+        self.dataset = dataset
+        self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
         self.ibatch = ibatch
 
@@ -45,7 +47,7 @@ class SKTran:
         if not self.para['Lml']:
 
             # read integrals from .skf with various compression radius
-            if not self.skf['LreadSKFinterp']:
+            if not self.dataset['LSKFinterpolation']:
                 self.get_sk_all(self.ibatch)
 
             # build H0 and S with full, symmetric matrices
@@ -60,7 +62,7 @@ class SKTran:
         if self.para['Lml']:
 
             # use ACSF to generate compression radius, then SK transformation
-            if self.para['Lml_skf'] or self.para['Lml_acsf']:
+            if self.ml['Lml_skf'] or self.ml['Lml_acsf']:
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSsym'] == 'symall':
@@ -550,11 +552,12 @@ class SKTran:
 class SKinterp:
     """Get integral from interpolation."""
 
-    def __init__(self, para, geometry, skf):
+    def __init__(self, para, geometry, skf, ml):
         """Initialize parameters."""
         self.para = para
         self.geo = geometry
         self.skf = skf
+        self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
 
     def genskf_interp_dist_hdf(self, ibatch, natom):
@@ -569,7 +572,7 @@ class SKinterp:
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
         # dist_1d = distance[ind[0], ind[1]]
         # get the skf with hdf type
-        hdfsk = os.path.join(self.para['dire_hdfSK'], self.para['name_hdfSK'])
+        hdfsk = os.path.join(self.ml['dire_hdfSK'], self.ml['name_hdfSK'])
 
         # read all skf according to atom number (species) and indices and add
         # these skf to a list, attention: hdf only store numpy type data
@@ -807,14 +810,14 @@ class SKinterp:
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
-        if self.para['interp_compr_type'] == 'BiCubVec':
-            bicubic = BicubInterpVec(self.para)
+        if self.ml['interp_compr_type'] == 'BiCubVec':
+            bicubic = BicubInterpVec(self.para, self.ml)
             zmesh = self.skf['hs_compr_all']
             if self.para['Lbatch']:
                 compr = self.para['compr_ml'][ibatch][:natom]
             else:
                 compr = self.para['compr_ml']
-            mesh = t.stack([self.para[iname + '_compr_grid'] for iname in atomname])
+            mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
         elif self.para['interp_compr_type'] == 'BiCub':
