@@ -1,10 +1,4 @@
-"""Example of defining parameters for DFTB-ML by python code.
-
-What is included:
-    init_dftb_ml: DFTB-ML parameters for optimization and testing
-    init_dftb: only DFTB parameters
-    init_dftb_interp: DFTB with SKF interpolation
-"""
+"""Example of defining parameters for DFTB-ML by python code."""
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
@@ -12,9 +6,22 @@ import torch as t
 
 
 def dftb_parameter(parameter=None):
-    """Return the default parameters for DFTB calculations."""
-    if parameter is None:
-        parameter = {}
+    """Return the general parameters for DFTB calculations.
+
+    This function demonstrates the definition of general DFTB parameters.
+    You can define from the very beginning otherwise the default parameters
+    will be used for the following training or calculations.
+
+    Args:
+        parameter (dict, optional): a general dictionary which includes
+            DFTB parameters, general environment parameters.
+
+    Returns:
+        parameter(dict, optional): default general parameters if not
+            defined in advance.
+
+    """
+    parameter = {} if parameter is None else parameter
 
     # batch calculation, usually True for machine learning
     if 'Lbatch' not in parameter.keys():
@@ -90,18 +97,6 @@ def dftb_parameter(parameter=None):
     if 'beta' not in parameter.keys():
         parameter['beta'] = 1.05
 
-    # ************************ initial ML parameter ************************
-    if 'Lml' not in parameter.keys():
-        parameter['Lml'] = True
-
-    # machine learning optimize SKF parameters (compression radius...)
-    if 'Lml_skf' not in parameter.keys():
-        parameter['Lml_skf'] = False
-
-    # machine learning optimize integral
-    if 'Lml_HS' not in parameter.keys():
-        parameter['Lml_HS'] = False
-
     # **************************** Result *********************************
     # calculate dipole
     if 'Ldipole' not in parameter.keys():
@@ -111,23 +106,32 @@ def dftb_parameter(parameter=None):
     if 'Lpdos' not in parameter.keys():
         parameter['Lpdos'] = False
 
+    if 'Leigval' not in parameter.keys():
+        parameter['Leigval'] = False
+
+    if 'Lenergy' not in parameter.keys():
+        parameter['Lenergy'] = True
+
     # return DFTB calculation parameters
     return parameter
 
 
-def init_dataset(dataset=None, ml=None, para=None):
-    """Initialize geometry and dataset."""
-    if para is None:
-        para = {}
-    if ml is None:
-        ml = {}
-    if dataset is None:
-        dataset = {}
-    # **********************************************************************
-    #                  geometric parameter, load dataset
-    # **********************************************************************
+def init_dataset(dataset=None):
+    """Return the dataset or geometric parameters for DFTB calculations.
+
+    Args:
+        dataset (dict, optional): a dictionary which includes dataset,
+            geometric parameters.
+
+    Returns:
+        dataset (dict, optional): default dataset, geometric parameters if not
+            defined in advance.
+
+    """
+    dataset = {} if dataset is None else dataset
+
     # optional datatype: ani, json, hdf
-    dataset['dataType'] = 'hdf'
+    dataset['dataType'] = 'ani'
 
     # get the current path
     path_dataset = '../data/dataset/'
@@ -165,9 +169,6 @@ def init_dataset(dataset=None, ml=None, para=None):
 
     # read ANI dataset
     elif dataset['dataType'] == 'ani':
-        # run referecne calculations or directly get read reference properties
-        ml['run_reference'] = True
-
         hdffilelist = []
 
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
@@ -200,40 +201,33 @@ def init_dataset(dataset=None, ml=None, para=None):
 
 
 def init_ml(para=None, ml=None, dataset=None):
-    """Initialize the optimization of certain physical properties.
+    """Return the machine learning parameters for DFTB calculations.
 
-    In general, you have to define:
-        dataType and related parameters
-        DFTB-ML parameters and realted
-        DFTB parameters
-        Others, such as plotting parameters
+    Args:
+        dataset (dict, optional): a dictionary which includes dataset,
+            geometric parameters.
+
+    Returns:
+        dataset (dict, optional): default dataset, geometric parameters if not
+            defined in advance.
+
     """
-    if para is None:
-        para = {}
-    if ml is None:
-        ml = {}
-    if dataset is None:
-        dataset = {}
+    para = {} if para is None else para
+    ml = {} if ml is None else ml
+    dataset = {} if dataset is None else dataset
+
+    # get current path
     path = os.getcwd()
+
     # is machine learning is on, the following is machine learning target
-    ml['Lml'] = True
+    if 'Lml' not in ml.keys():
+        ml['Lml'] = True
 
-    # optimize compression radius
-    ml['Lml_skf'] = True
+    # ML target: compressionRadius, integral
+    if 'mlType' not in ml.keys():
+        ml['mlType'] = 'compressionRadius'
 
-    # optimize integral (e.g Polyspline)
-    ml['Lml_HS'] = False
-
-    # test gradients of interp of SK table
-    ml['Lml_compr'] = False
-
-    # each spiece has the same compress_r
-    ml['Lml_compr_global'] = False
-
-    # optimize ACSF parameters
-    ml['Lml_acsf'] = False
-
-    ml['testMLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
+    ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
     # define atomic representation: rad, cm (CoulombMatrix), acsf!!!!!
     ml['featureType'] = 'acsf'
@@ -261,16 +255,6 @@ def init_ml(para=None, ml=None, dataset=None):
     # for test, where to read the optimized parameters, 1 means read the last
     # optimized para in path_dataset, 0 is the unoptimized !!!!!
     ml['opt_para_test'] = 1.0
-
-    # get ACSF by hand, if featureType is rad
-    ml['rcut'] = 15
-    ml['r_s'] = 5
-    ml['eta'] = 0.1
-    ml['tol'] = 1E-4
-    ml['zeta'] = 1
-    ml['lambda'] = 1
-    ml['ang_paraall'] = []
-    ml['rad_paraall'] = []
 
     # *********************************************************************
     #                              DFTB-ML
@@ -326,42 +310,12 @@ def init_ml(para=None, ml=None, dataset=None):
     # If turn on some calculations related to these physical properties
     # turn on anyway
     if 'energy' in ml['target']:
-        para['Lenergy'] = True
         para['Lrepulsive'] = False
     else:
-        para['Lenergy'] = True
         para['Lrepulsive'] = False
 
     # the machine learning energy type
     para['mlenergy'] = 'formationenergy'
-
-    # calculate, read, save the eigenvalue
-    if 'eigval' in ml['target']:
-        para['Leigval'] = True
-    else:
-        para['Leigval'] = False
-
-    # calculate, read, save the MBD-DFTB
-    if 'polarizability' in ml['target']:
-        para['LMBD_DFTB'] = True
-        # mbd_vdw_n_quad_pts = para['n_omega_grid']
-        para['n_omega_grid'] = 15
-        para['vdw_self_consistent'] = False
-        para['beta'] = 1.05
-    else:
-        para['LMBD_DFTB'] = False
-
-    # calculate, read, save the PDOS
-    if 'pdos' in ml['target']:
-        para['Lpdos'] = True
-    else:
-        para['Lpdos'] = False
-
-    # calculate, read, save the dipole
-    if 'dipole' in ml['target']:
-        para['Ldipole'] = True
-    else:
-        para['Ldipole'] = False
 
     # calculate, read, save the HOMO LUMO
     if 'homo_lumo' in ml['target']:
@@ -392,17 +346,15 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['loss_function'] = 'MSELoss'
 
     # optimize integral directly
-    if para['Lml_HS']:
+    if ml['mlType'] == 'integral':
 
         # type to generate integral
         ml['interptype'] = 'Polyspline'
         ml['zero_threshold'] = 5E-3
         ml['rand_threshold'] = 5E-2
-    ml['interpdist'] = 0.4
-    # ml['atomspecie_old'] = []
 
     # optimize compression radius: by interpolation or by ML prediction
-    if ml['Lml_skf'] or ml['Lml_acsf']:
+    if ml['mlType'] in ('compressionRadius', 'ACSF'):
 
         # interpolation of compression radius: BiCub, BiCubVec
         ml['interp_compr_type'] = 'BiCubVec'
@@ -471,14 +423,6 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['C_init_compr'] = 3.5
         ml['N_init_compr'] = 3.5
         ml['O_init_compr'] = 3.5
-
-    # delta r when interpolating i9ntegral
-    # para['delta_r_skf'] = 1E-5
-    # para['general_tol'] = 1E-4
-
-    # if for different atom species, cutoff will be set separately
-    # para['cutoff_atom_resolve'] = False
-    # para['cutoff_rep'] = 4.5
 
     # get input path
     para['direInput'] = os.path.join(path, 'dftbtorch')
@@ -589,18 +533,6 @@ def init_dftb_interp(para):
     """
     # smooth SKF integral tail
     para['dist_tailskf'] = 1.0
-
-    # cutoff
-    # para['interpcutoff'] = 4.0
-
-    # machine learning optimize SKF parameters (compression radius...)
-    para['Lml_skf'] = True
-
-    # machine learning optimize integral
-    para['Lml_HS'] = False
-
-    # total atom specie in last step
-    para['atomspecie_old'] = []
 
     # SKF compression radius: all (all radius the same), wavefunction
     para['typeSKinterpR'] = 'all'

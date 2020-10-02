@@ -26,7 +26,7 @@ class SKTranBatch:
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para, geometry, skf, dataset, ml, ibatch):
+    def __init__(self, para, dataset, skf, ml, ibatch):
         """Initialize parameters.
 
         Args:
@@ -37,14 +37,13 @@ class SKTran:
         """
         self.para = para
         self.skf = skf
-        self.geometry = geometry
         self.dataset = dataset
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
         self.ibatch = ibatch
 
         # if machine learning or not
-        if not self.para['Lml']:
+        if not self.ml['Lml']:
 
             # read integrals from .skf with various compression radius
             if not self.dataset['LSKFinterpolation']:
@@ -59,10 +58,10 @@ class SKTran:
                 self.sk_tran_half(self.ibatch)
 
         # machine learning is True, some method only apply in this case
-        if self.para['Lml']:
+        if self.ml['Lml']:
 
             # use ACSF to generate compression radius, then SK transformation
-            if self.ml['Lml_skf'] or self.ml['Lml_acsf']:
+            if self.ml['mlType'] in ('compressionRadius', 'ACSF'):
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSsym'] == 'symall':
@@ -79,7 +78,7 @@ class SKTran:
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.geometry['natomall'][self.ibatch]
+        natom = self.dataset['natomall'][self.ibatch]
 
         # build H0 or S
         self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
@@ -89,15 +88,15 @@ class SKTran:
             for jat in range(natom):
 
                 # get the name of i, j atom pair
-                namei = self.geometry['atomnameall'][ibatch][iat]
-                namej = self.geometry['atomnameall'][ibatch][jat]
+                namei = self.dataset['atomnameall'][ibatch][iat]
+                namej = self.dataset['atomnameall'][ibatch][jat]
                 nameij = namei + namej
 
                 # the cutoff is from former step when reading skf file
                 cutoff = self.skf['cutoffsk' + nameij]
 
                 # the distance is from cal_coor
-                dd = self.geometry['distance'][ibatch][iat, jat]
+                dd = self.dataset['distance'][ibatch][iat, jat]
 
                 # if distance larger than cutoff, return zero
                 # if dd > cutoff:
@@ -211,19 +210,19 @@ class SKTran:
 
         """
         # index of atom orbital
-        atomind = self.geometry['atomind'][ibatch]
+        atomind = self.dataset['atomind'][ibatch]
 
         # number of atom
-        natom = self.geometry['natomall'][ibatch]
+        natom = self.dataset['natomall'][ibatch]
 
         # total orbitals, equal to dimension of H0, S
         norb = atomind[natom]
 
         # atom name
-        atomname = self.geometry['atomnameall'][ibatch]
+        atomname = self.dataset['atomnameall'][ibatch]
 
         # atom coordinate vector (Bohr)
-        dvec = self.geometry['dvec']
+        dvec = self.dataset['dvec']
 
         # build H0, S
         self.skf['hammat'] = t.zeros((norb, norb), dtype=t.float64)
@@ -232,12 +231,12 @@ class SKTran:
         for iat in range(natom):
 
             # l of i atom
-            lmaxi = self.geometry['lmaxall'][ibatch][iat]
+            lmaxi = self.dataset['lmaxall'][ibatch][iat]
 
             for jat in range(natom):
 
                 # l of j atom
-                lmaxj = self.geometry['lmaxall'][ibatch][jat]
+                lmaxj = self.dataset['lmaxall'][ibatch][jat]
 
                 # temporary H, S between i and j atom
                 self.skf['hams'] = t.zeros((9, 9), dtype=t.float64)
@@ -552,10 +551,10 @@ class SKTran:
 class SKinterp:
     """Get integral from interpolation."""
 
-    def __init__(self, para, geometry, skf, ml):
+    def __init__(self, para, dataset, skf, ml):
         """Initialize parameters."""
         self.para = para
-        self.geo = geometry
+        self.dataset = dataset
         self.skf = skf
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
@@ -565,8 +564,8 @@ class SKinterp:
         time0 = time.time()
         ninterp = self.skf['ninterp']
         self.skf['hs_compr_all'] = []
-        coor = self.geo['coordinate'][ibatch]
-        distance = self.geo['distance'][ibatch]
+        coor = self.dataset['coordinate'][ibatch]
+        distance = self.dataset['distance'][ibatch]
 
         # index of row, column of distance matrix, no digonal
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
@@ -618,13 +617,13 @@ class SKinterp:
         """
         time0 = time.time()
         # all atom name for current calculation
-        atomname = self.geo['atomnameall']
+        atomname = self.dataset['atomnameall']
 
         # number of atom
-        natom = self.geo['natomall']
+        natom = self.dataset['natomall']
 
         # atom specie
-        atomspecie = self.geo['atomspecie']
+        atomspecie = self.dataset['atomspecie']
 
         # number of compression radius grid points
         ncompr = self.para['ncompr']
@@ -638,7 +637,7 @@ class SKinterp:
 
         for iatom in range(natom):
             for jatom in range(natom):
-                dij = self.geo['distance'][iatom, jatom]
+                dij = self.dataset['distance'][iatom, jatom]
                 namei, namej = atomname[iatom], atomname[jatom]
                 nameij = namei + namej
                 compr_grid = self.para[namei + '_compr_grid']
@@ -804,8 +803,8 @@ class SKinterp:
             H and S matrice ([natom, natom, 20])
 
         """
-        natom = self.geo['natomall'][ibatch]
-        atomname = self.geo['atomnameall'][ibatch]
+        natom = self.dataset['natomall'][ibatch]
+        atomname = self.dataset['atomnameall'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')

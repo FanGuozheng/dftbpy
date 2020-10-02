@@ -111,21 +111,23 @@ def nonscc_CH4():
 
     What cab be test: dipole, charge, polarizability, H0, S
     """
-    geometry = {}
-    geometry['coordinate'] = t.tensor(([
-            [6, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 0.6287614522, 0.6287614522, 0.6287614522],
-            [1, -0.6287614522, -0.6287614522, 0.6287614522],
-            [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
-    geometry['atomNumber'] = geometry['coordinate'][:, 0]
+    dataset = {}
+    dataset['coordinate'] = t.tensor(([
+            [0.0000000000, 0.0000000000, 0.0000000000],
+            [0.6287614522, 0.6287614522, 0.6287614522],
+            [-0.6287614522, -0.6287614522, 0.6287614522],
+            [-0.6287614522, 0.6287614522, -0.6287614522],
+            [0.6287614522, -0.6287614522, -0.6287614522]]))
+    dataset['atomNumber'] = [[6, 1, 1, 1, 1]]
     parameter = {}
+    ml = {}
     parameter['scc'] = 'nonscc'  # nonscc, scc, xlbomd
-    DFTBCalculator(parameter, geometry)
+    ml['Lml'] = False
+    DFTBCalculator(parameter, dataset, ml=ml)
     parameter['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
-                              0.88758063039831003, 0.88758063039830970,
-                              0.88758063039831003])
-    test_accuracy(parameter, geometry, 'CH4', './data', Lq=True)
+                                   0.88758063039831003, 0.88758063039830970,
+                                   0.88758063039831003])
+    test_accuracy(parameter, dataset, 'CH4', './data', Lq=True)
 
 
 def scc_CH4():
@@ -133,17 +135,19 @@ def scc_CH4():
 
     What cab be test: dipole, charge, polarizability, H0, S
     """
-    geometry = {}
-    geometry['coordinate'] = t.tensor(([
-            [6, 0.0000000000, 0.0000000000, 0.0000000000],
-            [1, 0.6287614522, 0.6287614522, 0.6287614522],
-            [1, -0.6287614522, -0.6287614522, 0.6287614522],
-            [1, -0.6287614522, 0.6287614522, -0.6287614522],
-            [1, 0.6287614522, -0.6287614522, -0.6287614522]]))
-    geometry['atomNumber'] = geometry['coordinate'][:, 0]
+    dataset = {}
+    dataset['coordinate'] = t.tensor(([
+            [0.0000000000, 0.0000000000, 0.0000000000],
+            [0.6287614522, 0.6287614522, 0.6287614522],
+            [-0.6287614522, -0.6287614522, 0.6287614522],
+            [-0.6287614522, 0.6287614522, -0.6287614522],
+            [0.6287614522, -0.6287614522, -0.6287614522]]))
+    dataset['atomNumber'] = [[6, 1, 1, 1, 1]]
     parameter = {}
+    ml = {}
     parameter['scc'] = 'scc'  # nonscc, scc, xlbomd
-    DFTBCalculator(parameter, geometry)
+    ml['Lml'] = False
+    DFTBCalculator(parameter, dataset, ml=ml)
     parameter['dataq'] = t.tensor([4.3646063221278348, 0.9088484194680416,
                                    0.9088484194680417, 0.9088484194680415,
                                    0.9088484194680422])
@@ -153,7 +157,7 @@ def scc_CH4():
     parameter['datambd'] = t.tensor([10.5834157921756, 1.82998716394802,
                                      1.82998716394802, 1.82998716394802,
                                      1.82998716394802])
-    test_accuracy(parameter, geometry, 'CH4', './data', Lq=True, Lp=False)
+    test_accuracy(parameter, dataset, 'CH4', './data', Lq=True, Lp=False)
 
 
 def nonscc_CH4_nonsym(para):

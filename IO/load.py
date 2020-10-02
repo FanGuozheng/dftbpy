@@ -16,7 +16,7 @@ ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
 class LoadData:
-    """Load data.
+    """Load dataset.
 
     Args:
         dataType: the data type, hdf, json...
@@ -30,7 +30,7 @@ class LoadData:
         speciedict: Counter(symbols)
     """
 
-    def __init__(self, dataset=None, para=None, geometry=None, ml=None, train_sample=None):
+    def __init__(self, dataset=None, para=None, ml=None, train_sample=None):
         """Initialize parameters."""
         if dataset is None:
             self.dataset = {}
@@ -40,10 +40,6 @@ class LoadData:
             self.para = {}
         else:
             self.para = para
-        if geometry is None:
-            self.geo = {}
-        else:
-            self.geo = geometry
         if ml is None:
             self.ml = {}
         else:
@@ -58,12 +54,12 @@ class LoadData:
     def load_ani(self):
         """Load the data from hdf type input files."""
         # define the output
-        self.geo['coorall'] = []
-        self.geo['natomall'] = []
-        self.geo['symbols'] = []
-        self.geo['specie'] = []
-        self.geo['specie_global'] = []
-        self.geo['speciedict'] = []
+        self.dataset['coorall'] = []
+        self.dataset['natomall'] = []
+        self.dataset['symbols'] = []
+        self.dataset['specie'] = []
+        self.dataset['specie_global'] = []
+        self.dataset['speciedict'] = []
 
         # temporal coordinates for all
         coorall_ = []
@@ -131,11 +127,11 @@ class LoadData:
                         ispe = ispecie[iat]
                         if ispe not in self.para['specie_global']:
                             self.para['specie_global'].append(ispe)
-                    self.geo['natomall'].append(coor.shape[0])
-                    self.geo['coorall'].append(coor)
-                    self.geo['symbols'].append(ispecie)
-                    self.geo['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.geo['speciedict'].append(Counter(ispecie))
+                    self.dataset['natomall'].append(coor.shape[0])
+                    self.dataset['coorall'].append(coor)
+                    self.dataset['symbols'].append(ispecie)
+                    self.dataset['specie'].append(list(dict.fromkeys(ispecie)))
+                    self.dataset['speciedict'].append(Counter(ispecie))
 
         # do not mix molecule species
         else:
@@ -154,28 +150,28 @@ class LoadData:
                     row, col = np.shape(icoor)[0], np.shape(icoor)[1]
                     coor = t.zeros((row, col + 1), dtype=t.float64)
                     coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    self.geo['natomall'].append(coor.shape[0])
-                    self.geo['coorall'].append(coor)
-                    self.geo['symbols'].append(ispecie)
-                    self.geo['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.geo['speciedict'].append(Counter(ispecie))
+                    self.dataset['natomall'].append(coor.shape[0])
+                    self.dataset['coorall'].append(coor)
+                    self.dataset['symbols'].append(ispecie)
+                    self.dataset['specie'].append(list(dict.fromkeys(ispecie)))
+                    self.dataset['speciedict'].append(Counter(ispecie))
 
         # return training dataset number
-        self.para['nfile'] = len(self.geo['coorall'])
+        self.para['nfile'] = len(self.dataset['coorall'])
 
     def load_data_hdf(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
         if path is not None and filename is not None:
             path_file = os.path.join(path, filename)
             os.system('rm ' + path_file)
-
         # default path is '.', default name is 'testfile.hdf5'
         else:
             path_file = 'testfile.hdf5'
             os.system('rm ' + path_file)
+        print("dddddddddddddddddddddddddddddddd")
 
         # the global atom species in dataset (training data)
-        self.geo['specie_all'] = []
+        self.dataset['specie_all'] = []
 
         # number of molecules in dataset
         for hdf5file in self.dataset['hdffile']:
@@ -183,7 +179,7 @@ class LoadData:
             for data in adl:
 
                 # this loop will write information of the same molecule with
-                # different geometries
+                # different datasetmetries
                 atom_num = []
 
                 # get atom number of each atom
@@ -200,8 +196,8 @@ class LoadData:
 
                 # write all coordinates to list "corrall" and first column is
                 # atom number
-                self.geo['coorall'] = []
-                self.geo['coorall'].extend(
+                self.dataset['coorall'] = []
+                self.dataset['coorall'].extend(
                     [np.insert(coor, 0, atom_num, axis=1)
                      for coor in np.asarray(
                              data['coordinates'][:nend], dtype=float)])
@@ -212,8 +208,8 @@ class LoadData:
 
                 # write global atom species
                 for ispe in data['species']:
-                    if ispe not in self.geo['specie_all']:
-                        self.geo['specie_all'].append(ispe)
+                    if ispe not in self.dataset['specie_all']:
+                        self.dataset['specie_all'].append(ispe)
 
                 # write metadata
                 with h5py.File(path_file, 'a') as self.f:
@@ -224,23 +220,23 @@ class LoadData:
                     # run dftb with ase interface
                     if self.ml['reference'] == 'dftbase':
                         DFTB(self.para, setenv=True).run_dftb(
-                            nend, self.geo['coorall'],
+                            nend, self.dataset['coorall'],
                             hdf=self.f, group=self.g)
 
                     # run FHI-aims with ase interface
                     elif self.ml['reference'] == 'aimsase':
                         RunASEAims(self.para, self.ml, setenv=True).run_aims(
-                            nend, self.geo['coorall'],
+                            nend, self.dataset['coorall'],
                             hdf=self.f, group=self.g)
 
     def load_json_data(self):
         """Load the data from json type input files."""
         dire = self.para['pythondata_dire']
         filename = self.para['pythondata_file']
-        self.geo['coorall'] = []
-        self.geo['natomall'] = []
-        self.geo['specie'] = []
-        self.geo['speciedict'] = []
+        self.dataset['coorall'] = []
+        self.dataset['natomall'] = []
+        self.dataset['specie'] = []
+        self.dataset['speciedict'] = []
 
         with open(os.path.join(dire, filename), 'r') as fp:
             fpinput = json.load(fp)
@@ -249,17 +245,17 @@ class LoadData:
                 self.para['symbols'] = fpinput['general']['symbols'].split()
                 # self.para['speciedict'] = Counter(self.para['symbols'])
 
-            specie = list(set(self.geo['symbols']))
-            self.geo['specie'] = specie
-            self.geo['atomspecie'] = []
-            [self.geo['atomspecie'].append(ispe) for ispe in specie]
-            self.geo['specie'].append(self.geo['atomspecie'])
-            self.geo['speciedict'].append(Counter(self.geo['atomspecie']))
+            specie = list(set(self.dataset['symbols']))
+            self.dataset['specie'] = specie
+            self.dataset['atomspecie'] = []
+            [self.dataset['atomspecie'].append(ispe) for ispe in specie]
+            self.dataset['specie'].append(self.dataset['atomspecie'])
+            self.dataset['speciedict'].append(Counter(self.dataset['atomspecie']))
 
             for iname in fpinput['geometry']:
                 icoor = fpinput['geometry'][iname]
-                self.geo['coorall'].append(t.from_numpy(np.asarray(icoor)))
-                self.geo['natomall'].append(len(icoor))
+                self.dataset['coorall'].append(t.from_numpy(np.asarray(icoor)))
+                self.dataset['natomall'].append(len(icoor))
             self.para['ntrain'] = int(self.para['n_dataset'][0])
 
     def loadrefdata(self, ref, Directory, dire, nfile):

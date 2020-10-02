@@ -26,49 +26,31 @@ import dftbtorch.init_parameter as initpara
 class DFTBCalculator:
     """DFTB calculator."""
 
-    def __init__(self, parameter=None, geometry=None, skf=None,
-                 dataset=None, ml=None):
-        """Collect data, run DFTB and return results.
+    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
+        """Collect data, run DFTB calculations and return results.
 
-        Parameters
-        ----------
-        mf : an instance of SCF class
-            mf object holds all parameters to control SCF.  One can modify its
+        Args:
+            parameter (dict, optional): a general dictionary which includes
+                DFTB parameters, general environment parameters.
+            dataset (dict, optional): dataset, geomreic parameters.
+            skf (dict, optional): Slater-Koster parameters.
+            ml (dict, optional): machine learning parameters.
 
         Returns:
-        A list :   scf_conv, e_tot, mo_energy, mo_coeff, mo_occ
+            result: DFTB calculation results.
 
-        Examples:
         """
         # define general DFTB parameters dictionary
-        if parameter is None:
-            self.parameter = {}
-        else:
-            self.parameter = parameter
+        self.parameter = [parameter, {}][parameter is None]
 
-        # define geometric dictionary
-        if geometry is None:
-            self.geometry = {}
-        else:
-            self.geometry = geometry
+        # define dataset and geometric dictionary
+        self.dataset = [dataset, {}][dataset is None]
 
         # define slater-koster dictionary
-        if skf is None:
-            self.skf = {}
-        else:
-            self.skf = skf
-
-        # define dataset dictionary
-        if dataset is None:
-            self.dataset = {}
-        else:
-            self.dataset = dataset
+        self.skf = [skf, {}][skf is None]
 
         # define machine learning dictionary
-        if ml is None:
-            self.ml = {}
-        else:
-            self.ml = ml
+        self.ml = [ml, {}][ml is None]
 
         # return hamiltonian, overlap from input parameters and skf data
         self.initialization()
@@ -78,11 +60,11 @@ class DFTBCalculator:
 
     def initialization(self):
         """Initialize DFTB, geometric, skf, dataset, ML parametes."""
-        Initialization(self.parameter, self.geometry, self.skf, self.dataset, self.ml)
+        Initialization(self.parameter, self.dataset, self.skf, self.ml)
 
     def run_dftb(self):
         """Run DFTB code."""
-        Rundftbpy(self.parameter, self.geometry, self.skf)
+        Rundftbpy(self.parameter, self.dataset, self.skf)
 
     def get_result(self):
         pass
@@ -99,8 +81,7 @@ class Initialization:
 
     """
 
-    def __init__(self, parameter, geometry, skf, dataset=None, ml=None,
-                 Lreadskf=True):
+    def __init__(self, parameter, dataset, skf, ml=None, Lreadskf=True):
         """Interface for different applications.
 
         Parameters:
@@ -118,9 +99,6 @@ class Initialization:
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
 
-        # get geometric parameters dictionary
-        self.geometry = geometry
-
         # get SKF parameters dictionary
         self.skf = initpara.skf_parameter(skf)
 
@@ -132,7 +110,7 @@ class Initialization:
             initpara.init_ml(self.parameter, ml, self.dataset)
 
         # return/update DFTB, geometric, skf parameters from input
-        readt.ReadInput(self.parameter, self.geometry, self.skf)
+        readt.ReadInput(self.parameter, self.dataset, self.skf)
 
         # check all parameters before interpolation of integrals and
         # DFTB calculations
@@ -159,10 +137,10 @@ class Initialization:
             self.parameter['nbatch'] = 1
 
             # add 1 dimension to tensor
-            if self.geometry['distance'].dim() == 2:
-                self.geometry['distance'] = self.geometry['distance'].unsqueeze(0)
-            if self.geometry['coordinate'].dim() == 2:
-                self.geometry['coordinate'] = self.geometry['coordinate'].unsqueeze(0)
+            if self.dataset['distance'].dim() == 2:
+                self.dataset['distance'] = self.dataset['distance'].unsqueeze(0)
+            if self.dataset['coordinate'].dim() == 2:
+                self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
             self.ibatch = 0
         else:
             # number of batch, single system will be one
@@ -177,14 +155,14 @@ class Initialization:
 
         """
         # do not perform machine learning
-        if not self.parameter['Lml']:
+        if not self.ml['Lml']:
 
             # get integral from directly reading normal skf file
             if not self.dataset['LSKFinterpolation']:
 
                 # read normal skf file by atom specie
                 readt.ReadSlaKo(self.parameter,
-                                self.geometry, self.skf,
+                                self.dataset, self.skf,
                                 self.ibatch).read_sk_specie()
 
             # get integral from a list of skf file (compr) by interpolation
@@ -198,7 +176,7 @@ class Initialization:
 
         # machine learning is on
         # read a list of skf files with various compression radius
-        if self.parameter['Lml'] and self.dataset['LSKFinterpolation']:
+        if self.ml['Lml'] and self.dataset['LSKFinterpolation']:
 
             # ML variables is skf parameters (compression radius)
             # read all corresponding skf files (different compression radius)
@@ -255,13 +233,13 @@ class Initialization:
 
         """
         # do not perform machine learning
-        if not self.parameter['Lml']:
+        if not self.ml['Lml']:
 
             # get integral from directly reading skf file
             if not self.dataset['LSKFinterpolation']:
 
                 # SK transformations
-                SKTran(self.parameter, self.geometry, self.skf, self.dataset, ibatch)
+                SKTran(self.parameter, self.dataset, self.skf, self.ml, ibatch)
         return self.skf
 
 
@@ -273,10 +251,10 @@ class Rundftbpy:
         SCC, non-SCC or XLBOMD;
     """
 
-    def __init__(self, para, geometry, skf, ibatch=None):
+    def __init__(self, para, dataset, skf, ibatch=None):
         """Run (SCC-) DFTB."""
         self.para = para
-        self.geo = geometry
+        self.dataset = dataset
         self.skf = skf
 
         # for single system
@@ -295,10 +273,10 @@ class Rundftbpy:
             self.ibatch = [ib for ib in range(ibatch)]
 
         # analyze DFTB result
-        self.analysis = Analysis(self.para, self.geo, self.skf)
+        self.analysis = Analysis(self.para, self.dataset, self.skf)
 
         # print DFTB calculation information
-        self.print_ = Print(self.para, self.geo, self.skf)
+        self.print_ = Print(self.para, self.dataset, self.skf)
 
         # print title before DFTB calculations
         self.print_.print_scf_title()
@@ -317,7 +295,7 @@ class Rundftbpy:
         solid or molecule
         SCC, non-SCC or XLBOMD
         """
-        scf = SCF(self.para, self.geo, self.skf)
+        scf = SCF(self.para, self.dataset, self.skf)
 
         # calculate solid
         if self.para['Lperiodic']:
@@ -376,10 +354,10 @@ class SCF:
 
     """
 
-    def __init__(self, para, geometry, skf):
+    def __init__(self, para, dataset, skf):
         """Parameters for SCF."""
         self.para = para
-        self.geo = geometry
+        self.dataset = dataset
         self.skf = skf
 
         # single systems
@@ -404,31 +382,31 @@ class SCF:
         self.nb = self.para['nbatch']
 
         # number of atom in molecule
-        self.nat = self.geo['natomall']
+        self.nat = self.dataset['natomall']
 
         # number of orbital of each atom
-        self.atind = self.geo['atomind']
+        self.atind = self.dataset['atomind']
 
         # number of total orbital number if flatten H, S into 1D
-        self.atind2 = self.geo['atomind2']
+        self.atind2 = self.dataset['atomind2']
 
         # the name of all atoms
-        self.atomname = self.geo['atomnameall']
+        self.atomname = self.dataset['atomnameall']
 
         # eigen solver
         self.eigen = EigenSolver(self.para['eigenmethod'])
 
         # analyze DFTB result
-        self.analysis = Analysis(self.para, self.geo, self.skf)
+        self.analysis = Analysis(self.para, self.dataset, self.skf)
 
         # electronic DFTB calculation
-        self.elect = DFTBelect(self.para, self.geo, self.skf)
+        self.elect = DFTBelect(self.para, self.dataset, self.skf)
 
         # mixing of charge
         self.mix = Mixing(self.para)
 
         # print DFTB calculation information
-        self.print_ = Print(self.para, self.geo, self.skf)
+        self.print_ = Print(self.para, self.dataset, self.skf)
 
         # mixing method is simple method
         if para['mixMethod'] == 'simple':
@@ -447,7 +425,7 @@ class SCF:
                                  generations=self.para['maxIter'])
 
         # get the dimension of 2D H0, S
-        ind_nat = self.geo['norbital']
+        ind_nat = self.dataset['norbital']
 
         if self.para['HSsym'] == 'symhalf':
 
@@ -525,8 +503,8 @@ class SCF:
 
         if self.para['density_profile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
-                self.geo['distance'][i], self.nat[i],
-                self.geo['atomnameall'][i])
+                self.dataset['distance'][i], self.nat[i],
+                self.dataset['atomnameall'][i])
                 for i in ibatch]
 
             # pad a list of 2D gmat with different size
@@ -994,14 +972,14 @@ class Mixing:
 class Analysis:
     """Analysis of DFTB results, processing DFTB results."""
 
-    def __init__(self, para, geometry, skf):
+    def __init__(self, para, dataset, skf):
         """Initialize parameters."""
         self.para = para
-        self.geo = geometry
+        self.dataset = dataset
         self.skf = skf
 
         # number of atom in batch
-        self.nat = self.geo['natomall']
+        self.nat = self.dataset['natomall']
 
     def dftb_energy(self, shift_=None, qatom=None):
         """Get energy for DFTB with electronic and eigen results."""
@@ -1052,7 +1030,7 @@ class Analysis:
             for i in range(self.para['nbatch'])])
 
         # calculate dipole
-        self.para['dipole'] = t.stack([self.get_dipole(qzero[i], qatom[i], self.geo['coordinate'][i], self.nat[i])
+        self.para['dipole'] = t.stack([self.get_dipole(qzero[i], qatom[i], self.dataset['coordinate'][i], self.nat[i])
                                        for i in ibatch])
 
         # calculate MBD-DFTB
@@ -1077,11 +1055,11 @@ class Analysis:
         dipole = t.zeros((3), dtype=t.float64)
         for iatom in range(natom):
             if type(coor[iatom][:]) is list:
-                coor_t = t.from_numpy(np.asarray(coor[iatom][1:]))
+                coor_t = t.from_numpy(np.asarray(coor[iatom]))
                 dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t
             else:
                 dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
-                    coor[iatom][1:]
+                    coor[iatom]
         return dipole
 
     def pdos(self):

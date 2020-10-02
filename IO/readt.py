@@ -101,30 +101,30 @@ class ReadInput:
         cal_coor: calculate input coordinate, return distance, atom specie...
     """
 
-    def __init__(self, parameter=None, geometry=None, skf=None):
+    def __init__(self, parameter=None, dataset=None, skf=None):
         """Read parameters for DFTB from hsd, json files.
 
         Parameters
         ----------
         parameter: `dictionary`
             parameters for DFTB calculations
-        geometry: `dictionary`
+        dataset: `dictionary`
             parameters for all geometric information
 
         Returns
         -------
         parameter: `dictionary`
             update parameter for DFTB calculations
-        geometry: `dictionary`
-            update geometry for all geometric information
+        dataset: `dictionary`
+            update dataset for all geometric information
         """
         self.para = parameter
 
         # geometry information
-        if geometry is None:
-            self.geometry = {}
+        if dataset is None:
+            self.dataset = {}
         else:
-            self.geometry = geometry
+            self.dataset = dataset
 
         # skf information
         if skf is None:
@@ -139,8 +139,8 @@ class ReadInput:
                 # read parameters from input json files
                 self.dftb_parameter = self.read_input()
 
-                # read geometry
-                self.geometry = self.read_coor()
+                # read dataset
+                self.dataset = self.read_coor()
 
                 # read skf parameter
                 self.skf = self.read_skf()
@@ -152,8 +152,8 @@ class ReadInput:
                 self.dftb_parameter = initpara.dftb_parameter(self.para)
                 self.skf = initpara.skf_parameter(self.skf)
 
-                # geometry in this case should be given directly
-                self.geometry = self.cal_coor_batch()
+                # dataset in this case should be given directly
+                self.dataset = self.cal_coor_batch()
 
         # do not define LReadInput
         else:
@@ -162,8 +162,8 @@ class ReadInput:
             self.dftb_parameter = initpara.dftb_parameter(self.para)
             self.skf = initpara.skf_parameter(self.skf)
 
-            # geometry in this case should be given directly
-            self.geometry = self.cal_coor_batch()
+            # dataset in this case should be given directly
+            self.dataset = self.cal_coor_batch()
 
     def read_input(self):
         """Read the general information from .json file."""
@@ -376,8 +376,8 @@ class ReadInput:
                 print('please define the coordination')
 
         # return coordinate and transfer to tensor
-        self.geometry['coordinate'] = t.from_numpy(np.asarray(coordinate))
-        self.geometry['atomNumber'] = t.from_numpy(np.asarray(atom_number))
+        self.dataset['coordinate'] = t.from_numpy(np.asarray(coordinate))
+        self.dataset['atomNumber'] = t.from_numpy(np.asarray(atom_number))
 
         # return geometry information
         return self.cal_coor_batch()
@@ -393,61 +393,57 @@ class ReadInput:
             atomind: how many orbitals of each atom in DFTB calculations
 
         """
-        if self.geometry['coordinate'].dim() == 2:
+        if self.dataset['coordinate'].dim() == 2:
             nfile = 1
-            nmax = len(self.geometry['coordinate'])
-            self.geometry['natomall'] = [nmax]
-            self.geometry['coordinate'] = self.geometry['coordinate'].unsqueeze(0)
+            nmax = len(self.dataset['coordinate'])
+            self.dataset['natomall'] = [nmax]
+            self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
         else:
-            nfile = self.geometry['coordinate'].shape[0]
-            nmax = max(self.geometry['natomall'])
+            nfile = self.dataset['coordinate'].shape[0]
+            nmax = max(self.dataset['natomall'])
 
         # if generate the atomname
-        if 'atomnameall' in self.geometry.keys():
+        if 'atomnameall' in self.dataset.keys():
             latomname = False
         else:
-            self.geometry['atomnameall'] = []
+            self.dataset['atomnameall'] = []
             latomname = True
 
-        # build coor according to the largest molecule
-        # self.geometry['coordinate'] = t.zeros((nfile, nmax, 4), dtype=t.float64)
-
         # distance matrix
-        self.geometry['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
+        self.dataset['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
 
         # normalized distance matrix
-        self.geometry['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+        self.dataset['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
 
         # coordinate vector
-        self.geometry['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+        self.dataset['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
 
-        # atom number
-        self.geometry['atomNumber'] = [self.geometry['coordinate'][ib][:, 0].tolist()
-                                   for ib in range(nfile)]
-
-        self.geometry['natomtype'], self.geometry['norbital'] = [], []
-        self.geometry['atomind2'] = []
-        self.geometry['atomspecie'] = []
-        self.geometry['lmaxall'] = []
-        self.geometry['atomind'] = []
+        self.dataset['natomtype'], self.dataset['norbital'] = [], []
+        self.dataset['atomind2'] = []
+        self.dataset['atomspecie'] = []
+        self.dataset['lmaxall'] = []
+        self.dataset['atomind'] = []
+        print("coordinate", self.dataset['coordinate'])
 
         for ib in range(nfile):
             # define list for name of atom and index of orbital
             atomind = []
 
             # total number of atom
-            natom = self.geometry['natomall'][ib]
+            natom = self.dataset['natomall'][ib]
+            atomnumber = self.dataset['atomNumber'][ib]
 
-            coor = self.geometry['coordinate'][ib]
-            self.geometry['coordinate'][ib, :natom, 1:] = coor[:natom, 1:] / self.para['BOHR']
-            self.geometry['coordinate'][ib, :natom, 0] = coor[:natom, 0]
+            coor = self.dataset['coordinate'][ib]
+            self.dataset['coordinate'][ib, :natom] = coor / self.para['BOHR']
+            # self.dataset['coordinate'][ib, :natom, 0] = coor[:natom, 0]
 
             # get index of orbitals atom by atom
             atomind.append(0)
-            atomnamelist = [ATOMNAME[int(num) - 1] for num in coor[:, 0]]
+            atomnamelist = [ATOMNAME[int(num) - 1] for num in atomnumber]
 
             # get l parameter of each atom
-            atom_lmax = [VAL_ORB[ATOMNAME[int(coor[iat, 0] - 1)]]
+            print("atomnumber", atomnumber)
+            atom_lmax = [VAL_ORB[ATOMNAME[int(atomnumber[iat] - 1)]]
                          for iat in range(natom)]
 
             for iat in range(natom):
@@ -455,47 +451,47 @@ class ReadInput:
                 for jat in range(natom):
 
                     # coordinate vector between atom pair
-                    [xx, yy, zz] = self.geometry['coordinate'][ib, jat, 1:] - self.geometry['coordinate'][ib, iat, 1:]
+                    [xx, yy, zz] = self.dataset['coordinate'][ib, jat] - self.dataset['coordinate'][ib, iat]
 
                     # distance between atom and atom
                     dd = t.sqrt(xx * xx + yy * yy + zz * zz)
-                    self.geometry['distance'][ib, iat, jat] = dd
+                    self.dataset['distance'][ib, iat, jat] = dd
 
                     if dd > err:
 
                         # get normalized distance, coordinate vector matrices
-                        self.geometry['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
-                        self.geometry['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
+                        self.dataset['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
+                        self.dataset['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
 
             dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                               dict(enumerate(set(atomnamelist))).keys()))
 
             # the type of atom, e.g, [0, 1, 1, 1, 1] for CH4 molecule
-            self.geometry['natomtype'].append([dictat[ati] for ati in atomnamelist])
+            self.dataset['natomtype'].append([dictat[ati] for ati in atomnamelist])
 
             # number of orbitals (dimension of H or S)
-            self.geometry['norbital'].append(atomind[-1])
+            self.dataset['norbital'].append(atomind[-1])
 
             # total orbitals in each calculation if flatten to 1D
-            self.geometry['atomind2'].append(
+            self.dataset['atomind2'].append(
                 int(atomind[natom] * (atomind[natom] + 1) / 2))
 
             # atom specie
-            self.geometry['atomspecie'].append(list(set(atomnamelist)))
+            self.dataset['atomspecie'].append(list(set(atomnamelist)))
 
             # l parameter and index of orbital of each atom
-            self.geometry['lmaxall'].append(atom_lmax)
-            self.geometry['atomind'].append(atomind)
+            self.dataset['lmaxall'].append(atom_lmax)
+            self.dataset['atomind'].append(atomind)
 
             # the name of all the atoms
             if latomname:
-                self.geometry['atomnameall'].append(atomnamelist)
+                self.dataset['atomnameall'].append(atomnamelist)
 
-        # return geometry
-        return self.geometry
+        # return dataset
+        return self.dataset
 
     def cal_coor(self):
-        """Generate vector, distance ... according to input geometry.
+        """Generate vector, distance ... according to input dataset.
 
         Args:
             coor: [natom, 4], the first column is atom number
@@ -506,14 +502,14 @@ class ReadInput:
 
         """
         # transfer from angstrom to bohr
-        self.geometry['coordinate'][:, 1:] = self.para['coordinate'][:, 1:] / self.para['BOHR']
+        self.dataset['coordinate'][:, 1:] = self.para['coordinate'][:, 1:] / self.para['BOHR']
         coor = self.para['coordinate']
 
         # total number of atom
         natom = np.shape(coor)[0]
 
         # atom number
-        self.geometry['atomNumber'] = self.geometry['coordinate'][:, 0]
+        self.dataset['atomNumber'] = self.dataset['coordinate'][:, 0]
 
         # distance matrix
         distance = t.zeros((natom, natom), dtype=t.float64)
@@ -601,10 +597,10 @@ class ReadSlaKo:
     onsite, etc.
     """
 
-    def __init__(self, parameter, geometry, skf, ibatch):
+    def __init__(self, parameter, dataset, skf, ibatch):
         """Read integral with different ways."""
         self.para = parameter
-        self.geo = geometry
+        self.geo = dataset
         self.skf = skf
         self.ibatch = ibatch
 

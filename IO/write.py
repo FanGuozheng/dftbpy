@@ -131,7 +131,7 @@ class Print:
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
         # print atoms
-        print('list of atom:', self.geo['atomnameall'])
+        print('list of atoms in batch:', self.geo['atomnameall'])
 
         # print charge
         print('\n charge (e): ', self.para['charge'])

@@ -47,8 +47,7 @@ def opt(para):
     para = initpara.dftb_parameter(para)
     skf = initpara.skf_parameter()
     para, ml, dataset = initpara.init_ml(para)
-    dataset = initpara.init_dataset(dataset, ml, para)
-    geometry = {}
+    dataset = initpara.init_dataset(dataset)
 
     # load dataset, here is hdf type
     ml['ref'] = ml['reference']
@@ -68,7 +67,7 @@ def opt(para):
             LoadData(para, dataset['n_dataset'][0]).get_specie_all()
 
     # run reference calculations, either dft or dftb
-    runml = RunML(para, ml, dataset, geometry, skf)
+    runml = RunML(para, ml, dataset, skf)
 
     runml.ref()
 
@@ -78,7 +77,7 @@ def opt(para):
     print("total training time:", time_end - time_begin)
 
     # plot data from ML
-    if ml['Lml_acsf']:
+    if ml['mlType'] == 'ACSF':
         plot.plot_ml_feature(para)
     else:
         pass
@@ -159,19 +158,18 @@ class RunML:
     we have to check for each new moluecle, if there is new atom specie.
     """
 
-    def __init__(self, para, ml, dataset, geometry, skf):
+    def __init__(self, para, ml, dataset, skf):
         """Initialize DFTB-ML optimization."""
         self.para = para
         self.ml = ml
         self.dataset = dataset
         self.skf = skf
-        self.geo = geometry
 
         # some outside class or functions used during DFTB-ML
         self.save = SaveData(self.para)
-        self.slako = slakot.SKinterp(self.para, self.geo, self.skf, self.ml)
+        self.slako = slakot.SKinterp(self.para, self.dataset, self.skf, self.ml)
         self.genml = GenMLPara(self.para, self.ml)
-        self.runcal = RunCalc(self.para, self.geo, self.skf)
+        self.runcal = RunCalc(self.para, self.dataset, self.skf, self.ml)
 
     def ref(self):
         """Run different reference calculations according to reference type.
@@ -231,9 +229,9 @@ class RunML:
         # join the path and hdf data
         hdffile = os.path.join(self.dataset['path_dataset'],
                                self.dataset['name_dataset'])
-        self.geo['coordinateAll'] = []
-        self.geo['natomall'] = []
-        self.geo['atomnameall'] = []
+        self.dataset['coordinateAll'] = []
+        self.dataset['natomall'] = []
+        self.dataset['atomnameall'] = []
 
         # read global parameters
         with h5py.File(hdffile) as f:
@@ -262,14 +260,14 @@ class RunML:
                 for igroup in molecule2:
 
                     # add atom name and atom number
-                    self.geo['atomnameall'].append([ii for ii in igroup])
-                    self.geo['natomall'].append(len(igroup))
+                    self.dataset['atomnameall'].append([ii for ii in igroup])
+                    self.dataset['natomall'].append(len(igroup))
 
                     with h5py.File(hdffile) as f:
 
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'coordinate'
-                        self.geo['coordinateAll'].append(
+                        self.dataset['coordinateAll'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
 
                         # eigenvalue
@@ -307,15 +305,15 @@ class RunML:
                 self.para['nfile'] = int(self.para['n_dataset'][0])
 
                 # add atom name
-                self.geo['atomnameall'].append([ii for ii in igroup])
-                self.geo['natomall'].append(len(igroup))
+                self.dataset['atomnameall'].append([ii for ii in igroup])
+                self.dataset['natomall'].append(len(igroup))
 
                 # read the molecule specie data
                 with h5py.File(hdffile) as f:
 
                     # coordinates: not tensor now !!!
                     namecoor = str(ibatch) + 'coordinate'
-                    self.geo['coordinateAll'].append(
+                    self.dataset['coordinateAll'].append(
                         t.from_numpy(f[igroup][namecoor][()]))
 
                     # eigenvalue
@@ -504,23 +502,23 @@ class RunML:
         """get the ith coor according to data type"""
         # for batch system
         if ibatch is None:
-            if type(self.geo['coordinateAll']) is t.Tensor:
-                coordinate = self.geo['coordinateAll']
-            elif type(self.geo['coordinateAll']) is np.ndarray:
-                coordinate = t.from_numpy(self.geo['coordinateAll'])
-            elif type(self.geo['coordinateAll']) is list:
-                coordinate = self.geo['coordinateAll']
-            self.geo['coordinate'] = pad2d(coordinate)
+            if type(self.dataset['coordinateAll']) is t.Tensor:
+                coordinate = self.dataset['coordinateAll']
+            elif type(self.dataset['coordinateAll']) is np.ndarray:
+                coordinate = t.from_numpy(self.dataset['coordinateAll'])
+            elif type(self.dataset['coordinateAll']) is list:
+                coordinate = self.dataset['coordinateAll']
+            self.dataset['coordinate'] = pad2d(coordinate)
         # for single system
         else:
-            if type(self.geo['coordinateAll'][ibatch]) is t.Tensor:
-                self.geo['coordinate'] = self.geo['coordinateAll'][ibatch][:, :]
-            elif type(self.geo['coordinateAll'][ibatch]) is np.ndarray:
-                self.geo['coordinate'] = \
-                    t.from_numpy(self.geo['coordinateAll'][ibatch][:, :])
+            if type(self.dataset['coordinateAll'][ibatch]) is t.Tensor:
+                self.dataset['coordinate'] = self.dataset['coordinateAll'][ibatch][:, :]
+            elif type(self.dataset['coordinateAll'][ibatch]) is np.ndarray:
+                self.dataset['coordinate'] = \
+                    t.from_numpy(self.dataset['coordinateAll'][ibatch][:, :])
 
     def cal_optfor_energy(self, energy, coor, ibatch):
-        natom = self.geo['natomall'][ibatch]
+        natom = self.dataset['natomall'][ibatch]
         for iat in range(natom):
             idx = int(coor[ibatch][iat, 0])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
@@ -582,15 +580,15 @@ class RunML:
             optimize compression radius
             optimize integrals...
         """
-        if self.ml['Lml_HS']:
+        if self.ml['mlType'] == 'integral':
             self.ml_interp_hs(para)
-        elif self.ml['Lml_skf'] and self.para['Lbatch']:
+        elif self.ml['mlType'] == 'compressionRadius' and self.para['Lbatch']:
             self.ml_compr_batch()
-        elif self.ml['Lml_skf'] and not self.para['Lbatch']:
+        elif self.ml['mlType'] == 'compressionRadius' and not self.para['Lbatch']:
             self.ml_compr()
-        elif self.ml['Lml_compr']:
+        elif self.ml['mlType'] == 'integral':
             self.ml_compr_interp(para)
-        elif self.ml['Lml_acsf']:
+        elif self.ml['mlType'] == 'ACSF':
             self.ml_acsf(para)
 
     def ml_interp_hs(self, para):
@@ -655,10 +653,10 @@ class RunML:
         # get the ith coordinates
         self.get_coor()
 
-        # initialize DFTB calculations with geometry and input parameters
+        # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftb_torch.Initialization(self.para, self.geo, self.skf)
-        maxorb = max(self.geo['norbital'])
+        dftb_torch.Initialization(self.para, self.dataset, self.skf)
+        maxorb = max(self.dataset['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -667,14 +665,14 @@ class RunML:
         # get integral and compression radius
         for ibatch in range(self.nbatch):
             if self.ml['ref'] == 'hdf':
-                self.geo['natom'] = self.geo['natomall']
-                natom = self.geo['natom'][ibatch]
-                atomname = self.geo['atomnameall'][ibatch]
+                self.dataset['natom'] = self.dataset['natomall']
+                natom = self.dataset['natom'][ibatch]
+                atomname = self.dataset['atomnameall'][ibatch]
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
-                self.genml.genml_init_compr(ibatch, natom, atomname)
+                self.genml.genml_init_compr(ibatch, atomname)
                 self.para['compr_init_'].append(self.para['compr_init'])
-                self.get_iref(ibatch, self.geo['natomall'][ibatch])
+                self.get_iref(ibatch, self.dataset['natomall'][ibatch])
         self.para['compr_ml'] = \
             pad1d(self.para['compr_init_']).clone().requires_grad_(True)
 
@@ -694,17 +692,17 @@ class RunML:
                 self.slako.genskf_interp_compr(ibatch)
 
             # SK transformations
-            slakot.SKTran(self.para, self.geo, self.skf, self.dataset, self.ml, ibatch)
-            iorb = self.geo['norbital'][ibatch]
+            slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+            iorb = self.dataset['norbital'][ibatch]
             ham[ibatch, :iorb, :iorb] = self.skf['hammat']
             over[ibatch, :iorb, :iorb] = self.skf['overmat']
         self.skf['hammat_'] = ham
         self.skf['overmat_'] = over
-        dftb_torch.Rundftbpy(self.para, self.geo, self.skf, self.nbatch)
+        dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
 
         # dftb formation energy calculations
         self.para['formation_energy'] = self.cal_optfor_energy(
-            self.para['electronic_energy'], self.geo['coordinate'], ibatch)
+            self.para['electronic_energy'], self.dataset['coordinate'], ibatch)
 
         # get loss function type
         if self.ml['loss_function'] == 'MSELoss':
@@ -724,7 +722,7 @@ class RunML:
     def ml_compr(self):
         """DFTB optimization of compression radius for given dataset."""
         # calculate one by one to optimize para
-        self.para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
+        self.ml['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
 
         for ibatch in range(self.nbatch):
@@ -740,51 +738,47 @@ class RunML:
             self.get_coor(ibatch)
 
             # number of atoms in molecule
-            nat = self.geo['coordinate'].shape[0]
+            nat = self.dataset['coordinate'].shape[0]
 
             # initialize DFTB calculations with geometry and input parameters
             # read skf according to global atom species
-            dftb_torch.Initialization(self.para, self.geo, self.skf)
-            atomname = self.geo['atomnameall'][0]
+            dftb_torch.Initialization(self.para, self.dataset, self.skf)
+            atomname = self.dataset['atomnameall'][ibatch]
 
             # only read skf data once when calculate the first molecule
             self.para['LreadSKFinterp'] = False
 
             # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-            if self.para['ref'] == 'hdf':
+            if self.ml['ref'] == 'hdf':
                 self.slako.genskf_interp_dist_hdf(ibatch_, nat)
             else:
                 self.slako.genskf_interp_dist(ibatch_)
 
             # update (ML predict) compression radius during ML process
-            if para['Lopt_ml_compr']:
+            if self.ml['Lopt_ml_compr']:
                 self.update_compr_para()
 
             # do not update compression radius parameters
             else:
-                self.genml.genml_init_compr(ibatch_, nat, atomname)
+                self.genml.genml_init_compr(ibatch_, atomname)
 
             # get the reference data
             self.get_iref(ibatch_, nat)
 
-            if not self.para['Lml_compr_global']:
-                self.para['compr_ml'] = \
-                    self.para['compr_init'].clone().requires_grad_(True)
-            print("self.para['compr_ml']", self.para['compr_ml'])
+            self.para['compr_ml'] = \
+                self.para['compr_init'].clone().requires_grad_(True)
+
             # get optimizer
-            if self.para['optimizer'] == 'SCG':
-                optimizer = t.optim.SGD([para['compr_ml']], lr=para['lr'])
-            elif self.para['optimizer'] == 'Adam':
-                optimizer = t.optim.Adam([para['compr_ml']], lr=para['lr'])
+            if self.ml['optimizer'] == 'SCG':
+                optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
+            elif self.ml['optimizer'] == 'Adam':
+                optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
             # for each molecule we will run mlsteps
             savestep_ = 0
-            for it in range(para['mlsteps']):
-                if para['Lml_compr_global']:
-                    self.genml.genml_init_compr()
-
+            for it in range(self.ml['mlsteps']):
                 # 2D interpolation with compression radius of atom pairs
-                if self.para['ref'] == 'hdf':
+                if self.ml['ref'] == 'hdf':
                     self.slako.genskf_interp_compr(ibatch_)
                 else:
                     self.slako.genskf_interp_compr(ibatch_)
@@ -792,12 +786,12 @@ class RunML:
                 # dftb calculations
                 self.runcal.idftb_torchspline(ibatch_)
                 self.para['formation_energy'] = self.cal_optfor_energy(
-                        self.para['electronic_energy'], self.geo['coordinate'], ibatch_)
+                        self.para['electronic_energy'], self.dataset['coordinate'], ibatch_)
 
                 # get loss function type
-                if self.para['loss_function'] == 'MSELoss':
+                if self.ml['loss_function'] == 'MSELoss':
                     self.criterion = t.nn.MSELoss(reduction='sum')
-                elif self.para['loss_function'] == 'L1Loss':
+                elif self.ml['loss_function'] == 'L1Loss':
                     self.criterion = t.nn.L1Loss(reduction='sum')
 
                 # get loss function
@@ -809,16 +803,16 @@ class RunML:
                 optimizer.step()
 
                 # save and print information
-                if (it + 1) % para['save_steps'] == 0 or it == 0:
+                if (it + 1) % self.ml['save_steps'] == 0 or it == 0:
                     savestep_ += 1
-                    if self.para['loss_function'] == 'MSELoss':
+                    if self.ml['loss_function'] == 'MSELoss':
                         self.loss_ = t.sqrt(loss.detach()) / nat
-                    elif self.para['loss_function'] == 'L1Loss':
+                    elif self.ml['loss_function'] == 'L1Loss':
                         self.loss_ = loss.detach() / nat
-                    self.para["nsteps"][ibatch_] = savestep_
+                    self.ml["nsteps"][ibatch_] = savestep_
                     print('-' * 100)
                     print('ibatch: {} steps: {} target: {}'.format(
-                              ibatch + 1, it + 1, para['target']))
+                              ibatch + 1, it + 1, self.ml['target']))
                     print('average loss: {}'.format(self.loss_))
                     print('compr_ml.grad', para['compr_ml'].grad.detach())
                     print("para['compr_ml']", para['compr_ml'])
@@ -826,19 +820,19 @@ class RunML:
                     self.save_idftbml()
 
                 # convergence or break condition
-                if para['Lopt_step'] and it > para['opt_step_min']:
+                if self.ml['Lopt_step'] and it > self.ml['opt_step_min']:
                     if self.loss_ < para['opt_ml_tol']:
                         print('loss is < {}'.format(para['opt_ml_tol']))
                         break
-                if t.lt(para['compr_ml'], para['compr_min']).all():
+                if t.lt(self.para['compr_ml'], self.ml['compr_min']).all():
                     print("there is compression R smaller than {}".format(
                         para['compr_min']))
                     break
-                if t.gt(para['compr_ml'], para['compr_max']).all():
+                if t.gt(self.para['compr_ml'], self.ml['compr_max']).all():
                     print("there is compression larger than {}".format(
-                        para['compr_max']))
+                        self.ml['compr_max']))
                     break
-        self.save.save1D(para['nsteps'].detach().numpy(),
+        self.save.save1D(self.ml['nsteps'].detach().numpy(),
                          name='nsave.dat', dire='.data', ty='a')
 
     def update_compr_para(self, ibatch):
@@ -877,46 +871,45 @@ class RunML:
             self.energy_ref = self.para['refenergy'][ibatch]
 
     def get_loss(self, ibatch):
-        if len(para['target']) == 1:
+        if len(self.ml['target']) == 1:
             homo_lumo = para['homo_lumo']
             dipole = para['dipole']
             gap = t.abs(homo_lumo[ibatch][1] - homo_lumo[ibatch][0])
             eigval = para['eigenvalue']
             qatomall = para['charge']
             energy = para['energy']
-            if 'homo_lumo' in para['target']:
+            if 'homo_lumo' in self.ml['target']:
                 loss = self.criterion(self.homo_lumo, self.homo_lumo_ref)
-            elif 'gap' in para['target']:
+            elif 'gap' in self.ml['target']:
                 loss = self.criterion(gap, self.gapref)
-            elif 'dipole' in para['target']:
+            elif 'dipole' in self.ml['target']:
                 loss = self.criterion(dipole, self.dipref)
-            elif 'hstable' in para['target']:
-                hstable = para['hammat']
+            elif 'hstable' in self.ml['target']:
+                hstable = self.skf['hammat']
                 loss = self.criterion(hstable, self.hatableref)
-            elif 'eigval' in para['target']:
-                print("eigval, eigvalref", eigval, self.eigvalref)
+            elif 'eigval' in self.ml['target']:
                 loss = self.criterion(eigval, self.eigvalref)
-            elif 'qatomall' in para['target']:
+            elif 'qatomall' in self.ml['target']:
                 loss = self.criterion(qatomall, self.qatomall_ref)
-            elif 'energy' in para['target']:
+            elif 'energy' in self.ml['target']:
                 loss = self.criterion(energy, self.energy_ref)
-            elif 'polarizability' in para['target']:
-                pol = para['alpha_mbd']
+            elif 'polarizability' in self.ml['target']:
+                pol = self.para['alpha_mbd']
                 loss = self.criterion(pol, self.pol_ref)
-            elif 'cpa' in para['target']:
-                cpa = para['cpa']
+            elif 'cpa' in self.ml['target']:
+                cpa = self.para['cpa']
                 vol_ratio_ref = self.get_hirsh_vol_ratio(self.volref)
                 loss = self.criterion(cpa, vol_ratio_ref)
-            elif 'pdos' in para['target']:
+            elif 'pdos' in self.para['target']:
                 pdosref = self.para['pdosdftbplus'][ibatch]
                 loss = maths.hellinger(para['pdos'], pdosref).sum()
                 # loss = self.criterion(para['pdos'], pdosref)
                 self.para['shape_pdos'][ibatch][0] = self.para['pdos'].shape[0]
                 self.para['shape_pdos'][ibatch][1] = self.para['pdos'].shape[1]
-            elif len(para['target']) == 2:
-                if 'dipole' and 'polarizability' in para['target']:
-                    dipole = para['dipole']
-                    pol = para['alpha_mbd']
+            elif len(self.ml['target']) == 2:
+                if 'dipole' and 'polarizability' in self.ml['target']:
+                    dipole = self.para['dipole']
+                    pol = self.para['alpha_mbd']
                     loss = 2 * self.criterion(pol, self.pol_ref) + \
                         self.criterion(dipole, self.dipref)
             return loss
@@ -1189,22 +1182,11 @@ class GenMLPara:
     def genmlpara0(self, para):
         pass
 
-    def genml_init_compr(self, ibatch, natom, atomname):
-        init_compr = t.zeros((natom), dtype=t.float64)
-        icount = 0
-        if self.ml['Lml_compr_global']:
-            for iatom in atomname:
-                if iatom == 'H':
-                    init_compr[icount] = self.ml['compr_all'][0]
-                elif iatom == 'C':
-                    init_compr[icount] = self.ml['compr_all'][5]
-                icount += 1
-            self.para['compr_ml'] = init_compr
-        else:
-            for iatom in atomname:
-                init_compr[icount] = self.ml[iatom + '_init_compr']
-                icount += 1
-            self.para['compr_init'] = init_compr
+    def genml_init_compr(self, ibatch, atomname):
+        """Get initial compression radius for each atom in system."""
+        self.para['compr_init'] = t.tensor(
+            [self.ml[ia + '_init_compr'] for ia in atomname], dtype=t.float64)
+
 
     def get_spllabel(self):
         """Check if atom specie is the same, if not, then update."""
@@ -1247,10 +1229,11 @@ class RunCalc:
     with both ASE interface or code in write_output.py
     """
 
-    def __init__(self, para, geometry, skf):
+    def __init__(self, para, dataset, skf, ml):
         self.para = para
-        self.geo = geometry
         self.skf = skf
+        self.dataset = dataset
+        self.ml = ml
 
     def aims(self, para, ibatch, dire):
         """DFT means FHI-aims here."""
@@ -1286,8 +1269,8 @@ class RunCalc:
     def idftb_torchspline(self, ibatch=None):
         """Perform DFTB_python with integrals."""
         # dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
-        slakot.SKTran(self.para, self.geo, self.skf, ibatch)
-        dftb_torch.Rundftbpy(self.para, self.geo, self.skf, ibatch)
+        slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+        dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
 
 def check_data(para, rmdata=False):
