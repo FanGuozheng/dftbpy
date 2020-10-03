@@ -32,18 +32,9 @@ class LoadData:
 
     def __init__(self, dataset=None, para=None, ml=None, train_sample=None):
         """Initialize parameters."""
-        if dataset is None:
-            self.dataset = {}
-        else:
-            self.dataset = dataset
-        if para is None:
-            self.para = {}
-        else:
-            self.para = para
-        if ml is None:
-            self.ml = {}
-        else:
-            self.ml = ml
+        self.dataset = [dataset, {}][dataset is None]
+        self.para = [para, {}][para is None]
+        self.ml = [ml, {}][ml is None]
 
         # load training data: interger number or string 'all'
         if train_sample is None:
@@ -164,11 +155,11 @@ class LoadData:
         if path is not None and filename is not None:
             path_file = os.path.join(path, filename)
             os.system('rm ' + path_file)
+
         # default path is '.', default name is 'testfile.hdf5'
         else:
             path_file = 'testfile.hdf5'
             os.system('rm ' + path_file)
-        print("dddddddddddddddddddddddddddddddd")
 
         # the global atom species in dataset (training data)
         self.dataset['specie_all'] = []
@@ -180,10 +171,10 @@ class LoadData:
 
                 # this loop will write information of the same molecule with
                 # different datasetmetries
-                atom_num = []
+                self.dataset['atomNumber'] = []
 
                 # get atom number of each atom
-                [atom_num.append(ATOMNUM[spe]) for spe in data['species']]
+                [self.dataset['atomNumber'].append(ATOMNUM[spe]) for spe in data['species']]
 
                 # number of molecule in current molecule species
                 imol = len(data['coordinates'])
@@ -197,10 +188,12 @@ class LoadData:
                 # write all coordinates to list "corrall" and first column is
                 # atom number
                 self.dataset['coorall'] = []
+                # self.dataset['coorall'].extend(
+                #    [np.insert(coor, 0, atom_num, axis=1)
+                #     for coor in np.asarray(
+                #             data['coordinates'][:nend], dtype=float)])
                 self.dataset['coorall'].extend(
-                    [np.insert(coor, 0, atom_num, axis=1)
-                     for coor in np.asarray(
-                             data['coordinates'][:nend], dtype=float)])
+                    [coor for coor in np.asarray(data['coordinates'][:nend], dtype=float)])
 
                 # write the current atom species in molecule to list "symbols"
                 # use metadata instead
@@ -216,6 +209,7 @@ class LoadData:
                     self.g = self.f.create_group(ispecie)
                     self.g.attrs['specie'] = ispecie
                     self.g.attrs['natom'] = natom
+                    self.g.attrs['atomNumber'] = self.dataset['atomNumber']
 
                     # run dftb with ase interface
                     if self.ml['reference'] == 'dftbase':
@@ -225,9 +219,15 @@ class LoadData:
 
                     # run FHI-aims with ase interface
                     elif self.ml['reference'] == 'aimsase':
-                        RunASEAims(self.para, self.ml, setenv=True).run_aims(
-                            nend, self.dataset['coorall'],
-                            hdf=self.f, group=self.g)
+                        RunASEAims(self.para, self.ml, self.dataset, setenv=True).run_aims(nend, hdf=self.f, group=self.g)
+
+        # save rest to global attrs
+        with h5py.File(path_file, 'a') as f:
+            g = f.create_group('globalgroup')
+            g.attrs['specie_all'] = self.dataset['specie_all']
+            # g.attrs['totalmolecule'] = nmol
+
+
 
     def load_json_data(self):
         """Load the data from json type input files."""

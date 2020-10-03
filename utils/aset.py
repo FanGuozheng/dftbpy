@@ -265,9 +265,10 @@ class DFTB:
 class RunASEAims:
     """RunASEAims will run FHI-aims with both batch or single calculations."""
 
-    def __init__(self, para, ml, setenv=False):
+    def __init__(self, para, ml, dataset, setenv=False):
         self.para = para
         self.ml = ml
+        self.dataset = dataset
 
         # FHI-aims binary name, normally aims
         self.aims_bin = self.ml['aims_bin']
@@ -295,10 +296,12 @@ class RunASEAims:
         os.environ['ASE_AIMS_COMMAND'] = path_bin + ' > PREFIX.out'
         os.environ['AIMS_SPECIES_DIR'] = self.ml['aims_specie_path']
 
-    def run_aims(self, nbatch, coorall, begin=None, hdf=None, group=None):
+    def run_aims(self, nbatch, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
+        coorall = self.dataset['coorall']
         if begin is None:
             begin = 0
+
         # source and set environment for python, ase before calculations
         self.save = SaveData(self.para)
 
@@ -331,7 +334,7 @@ class RunASEAims:
             self.coor = coorall[ibatch]
 
             # run each molecule in batches
-            self.ase_iaims(ispecie, self.coor[:, 1:])
+            self.ase_iaims(ispecie, self.coor)
 
             # process each result (overmat, eigenvalue, eigenvect, dipole)
             self.process_iresult()
@@ -482,8 +485,8 @@ class RunASEAims:
 
     def cal_optfor_energy(self, energy):
         natom = self.para['natom']
-        for iat in range(0, natom):
-            idx = int(self.coor[iat, 0])
+        for iat in range(natom):
+            idx = int(self.dataset['atomNumber'][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             energy = energy - AIMS_ENERGY[iname]
         return energy
@@ -556,6 +559,3 @@ def read_detailed_out(natom):
 
     return float(E_tot), \
         t.from_numpy(np.asarray(qatom)), t.from_numpy(np.asarray(dip))
-
-def read_():
-    pass

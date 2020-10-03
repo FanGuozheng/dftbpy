@@ -43,7 +43,7 @@ def opt(para):
     time_begin = time.time()
 
     # get the initial parameters
-    para['Lbatch'] = True
+    para['Lbatch'] = False
     para = initpara.dftb_parameter(para)
     skf = initpara.skf_parameter()
     para, ml, dataset = initpara.init_ml(para)
@@ -232,9 +232,10 @@ class RunML:
         self.dataset['coordinateAll'] = []
         self.dataset['natomall'] = []
         self.dataset['atomnameall'] = []
+        self.dataset['atomNumber'] = []
 
         # read global parameters
-        with h5py.File(hdffile) as f:
+        with h5py.File(hdffile, 'r') as f:
 
             # get all the molecule species
             self.skf['specie_all'] = f['globalgroup'].attrs['specie_all']
@@ -269,11 +270,12 @@ class RunML:
                         namecoor = str(ibatch) + 'coordinate'
                         self.dataset['coordinateAll'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
+                        self.dataset['atomNumber'].append(f[igroup].attrs['atomNumber'])
 
                         # eigenvalue
-                        nameeig = str(ibatch) + 'eigenvalue'
-                        self.para['refeigval'].append(
-                            t.from_numpy(f[igroup][nameeig][()]))
+                        # nameeig = str(ibatch) + 'eigenvalue'
+                        # self.para['refeigval'].append(
+                        #    t.from_numpy(f[igroup][nameeig][()]))
 
                         # dipole
                         namedip = str(ibatch) + 'dipole'
@@ -517,10 +519,10 @@ class RunML:
                 self.dataset['coordinate'] = \
                     t.from_numpy(self.dataset['coordinateAll'][ibatch][:, :])
 
-    def cal_optfor_energy(self, energy, coor, ibatch):
+    def cal_optfor_energy(self, energy, ibatch):
         natom = self.dataset['natomall'][ibatch]
         for iat in range(natom):
-            idx = int(coor[ibatch][iat, 0])
+            idx = int(self.dataset['atomNumber'][ibatch][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             energy = energy - DFTB_ENERGY[iname]
         return energy
@@ -702,7 +704,7 @@ class RunML:
 
         # dftb formation energy calculations
         self.para['formation_energy'] = self.cal_optfor_energy(
-            self.para['electronic_energy'], self.dataset['coordinate'], ibatch)
+            self.para['electronic_energy'], ibatch)
 
         # get loss function type
         if self.ml['loss_function'] == 'MSELoss':
@@ -786,7 +788,7 @@ class RunML:
                 # dftb calculations
                 self.runcal.idftb_torchspline(ibatch_)
                 self.para['formation_energy'] = self.cal_optfor_energy(
-                        self.para['electronic_energy'], self.dataset['coordinate'], ibatch_)
+                        self.para['electronic_energy'], ibatch_)
 
                 # get loss function type
                 if self.ml['loss_function'] == 'MSELoss':

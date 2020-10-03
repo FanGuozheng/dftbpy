@@ -178,7 +178,6 @@ class ReadInput:
             # load json type file
             fpinput = json.load(fp)
 
-            # ************** general parameter ****************
             # parameter of task
             if 'task' in fpinput['general']:
                 self.para['task'] = fpinput['general']['task']
@@ -423,8 +422,8 @@ class ReadInput:
         self.dataset['atomspecie'] = []
         self.dataset['lmaxall'] = []
         self.dataset['atomind'] = []
-        print("coordinate", self.dataset['coordinate'])
 
+        self.dataset['coordinate'] /= self.para['BOHR']
         for ib in range(nfile):
             # define list for name of atom and index of orbital
             atomind = []
@@ -434,7 +433,6 @@ class ReadInput:
             atomnumber = self.dataset['atomNumber'][ib]
 
             coor = self.dataset['coordinate'][ib]
-            self.dataset['coordinate'][ib, :natom] = coor / self.para['BOHR']
             # self.dataset['coordinate'][ib, :natom, 0] = coor[:natom, 0]
 
             # get index of orbitals atom by atom
@@ -442,7 +440,6 @@ class ReadInput:
             atomnamelist = [ATOMNAME[int(num) - 1] for num in atomnumber]
 
             # get l parameter of each atom
-            print("atomnumber", atomnumber)
             atom_lmax = [VAL_ORB[ATOMNAME[int(atomnumber[iat] - 1)]]
                          for iat in range(natom)]
 
@@ -451,7 +448,7 @@ class ReadInput:
                 for jat in range(natom):
 
                     # coordinate vector between atom pair
-                    [xx, yy, zz] = self.dataset['coordinate'][ib, jat] - self.dataset['coordinate'][ib, iat]
+                    [xx, yy, zz] = coor[jat] - coor[iat]
 
                     # distance between atom and atom
                     dd = t.sqrt(xx * xx + yy * yy + zz * zz)
@@ -460,8 +457,8 @@ class ReadInput:
                     if dd > err:
 
                         # get normalized distance, coordinate vector matrices
-                        self.dataset['dnorm'][ib, iat, jat, :] = t.Tensor([xx, yy, zz]) / dd
-                        self.dataset['dvec'][ib, iat, jat, :] = t.Tensor([xx, yy, zz])
+                        self.dataset['dnorm'][ib, iat, jat, :] = t.tensor([xx, yy, zz], dtype=t.float64) / dd
+                        self.dataset['dvec'][ib, iat, jat, :] = t.tensor([xx, yy, zz], dtype=t.float64)
 
             dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                               dict(enumerate(set(atomnamelist))).keys()))

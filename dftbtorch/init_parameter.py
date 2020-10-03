@@ -260,7 +260,8 @@ def init_ml(para=None, ml=None, dataset=None):
     #                              DFTB-ML
     # *********************************************************************
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    ml['reference'] = 'hdf'
+    if 'reference' not in ml.keys():
+        ml['reference'] = 'hdf'
 
     # read hdf (with coordinates, reference physical properties) type
     if ml['reference'] == 'hdf':

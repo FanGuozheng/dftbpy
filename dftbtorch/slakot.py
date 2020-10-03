@@ -565,6 +565,7 @@ class SKinterp:
         ninterp = self.skf['ninterp']
         self.skf['hs_compr_all'] = []
         coor = self.dataset['coordinate'][ibatch]
+        atomnumber = self.dataset['atomNumber'][ibatch]
         distance = self.dataset['distance'][ibatch]
 
         # index of row, column of distance matrix, no digonal
@@ -587,7 +588,7 @@ class SKinterp:
 
         # get integrals with ninterp (normally 8) line for interpolation
         with h5py.File(hdfsk, 'r') as f:
-            yy = [[f[ATOMNAME[int(coor[i, 0])] + ATOMNAME[int(coor[j, 0])] +
+            yy = [[f[ATOMNAME[atomnumber[i]] + ATOMNAME[atomnumber[j]] +
                      '/hs_all_rall'][:][:, :, indd[i, j]- ninterp - 1: indd[i, j] - 1, :]
                    for j in range(natom)] for i in range(natom)]
 
