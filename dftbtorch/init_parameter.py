@@ -131,26 +131,32 @@ def init_dataset(dataset=None):
     dataset = {} if dataset is None else dataset
 
     # optional datatype: ani, json, hdf
-    dataset['dataType'] = 'ani'
+    if 'dataType' not in dataset.keys():
+        dataset['dataType'] = 'ani'
 
     # get the current path
-    path_dataset = '../data/dataset/'
+    if 'path_dataset' not in dataset.keys():
+        dataset['path_dataset'] = '../data/dataset/'
 
     # skf: directly read or interpolate from a list of skf files
     if 'LSKFinterpolation' not in dataset.keys():
         dataset['LSKFinterpolation'] = False
 
     # define path of files with feature information in machine learning
-    dataset['pathFeature'] = '.'
+    if 'pathFeature' not in dataset.keys():
+        dataset['pathFeature'] = '.'
 
     # how many molecules for each molecule specie !!
-    dataset['n_dataset'] = ['2']
+    if 'n_dataset' not in dataset.keys():
+        dataset['n_dataset'] = ['1000']
 
     # used to test (optimize ML algorithm parameters) !!
-    dataset['n_test'] = ['2']
+    if 'n_test' not in dataset.keys():
+        dataset['n_test'] = ['2']
 
     # determine the type of molecule specie: str(integer), 'all' !!
-    dataset['hdf_num'] = ['all']
+    if 'hdf_num' not in dataset.keys():
+        dataset['hdf_num'] = ['all']
 
     # mix different molecule specie type
     dataset['LdatasetMixture'] = True
@@ -172,7 +178,7 @@ def init_dataset(dataset=None):
         hdffilelist = []
 
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist.append(os.path.join(path_dataset, 'an1/ani_gdb_s01.h5'))
+        hdffilelist.append(os.path.join(dataset['path_dataset'], 'an1/ani_gdb_s01.h5'))
 
         # transfer to list
         dataset['hdffile'] = hdffilelist
@@ -187,7 +193,7 @@ def init_dataset(dataset=None):
     elif dataset['dataType'] == 'qm7':
 
         # define path and dataset name
-        dataset['qm7_data'] = os.path.join(path_dataset, 'qm7.mat')
+        dataset['qm7_data'] = os.path.join(dataset['path_dataset'], 'qm7.mat')
 
         # define dataset specie
         dataset['train_specie'] = [1, 6, 8]
@@ -360,9 +366,6 @@ def init_ml(para=None, ml=None, dataset=None):
         # interpolation of compression radius: BiCub, BiCubVec
         ml['interp_compr_type'] = 'BiCubVec'
 
-        # if optimize onsite in DFTB-ML
-        ml['Lonsite'] = True
-
         # grid of compression radius is uniform or not !!
         ml['typeSKinterp'] = 'uniform'
 
@@ -383,9 +386,6 @@ def init_ml(para=None, ml=None, dataset=None):
         # if fix the optimization step and set convergence condition
         ml['Lopt_step'] = True
         ml['opt_ml_tol'] = 1E-3
-
-        # if predict compression radius during DFTB-ML
-        ml['Lopt_ml_compr'] = False
 
         # after opt_ml_step*nbatch molecule, perform ML predict compR!!!!!!
         ml['opt_ml_step'] = 0.5
@@ -453,7 +453,7 @@ def skf_parameter(skf=None):
         skf = {}
 
     # smooth the tail when read the skf
-    if 'smooth_tail' not in skf.keys():
+    if 'LSmoothTail' not in skf.keys():
         skf['LSmoothTail'] = True
 
     # skf file tail distance
@@ -479,6 +479,10 @@ def skf_parameter(skf=None):
     # orbital resolved: if Ture, only use Hubbert of s orbital
     if 'Lorbres' not in skf.keys():
         skf['Lorbres'] = False
+
+    # if optimize (True) or fix (False) onsite in DFTB-ML
+    if 'Lonsite' not in skf.keys():
+        skf['Lonsite'] = False
 
     # define onsite
     if not skf['Lorbres']:
@@ -522,76 +526,3 @@ def skf_parameter(skf=None):
 
     # return skf
     return skf
-
-
-def init_dftb_interp(para):
-    """Initialize the parameters for DFTB with interpolation of SKF.
-
-    In general, you have to define:
-        Path of input (if you do not offer all in python)
-        DFTB parameters
-        Others, such as plotting parameters
-    """
-    # smooth SKF integral tail
-    para['dist_tailskf'] = 1.0
-
-    # SKF compression radius: all (all radius the same), wavefunction
-    para['typeSKinterpR'] = 'all'
-
-    # smooth the tail when read the skf
-    para['smooth_tail'] = True
-
-    # interpolation of compression radius: BiCub, BiCubVec
-    para['interp_compr_type'] = 'BiCubVec'
-
-    # if optimize onsite in DFTB-ML
-    para['Lonsite'] = True
-
-    # grid of compression radius is uniform or not !!
-    para['typeSKinterp'] = 'uniform'
-
-    # skgen compression radius parameters: all, wavefunction, density
-    para['typeSKinterpR'] = 'all'
-
-    # the grid point of compression radius is not uniform
-    if para['typeSKinterp'] == 'nonuniform':
-        para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/nonuniform')
-
-    # the grid point of compression radius is uniform
-    elif para['typeSKinterp'] == 'uniform':
-        para['dire_interpSK'] = os.path.join(os.getcwd(), '../slko/uniform')
-
-    # number of grid points, should be equal to atom_compr_grid
-    para['ncompr'] = 10
-
-    # if any compR < 2.2, break DFTB-ML loop
-    para['compr_min'] = 2.2
-
-    # if any compR > 9, break DFTB-ML loop
-    para['compr_max'] = 9
-
-    # grid points of compression radius of H
-    para['H_compr_grid'] = t.tensor(([
-        2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # grid points of compression radius of C
-    para['C_compr_grid'] = t.tensor(([
-        2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # onsite of H
-    para['onsiteHH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-
-    # onsite of C
-    para['onsiteCC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-
-    # Hubbert of H
-    para['uhubbHH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-
-    # Hubber of C
-    para['uhubbCC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]),
-            dtype=t.float64)

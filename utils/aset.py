@@ -356,7 +356,7 @@ class RunASEAims:
         mol = Atoms(moleculespecie, positions=coor)
 
         cal = Aims(xc='PBE',
-                   output=['dipole'],
+                   output=['dipole', 'mulliken'],
                    sc_accuracy_etot=1e-6,
                    sc_accuracy_eev=1e-3,
                    sc_accuracy_rho=1e-6,
@@ -384,7 +384,7 @@ class RunASEAims:
         comml = "grep 'Lowest unoccupied state (CBM) at' " + \
             self.aimsout + " | tail -n 1 | awk '{print $6}'"
         ilumo = subprocess.check_output(comml, shell=True).decode('utf-8')
-        self.para['humolumo'] = t.tensor([float(ihomo), float(ilumo)])
+        self.para['humolumo'] = np.asarray([float(ihomo), float(ilumo)])
 
         # read dipole
         commdip = "grep 'Total dipole moment' "
@@ -407,15 +407,22 @@ class RunASEAims:
                 " | tail -n " + str(self.nat) + " | awk '{print $6}'"
         ipol = subprocess.check_output(commp, shell=True).decode('utf-8')
 
+        # read mulliken charge
+        commc = "grep -A " + str(self.nat) + \
+            " 'atom       electrons          charge' " + self.aimsout + \
+                " | tail -n " + str(self.nat) + " | awk '{print $3}'"
+        icharge = subprocess.check_output(commc, shell=True).decode('utf-8')
+
         # read Hirshfeld volume
         cvol = "grep 'Hirshfeld volume        :' " + self.aimsout + \
             " | awk '{print $5}'"
         ivol = subprocess.check_output(cvol, shell=True).decode('utf-8')
 
         # add each molecule properties
-        self.alpha_mbd = t.tensor([float(i) for i in ipol.split('\n')[:-1]])
-        self.dip = t.tensor([idipx, idipy, idipz])
-        self.hirshfeldvolume = t.tensor([float(i) for i in ivol.split('\n')[:-1]])
+        self.alpha_mbd = np.asarray([float(i) for i in ipol.split('\n')[:-1]])
+        self.dip = np.asarray([idipx, idipy, idipz])
+        self.hirshfeldvolume = np.asarray([float(i) for i in ivol.split('\n')[:-1]])
+        self.charge = np.asarray([float(i) for i in icharge.split('\n')[:-1]])
 
     def write_hdf5(self, hdf, ibatch, ispecie, begin, group=None):
         """Write each molecule DFTB calculation results to hdf type data."""
@@ -462,6 +469,14 @@ class RunASEAims:
         else:
             ener_name = str(num) + 'totalenergy'
             group.create_dataset(ener_name, data=self.E_tot)
+
+        # total charge
+        if group is None:
+            c_name = ispecie + str(num) + 'charge'
+            hdf.create_dataset(c_name, data=self.charge)
+        else:
+            c_name = str(num) + 'charge'
+            group.create_dataset(c_name, data=self.charge)
 
         # Hirshfeld volume
         if group is None:

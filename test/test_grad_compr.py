@@ -43,7 +43,7 @@ def opt(para):
     time_begin = time.time()
 
     # get the initial parameters
-    para['Lbatch'] = False
+    para['Lbatch'] = True
     para = initpara.dftb_parameter(para)
     skf = initpara.skf_parameter()
     para, ml, dataset = initpara.init_ml(para)
@@ -264,7 +264,7 @@ class RunML:
                     self.dataset['atomnameall'].append([ii for ii in igroup])
                     self.dataset['natomall'].append(len(igroup))
 
-                    with h5py.File(hdffile) as f:
+                    with h5py.File(hdffile, 'r') as f:
 
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'coordinate'
@@ -583,30 +583,45 @@ class RunML:
             optimize integrals...
         """
         if self.ml['mlType'] == 'integral':
-            self.ml_interp_hs(para)
+            self.ml_integral()
         elif self.ml['mlType'] == 'compressionRadius' and self.para['Lbatch']:
             self.ml_compr_batch()
         elif self.ml['mlType'] == 'compressionRadius' and not self.para['Lbatch']:
             self.ml_compr()
         elif self.ml['mlType'] == 'integral':
-            self.ml_compr_interp(para)
+            self.ml_compr_interp()
         elif self.ml['mlType'] == 'ACSF':
             self.ml_acsf(para)
 
-    def ml_interp_hs(self, para):
+    def ml_integral(self):
         '''DFTB optimization for given dataset'''
+        # get the ith coordinates
+        self.get_coor()
 
-        para['cal_ref'] = False
+        # initialize DFTB calculations with datasetmetry and input parameters
+        # read skf according to global atom species
+        dftb_torch.Initialization(self.para, self.dataset, self.skf)
+        maxorb = max(self.dataset['norbital'])
+
+        # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
+        self.skf['hs_compr_all_'] = []
+        self.para['compr_init_'] = []
+
         # optimize selected para to get opt target
-        if para['Lml_HS'] and para['interptype'] == 'Bspline':
-            para['cspline'] = Variable(para['cspl_rand'], requires_grad=True)
-            optimizer = t.optim.SGD([para['cspline']], lr=5e-7)
-        elif para['Lml_HS'] and para['interptype'] == 'Polyspline':
-            para['splyall_rand'] = Variable(para['splyall_rand'],
-                                            requires_grad=True)
-            optimizer = t.optim.SGD([para['splyall_rand']], lr=5e-7)
-        save = SaveData(para)
-        coordinate = para['coordinate']
+        # if self.ml['interptype'] == 'Bspline':
+        #    self.ml['cspline'] = Variable(self.ml['cspl_rand'], requires_grad=True)
+        #    optimizer = t.optim.SGD([self.ml['cspline']], lr=5e-7)
+        # elif self.ml['interptype'] == 'Polyspline':
+        #    self.ml['splyall_rand'] = Variable(self.ml['splyall_rand'],
+        #                                    requires_grad=True)
+
+        # get spline integral
+        for ispecie in self.skf['specie_all']:
+            pass
+        self.slako.genskf_interp_dist_hdf(ibatch, natom)
+        optimizer = t.optim.SGD([self.ml['splyall_rand']], lr=5e-7)
+        save = SaveData(self.para)
+        coordinate = self.dataset['coordinate']
 
         # calculate one by one to optimize para
         for ibatch in range(self.nbatch):
@@ -670,10 +685,16 @@ class RunML:
                 self.dataset['natom'] = self.dataset['natomall']
                 natom = self.dataset['natom'][ibatch]
                 atomname = self.dataset['atomnameall'][ibatch]
+
+                # get integral at certain distance, read raw integral from binary hdf
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
+
+                # get initial compression radius
                 self.genml.genml_init_compr(ibatch, atomname)
                 self.para['compr_init_'].append(self.para['compr_init'])
+
+                # get reference data
                 self.get_iref(ibatch, self.dataset['natomall'][ibatch])
         self.para['compr_ml'] = \
             pad1d(self.para['compr_init_']).clone().requires_grad_(True)
@@ -714,6 +735,7 @@ class RunML:
 
         # get loss function
         # loss = self.get_loss(ibatch)
+        print(self.para['dipole'], pad1d(self.para['refdipole']))
         loss = self.criterion(self.para['dipole'], pad1d(self.para['refdipole']))
 
         # clear gradients and define back propagation
@@ -757,12 +779,11 @@ class RunML:
                 self.slako.genskf_interp_dist(ibatch_)
 
             # update (ML predict) compression radius during ML process
-            if self.ml['Lopt_ml_compr']:
-                self.update_compr_para()
-
+            # if self.ml['Lopt_ml_compr']:
+            #    self.update_compr_para()
             # do not update compression radius parameters
-            else:
-                self.genml.genml_init_compr(ibatch_, atomname)
+            # else:
+            self.genml.genml_init_compr(ibatch_, atomname)
 
             # get the reference data
             self.get_iref(ibatch_, nat)

@@ -597,17 +597,17 @@ class ReadSlaKo:
     def __init__(self, parameter, dataset, skf, ibatch):
         """Read integral with different ways."""
         self.para = parameter
-        self.geo = dataset
+        self.dataset = dataset
         self.skf = skf
         self.ibatch = ibatch
 
     def read_sk_specie(self):
         """Read the SKF table raw data according to atom specie."""
         # the atom specie in the system
-        atomspecie = self.geo['atomspecie'][self.ibatch]
+        atomspecie = self.dataset['atomspecie'][self.ibatch]
 
         # path of sk directory
-        diresk = self.para['direSK']
+        diresk = self.skf['direSK']
 
         # number of specie
         nspecie = len(atomspecie)
@@ -798,7 +798,7 @@ class ReadSlaKo:
 
     def get_cutoff_all(self):
         """Get the cutoff of atomi-atomj in .skf file."""
-        atomspecie = self.geo['atomspecie'][self.ibatch]
+        atomspecie = self.dataset['atomspecie'][self.ibatch]
         disttailsk = self.skf['dist_tailskf']
         for iat in range(0, len(atomspecie)):
             for jat in range(0, len(atomspecie)):
@@ -819,13 +819,15 @@ class SkInterpolator:
 
     """
 
-    def __init__(self, para, gridmesh):
+    def __init__(self, para, dataset, skf, gridmesh):
         """Generate integrals by interpolation method.
 
         For the moment, onsite will be included in machine learning, therefore
         onsite will be offered as input!!!
         """
         self.para = para
+        self.dataset = dataset
+        self.skf = skf
         self.gridmesh = gridmesh
 
     def readskffile(self, namei, namej, directory):
@@ -862,7 +864,7 @@ class SkInterpolator:
 
         # build matrices for third line in skf file
         mass_rcut = t.empty((nfile, 20), dtype=t.float64)
-        integrals, atomname_filename, self.para['rest'] = [], [], []
+        integrals, atomname_filename, self.skf['rest'] = [], [], []
 
         # number for skf files
         icount = 0
@@ -890,7 +892,7 @@ class SkInterpolator:
             integrals.append(data)
 
             # the rest part in skf file
-            self.para['rest'].append(fp.read())
+            self.skf['rest'].append(fp.read())
             icount += 1
 
         # read repulsive parameters
@@ -901,24 +903,24 @@ class SkInterpolator:
             assert 'Spline' in first_line
             nInt_cutoff = fp.readline().split()
             nint_ = int(nInt_cutoff[0])
-            self.para['nint_rep' + nameij] = nint_
-            self.para['cutoff_rep' + nameij] = float(nInt_cutoff[1])
+            self.skf['nint_rep' + nameij] = nint_
+            self.skf['cutoff_rep' + nameij] = float(nInt_cutoff[1])
             a123 = fp.readline().split()
-            self.para['a1_rep' + nameij] = float(a123[0])
-            self.para['a2_rep' + nameij] = float(a123[1])
-            self.para['a3_rep' + nameij] = float(a123[2])
+            self.skf['a1_rep' + nameij] = float(a123[0])
+            self.skf['a2_rep' + nameij] = float(a123[1])
+            self.skf['a3_rep' + nameij] = float(a123[2])
             datarep = np.fromfile(fp, dtype=float,
                                   count=(nint_-1)*6, sep=' ')
             datarep.shape = (nint_ - 1, 6)
-            self.para['rep' + nameij] = t.from_numpy(datarep)
+            self.skf['rep' + nameij] = t.from_numpy(datarep)
             datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
-            self.para['repend' + nameij] = t.from_numpy(datarepend)
+            self.skf['repend' + nameij] = t.from_numpy(datarepend)
 
         # 5 more lines to smooth the tail, 4 more lines for interpolation
-        self.para['skf_line_tail' + nameij] = int(max(ngridpoint) + 9)
+        self.skf['skf_line_tail' + nameij] = int(max(ngridpoint) + 9)
 
         # read onsite parameters
-        if self.para['Lonsite']:
+        if self.skf['Lonsite']:
             mass_rcut_ = t.zeros((ncompr, ncompr, 20), dtype=t.float64)
             onsite_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
             spe_ = t.zeros((ncompr, ncompr), dtype=t.float64)
@@ -929,7 +931,7 @@ class SkInterpolator:
 
         # build integrals with various compression radius
         superskf = t.zeros((ncompr, ncompr,
-                            self.para['skf_line_tail' + nameij], 20),
+                            self.skf['skf_line_tail' + nameij], 20),
                            dtype=t.float64)
 
         # transfer 1D [nfile, n] to 2D [ncompr, ncompr, n]
@@ -947,11 +949,11 @@ class SkInterpolator:
             ngridpoint_[rowi, colj] = ngridpoint[skfi]
 
             # smooth the tail
-            if self.para['smooth_tail']:
+            if self.skf['LSmoothTail']:
                 self.polytozero(grid_dist_, superskf, ngridpoint_, rowi, colj)
 
             # transfer from 1D [nfile, n] to 2D [ncompr, ncompr, n]
-            if self.para['Lonsite']:
+            if self.skf['Lonsite']:
                 mass_rcut_[rowi, colj, :] = mass_rcut[skfi, :]
                 onsite_[rowi, colj, :] = onsite[skfi, :]
                 spe_[rowi, colj] = spe[skfi]
@@ -959,24 +961,24 @@ class SkInterpolator:
                 occ_skf_[rowi, colj, :] = occ_skf[skfi, :]
 
                 # if orbital resolved
-                if not self.para['Lorbres']:
+                if not self.skf['Lorbres']:
                     uhubb_[rowi, colj, :] = uhubb[skfi, -1]
 
         # transfer onsite, Hubbert ... to dictionary
-        if self.para['Lonsite']:
-            self.para['massrcut_rall' + nameij] = mass_rcut_
-            self.para['onsite_rall' + nameij] = onsite_
-            self.para['spe_rall' + nameij] = spe_
-            self.para['uhubb_rall' + nameij] = uhubb_
-            self.para['occ_skf_rall' + nameij] = occ_skf_
+        if self.skf['Lonsite']:
+            self.skf['massrcut_rall' + nameij] = mass_rcut_
+            self.skf['onsite_rall' + nameij] = onsite_
+            self.skf['spe_rall' + nameij] = spe_
+            self.skf['uhubb_rall' + nameij] = uhubb_
+            self.skf['occ_skf_rall' + nameij] = occ_skf_
 
         # save integrals, gridmesh values to dictionary
-        self.para['nfile_rall' + nameij] = nfile
-        self.para['grid_dist_rall' + nameij] = grid_dist_
-        self.para['ngridpoint_rall' + nameij] = ngridpoint_
-        self.para['hs_all_rall' + nameij] = superskf
-        self.para['atomnameInSkf' + nameij] = atomname_filename
-        self.para['interpcutoff'] = int(ngridpoint_.max())
+        self.skf['nfile_rall' + nameij] = nfile
+        self.skf['grid_dist_rall' + nameij] = grid_dist_
+        self.skf['ngridpoint_rall' + nameij] = ngridpoint_
+        self.skf['hs_all_rall' + nameij] = superskf
+        self.skf['atomnameInSkf' + nameij] = atomname_filename
+        self.skf['interpcutoff'] = int(ngridpoint_.max())
 
     def getfilenamelist(self, namei, namej, directory):
         """Read all the skf files name.

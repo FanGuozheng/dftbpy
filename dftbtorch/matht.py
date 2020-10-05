@@ -473,10 +473,8 @@ class EigenSolver:
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
         eigval_eigvec = [t.symeig(
-            linv_a_linvt[ii][:self.atomindex[ii][-1],
-                             :self.atomindex[ii][-1]],
-            eigenvectors=True)
-            for ii in range(nbatch)]
+            linv_a_linvt[ii][:self.atomindex[ii][-1], :self.atomindex[ii][-1]],
+            eigenvectors=True) for ii in range(nbatch)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])
 
@@ -780,57 +778,142 @@ class Bspline():
 
 
 class polySpline():
-    """Revised from pycubicspline.
+    """Polynomial spline.
 
-    https://github.com/AtsushiSakai/pycubicspline
+    See: https://en.wikipedia.org/wiki/Spline_(mathematics)
+
+    Args:
+        xp (tensor): one dimension grid points
+        yp (tensor): one or two dimension grid points
+        dd (torch.float64): the point to return spline values
+        parameter (list, optional): a list of parameters get from grid points,
+            e.g., for cubic, parameter=[a, b, c, d]
+
+    Returns:
+        result (torch.float64): spline interpolation value at dd
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, x, y, d, parameter=None, kind='cubic'):
+        self.xp = x
+        self.yp = y
+        self.dd = d
+        self.parameter = parameter
 
-    def linear():
+        # test grid points shape of x, y are the same, or different
+        self.integral_together = False if self.xp.shape == self.yp.shape else True
+
+        if self.integral_together:
+
+            # do not support x.dim() > y.dim()
+            if self.xp.dim() == 1 and self.yp.dim() == 2:
+                raise ValueError("do not support dimensions of x > y" )
+
+        # boundary condition
+        if not self.xp[0] < self.dd < self.xp[-1]:
+            raise ValueError("%s is out of boundary" % self.dd)
+
+        # get the nearest grid point index
+        if t.is_tensor(self.xp):
+            self.ddind = bisect.bisect(self.xp.numpy(), self.dd) - 1
+        elif type(self.xp) is np.ndarray:
+            self.ddind = bisect.bisect(self.xp, self.dd) - 1
+
+        # according to the order to choose spline method
+        if kind =='linear':
+            self.linear()
+        elif kind == 'cubic':
+            self.cubic()
+        else:
+            raise NotImplementedError("%s is unsupported" % kind)
+
+    def linear(self):
         """Calculate linear interpolation."""
         pass
 
-    def cubic(self, xp, yp, dd):
-        """Calculate a para in spline interpolation."""
-        self.xp = xp
-        self.yp = yp
-        self.dd = dd
+    def cubic(self):
+        """Calculate cubic in spline interpolation."""
         self.nx = self.xp.shape[0]
-        self.linex = len(xp)
-        self.diffx = self.diff(self.xp)
-        if t.is_tensor(xp):
-            xnp = xp.numpy()
-            self.ddind = bisect.bisect(xnp, dd) - 1
-        elif type(xp) is np.ndarray:
-            self.ddind = bisect.bisect(xp, dd) - 1
-        if self.dd < self.xp[0] or self.dd > self.xp[-1]:
-            return None
-        b = Variable(t.empty(self.nx - 1))
-        d = Variable(t.empty(self.nx - 1))
+
+        if self.parameter is None:
+            a, b, c, d = self.get_abcd()
+        else:
+            a, b, c, d = self.parameter[:]
+
+        dx = self.dd - self.xp[self.ddind]
+        return a[self.ddind] + b[self.ddind] * dx + c[self.ddind] * dx ** 2.0 + d[self.ddind] * dx ** 3.0
+
+    def get_abcd(self):
+        """Get parameter a, b, c, d for cubic spline interpolation."""
+        # a is grid point values, step 1
+        a = self.yp
+
+        # get the differnce between grid points
+        self.diff_xp = self.xp[1:] - self.xp[:-1]
+
+        # get b, c, d from reference website: step 3~9
+        if not self.integral_together:
+            b = t.zeros(self.nx - 1)
+            d = t.zeros(self.nx - 1)
+            A = self.cala()
+        else:
+            b = t.zeros(self.nx - 1, self.yp.shape[1])
+            d = t.zeros(self.nx - 1, self.yp.shape[1])
+
         A = self.cala()
         B = self.calb()
+
+        # least squares and least norm problems
         c, _ = t.lstsq(B, A)
         for i in range(self.nx - 1):
-            tb = (self.yp[i + 1] - self.yp[i]) / self.diffx[i] - \
-                self.diffx[i] * (c[i + 1] + 2.0 * c[i]) / 3.0
-            b[i] = tb
-            d[i] = (c[i + 1] - c[i]) / (3.0 * self.diffx[i])
-        i = self.ddind
-        dx = self.dd - self.xp[i]
-        result = self.yp[i] + b[i] * dx + c[i] * dx ** 2.0 + d[i] * dx ** 3.0
-        return result
+            b[i] = (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i] - \
+                self.diff_xp[i] * (c[i + 1] + 2.0 * c[i]) / 3.0
+            d[i] = (c[i + 1] - c[i]) / (3.0 * self.diff_xp[i])
+        return a, b, c, d
+
+        '''A = self.get_A()
+        B = self.get_B()
+
+        # least squares and least norm problems
+        M, _ = t.lstsq(B, A)
+        for i in range(self.nx - 1):
+            a[i] = (M[i + 1]- M[i]) / self.xp[i] / 6
+            b[i] = (self.xp[i + 1] * M[i]- self.xp[i] * M[i + 1]) / self.diff_xp[i] / 2
+            c[i] = (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i] - self.diff_xp[i] / 6 * (M[i+1] - M[i])
+            d[i] = (self.xp[i + 1] * self.yp[i] - self.xp[i] * self.yp[i + 1]) / self.diff_xp[i] - \
+                self.diff_xp[i] / 6 * (self.xp[i + 1] * M[i] - self.xp[i] * M[i + 1])
+        return d, c, b, a'''
+
+    def get_B(self):
+        # natural boundary condition, the first and last are zero
+        B = t.zeros(self.nx, dtype=t.float64)
+        for i in range(self.nx - 2):
+            B[i + 1] = 6.0 * ((self.yp[i + 2] - self.yp[i + 1]) /
+                        self.diff_xp[i + 1] -
+                        (self.yp[i + 1] - self.yp[i]) /
+                        self.diff_xp[i]) / (self.diff_xp[i + 1] + self.diff_xp[i])
+        return B
+
+    def get_A(self):
+        """Calculate a para in spline interpolation."""
+        A = t.zeros((self.nx, self.nx), dtype=t.float64)
+        A[0, 0] = 1.0
+        for i in range(self.nx - 2):
+            A[i + 1, i + 1] = 2.0
+            A[i + 1, i] = self.diff_xp[i] / (self.diff_xp[i] + self.diff_xp[i + 1])
+            A[i + 1, i + 2] = 1 - A[i + 1, i]
+
+        A[self.nx - 1, self.nx - 1] = 1.0
+        return A
 
     def cala(self):
         """Calculate a para in spline interpolation."""
-        aarr = Variable(t.zeros(self.nx, self.nx))
+        aarr = t.zeros(self.nx, self.nx)
         aarr[0, 0] = 1.0
         for i in range(self.nx - 1):
             if i != (self.nx - 2):
-                aarr[i + 1, i + 1] = 2.0 * (self.diffx[i] + self.diffx[i + 1])
-            aarr[i + 1, i] = self.diffx[i]
-            aarr[i, i + 1] = self.diffx[i]
+                aarr[i + 1, i + 1] = 2.0 * (self.diff_xp[i] + self.diff_xp[i + 1])
+            aarr[i + 1, i] = self.diff_xp[i]
+            aarr[i, i + 1] = self.diff_xp[i]
 
         aarr[0, 1] = 0.0
         aarr[self.nx - 1, self.nx - 2] = 0.0
@@ -839,42 +922,15 @@ class polySpline():
 
     def calb(self):
         """Calculate b para in spline interpolation."""
-        barr = Variable(t.zeros(self.nx))
+        barr = t.zeros(self.nx)
         for i in range(self.nx - 2):
-            barr[i + 1] = 3.0 * (self.y[i + 2] - self.y[i + 1]) / \
-                self.diffx[i + 1] - 3.0 * (self.y[i + 1] - self.y[i]) / \
-                self.diffx[i]
+            barr[i + 1] = 3.0 * (self.yp[i + 2] - self.yp[i + 1]) / \
+                self.diff_xp[i + 1] - 3.0 * (self.yp[i + 1] - self.yp[i]) / \
+                self.diff_xp[i]
         return barr
 
-    def test_spline(self):
-        """Test spline interpolation."""
-        print("Spline test")
-        xarr = np.array([-0.5, 0.0, 0.5, 1.0, 1.5])
-        yarr = np.array([3.2, 2.7, 6, 5, 6.5])
-        # spline = Spline(x, y)
-        rx = np.arange(-1, 2, 0.01)
-        ry = [polySpline().cubic(xarr, yarr, i) for i in rx]
-        # ry = [spline.calc(i) for i in rx]
-        plt.plot(xarr, yarr, "xb")
-        plt.plot(rx, ry, "-r")
-        plt.grid(True)
-        plt.axis("equal")
-        plt.show()
-
     def diff(self, mat, axis=-1):
-        if t.is_tensor(mat):
-            pass
-        elif type(mat) is np.ndarray:
-            mat = t.from_numpy(mat)
-        else:
-            raise ValueError('input matrix is not tensor or numpy')
-        if len(mat.shape) == 1:
-            nmat = len(mat)
-            nmat_out = nmat - 1
-            mat_out = t.zeros(nmat_out)
-            for imat in range(0, nmat_out):
-                mat_out[imat] = mat[imat+1] - mat[imat]
-        elif len(mat.shape) == 2:
+        if len(mat.shape) == 2:
             if axis < 0:
                 row = mat.shape[0]
                 col = mat.shape[1]-1
@@ -888,6 +944,21 @@ class polySpline():
                 for imat in range(0, row):
                     mat_out[imat, :] = mat[imat+1, :] - mat[imat, :]
         return mat_out
+
+
+"""Test spline interpolation.
+print("Spline test")
+xarr = t.tensor([-0.5, 0.0, 0.5, 1.0, 1.5])
+yarr = t.tensor([3.2, 2.7, 6, 5, 6.5])
+# spline = Spline(x, y)
+rx = t.linspace(-0.2, 1.3, 100)
+ry = [polySpline(xarr, yarr, i).cubic() for i in rx]
+# ry = [spline.calc(i) for i in rx]
+plt.plot(xarr, yarr, "xb")
+plt.plot(rx, ry, "-r")
+plt.grid(True)
+plt.axis("equal")
+plt.show()"""
 
 
 class BicubInterp:

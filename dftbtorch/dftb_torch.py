@@ -174,7 +174,7 @@ class Initialization:
                                 self.parameter['atomspecie'],
                                 self.parameter['dire_interpSK'])
 
-        # machine learning is on
+        # perform machine learning
         # read a list of skf files with various compression radius
         if self.ml['Lml'] and self.dataset['LSKFinterpolation']:
 
