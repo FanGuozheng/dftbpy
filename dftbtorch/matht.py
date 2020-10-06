@@ -376,7 +376,7 @@ class EigenSolver:
         """
         self.eigenmethod = eigenmethod
 
-    def eigen(self, A, B=None, Lbatch=False, atomindex=None, **kwargs):
+    def eigen(self, A, B=None, Lbatch=False, atomindex=None, ibatch=None, **kwargs):
         """Choose different mothod for (general) eigenvalue problem.
 
         Parameters
@@ -402,7 +402,7 @@ class EigenSolver:
 
             # select decomposition method cholesky
             if self.eigenmethod == 'cholesky':
-                eigval, eigvec = self.cholesky(A, B, Lbatch)
+                eigval, eigvec = self.cholesky(A, B, Lbatch, ibatch)
 
             # select decomposition method lowdin
             elif self.eigenmethod == 'lowdin':
@@ -411,7 +411,7 @@ class EigenSolver:
         # return eigenvalue and eigenvector
         return eigval, eigvec
 
-    def cholesky(self, A, B, Lbatch, direct_inv=False):
+    def cholesky(self, A, B, Lbatch, ibatch, direct_inv=False):
         """Cholesky decomposition.
 
         Parameters
@@ -436,10 +436,9 @@ class EigenSolver:
         chol_l = t.empty(nbatch, maxind, maxind)
 
         # get the decomposition L, B = LL^{T} and padding zero
-        chol_l = utilsbatch.pack(
-            [t.cholesky(B[ii][:self.atomindex[ii][-1],  # get nonzero part
-                              :self.atomindex[ii][-1]])
-             for ii in range(nbatch)])
+        chol_l = utilsbatch.pack([t.cholesky(
+            iB[:self.atomindex[ii][-1], :self.atomindex[ii][-1]])
+            for iB, ii in zip(B, ibatch)])
 
         # directly use inverse matrix
         if direct_inv:
@@ -457,11 +456,9 @@ class EigenSolver:
 
             # get L^{-1}, the 1st method only work if all sizes are the same
             # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
-            linv = utilsbatch.pack([
-                t.solve(t.eye(self.atomindex[ii][-1]),
-                        chol_l[ii][:self.atomindex[ii][-1],
-                                   :self.atomindex[ii][-1]])[0]
-                for ii in range(nbatch)])
+            linv = utilsbatch.pack([t.solve(t.eye(
+                self.atomindex[ii][-1]), il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]])[0]
+                for il, ii in zip(chol_l, ibatch)])
 
             # get L^{-T}
             linvt = t.stack([il.T for il in linv])
@@ -472,9 +469,9 @@ class EigenSolver:
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
-        eigval_eigvec = [t.symeig(
-            linv_a_linvt[ii][:self.atomindex[ii][-1], :self.atomindex[ii][-1]],
-            eigenvectors=True) for ii in range(nbatch)]
+        eigval_eigvec = [
+            t.symeig(il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]],eigenvectors=True)
+            for il, ii in zip(linv_a_linvt, ibatch)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])
 
@@ -1275,6 +1272,7 @@ class BicubInterpVec:
                         t.stack([f30, f31, f32, f33])])
         a_mat = t.einsum('ii,ijlmn,jj->ijlmn', coeff, fmat, coeff_)
         return t.einsum('ij,iijkn,ik->jkn', xmat, a_mat, xmat)
+        # return t.stack([t.matmul(t.matmul(xmat[i], a_mat[i]), xmat[i]) for i in range(len(xi))])
 
     def fmat0th(self, zmesh):
         """Construct f(0/1, 0/1) in fmat."""

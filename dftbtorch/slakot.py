@@ -377,45 +377,45 @@ class SKTran:
         """
         # read sp0 from <namei-namej>.skf
         if li < lj:
-            H = t.tensor([[
+            H = t.stack([t.stack([
                 # SS, SP_y, SP_z, SP_x
                 hs[i, j, 9],
                 y * hs[i, j, 8],
                 z * hs[i, j, 8],
-                x * hs[i, j, 8]],
+                x * hs[i, j, 8]]),
                 # P_yS
-                [y * hs[i, j, 8], 0.0, 0.0, 0.0],
+                t.cat((y * hs[i, j, 8].unsqueeze(0), t.zeros(3))),
                 # P_zS
-                [z * hs[i, j, 8], 0.0, 0.0, 0.0],
+                t.cat((z * hs[i, j, 8].unsqueeze(0), t.zeros(3))),
                 # P_xS
-                [x * hs[i, j, 8], 0.0, 0.0, 0.0]])
-            S = t.tensor([[
+                t.cat((x * hs[i, j, 8].unsqueeze(0), t.zeros(3)))])
+            S = t.stack([t.stack([
                 hs[i, j, 19],
                 y * hs[i, j, 18],
                 z * hs[i, j, 18],
-                x * hs[i, j, 18]],
-                [y * hs[i, j, 18], 0.0, 0.0, 0.0],
-                [z * hs[i, j, 18], 0.0, 0.0, 0.0],
-                [x * hs[i, j, 18], 0.0, 0.0, 0.0]])
+                x * hs[i, j, 18]]),
+                t.cat((y * hs[i, j, 18].unsqueeze(0), t.zeros(3))),
+                t.cat((z * hs[i, j, 18].unsqueeze(0), t.zeros(3))),
+                t.cat((x * hs[i, j, 18].unsqueeze(0), t.zeros(3)))])
 
         # read sp0 from <namej-namei>.skf
         if li > lj:
-            H = t.tensor([[
+            H = t.stack([t.stack([
                 hs[j, i, 9],
                 -y * hs[j, i, 8],
                 -z * hs[j, i, 8],
-                -x * hs[j, i, 8]],
-                [-y * hs[j, i, 8], 0.0, 0.0, 0.0],
-                [-z * hs[j, i, 8], 0.0, 0.0, 0.0],
-                [-x * hs[j, i, 8], 0.0, 0.0, 0.0]])
-            S = t.tensor([[
+                -x * hs[j, i, 8]]),
+                t.cat((-y * hs[j, i, 8].unsqueeze(0), t.zeros(3))),
+                t.cat((-z * hs[j, i, 8].unsqueeze(0), t.zeros(3))),
+                t.cat((-x * hs[j, i, 8].unsqueeze(0), t.zeros(3)))])
+            S = t.stack([t.stack([
                 hs[j, i, 19],
                 -y * hs[j, i, 18],
                 -z * hs[j, i, 18],
-                -x * hs[j, i, 18]],
-                [-y * hs[j, i, 18], 0.0, 0.0, 0.0],
-                [-z * hs[j, i, 18], 0.0, 0.0, 0.0],
-                [-x * hs[j, i, 18], 0.0, 0.0, 0.0]])
+                -x * hs[j, i, 18]]),
+                t.cat((-y * hs[j, i, 18].unsqueeze(0), t.zeros(3))),
+                t.cat((-z * hs[j, i, 18].unsqueeze(0), t.zeros(3))),
+                t.cat((-x * hs[j, i, 18].unsqueeze(0), t.zeros(3)))])
         return H, S
 
     def skpp_vec(self, hs, x, y, z, i, j, li, lj):
@@ -813,26 +813,26 @@ class SKinterp:
         if self.ml['interp_compr_type'] == 'BiCubVec':
             bicubic = BicubInterpVec(self.para, self.ml)
             zmesh = self.skf['hs_compr_all']
-            if self.para['Lbatch']:
+            if self.para['compr_ml'].dim() == 2:
                 compr = self.para['compr_ml'][ibatch][:natom]
             else:
                 compr = self.para['compr_ml']
             mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
-        elif self.para['interp_compr_type'] == 'BiCub':
+        elif self.ml['interp_compr_type'] == 'BiCub':
             icount = 0
             bicubic = BicubInterp()
             hs_ij = t.zeros(natom, natom, 20)
             for iatom in range(natom):
                 iname = atomname[iatom]
-                icompr = self.para['compr_ml'][iatom]
-                xmesh = self.para[iname + '_compr_grid']
+                icompr = self.para['compr_ml'][ibatch][iatom]
+                xmesh = self.ml[iname + '_compr_grid']
                 for jatom in range(natom):
                     jname = atomname[jatom]
-                    ymesh = self.para[jname + '_compr_grid']
-                    jcompr = self.para['compr_ml'][jatom]
-                    zmeshall = self.para['hs_compr_all'][iatom, jatom]
+                    ymesh = self.ml[jname + '_compr_grid']
+                    jcompr = self.para['compr_ml'][ibatch][jatom]
+                    zmeshall = self.skf['hs_compr_all'][iatom, jatom]
                     if iatom != jatom:
                         for icol in range(0, 20):
                             hs_ij[iatom, jatom, icol] = \

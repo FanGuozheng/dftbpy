@@ -29,12 +29,12 @@ class SaveData:
         else:
             newdire = dire
         with open(os.path.join(newdire, name), ty) as fopen:
-            if blank == 'upper':
-                fopen.write('\n')
+            # if blank == 'upper':
+            #    fopen.write('\n')
             np.savetxt(fopen, data, newline=" ")
             fopen.write('\n')
-            if blank == 'lower':
-                fopen.write('\n')
+            # if blank == 'lower':
+            #    fopen.write('\n')
 
     def save2D(self, data, name, blank='lower', dire=None, ty='w'):
         """Save 2D numpy array or tensor."""

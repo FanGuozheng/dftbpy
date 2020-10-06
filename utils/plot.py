@@ -6,26 +6,26 @@ import dftbtorch.init_parameter as initpara
 from IO.load import LoadData
 
 
-def plot_ml_compr(para):
+def plot_ml_compr(para, ml):
     """Plot for DFTB-ML optimization."""
     read_nstep(para)  # read how many steps have been saved each molecule
     # plot_humolumo(para)
 
     # plot dipole
     if para['Ldipole']:
-        plot_dip(para)
+        plot_dip(para, ml)
 
     # plot polarizability
     if para['LMBD_DFTB']:
-        plot_pol(para)
+        plot_pol(para, ml)
 
     # plot_energy(para)
     # plot_charge(para)
-    plot_loss(para)
+    plot_loss(para, ml)
 
     # plot integral
-    if para['Lml_HS']:
-        plot_spl(para)
+    if ml['mlType'] == 'integral':
+        plot_spl(para, ml)
 
     # plot compression radius
     '''if para['Lml_skf']:
@@ -37,14 +37,14 @@ def plot_ml_compr(para):
 
 
 
-def plot_ml_feature(para):
+def plot_ml_feature(para, ml):
     """Plot for DFTB-ML optimization."""
-    plot_humolumo_f(para)
-    plot_dip_f(para)
-    plot_pol_f(para)
-    plot_energy_f(para)
-    plot_loss_f(para)
-    plot_compr_f(para)
+    plot_humolumo_f(para, ml)
+    plot_dip_f(para, ml)
+    plot_pol_f(para, ml)
+    plot_energy_f(para, ml)
+    plot_loss_f(para, ml)
+    plot_compr_f(para, ml)
 
 
 def read_nstep(para):
@@ -239,16 +239,16 @@ def plot_homolumo_pred_weight(para, dire, ref=None, dftbplus=None):
     plt.show()
 
 
-def plot_dip(para):
+def plot_dip(para, ml):
     """Plot dipole [nfile, nsteps, 3] in .data."""
     dire = para['dire_data']
-    if para['ref'] == 'aims':
+    if ml['ref'] == 'aims':
         dipref = dire + '/dipaims.dat'
-    elif para['ref'] == 'dftbplus':
+    elif ml['ref'] == 'dftbplus':
         dipref = dire + '/dipdftbplus.dat'
-    elif para['ref'] == 'dftb':
+    elif ml['ref'] == 'dftb':
         dipref = dire + '/dipdftb.dat'
-    elif para['ref'] == 'hdf':
+    elif ml['ref'] == 'hdf':
         dipref = dire + '/diphdf.dat'
     nfile = para['nfile']
     fpopt, fpref = open(dire + '/dipbp.dat', 'r'), open(dipref, 'r')
@@ -488,7 +488,15 @@ def plot_energy_f(para):
     plt.show()
 
 
-def plot_loss(para):
+def plot_loss2(para, ml):
+    fploss = open('.data/loss.dat', 'r')
+    yp = np.fromfile(fploss, dtype=float, count=ml['mlsteps'], sep=' ')
+    xp = np.linspace(1, len(yp), len(yp))
+    plt.plot(xp, yp)
+    plt.show()
+
+
+def plot_loss(para, ml):
     """Plot energy [nfile, nsteps] in .data."""
     dire = para['dire_data']
     nfile = para['nfile']

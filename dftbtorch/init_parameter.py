@@ -148,7 +148,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'n_dataset' not in dataset.keys():
-        dataset['n_dataset'] = ['1000']
+        dataset['n_dataset'] = ['2']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'n_test' not in dataset.keys():
@@ -311,8 +311,8 @@ def init_ml(para=None, ml=None, dataset=None):
         # path of atom specie parameters
         ml['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
 
-    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos !!
-    ml['target'] = ['dipole']
+    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos, charge
+    ml['target'] = ['charge']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway
@@ -335,7 +335,7 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    ml['mlsteps'] = 2
+    ml['mlsteps'] = 100
 
     # how many steps to save the DFTB-ML data !!
     ml['save_steps'] = 2
@@ -344,7 +344,7 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['opt_step_min'] = 2
 
     # learning rate !!
-    ml['lr'] = 5E-3
+    ml['lr'] = 1E-2
 
     # optimizer
     ml['optimizer'] = 'Adam'
@@ -364,7 +364,7 @@ def init_ml(para=None, ml=None, dataset=None):
     if ml['mlType'] in ('compressionRadius', 'ACSF'):
 
         # interpolation of compression radius: BiCub, BiCubVec
-        ml['interp_compr_type'] = 'BiCubVec'
+        ml['interp_compr_type'] = 'BiCub'
 
         # grid of compression radius is uniform or not !!
         ml['typeSKinterp'] = 'uniform'
@@ -420,7 +420,7 @@ def init_ml(para=None, ml=None, dataset=None):
         assert len(ml['O_compr_grid']) == ml['ncompr']
 
         # set initial compression radius
-        ml['H_init_compr'] = 3.6
+        ml['H_init_compr'] = 3.5
         ml['C_init_compr'] = 3.5
         ml['N_init_compr'] = 3.5
         ml['O_init_compr'] = 3.5

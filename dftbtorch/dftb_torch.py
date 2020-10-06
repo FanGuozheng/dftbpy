@@ -438,10 +438,10 @@ class SCF:
             # replace H0, S name for convenience
             self.ham, self.over = self.hmat, self.smat
 
-    def scf_npe_nscc(self, ibatch):
+    def scf_npe_nscc(self, ibatch=0):
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
-        qatom = self.analysis.get_qatom(self.atomname, self.nb)
+        qatom = self.analysis.get_qatom(self.atomname, ibatch)
         # qatom = t.stack(
         #    [self.analysis.get_qatom() for i in range(self.nb)])
 
@@ -452,7 +452,7 @@ class SCF:
         self.para['qzero'] = qatom
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
-        epsilon, C = self.eigen.eigen(self.ham, self.over, self.batch, self.atind)
+        epsilon, C = self.eigen.eigen(self.ham, self.over, self.batch, self.atind, ibatch)
 
         # batch calculation of the occupation of electrons
         occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
@@ -488,7 +488,7 @@ class SCF:
                 icount += 1
         return out_mat
 
-    def scf_npe_scc(self, ibatch):
+    def scf_npe_scc(self, ibatch=[0]):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
@@ -504,17 +504,16 @@ class SCF:
         if self.para['density_profile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
                 self.dataset['distance'][i], self.nat[i],
-                self.dataset['atomnameall'][i])
-                for i in ibatch]
+                self.dataset['atomnameall'][i]) for i in ibatch]
 
             # pad a list of 2D gmat with different size
             gmat = pad2d(gmat_)
 
         elif self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
-                                              self.para['coor'][:, 1:])
+                                              self.para['coordinate'])
 
-        qatom = self.analysis.get_qatom(self.atomname, self.nb)
+        qatom = self.analysis.get_qatom(self.atomname, ibatch)
         # qatom = t.stack(
         #    [self.analysis.get_qatom() for i in range(self.nb)])
 
@@ -524,6 +523,7 @@ class SCF:
 
         denmat = []
         q_mixed = qzero.clone()
+        self.para['reach_convergence'] = False
         for iiter in range(maxiter):
 
             # The "shift_" term is the a product of the gamma and dQ values
@@ -532,12 +532,18 @@ class SCF:
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
-            n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
+            '''n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
                                 for i in range(self.nb)])
             shiftorb_ = pad1d([shift_[i].repeat_interleave(n_orbitals[i])
                                for i in range(self.nb)])
             shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
-                                 for i in range(self.nb)])
+                                 for i in range(self.nb)])'''
+            n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
+                                for i in ibatch])
+            shiftorb_ = pad1d([ishif.repeat_interleave(iorb)
+                               for iorb, ishif in zip(n_orbitals, shift_)])
+            shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
+                                 for ishift in shiftorb_])
 
             # To get the Fock matrix "F"; Construct the gamma matrix "G" then
             # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
@@ -547,7 +553,7 @@ class SCF:
             F = self.ham + 0.5 * self.over * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.over, self.batch, self.atind)
+            epsilon, C = self.eigen.eigen(F, self.over, self.batch, self.atind, ibatch)
 
             # Calculate the occupation of electrons via the fermi method
             occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
@@ -563,22 +569,29 @@ class SCF:
             # at least.
             denmat.append(rho)
             # calculate mulliken charges
-            q_new = pad1d([self.elect.mulliken(
+            '''q_new = pad1d([self.elect.mulliken(
                 self.over[i], rho[i], self.atind[i], self.nat[i])
-                for i in range(self.nb)])
+                for i in range(self.nb)])'''
+            q_new = pad1d([self.elect.mulliken(i, j, m, n)
+                for i, j, m, n in zip(self.over, rho, self.atind, self.nat)])
 
             # Last mixed charge is the current step now
             if not self.batch:
-                q_mixed = self.mixer(q_new.squeeze(), q_mixed.squeeze()).unsqueeze(0)
+                natom = self.dataset['natomall'][ibatch[0]]
+                q_new_ = q_new[0][: natom]
+                q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
             else:
                 q_mixed = self.mixer(q_new, q_mixed)
 
             if self.para['convergenceType'] == 'energy':
 
                 # get energy: E0 + E_coul
-                conv_.append(t.stack([epsilon[i] @ occ[i] +
+                '''conv_.append(t.stack([epsilon[i] @ occ[i] +
                              0.5 * shift_[i] @ (q_mixed[i] + qzero[i])
-                             for i in range(self.nb)]))
+                             for i in range(self.nb)]))'''
+                conv_.append(t.stack([iep @ iocc + 0.5 * ish @ (iqm + iqz)
+                             for iep, iocc, ish, iqm, iqz in
+                             zip(epsilon, occ, shift_, q_mixed, qzero)]))
 
                 # print energy information
                 dif = self.print_.print_energy(iiter, conv_,
@@ -593,6 +606,7 @@ class SCF:
             # if reached convergence
             if self.convergence(iiter, maxiter, dif, self.batch,
                                 self.para['convergenceTolerance']):
+                self.para['reach_convergence'] = True
                 break
 
         # return eigenvalue and charge
@@ -701,31 +715,30 @@ class SCF:
         if self.para['convergenceType'] == 'energy':
 
             if abs(dif) < tol:
-                reach_convergence = True
+                return True
 
             # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
                 if abs(dif) > tol:
                     print('Warning: SCF donot reach required convergence')
-                    reach_convergence = True
+                    return False
 
             # do not reach convergence and iiter < maxiter
             else:
-                reach_convergence = False
+                return False
 
         # use charge as convergence condition
         elif self.para['convergenceType'] == 'charge':
             if abs(dif) < self.para['convergence_tol']:
-                reach_convergence = True
+                return True
 
             # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
                 if abs(dif) > self.para['convergence_tol']:
                     print('Warning: SCF donot reach required convergence')
-                    reach_convergence = True
+                    return True
             else:
-                reach_convergence = False
-        return reach_convergence
+                return False
 
 
 class Repulsive():
@@ -1025,13 +1038,17 @@ class Analysis:
         qzero, qatom = self.para['qzero'], self.para['charge']
 
         # get HOMO-LUMO, not orbital resolved
-        self.para['homo_lumo'] = t.stack([
+        '''self.para['homo_lumo'] = t.stack([
             eigval[i][int(nocc[i]) - 1:int(nocc[i]) + 1] * self.para['AUEV']
-            for i in range(self.para['nbatch'])])
+            for i in range(self.para['nbatch'])])'''
+        self.para['homo_lumo'] = t.stack([
+            ieig[int(iocc) - 1:int(iocc) + 1] * self.para['AUEV']
+            for ieig, iocc in zip(eigval, nocc)])
 
         # calculate dipole
-        self.para['dipole'] = t.stack([self.get_dipole(qzero[i], qatom[i], self.dataset['coordinate'][i], self.nat[i])
-                                       for i in ibatch])
+        self.para['dipole'] = t.stack(
+            [self.get_dipole(iqz, iqa, self.dataset['coordinate'][i], self.nat[i])
+             for iqz, iqa, i in zip(qzero, qatom, ibatch)])
 
         # calculate MBD-DFTB
         if self.para['LMBD_DFTB']:
@@ -1041,11 +1058,11 @@ class Analysis:
         if self.para['Lpdos']:
             self.pdos()
 
-    def get_qatom(self, atomname, nbatch):
+    def get_qatom(self, atomname, batch):
         """Get the basic electronic information of each atom."""
         # get each intial atom charge
         qat = [[self.para['val_' + atomname[ib][iat]]
-                for iat in range(self.nat[ib])] for ib in range(nbatch)]
+                for iat in range(self.nat[ib])] for ib in batch]
 
         # return charge information
         return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])
