@@ -645,64 +645,44 @@ class RunML:
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
         dftb_torch.Initialization(self.para, self.dataset, self.skf)
-        maxorb = max(self.dataset['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
         self.para['compr_init_'] = []
 
-        # optimize selected para to get opt target
-        # if self.ml['interptype'] == 'Bspline':
-        #    self.ml['cspline'] = Variable(self.ml['cspl_rand'], requires_grad=True)
-        #    optimizer = t.optim.SGD([self.ml['cspline']], lr=5e-7)
-        # elif self.ml['interptype'] == 'Polyspline':
-        #    self.ml['splyall_rand'] = Variable(self.ml['splyall_rand'],
-        #                                    requires_grad=True)
-
         # get spline integral
-        self.slako.skf_integral_spline_parameter()  # 0.2 s, too long!!!
-        self.slako.genskf_interp_dist_hdf()
-        optimizer = t.optim.SGD([self.ml['splyall_rand']], lr=5e-7)
-        save = SaveData(self.para)
-        coordinate = self.dataset['coordinate']
+        ml_variable = self.slako.skf_integral_spline_parameter()  # 0.2 s, too long!!!
+        ml_variable = [i.clone().requires_grad_(True) for i in ml_variable]
+        # get optimizer
+        if self.ml['optimizer'] == 'SCG':
+            optimizer = t.optim.SGD(ml_variable, lr=self.ml['lr'])
+        elif self.ml['optimizer'] == 'Adam':
+            optimizer = t.optim.Adam(ml_variable, lr=self.ml['lr'])
 
         # calculate one by one to optimize para
-        for ibatch in range(self.nbatch):
-            eigref = para['refhomo_lumo'][ibatch]
-            if 'dipole' in range(0, self.nbatch):
-                dipref = t.zeros((3), dtype=t.float64)
-                dipref[:] = para['refdipole'][ibatch][:]
+        for istep in range(self.ml['mlsteps']):
+            loss = 0.
+            for ibatch in range(self.nbatch):
 
-            # for each molecule we will run mlsteps
-            if type(coordinate[ibatch]) is t.tensor:
-                para['coor'] = coordinate[ibatch]
-            elif type(coordinate[ibatch]) is np.array:
-                para['coor'] = t.from_numpy(coordinate[ibatch])
-            for it in range(0, para['mlsteps']):
+                # do not perform batch calculation
+                self.para['Lbatch'] = False
 
-                # dftb calculations (choose scc or nonscc)
-                self.runcal.idftb_torchspline()
-                eigval = para['eigenvalue']
+                # get integral at certain distance, read raw integral from binary hdf
+                # SK transformations
+                slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+
+                # run each DFTB calculation separatedly
+                dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
                 # define loss function
-                criterion = t.nn.L1Loss(reduction='sum')
-                loss = criterion(eigval, eigref)
+                # get loss function
+                if 'dipole' in self.ml['target']:
+                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refdipole'][ibatch])
 
                 # clear gradients and define back propagation
                 optimizer.zero_grad()
                 loss.backward(retain_graph=True)
                 optimizer.step()
-
-                if it % para['save_steps'] == 0:
-                    print('ibatch: {} steps: {} loss:  {}'.format(
-                              ibatch, it, loss.item()))
-                    print('eigval: {}, eigref: {}'.format(eigval, eigref))
-                    save.save1D(eigval.detach().numpy(), name='eigbp.dat',
-                                ty='a')
-                    save.save2D(para['splyall_rand'].detach().numpy(),
-                                name='splbp.dat', ty='a')
-                    save.save1D(para['hammat'].detach().numpy(),
-                                name='hambp.dat', ty='a')
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""

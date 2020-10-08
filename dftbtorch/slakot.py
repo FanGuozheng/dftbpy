@@ -72,8 +72,38 @@ class SKTran:
                     self.sk_tran_half(self.ibatch)
 
             # directly get integrals with spline, or some other method
-            elif self.para['Lml_HS']:
+            elif self.ml['mlType'] == 'integral':
+                self.get_hs_spline(self.ibatch)
                 self.sk_tran_symall(self.ibatch)
+
+    def get_hs_spline(self, ibatch):
+        """Get integrals from .skf data with given distance."""
+        # number of atom in each calculation
+        natom = self.dataset['natomall'][self.ibatch]
+
+        # build H0 or S
+        self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
+
+        for iat in range(natom):
+
+            for jat in range(natom):
+                if iat != jat:
+
+                    # get the name of i, j atom pair
+                    namei = self.dataset['atomnameall'][ibatch][iat]
+                    namej = self.dataset['atomnameall'][ibatch][jat]
+                    nameij = namei + namej
+
+                    # get spline parameters
+                    xx = self.skf['polySplinex' + nameij]
+                    abcd = [self.skf['polySplinea' + nameij],
+                            self.skf['polySplineb' + nameij],
+                            self.skf['polySplinec' + nameij],
+                            self.skf['polySplined' + nameij]]
+
+                    # the distance is from cal_coor
+                    dd = self.dataset['distance'][ibatch][iat, jat]
+                    self.skf['hs_all'][iat, jat] = polySpline(x=xx, d=dd, abcd=abcd).ynew
 
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
@@ -563,6 +593,9 @@ class SKinterp:
         """Get integral from hdf binary according to atom species."""
         time0 = time.time()
 
+        # ML variables
+        ml_variable = []
+
         # get the skf with hdf type
         hdfsk = os.path.join(self.ml['dire_hdfSK'], self.ml['name_hdfSK'])
         self.skf['hs_compr_all'] = []
@@ -574,11 +607,20 @@ class SKinterp:
                     ngrid = f[nameij + '/ngridpoint'][()]
                     yy = t.from_numpy(f[nameij + '/hs_all'][()])
                     xx = t.arange(0., ngrid * grid_distance, grid_distance, dtype=yy.dtype)
-                    self.skf['integralspline' + nameij] = \
-                        polySpline(xx, yy).get_abcd()
+                    self.skf['polySplinex' + nameij] = xx
+                    self.skf['polySplinea' + nameij], \
+                    self.skf['polySplineb' + nameij], \
+                    self.skf['polySplinec' + nameij], \
+                    self.skf['polySplined' + nameij] = \
+                        polySpline(xx, yy).get_abcd()[:]
+                    ml_variable.extend(self.skf['polySplinea' + nameij])
+                    ml_variable.extend(self.skf['polySplineb' + nameij])
+                    ml_variable.extend(self.skf['polySplinec' + nameij])
+                    ml_variable.extend(self.skf['polySplined' + nameij])
 
         timeend = time.time()
         print('time of get spline parameter: ', timeend - time0)
+        return ml_variable
 
     def genskf_interp_dist_hdf(self, ibatch, natom):
         """Generate integral along distance dimension."""

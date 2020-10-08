@@ -790,21 +790,11 @@ class polySpline:
         result (torch.float64): spline interpolation value at dd
     """
 
-    def __init__(self, x, y, d=None, abcd=None, kind='cubic'):
-        assert x.dtype == y.dtype
+    def __init__(self, x=None, y=None, d=None, abcd=None, kind='cubic'):
         self.xp = x
         self.yp = y
         self.dd = d
         self.abcd = abcd
-
-        # test grid points shape of x, y are the same, or different
-        self.integral_together = False if self.xp.shape == self.yp.shape else True
-
-        if self.integral_together:
-
-            # do not support x.dim() > y.dim()
-            if self.xp.dim() == 2 and self.yp.dim() == 1:
-                raise ValueError("do not support dimensions of x > y" )
 
         # boundary condition
         if self.dd is not None:
@@ -819,9 +809,9 @@ class polySpline:
 
             # according to the order to choose spline method
             if kind =='linear':
-                self.linear()
+                self.ynew = self.linear()
             elif kind == 'cubic':
-                self.cubic()
+                self.ynew = self.cubic()
             else:
                 raise NotImplementedError("%s is unsupported" % kind)
 
@@ -850,7 +840,7 @@ class polySpline:
         self.diff_xp = self.xp[1:] - self.xp[:-1]
 
         # get b, c, d from reference website: step 3~9
-        if not self.integral_together:
+        if self.yp.dim() == 1:
             b = t.zeros(self.nx - 1)
             d = t.zeros(self.nx - 1)
             A = self.cala()
