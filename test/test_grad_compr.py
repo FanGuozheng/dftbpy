@@ -23,7 +23,7 @@ from IO.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 import dftbmalt.utils.maths as maths
-from ml.padding import pad2d
+from ml.padding import pad1d, pad2d
 ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
@@ -34,7 +34,8 @@ AIMS_ENERGY = {"H": -0.45891649, "C": -37.77330663, "N": -54.46973501,
                "O": -75.03140052}
 DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
                "O": -3.0861916005}
-HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207}
+HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207, "N": 29.90025370,
+             "O": 23.60491416}
 
 
 def opt(para):
@@ -232,8 +233,15 @@ class RunML:
         self.dataset['coordinateAll'] = []
         self.dataset['natomall'] = []
         self.dataset['atomnameall'] = []
+        # element number of each atom
         self.dataset['atomNumber'] = []
         self.dataset['refcharge'] = []
+        self.dataset['refFormEnergy'] = []
+        self.dataset['refTotEenergy'] = []
+        self.dataset['refhirshfeldvolume'] = []
+        self.dataset['refalpha_mbd'] = []
+        # the number of atom specie in each system
+        self.dataset['numberatom'] = []
 
         # read global parameters
         with h5py.File(hdffile, 'r') as f:
@@ -271,12 +279,17 @@ class RunML:
                         namecoor = str(ibatch) + 'coordinate'
                         self.dataset['coordinateAll'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
-                        self.dataset['atomNumber'].append(f[igroup].attrs['atomNumber'])
+                        self.dataset['atomNumber'].append(
+                            f[igroup].attrs['atomNumber'])
+                        self.dataset['numberatom'].append(t.tensor(
+                            [np.count_nonzero(f[igroup].attrs['atomNumber'] == i)
+                             for i in [1, 6, 7, 8]], dtype=t.float64))
 
-                        # eigenvalue
-                        # nameeig = str(ibatch) + 'eigenvalue'
-                        # self.para['refeigval'].append(
-                        #    t.from_numpy(f[igroup][nameeig][()]))
+                        # HOMO LUMO
+                        namehl = str(ibatch) + 'humolumo'
+                        self.dataset['refhomo_lumo'].append(
+                            t.from_numpy(f[igroup][namehl][()]))
+
                         # charge
                         namecharge = str(ibatch) + 'charge'
                         self.dataset['refcharge'].append(
@@ -289,7 +302,22 @@ class RunML:
 
                         # formation energy
                         nameEf = str(ibatch) + 'formationenergy'
-                        self.dataset['refenergy'].append(f[igroup][nameEf][()])
+                        self.dataset['refFormEnergy'].append(f[igroup][nameEf][()])
+
+                        # total energy
+                        nameEf = str(ibatch) + 'totalenergy'
+                        self.dataset['refTotEenergy'].append(f[igroup][nameEf][()])
+
+                        # get refhirshfeld volume ratios
+                        namehv = str(ibatch) + 'hirshfeldvolume'
+                        volume = f[igroup][namehv][()]
+                        volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
+                        self.dataset['refhirshfeldvolume'].append(volume)
+
+                        # polarizability
+                        namepol = str(ibatch) + 'alpha_mbd'
+                        self.dataset['refalpha_mbd'].append(
+                            f[igroup][namepol][()])
 
                     # total molecule number
                     self.nbatch += 1
@@ -300,6 +328,7 @@ class RunML:
                                         LWdipole=self.para['Ldipole'],
                                         LWpol=self.para['LMBD_DFTB'])
             self.para['nfile'] = self.nbatch
+            self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
 
         # read single molecule specie
         elif not self.para['hdf_mixture']:
@@ -537,12 +566,17 @@ class RunML:
             energy = energy - DFTB_ENERGY[iname]
         return energy
 
+    def cal_offset_energy(self, energy, refenergy):
+        A = pad2d(self.dataset['numberatom'])
+        B = t.tensor(refenergy) - pad1d(energy)
+        offset, _ = t.lstsq(B, A)
+        return A @ offset
+
     def save_ref_idata(self, ref, ibatch, LWHL=False, LWeigenval=False,
                        LWenergy=False, LWdipole=False, LWpol=False):
         """Save data for single molecule calculation result."""
         if LWHL:
-            self.para['refhomo_lumo'] = self.para['homo_lumo']
-            self.save.save1D(self.para['homo_lumo'].detach().numpy(),
+            self.save.save1D(self.dataset['refhomo_lumo'][ibatch].numpy(),
                              name='HL'+ref+'.dat', dire=self.dire_res, ty='a')
         if LWeigenval:
             self.para['refeigval'] = self.para['eigenvalue']
@@ -550,14 +584,14 @@ class RunML:
                              name='eigval'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWenergy:
-            self.save.save1D(self.dataset['refenergy'][ibatch],
-                             name='energy'+ref+'.dat',
+            self.save.save1D(self.dataset['refTotEenergy'][ibatch],
+                             name='totalenergy'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWdipole:
             self.save.save1D(self.dataset['refdipole'][ibatch].detach().numpy(),
                              name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
         if LWpol:
-            self.save.save1D(self.para['alpha_mbd'].detach().numpy(),
+            self.save.save1D(self.dataset['refalpha_mbd'][ibatch],
                              name='pol'+ref+'.dat', dire=self.dire_res, ty='a')
 
     def save_ref_data(self, ref, LWHL=False, LWeigenval=False,
@@ -817,6 +851,8 @@ class RunML:
             # set compr_ml every several steps, to avoid memory problem
             # self.para['compr_ml'] = self.para['compr_ml'].clone().requires_grad_(True)
             loss = 0
+            if 'offsetenergy' in self.ml['target']:
+                initenergy = []
 
             # dftb_torch.Initialization(self.para, Lreadskf=False)
             for ibatch in range(self.nbatch):
@@ -830,21 +866,31 @@ class RunML:
                 # run each DFTB calculation separatedly
                 dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
-                # add convergence information, use item to reduce memory
-                # target.append(self.para['dipole'].squeeze())
+                # get loss function
                 if 'dipole' in self.ml['target']:
                     loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refdipole'][ibatch])
                 elif 'charge' in self.ml['target']:
                     loss += self.criterion(self.para['charge'].squeeze(), self.dataset['refcharge'][ibatch])
+                elif 'homo_lumo' in self.ml['target']:
+                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refhomo_lumo'][ibatch])
+                elif 'formationenergy' in self.ml['target']:
+                    self.para['formation_energy'] = self.cal_optfor_energy(
+                        self.para['electronic_energy'], ibatch)
+                    loss += self.criterion(self.para['formation_energy'], self.dataset['refFormEnergy'][ibatch])
+                elif 'offsetenergy' in self.ml['target']:
+                    initenergy.append(self.para['electronic_energy'])
+                elif 'cpa' in self.ml['target']:
+                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refhirshfeldvolume'][ibatch])
 
-                # dftb formation energy calculations
-                self.para['formation_energy'] = self.cal_optfor_energy(
-                    self.para['electronic_energy'], ibatch)
                 print("*" * 50, "\n istep:", istep + 1, "\n ibatch", ibatch + 1)
                 print("loss:", loss, self.para['compr_ml'].grad)
 
             # get loss function
-            # loss = self.criterion(pad1d(target), pad1d(self.para['refdipole']))
+            if 'offsetenergy' in self.ml['target']:
+                offset = self.cal_offset_energy(initenergy, self.dataset['refFormEnergy'])
+                self.para['offsetEnergy'] = pad1d(initenergy) + offset
+                print(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
+                loss = self.criterion(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
 
             # save data
             self.save.save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
@@ -1180,16 +1226,14 @@ class RunML:
         self.save.save1D(para['nsteps'].detach().numpy(),
                          name='nsave.dat', dire='.data', ty='a')
 
-    def get_hirsh_vol_ratio(self, volume):
+    def get_hirsh_vol_ratio(self, volume, ibatch=0):
         """Get Hirshfeld volume ratio."""
-        natom = self.para["natom"]
-        coor = self.para["coor"]
-        volumeratio = t.zeros((len(volume)), dtype=t.float64)
+        natom = self.dataset["natomall"][ibatch]
         for iat in range(natom):
-            idx = int(coor[iat, 0])
+            idx = int(self.dataset['atomNumber'][ibatch][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-            volumeratio[iat] = volume[iat] / HIRSH_VOL[iname]
-        return volumeratio
+            volume[iat] = volume[iat] / HIRSH_VOL[iname]
+        return volume
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''

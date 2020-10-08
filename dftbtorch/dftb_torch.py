@@ -176,7 +176,7 @@ class Initialization:
 
         # perform machine learning
         # read a list of skf files with various compression radius
-        if self.ml['Lml'] and self.dataset['LSKFinterpolation']:
+        elif self.ml['Lml'] and self.dataset['LSKFinterpolation']:
 
             # ML variables is skf parameters (compression radius)
             # read all corresponding skf files (different compression radius)
@@ -322,7 +322,7 @@ class Rundftbpy:
     def run_repulsive(self):
         """Calculate repulsive term."""
         if self.para['Lrepulsive']:
-            Repulsive(self.para)
+            Repulsive(self.para, self.dataset, self.skf)
 
     def run_analysis(self):
         """Analyse the DFTB calculation results and print."""
@@ -744,10 +744,12 @@ class SCF:
 class Repulsive():
     """Calculate repulsive for DFTB."""
 
-    def __init__(self, para):
+    def __init__(self, para, dataset, skf):
         """Initialize parameters."""
         self.para = para
-        self.nat = self.para['natom']
+        self.dataset = dataset
+        self.skf = skf
+        self.nat = self.dataset['natomall']
         self.get_rep_para()
         self.cal_rep_energy()
 

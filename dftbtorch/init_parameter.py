@@ -132,7 +132,7 @@ def init_dataset(dataset=None):
 
     # optional datatype: ani, json, hdf
     if 'dataType' not in dataset.keys():
-        dataset['dataType'] = 'ani'
+        dataset['dataType'] = 'hdf'
 
     # get the current path
     if 'path_dataset' not in dataset.keys():
@@ -170,9 +170,6 @@ def init_dataset(dataset=None):
         # name of data in defined path
         dataset['name_dataset'] = 'H2_data'
 
-        # if read SKF from a list of files with interpolation
-        dataset['LSKFinterpolation'] = True
-
     # read ANI dataset
     elif dataset['dataType'] == 'ani':
         hdffilelist = []
@@ -186,9 +183,6 @@ def init_dataset(dataset=None):
         # test the molecule specie is the same
         assert len(dataset['n_dataset']) == len(dataset['n_test'])
 
-        # if read SKF from a list of files with interpolation
-        dataset['LSKFinterpolation'] = True
-
     # read QM7 dataset
     elif dataset['dataType'] == 'qm7':
 
@@ -197,9 +191,6 @@ def init_dataset(dataset=None):
 
         # define dataset specie
         dataset['train_specie'] = [1, 6, 8]
-
-        # if read SKF from a list of files with interpolation
-        dataset['LSKFinterpolation'] = True
 
         # test the molecule specie is the same
         assert len(dataset['n_dataset']) == len(dataset['n_test'])
@@ -311,8 +302,8 @@ def init_ml(para=None, ml=None, dataset=None):
         # path of atom specie parameters
         ml['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
 
-    # dipole, homo_lumo, gap, eigval, qatomall, polarizability, cpa, pdos, charge
-    ml['target'] = ['charge']
+    # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
+    ml['target'] = ['formationenergy']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway
@@ -330,12 +321,15 @@ def init_ml(para=None, ml=None, dataset=None):
     else:
         para['LHL'] = False
 
+    if 'cpa' in ml['target']:
+        para['LMBD_DFTB'] = True
+
     # define weight in loss function
     ml['dipole_loss_ratio'] = 1
     ml['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    ml['mlsteps'] = 100
+    ml['mlsteps'] = 2
 
     # how many steps to save the DFTB-ML data !!
     ml['save_steps'] = 2
