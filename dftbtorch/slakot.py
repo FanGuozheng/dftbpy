@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import h5py
 import dftbtorch.matht as matht
 from scipy import interpolate
-from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec)
+from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec, polySpline)
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
@@ -559,12 +559,32 @@ class SKinterp:
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
 
+    def skf_integral_spline_parameter(self):
+        """Get integral from hdf binary according to atom species."""
+        time0 = time.time()
+
+        # get the skf with hdf type
+        hdfsk = os.path.join(self.ml['dire_hdfSK'], self.ml['name_hdfSK'])
+        self.skf['hs_compr_all'] = []
+        with h5py.File(hdfsk, 'r') as f:
+            for ispecie in self.skf['specie_all']:
+                for jspecie in self.skf['specie_all']:
+                    nameij = ispecie + jspecie
+                    grid_distance = f[nameij + '/grid_dist'][()]
+                    ngrid = f[nameij + '/ngridpoint'][()]
+                    yy = t.from_numpy(f[nameij + '/hs_all'][()])
+                    xx = t.arange(0., ngrid * grid_distance, grid_distance, dtype=yy.dtype)
+                    self.skf['integralspline' + nameij] = \
+                        polySpline(xx, yy).get_abcd()
+
+        timeend = time.time()
+        print('time of get spline parameter: ', timeend - time0)
+
     def genskf_interp_dist_hdf(self, ibatch, natom):
         """Generate integral along distance dimension."""
         time0 = time.time()
         ninterp = self.skf['ninterp']
         self.skf['hs_compr_all'] = []
-        coor = self.dataset['coordinate'][ibatch]
         atomnumber = self.dataset['atomNumber'][ibatch]
         distance = self.dataset['distance'][ibatch]
 

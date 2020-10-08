@@ -660,9 +660,8 @@ class RunML:
         #                                    requires_grad=True)
 
         # get spline integral
-        for ispecie in self.skf['specie_all']:
-            pass
-        self.slako.genskf_interp_dist_hdf(ibatch, natom)
+        self.slako.skf_integral_spline_parameter()  # 0.2 s, too long!!!
+        self.slako.genskf_interp_dist_hdf()
         optimizer = t.optim.SGD([self.ml['splyall_rand']], lr=5e-7)
         save = SaveData(self.para)
         coordinate = self.dataset['coordinate']

@@ -222,7 +222,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # ML target: compressionRadius, integral
     if 'mlType' not in ml.keys():
-        ml['mlType'] = 'compressionRadius'
+        ml['mlType'] = 'integral'
 
     ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
@@ -278,7 +278,10 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['dire_hdfSK'] = '../slko/hdf'
 
         # name of skf with hdf type
-        ml['name_hdfSK'] = 'skf.hdf5'
+        if ml['mlType'] == 'compressionRadius':
+            ml['name_hdfSK'] = 'skf.hdf5'
+        elif ml['mlType'] == 'integral':
+            ml['name_hdfSK'] = 'skfmio.hdf5'
 
     if ml['reference'] in ('dftbase', 'dftbplus'):
 
