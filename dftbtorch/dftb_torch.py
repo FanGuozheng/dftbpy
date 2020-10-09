@@ -8,7 +8,7 @@ implement pytorch to DFTB
 import numpy as np
 import torch as t
 import bisect
-from dftbtorch.slakot import SKspline, SKTran
+from dftbtorch.slakot import SKTran
 from dftbtorch.electront import DFTBelect
 import IO.readt as readt
 from dftbtorch.periodic import Periodic
@@ -208,7 +208,7 @@ class Initialization:
             elif self.parameter['Lml_HS']:
 
                 self.readsk.read_sk_specie()
-                SKspline(self.parameter).get_sk_spldata()
+                # SKspline(self.parameter).get_sk_spldata()
 
     def get_this_hubbert(self):
         """Get Hubbert for current calculation, nou orbital resolved."""

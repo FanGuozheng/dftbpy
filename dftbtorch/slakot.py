@@ -562,20 +562,15 @@ class SKTran:
 
         # get integral with given distance
         else:
-            # directly get integral from spline
-            if self.para['Lml_HS']:
-                shparspline(self.para, rr, iat, jat, dd)
-            else:
-                # shpar(para, para['hs_all'][i, j], rr, i, j, dd)
-                if lmax == 1:
-                    skss(self.para, xx, yy, zz, iat, jat,
-                         self.para['hams'], self.para['ovrs'], li, lj)
-                elif lmin == 1 and lmax == 2:
-                    sksp(self.para, xx, yy, zz, iat, jat,
-                         self.para['hams'], self.para['ovrs'], li, lj)
-                elif lmin == 2 and lmax == 2:
-                    skpp(self.para, xx, yy, zz, iat, jat,
-                         self.para['hams'], self.para['ovrs'], li, lj)
+            if lmax == 1:
+                skss(self.para, xx, yy, zz, iat, jat,
+                     self.para['hams'], self.para['ovrs'], li, lj)
+            elif lmin == 1 and lmax == 2:
+                sksp(self.para, xx, yy, zz, iat, jat,
+                     self.para['hams'], self.para['ovrs'], li, lj)
+            elif lmin == 2 and lmax == 2:
+                skpp(self.para, xx, yy, zz, iat, jat,
+                     self.para['hams'], self.para['ovrs'], li, lj)
 
 
 class SKinterp:
@@ -613,10 +608,10 @@ class SKinterp:
                     self.skf['polySplinec' + nameij], \
                     self.skf['polySplined' + nameij] = \
                         polySpline(xx, yy).get_abcd()[:]
-                    ml_variable.extend(self.skf['polySplinea' + nameij])
-                    ml_variable.extend(self.skf['polySplineb' + nameij])
-                    ml_variable.extend(self.skf['polySplinec' + nameij])
-                    ml_variable.extend(self.skf['polySplined' + nameij])
+                    ml_variable.append(self.skf['polySplinea' + nameij].requires_grad_(True))
+                    ml_variable.append(self.skf['polySplineb' + nameij].requires_grad_(True))
+                    ml_variable.append(self.skf['polySplinec' + nameij].requires_grad_(True))
+                    ml_variable.append(self.skf['polySplined' + nameij].requires_grad_(True))
 
         timeend = time.time()
         print('time of get spline parameter: ', timeend - time0)
@@ -912,200 +907,6 @@ class SKinterp:
         pass
 
 
-class SKspline:
-    """Get integral from spline."""
-
-    def __init__(self, para):
-        """Initialize parameters."""
-        self.para = para
-
-    def get_sk_spldata(self):
-        """According to the type of interpolation, call different function."""
-        print('-' * 35, 'Generating H or S spline data', '-' * 35)
-        if self.para['interptype'] == 'Bspline':
-            self.gen_bsplpara()
-        elif self.para['interptype'] == 'Polyspline':
-            self.gen_psplpara()
-
-    def gen_bsplpara(self):
-        """Generate B-spline parameters."""
-        h_spl_num = self.para['h_spl_num']
-        lines = int(self.cutoff / self.dist)
-        cspline = t.zeros(h_spl_num, lines)
-        cspl_rand = t.zeros(h_spl_num, lines)
-        ihtable = 0
-        for ii in range(0, self.nspecie):
-            for jj in range(0, self.nspecie):
-                nameij = self.atomspecie[ii] + self.atomspecie[jj]
-                griddist = self.para['grid_dist'+nameij]
-                ngridpoint = self.para['ngridpoint'+nameij]
-                t_beg = 0.0
-                t_end = ngridpoint*griddist
-                t_num = int((t_end - t_beg + griddist)/self.dist)
-                tspline = t.linspace(t_beg, t_end, t_num)
-                cspline = _cspline(self.para, nameij, ihtable, griddist,
-                                   cspline, tspline)
-                ihtable += HNUM[self.atomspecie[ii]+self.atomspecie[jj]]
-        shape1, shape2 = cspline.shape
-        cspl_rand = cspline + t.randn(shape1, shape2)/10
-        self.para['cspline'] = cspline
-        self.para['cspl_rand'] = cspl_rand
-        self.para['tspline'] = tspline
-
-    def gen_psplpara(self):
-        """Generate spline parameters."""
-        atomspecie = self.para['atomspecie']
-        cutoff = self.para['interpcutoff']
-        dist = self.para['interpdist']
-        h_spl_num = self.para['h_spl_num']
-        nspecie = len(atomspecie)
-        xp_start = t.zeros(nspecie)
-        for ii in range(0, nspecie):
-            nameij = atomspecie[ii] + atomspecie[ii]
-            xp_start[ii] = self.para['grid_dist' + nameij]
-            if ii > 0:
-                assert xp_start[ii] == xp_start[ii - 1]
-        lines = int((cutoff - xp_start[0]) / dist + 1)
-        self.para['splyall'] = t.zeros(h_spl_num, lines)
-        self.para['splyall_rand'] = t.zeros(h_spl_num, lines)
-
-        # ihtable is label of which orbital and which specie it is
-        for ii in range(0, nspecie):
-            for jj in range(0, nspecie):
-                nameij = atomspecie[ii] + atomspecie[jj]
-                griddist = self.para['grid_dist' + nameij]
-                self.para['interp_xall'] = t.linspace(
-                        xp_start[0], cutoff, lines)
-                if HNUM[nameij] > 0:
-                    spl_ypara(self.para, nameij, griddist, xp_start[0], lines)
-
-        # build rand interpspline data (add randn number)
-        self.para['splyall_rand'][:, :] = self.para['splyall'][:, :]
-        row, col = self.para['splyall'].shape
-        self.para['splyall_rand'] = self.para['splyall_rand'] + \
-            t.randn(row, col) * self.para['rand_threshold']
-
-    def add_rand(self, tensor_init, tensor_rand, threshold, multi_para):
-        """Add random values."""
-        if len(tensor_init.shape) == 1:
-            tensor_temp = t.zeros(len(tensor_init))
-            tensor_temp[:] = tensor_init[:]
-            tensor_temp[tensor_temp > threshold] += t.randn(1) * multi_para
-            tensor_rand[:] == tensor_temp[:]
-        elif len(tensor_init.shape) == 2:
-            tensor_temp = t.zeros(tensor_init.shape[0], tensor_init.shape[1])
-            tensor_temp[:, :] = tensor_init[:, :]
-            tensor_temp[tensor_temp > threshold] += t.randn(1) * multi_para
-            tensor_rand[:, :] == tensor_temp[:, :]
-
-
-def call_spline(xp, yp, rr, ty, order=2):
-    if ty == 'Polyspline':
-        y_rr = matht.polyInter(xp, yp, rr)
-    elif ty == 'Bspline':
-        y_rr = Bspline().bspline(rr, xp, yp, order)
-    return y_rr
-
-
-def _cspline(para, nameij, itable, ngridpoint, c_spline, t_spline):
-    '''
-    according to the griddist (distance between two pints) in .skf file and
-    griddist in new B-spline interpolation, read data from SK table, then build
-    the x and y for B-spline interpolation in matht.py file
-    what you need: start point of x and grid distance of x; SK table data;
-    define the interpolation type;
-    '''
-    datalist = para['hs_all' + nameij]
-    nlinesk = para['ngridpoint' + nameij]
-    dist = para['interpdist']
-    ninterval = int(dist / ngridpoint)
-    nhtable = HNUM[nameij]
-    datalist_arr = np.asarray(datalist)
-    if nhtable == 1:
-
-        # the default distance diff in .skf is 0.02, we can set flexible
-        # distance by para: splinedist, ngridpoint
-        for ii in range(0, nlinesk):
-            if ii % ninterval == 0:
-                c_spline[itable, int(ii/ninterval)] = datalist_arr[ii, 9]
-
-    # s and p orbital
-    elif nhtable == 2:
-        for ii in range(0, nlinesk):
-            if ii % ninterval == 0:
-                c_spline[itable, int(ii/ninterval)] = datalist_arr[ii, 9]
-                c_spline[itable + 1, int(ii/ninterval)] = datalist_arr[ii, 8]
-
-    # the squeues is ss0, sp0, pp0, pp1
-    elif nhtable == 4:
-        for ii in range(0, nlinesk):
-            if ii % ninterval == 0:
-                c_spline[itable, int(ii/ninterval)] = datalist_arr[ii, 9]
-                c_spline[itable + 1, int(ii/ninterval)] = datalist_arr[ii, 8]
-                c_spline[itable + 2, int(ii/ninterval)] = datalist_arr[ii, 5]
-                c_spline[itable + 3, int(ii/ninterval)] = datalist_arr[ii, 6]
-    elif nhtable == 0:
-        pass
-    return c_spline
-
-
-def spl_ypara(para, nameij, ngridpoint, xp0, lines):
-    '''
-    according to the griddist (distance between two pints) in .skf file and
-    griddist in new spline interpolation, read data from SK table, then build
-    the x and y for spline interpolation in matht.py file
-    what you need: start point of x and grid distance of x; SK table data;
-    define the interpolation type; how many lines (points) in x or y.
-    '''
-    xp = para['interp_xall']
-    datalist = para['hs_all' + nameij]
-    dist = para['interpdist']
-    ty = para['interptype']
-    if int(dist / ngridpoint) != dist / ngridpoint:
-        raise ValueError('interpdist must be int multiple of ngridpoint')
-    else:
-        intv = int(dist / ngridpoint)
-        line_beg = int(xp0 / ngridpoint)
-    indx = para['spl_label'].index(nameij)
-    nhtable = int(para['spl_label'][indx + 2])
-    itab = int(para['spl_label'][indx + 1]) - int(para['spl_label'][indx + 2])
-    datalist_arr = np.asarray(datalist)
-
-    # ss0 orbital (e.g. H-H)
-    if nhtable == 1:
-        for ii in range(0, lines):
-            iline = int(ii * intv + line_beg - 1)
-            para['splyall'][itab, ii] = datalist_arr[iline, 9]
-
-        # the following is for test (ss0)
-        yspline = para['splyall']
-        fig, ax = plt.subplots()
-        ax.plot(xp, [call_spline(xp, yspline[itab, :], rr, ty) for rr in xp],
-                'r-', lw=3, label='spline')
-        ax.plot(xp, yspline[itab, :lines], 'y-', lw=3, label='spline')
-        xx = t.linspace(0, xp[-1], len(xp))
-        print('plot the spline data')
-        ax.plot(xx, datalist_arr[:len(xp), 9], 'b-', lw=3, label='original')
-        plt.show()
-
-    # ss0 and sp0 orbital (e.g. C-H)
-    elif nhtable == 2:
-        for ii in range(0, lines):
-            iline = int(ii * intv + line_beg - 1)
-            para['splyall'][itab, ii] = datalist_arr[iline, 9]
-            para['splyall'][itab + 1, ii] = datalist_arr[iline, 8]
-
-    # ss0, sp0, pp0, pp1 orbital (e.g. C-H)
-    elif nhtable == 4:
-        for ii in range(0, lines):
-            iline = int(ii * intv + line_beg - 1)
-            para['splyall'][itab, ii] = datalist_arr[iline, 9]
-            para['splyall'][itab + 1, ii] = datalist_arr[iline, 8]
-            para['splyall'][itab + 2, ii] = datalist_arr[iline, 5]
-            para['splyall'][itab + 3, ii] = datalist_arr[iline, 6]
-    return para
-
-
 def getsk(para, nameij, dd):
     # ninterp is the num of points for interpolation, here is 8
     ninterp = para['ninterp']
@@ -1139,72 +940,6 @@ def getsk(para, nameij, dd):
         para['hsdata'] = DFTBmath(para).polysk5thsk(datainterp, ddinterp, dd)
     else:
         print('Error: the {} distance > cutoff'.format(nameij))
-    return para
-
-
-def shparspline(para, xyz, i, j, dd):
-    '''
-    this function is to update para['hams'], para['ovrs']
-    '''
-    xx = xyz[0]/dd
-    yy = xyz[1]/dd
-    zz = xyz[2]/dd
-    lmaxi = para['lmaxall'][i]
-    lmaxj = para['lmaxall'][j]
-    nameij = para['atomnameall'][i] + para['atomnameall'][j]
-    nameji = para['atomnameall'][j] + para['atomnameall'][i]
-    # here we need revise !!!!!!!!!
-    if HNUM[nameij] == 0:
-        nameij = nameji
-    indx = para['spl_label'].index(nameij)
-    nhtable = int(para['spl_label'][indx + 2])
-    itab = int(para['spl_label'][indx + 1]) - int(para['spl_label'][indx + 2])
-    maxmax = max(lmaxi, lmaxj)
-    minmax = min(lmaxi, lmaxj)
-    if para['interptype'] == 'Polyspline':
-        if para['cal_ref']:
-            yspline = para['splyall']
-        elif not para['cal_ref']:
-            yspline = para['splyall_rand']
-        # if it is 1D, we should write this way to avoid produce 2D tensor
-        # and the row == 1
-        if nhtable == 1:
-            para['interp_y'] = yspline[itab, :]
-        else:
-            para['interp_y'] = yspline[itab:itab + nhtable, :]
-        if maxmax == 1:
-            skss_spline(para, xx, yy, zz, dd)
-        elif maxmax == 2 and minmax == 1:
-            sksp_spline(para, xx, yy, zz, dd)
-        elif maxmax == 2 and minmax == 2:
-            skpp_spline(para, xx, yy, zz, dd)
-        elif maxmax == 3 and minmax == 1:
-            sksd(xx, yy, zz)
-        elif maxmax == 3 and minmax == 2:
-            skpd(xx, yy, zz)
-        elif maxmax == 3 and minmax == 3:
-            skdd(xx, yy, zz)
-    elif para['splinetype'] == 'Bspline':
-        tspline = para['tspline']
-        cspline = para['cspline']
-        if nameij == 'HH':
-            spline = cspline[0, :]
-        elif nameij == 'CH' or nameij == 'HC':
-            spline = cspline[1:3, :]
-        elif nameij == 'CC':
-            spline = cspline[3:7, :]
-        if maxmax == 1:
-            skssbspline(xx, yy, zz, dd, tspline, spline)
-        elif maxmax == 2 and minmax == 1:
-            skspbspline(xx, yy, zz, dd, tspline, spline)
-        elif maxmax == 2 and minmax == 2:
-            skppbspline(xx, yy, zz, dd, tspline, spline)
-        elif maxmax == 3 and minmax == 1:
-            sksd(xx, yy, zz, hs_data, hams, ovrs)
-        elif maxmax == 3 and minmax == 2:
-            skpd(xx, yy, zz, hs_data, hams, ovrs)
-        elif maxmax == 3 and minmax == 3:
-            skdd(xx, yy, zz, hs_data, hams, ovrs)
     return para
 
 

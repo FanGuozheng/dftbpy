@@ -222,7 +222,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # ML target: compressionRadius, integral
     if 'mlType' not in ml.keys():
-        ml['mlType'] = 'integral'
+        ml['mlType'] = 'compressionRadius'
 
     ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
@@ -306,7 +306,7 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
 
     # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
-    ml['target'] = ['formationenergy']
+    ml['target'] = ['dipole']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway

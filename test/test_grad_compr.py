@@ -652,7 +652,13 @@ class RunML:
 
         # get spline integral
         ml_variable = self.slako.skf_integral_spline_parameter()  # 0.2 s, too long!!!
-        ml_variable = [i.clone().requires_grad_(True) for i in ml_variable]
+
+        # get loss function type
+        if self.ml['loss_function'] == 'MSELoss':
+            self.criterion = t.nn.MSELoss(reduction='sum')
+        elif self.ml['loss_function'] == 'L1Loss':
+            self.criterion = t.nn.L1Loss(reduction='sum')
+
         # get optimizer
         if self.ml['optimizer'] == 'SCG':
             optimizer = t.optim.SGD(ml_variable, lr=self.ml['lr'])
@@ -683,6 +689,7 @@ class RunML:
                 optimizer.zero_grad()
                 loss.backward(retain_graph=True)
                 optimizer.step()
+            self.save.save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""
@@ -724,9 +731,9 @@ class RunML:
 
         # get optimizer
         if self.ml['optimizer'] == 'SCG':
-            optimizer = t.optim.SGD([para['compr_ml']], lr=self.ml['lr'])
+            optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
         elif self.ml['optimizer'] == 'Adam':
-            optimizer = t.optim.Adam([para['compr_ml']], lr=self.ml['lr'])
+            optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
         totalloss = []
         DFTBconvergence = []
@@ -813,9 +820,9 @@ class RunML:
 
         # get optimizer
         if self.ml['optimizer'] == 'SCG':
-            optimizer = t.optim.SGD([para['compr_ml']], lr=self.ml['lr'])
+            optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
         elif self.ml['optimizer'] == 'Adam':
-            optimizer = t.optim.Adam([para['compr_ml']], lr=self.ml['lr'])
+            optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
         # get loss function type
         if self.ml['loss_function'] == 'MSELoss':
