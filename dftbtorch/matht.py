@@ -774,41 +774,45 @@ class Bspline():
         plt.show()
 
 
-class polySpline:
+class PolySpline:
     """Polynomial spline.
 
     See: https://en.wikipedia.org/wiki/Spline_(mathematics)
+    You can either generate spline parameters(abcd) or offer spline
+    parameters, and get spline interpolation results.
 
     Args:
-        xp (tensor): one dimension grid points
-        yp (tensor): one or two dimension grid points
-        dd (torch.float64): the point to return spline values
+        xp (tensor, optional): one dimension grid points
+        yp (tensor, optional): one or two dimension grid points
+        dd (tensor, optional): the point to return spline values
         parameter (list, optional): a list of parameters get from grid points,
             e.g., for cubic, parameter=[a, b, c, d]
 
     Returns:
-        result (torch.float64): spline interpolation value at dd
+        result (tensor): spline interpolation value at dd
     """
 
-    def __init__(self, x=None, y=None, d=None, abcd=None, kind='cubic'):
+    def __init__(self, x, y=None, d=None, abcd=None, kind='cubic'):
         self.xp = x
         self.yp = y
         self.dd = d
         self.abcd = abcd
 
-        # boundary condition
+        # if d is not None, it will return spline interpolation values
         if self.dd is not None:
+
+            # boundary condition of d
             if not self.xp[0] < self.dd < self.xp[-1]:
                 raise ValueError("%s is out of boundary" % self.dd)
 
-            # get the nearest grid point index
+            # get the nearest grid point index in x
             if t.is_tensor(self.xp):
                 self.ddind = bisect.bisect(self.xp.numpy(), self.dd) - 1
             elif type(self.xp) is np.ndarray:
                 self.ddind = bisect.bisect(self.xp, self.dd) - 1
 
             # according to the order to choose spline method
-            if kind =='linear':
+            if kind == 'linear':
                 self.ynew = self.linear()
             elif kind == 'cubic':
                 self.ynew = self.cubic()
@@ -820,7 +824,8 @@ class polySpline:
         pass
 
     def cubic(self):
-        """Calculate cubic in spline interpolation."""
+        """Calculate cubic spline interpolation."""
+        # calculate a, b, c, d parameters, need input x and y
         if self.abcd is None:
             a, b, c, d = self.get_abcd()
         else:
@@ -831,9 +836,12 @@ class polySpline:
 
     def get_abcd(self):
         """Get parameter a, b, c, d for cubic spline interpolation."""
+        assert self.xp is not None and self.yp is not None
+
+        # get the first dim of x
         self.nx = self.xp.shape[0]
 
-        # a is grid point values, step 1
+        # a is grid point values
         a = self.yp
 
         # get the differnce between grid points
@@ -851,10 +859,10 @@ class polySpline:
         A = self.cala()
         B = self.calb()
 
-        # least squares and least norm problems
+        # return c (Ac=B) with least squares and least norm problems
         c, _ = t.lstsq(B, A)
         for i in range(self.nx - 1):
-            b[i] = (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i] - \
+            b[i] = (a[i + 1] - a[i]) / self.diff_xp[i] - \
                 self.diff_xp[i] * (c[i + 1] + 2.0 * c[i]) / 3.0
             d[i] = (c[i + 1] - c[i]) / (3.0 * self.diff_xp[i])
         return a, b, c, d
@@ -935,19 +943,19 @@ class polySpline:
         return mat_out
 
 
-"""Test spline interpolation.
+"""Test spline interpolation."""
 print("Spline test")
 xarr = t.tensor([-0.5, 0.0, 0.5, 1.0, 1.5])
 yarr = t.tensor([3.2, 2.7, 6, 5, 6.5])
 # spline = Spline(x, y)
 rx = t.linspace(-0.2, 1.3, 100)
-ry = [polySpline(xarr, yarr, i).cubic() for i in rx]
+ry = [PolySpline(xarr, yarr, i).cubic() for i in rx]
 # ry = [spline.calc(i) for i in rx]
 plt.plot(xarr, yarr, "xb")
 plt.plot(rx, ry, "-r")
 plt.grid(True)
 plt.axis("equal")
-plt.show()"""
+plt.show()
 
 
 class BicubInterp:

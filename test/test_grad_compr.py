@@ -410,18 +410,7 @@ class RunML:
 
             elif self.para['Lml_HS']:
                 dftb_torch.Initialization(self.para)
-                self.genml.get_specie_label()
-                dftb_torch.Initialization(self.para)
                 self.runcal.idftb_torchspline()
-                if self.para['interptype'] == 'Polyspline':
-                    self.save.save2D(self.para['splyall'],
-                                     name='splref.dat', ty='w')
-                    para['hs_all'] = self.para['splyall']
-                elif self.para['interptype'] == 'Bspline':
-                    self.save.save2D(self.para['cspline'],
-                                     name='splref.dat', ty='w')
-                self.save.save1D(self.para['hammat'].detach().numpy(),
-                                 name='hamref.dat', ty='w')
 
             self.save_ref_idata(ref='dftb', LWHL=self.para['LHL'],
                                 LWeigenval=self.para['Leigval'],
@@ -669,6 +658,7 @@ class RunML:
         for istep in range(self.ml['mlsteps']):
             loss = 0.
             for ibatch in range(self.nbatch):
+                print("step:", istep + 1, "ibatch:", ibatch + 1)
 
                 # do not perform batch calculation
                 self.para['Lbatch'] = False
@@ -1371,21 +1361,6 @@ class GenMLPara:
                             self.para['spl_label'].append(h_spl_num)
                             self.para['spl_label'].append(HNUM[nameij])
                 self.para['h_spl_num'] = h_spl_num
-
-    def get_specie_label(self):
-        """Check if atom specie is the same, if not, then update."""
-        h_spl_num = 0
-        self.para['spl_label'] = []
-        for ispecie in self.para['atomspecie']:
-            for jspecie in self.para['atomspecie']:
-                nameij = ispecie + jspecie
-                h_spl_num += HNUM[nameij]
-                if HNUM[nameij] > 0:
-                    self.para['spl_label'].append(nameij)
-                    self.para['spl_label'].append(h_spl_num)
-                    self.para['spl_label'].append(HNUM[nameij])
-        print('initial H-table has {} rows'.format(h_spl_num))
-        self.para['h_spl_num'] = h_spl_num
 
 
 class RunCalc:

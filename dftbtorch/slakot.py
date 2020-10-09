@@ -6,11 +6,10 @@ import time
 import sys
 import numpy as np
 import torch as t
-import matplotlib.pyplot as plt
 import h5py
 import dftbtorch.matht as matht
 from scipy import interpolate
-from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec, polySpline)
+from dftbtorch.matht import (Bspline, DFTBmath, BicubInterp, BicubInterpVec, PolySpline)
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
@@ -85,7 +84,6 @@ class SKTran:
         self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
 
         for iat in range(natom):
-
             for jat in range(natom):
                 if iat != jat:
 
@@ -103,7 +101,7 @@ class SKTran:
 
                     # the distance is from cal_coor
                     dd = self.dataset['distance'][ibatch][iat, jat]
-                    self.skf['hs_all'][iat, jat] = polySpline(x=xx, d=dd, abcd=abcd).ynew
+                    self.skf['hs_all'][iat, jat] = PolySpline(x=xx, d=dd, abcd=abcd).ynew
 
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
@@ -607,7 +605,7 @@ class SKinterp:
                     self.skf['polySplineb' + nameij], \
                     self.skf['polySplinec' + nameij], \
                     self.skf['polySplined' + nameij] = \
-                        polySpline(xx, yy).get_abcd()[:]
+                        PolySpline(xx, yy).get_abcd()[:]
                     ml_variable.append(self.skf['polySplinea' + nameij].requires_grad_(True))
                     ml_variable.append(self.skf['polySplineb' + nameij].requires_grad_(True))
                     ml_variable.append(self.skf['polySplinec' + nameij].requires_grad_(True))

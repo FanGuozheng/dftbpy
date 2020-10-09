@@ -6,12 +6,10 @@ import os
 import numpy as np
 import torch as t
 from ase import Atoms
-import h5py
 import subprocess
 from ase.build import molecule
 from ase.calculators.dftb import Dftb
 from ase.calculators.aims import Aims
-from ase.io import write
 import dftbtorch.dftb_torch as dftb_torch
 from IO.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}

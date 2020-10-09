@@ -222,7 +222,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # ML target: compressionRadius, integral
     if 'mlType' not in ml.keys():
-        ml['mlType'] = 'compressionRadius'
+        ml['mlType'] = 'integral'
 
     ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
@@ -341,7 +341,7 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['opt_step_min'] = 2
 
     # learning rate !!
-    ml['lr'] = 1E-2
+    ml['lr'] = 1E-3
 
     # optimizer
     ml['optimizer'] = 'Adam'
