@@ -775,7 +775,7 @@ class Bspline():
 
 
 class PolySpline:
-    """Polynomial spline.
+    """Polynomial natural (linear, cubic) spline.
 
     See: https://en.wikipedia.org/wiki/Spline_(mathematics)
     You can either generate spline parameters(abcd) or offer spline
@@ -802,14 +802,14 @@ class PolySpline:
         if self.dd is not None:
 
             # boundary condition of d
-            if not self.xp[0] < self.dd < self.xp[-1]:
+            if not self.xp[0] <= self.dd <= self.xp[-1]:
                 raise ValueError("%s is out of boundary" % self.dd)
 
-            # get the nearest grid point index in x
+            # get the nearest grid point index of d in x
             if t.is_tensor(self.xp):
-                self.ddind = bisect.bisect(self.xp.numpy(), self.dd) - 1
+                self.dind = bisect.bisect(self.xp.numpy(), self.dd) - 1
             elif type(self.xp) is np.ndarray:
-                self.ddind = bisect.bisect(self.xp, self.dd) - 1
+                self.dind = bisect.bisect(self.xp, self.dd) - 1
 
             # according to the order to choose spline method
             if kind == 'linear':
@@ -831,8 +831,8 @@ class PolySpline:
         else:
             a, b, c, d = self.abcd
 
-        dx = self.dd - self.xp[self.ddind]
-        return a[self.ddind] + b[self.ddind] * dx + c[self.ddind] * dx ** 2.0 + d[self.ddind] * dx ** 3.0
+        dx = self.dd - self.xp[self.dind]
+        return a[self.dind] + b[self.dind] * dx + c[self.dind] * dx ** 2.0 + d[self.dind] * dx ** 3.0
 
     def get_abcd(self):
         """Get parameter a, b, c, d for cubic spline interpolation."""
@@ -840,9 +840,6 @@ class PolySpline:
 
         # get the first dim of x
         self.nx = self.xp.shape[0]
-
-        # a is grid point values
-        a = self.yp
 
         # get the differnce between grid points
         self.diff_xp = self.xp[1:] - self.xp[:-1]
@@ -859,48 +856,16 @@ class PolySpline:
         A = self.cala()
         B = self.calb()
 
+        # a is grid point values
+        a = self.yp
+
         # return c (Ac=B) with least squares and least norm problems
         c, _ = t.lstsq(B, A)
         for i in range(self.nx - 1):
             b[i] = (a[i + 1] - a[i]) / self.diff_xp[i] - \
                 self.diff_xp[i] * (c[i + 1] + 2.0 * c[i]) / 3.0
             d[i] = (c[i + 1] - c[i]) / (3.0 * self.diff_xp[i])
-        return a, b, c, d
-
-        '''A = self.get_A()
-        B = self.get_B()
-
-        # least squares and least norm problems
-        M, _ = t.lstsq(B, A)
-        for i in range(self.nx - 1):
-            a[i] = (M[i + 1]- M[i]) / self.xp[i] / 6
-            b[i] = (self.xp[i + 1] * M[i]- self.xp[i] * M[i + 1]) / self.diff_xp[i] / 2
-            c[i] = (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i] - self.diff_xp[i] / 6 * (M[i+1] - M[i])
-            d[i] = (self.xp[i + 1] * self.yp[i] - self.xp[i] * self.yp[i + 1]) / self.diff_xp[i] - \
-                self.diff_xp[i] / 6 * (self.xp[i + 1] * M[i] - self.xp[i] * M[i + 1])
-        return d, c, b, a'''
-
-    def get_B(self):
-        # natural boundary condition, the first and last are zero
-        B = t.zeros(self.nx, dtype=t.float64)
-        for i in range(self.nx - 2):
-            B[i + 1] = 6.0 * ((self.yp[i + 2] - self.yp[i + 1]) /
-                        self.diff_xp[i + 1] -
-                        (self.yp[i + 1] - self.yp[i]) /
-                        self.diff_xp[i]) / (self.diff_xp[i + 1] + self.diff_xp[i])
-        return B
-
-    def get_A(self):
-        """Calculate a para in spline interpolation."""
-        A = t.zeros((self.nx, self.nx), dtype=t.float64)
-        A[0, 0] = 1.0
-        for i in range(self.nx - 2):
-            A[i + 1, i + 1] = 2.0
-            A[i + 1, i] = self.diff_xp[i] / (self.diff_xp[i] + self.diff_xp[i + 1])
-            A[i + 1, i + 2] = 1 - A[i + 1, i]
-
-        A[self.nx - 1, self.nx - 1] = 1.0
-        return A
+        return a, b, c.squeeze(), d
 
     def cala(self):
         """Calculate a para in spline interpolation."""
@@ -942,15 +907,64 @@ class PolySpline:
                     mat_out[imat, :] = mat[imat+1, :] - mat[imat, :]
         return mat_out
 
+class Spline1:
+    def __init__(self, x, y, d):
+        self.xp = x
+        self.yp = y
+        self.dd = d
+        self.nx = self.xp.shape[0]
+        self.diff_xp = self.xp[1:] - self.xp[:-1]
+        self.dind = bisect.bisect(self.xp.numpy(), self.dd) - 1
+        self.ynew = self.cubic()
+
+    def cubic(self):
+        A = self.get_A()
+        B = self.get_B()
+        a = t.zeros(self.nx)
+        c = t.zeros(self.nx)
+        d = t.zeros(self.nx)
+
+        # least squares and least norm problems
+        M, _ = t.lstsq(B, A)
+        for i in range(self.nx - 2):
+            # b[i] = (self.xp[i + 1] * M[i]- self.xp[i] * M[i + 1]) / self.diff_xp[i] / 2
+            c[i + 1] = (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i] - self.diff_xp[i] / 6 * (M[i + 1] - M[i])
+            d[i + 1] = (self.xp[i + 1] * self.yp[i] - self.xp[i] * self.yp[i + 1]) / self.diff_xp[i] - \
+            self.diff_xp[i] / 6 * (self.xp[i + 1] * M[i] - self.xp[i] * M[i + 1])
+        return (M[self.dind] * (self.xp[self.dind + 1] - self.dd) ** 3 + \
+                M[self.dind + 1] * (self.dd - self.xp[self.dind]) ** 3) / self.xp[self.dind] / 6 + \
+            c[self.dind + 1] * self.dd + d[self.dind + 1]
+
+    def get_B(self):
+        # natural boundary condition, the first and last are zero
+        B = t.zeros(self.nx, dtype=t.float64)
+        for i in range(self.nx - 2):
+            B[i + 1] = 6.0 * ((self.yp[i + 2] - self.yp[i + 1]) / self.diff_xp[i + 1] -
+                              (self.yp[i + 1] - self.yp[i]) / self.diff_xp[i]) / \
+            (self.diff_xp[i + 1] + self.diff_xp[i])
+        return B
+
+    def get_A(self):
+        """Calculate a para in spline interpolation."""
+        A = t.zeros((self.nx, self.nx), dtype=t.float64)
+        A[0, 0] = 1.0
+        for i in range(self.nx - 2):
+            A[i + 1, i + 1] = 2.0
+            A[i + 1, i] = self.diff_xp[i] / (self.diff_xp[i] + self.diff_xp[i + 1])
+            A[i + 1, i + 2] = 1 - A[i + 1, i]
+        A[self.nx - 1, self.nx - 1] = 1.0
+        return A
+
+
 
 """Test spline interpolation."""
 print("Spline test")
-xarr = t.tensor([-0.5, 0.0, 0.5, 1.0, 1.5])
-yarr = t.tensor([3.2, 2.7, 6, 5, 6.5])
+xarr = t.tensor([-0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5])
+yarr = t.tensor([3.2, 2.7, 6, 5, 6.5, 7., 3.])
 # spline = Spline(x, y)
-rx = t.linspace(-0.2, 1.3, 100)
-ry = [PolySpline(xarr, yarr, i).cubic() for i in rx]
-# ry = [spline.calc(i) for i in rx]
+rx = t.linspace(-0.5, 2.45, 100)
+# ry = [PolySpline(xarr, yarr, i).ynew for i in rx]
+ry = [Spline1(xarr, yarr, i).ynew for i in rx]
 plt.plot(xarr, yarr, "xb")
 plt.plot(rx, ry, "-r")
 plt.grid(True)

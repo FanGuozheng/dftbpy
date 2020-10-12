@@ -471,9 +471,11 @@ class SCF:
         self.para['nocc'] = nocc
 
         # calculate mulliken charges
-        self.para['charge'] = pad1d([self.elect.mulliken(
+        '''self.para['charge'] = pad1d([self.elect.mulliken(
             self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
-            for i in range(self.nb)])
+            for i in range(self.nb)])'''
+        self.para['charge'] = pad1d([self.elect.mulliken(i, j, m, n)
+            for i, j, m, n in zip(self.over, self.para['denmat'], self.atind, self.nat)])
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""

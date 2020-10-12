@@ -33,7 +33,7 @@ def dftb_parameter(parameter=None):
 
     # SCC, non-SCC DFTB calculation
     if 'scc' not in parameter.keys():
-        parameter['scc'] = 'scc'
+        parameter['scc'] = 'nonscc'
 
     # if the system perodic condition, with lattice parameter, switch to True
     if 'Lperiodic' not in parameter.keys():
@@ -148,7 +148,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'n_dataset' not in dataset.keys():
-        dataset['n_dataset'] = ['2']
+        dataset['n_dataset'] = ['100']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'n_test' not in dataset.keys():
@@ -222,7 +222,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # ML target: compressionRadius, integral
     if 'mlType' not in ml.keys():
-        ml['mlType'] = 'integral'
+        ml['mlType'] = 'compressionRadius'
 
     ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
 
