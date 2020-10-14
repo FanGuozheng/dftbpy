@@ -467,8 +467,10 @@ class EigenSolver:
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+        print([il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]]
+            for il, ii in zip(linv_a_linvt, ibatch)])
         eigval_eigvec = [
-            t.symeig(il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]],eigenvectors=True)
+            t.symeig(il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]], eigenvectors=True)
             for il, ii in zip(linv_a_linvt, ibatch)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])

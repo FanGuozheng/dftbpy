@@ -332,7 +332,7 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['polarizability_loss_ratio'] = 0.15
 
     # how many steps for optimize in DFTB-ML !!
-    ml['mlsteps'] = 2
+    ml['mlsteps'] = 20
 
     # how many steps to save the DFTB-ML data !!
     ml['save_steps'] = 2

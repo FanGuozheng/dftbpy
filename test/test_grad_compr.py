@@ -744,7 +744,6 @@ class RunML:
             self.skf['hammat_'] = ham
             self.skf['overmat_'] = over
             dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
-            # DFTBconvergence.append(self.para['reach_convergence'])
 
             # dftb formation energy calculations
             self.para['formation_energy'] = self.cal_optfor_energy(
@@ -758,7 +757,7 @@ class RunML:
 
             # get loss function
             if 'dipole' in self.ml['target']:
-                loss = self.criterion(self.para['xmat'][0][:3], pad1d(self.dataset['refdipole']))
+                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refdipole']))
             print("istep:", istep, '\n loss', loss)
             print(self.para['dipole'] - pad1d(self.dataset['refdipole']))
 

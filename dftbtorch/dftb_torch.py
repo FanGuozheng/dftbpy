@@ -530,7 +530,9 @@ class SCF:
 
             # The "shift_" term is the a product of the gamma and dQ values
             # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
-            shift_ = t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat)
+            # unstable: RuntimeError: Function 'BmmBackward' returned ...
+            # shift_ = t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat)
+            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in range(self.nb)])
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
