@@ -618,7 +618,7 @@ class RunML:
         if self.ml['mlType'] == 'integral':
             self.ml_integral()
         elif self.ml['mlType'] == 'compressionRadius' and self.para['Lbatch']:
-            self.ml_compr_batch2()
+            self.ml_compr_batch()
         elif self.ml['mlType'] == 'compressionRadius' and not self.para['Lbatch']:
             self.ml_compr()
         elif self.ml['mlType'] == 'integral':
@@ -683,6 +683,9 @@ class RunML:
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""
+        # clear some documents
+        os.system('rm .data/loss.dat .data/compr.dat')
+
         # calculate one by one to optimize para
         self.para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
         self.para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
@@ -714,8 +717,6 @@ class RunML:
                 self.genml.genml_init_compr(ibatch, atomname)
                 self.para['compr_init_'].append(self.para['compr_init'])
 
-                # get reference data
-                self.get_iref(ibatch, self.dataset['natomall'][ibatch])
         self.para['compr_ml'] = \
             pad1d(self.para['compr_init_']).clone().requires_grad_(True)
 
@@ -725,8 +726,6 @@ class RunML:
         elif self.ml['optimizer'] == 'Adam':
             optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
-        totalloss = []
-        DFTBconvergence = []
         for istep in range(self.ml['mlsteps']):
             ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
             over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
@@ -745,7 +744,7 @@ class RunML:
             self.skf['hammat_'] = ham
             self.skf['overmat_'] = over
             dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
-            DFTBconvergence.append(self.para['reach_convergence'])
+            # DFTBconvergence.append(self.para['reach_convergence'])
 
             # dftb formation energy calculations
             self.para['formation_energy'] = self.cal_optfor_energy(
@@ -758,15 +757,19 @@ class RunML:
                 self.criterion = t.nn.L1Loss(reduction='sum')
 
             # get loss function
-            loss = self.criterion(self.para['dipole'], pad1d(self.para['refdipole']))
-            totalloss.append(loss)
-            print("istep:", istep, "\n totalloss", totalloss, '\n convergence', DFTBconvergence)
+            if 'dipole' in self.ml['target']:
+                loss = self.criterion(self.para['xmat'][0][:3], pad1d(self.dataset['refdipole']))
+            print("istep:", istep, '\n loss', loss)
+            print(self.para['dipole'] - pad1d(self.dataset['refdipole']))
+
+            # save data
+            self.save.save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
 
             # clear gradients and define back propagation
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
             optimizer.step()
-        print("final totalloss", totalloss, '\n final convergence', DFTBconvergence)
+        print(self.para['compr_ml'].grad)
 
     def ml_compr_batch2(self):
         """DFTB optimization of compression radius for given dataset."""
@@ -802,8 +805,6 @@ class RunML:
                 self.genml.genml_init_compr(ibatch, atomname)
                 self.para['compr_init_'].append(self.para['compr_init'])
 
-                # get reference data
-                # self.get_iref(ibatch, self.dataset['natomall'][ibatch])
         self.para['compr_ml'] = \
             Variable(pad1d(self.para['compr_init_']), requires_grad=True)
         # pad1d(self.para['compr_init_']).requires_grad_(True)

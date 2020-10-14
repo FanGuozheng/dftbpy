@@ -33,7 +33,7 @@ def dftb_parameter(parameter=None):
 
     # SCC, non-SCC DFTB calculation
     if 'scc' not in parameter.keys():
-        parameter['scc'] = 'nonscc'
+        parameter['scc'] = 'scc'
 
     # if the system perodic condition, with lattice parameter, switch to True
     if 'Lperiodic' not in parameter.keys():
@@ -148,7 +148,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'n_dataset' not in dataset.keys():
-        dataset['n_dataset'] = ['100']
+        dataset['n_dataset'] = ['2']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'n_test' not in dataset.keys():
@@ -341,7 +341,7 @@ def init_ml(para=None, ml=None, dataset=None):
     ml['opt_step_min'] = 2
 
     # learning rate !!
-    ml['lr'] = 1E-3
+    ml['lr'] = 3E-2
 
     # optimizer
     ml['optimizer'] = 'Adam'
@@ -361,7 +361,7 @@ def init_ml(para=None, ml=None, dataset=None):
     if ml['mlType'] in ('compressionRadius', 'ACSF'):
 
         # interpolation of compression radius: BiCub, BiCubVec
-        ml['interp_compr_type'] = 'BiCub'
+        ml['interp_compr_type'] = 'BiCubVec'
 
         # grid of compression radius is uniform or not !!
         ml['typeSKinterp'] = 'uniform'
