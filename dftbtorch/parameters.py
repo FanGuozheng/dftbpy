@@ -119,149 +119,146 @@ def gauss_legendre_grid15(para):
     para['omega'], para['omega_weight'] = omega, omega_weight
 
 
-def mbd_vdw_para(para, iat):
+def mbd_vdw_para(atom_number):
     """MBD-DFTB parameters."""
-    atom_num = para['atomNumber'][iat]
-    if atom_num == 1:
+    if atom_number == 1:
         alpha = 4.500000
         C6 = 6.500000
         R0 = 3.100000
-    elif atom_num == 2:
+    elif atom_number == 2:
         alpha = 1.380000
         C6 = 1.460000
         R0 = 2.650000
-    elif atom_num == 3:
+    elif atom_number == 3:
         alpha = 164.200000
         C6 = 1387.000000
         R0 = 4.160000
-    elif atom_num == 4:
+    elif atom_number == 4:
         alpha = 38.000000
         C6 = 214.000000
         R0 = 4.170000
-    elif atom_num == 5:
+    elif atom_number == 5:
         alpha = 21.000000
         C6 = 99.500000
         R0 = 3.890000
-    elif atom_num == 6:
+    elif atom_number == 6:
         alpha = 12.000000
         C6 = 46.600000
         R0 = 3.590000
-    elif atom_num == 7:
+    elif atom_number == 7:
         alpha = 7.400000
         C6 = 24.200000
         R0 = 3.340000
-    elif atom_num == 8:
+    elif atom_number == 8:
         alpha = 5.400000
         C6 = 15.600000
         R0 = 3.190000
-    elif atom_num == 9:
+    elif atom_number == 9:
         alpha = 3.800000
         C6 = 9.520000
         R0 = 3.040000
-    elif atom_num == 10:
+    elif atom_number == 10:
         alpha = 2.670000
         C6 = 6.380000
         R0 = 2.910000
-    elif atom_num == 11:
+    elif atom_number == 11:
         alpha = 162.700000
         C6 = 1556.000000
         R0 = 3.730000
-    elif atom_num == 12:
+    elif atom_number == 12:
         alpha = 71.000000
         C6 = 627.000000
         R0 = 4.270000
-    elif atom_num == 13:
+    elif atom_number == 13:
         alpha = 60.000000
         C6 = 528.000000
         R0 = 4.330000
-    elif atom_num == 14:
+    elif atom_number == 14:
         alpha = 37.000000
         C6 = 305.000000
         R0 = 4.200000
-    elif atom_num == 15:
+    elif atom_number == 15:
         alpha = 25.000000
         C6 = 185.000000
         R0 = 4.010000
-    elif atom_num == 16:
+    elif atom_number == 16:
         alpha = 19.600000
         C6 = 134.000000
         R0 = 3.860000
-    elif atom_num == 17:
+    elif atom_number == 17:
         alpha = 15.000000
         C6 = 94.600000
         R0 = 3.710000
-    elif atom_num == 18:
+    elif atom_number == 18:
         alpha = 11.100000
         C6 = 64.300000
         R0 = 3.550000
-    elif atom_num == 19:
+    elif atom_number == 19:
         alpha = 292.900000
         C6 = 3897.000000
         R0 = 3.710000
-    elif atom_num == 20:
+    elif atom_number == 20:
         alpha = 160.000000
         C6 = 2221.000000
         R0 = 4.650000
-    elif atom_num == 21:
+    elif atom_number == 21:
         alpha = 120.000000
         C6 = 1383.000000
         R0 = 4.590000
-    elif atom_num == 22:
+    elif atom_number == 22:
         alpha = 98.000000
         C6 = 1044.000000
         R0 = 4.510000
-    elif atom_num == 23:
+    elif atom_number == 23:
         alpha = 84.000000
         C6 = 832.000000
         R0 = 4.440000
-    elif atom_num == 24:
+    elif atom_number == 24:
         alpha = 78.000000
         C6 = 602.000000
         R0 = 3.990000
-    elif atom_num == 25:
+    elif atom_number == 25:
         alpha = 63.000000
         C6 = 552.000000
         R0 = 3.970000
-    elif atom_num == 26:
+    elif atom_number == 26:
         alpha = 56.000000
         C6 = 482.000000
         R0 = 4.230000
-    elif atom_num == 27:
+    elif atom_number == 27:
         alpha = 50.000000
         C6 = 408.000000
         R0 = 4.180000
-    elif atom_num == 28:
+    elif atom_number == 28:
         alpha = 48.000000
         C6 = 373.000000
         R0 = 3.820000
-    elif atom_num == 29:
+    elif atom_number == 29:
         alpha = 42.000000
         C6 = 253.000000
         R0 = 3.760000
-    elif atom_num == 30:
+    elif atom_number == 30:
         alpha = 40.000000
         C6 = 284.000000
         R0 = 4.020000
-    elif atom_num == 31:
+    elif atom_number == 31:
         alpha = 60.000000
         C6 = 498.000000
         R0 = 4.190000
-    elif atom_num == 32:
+    elif atom_number == 32:
         alpha = 41.000000
         C6 = 354.000000
         R0 = 4.200000
-    elif atom_num == 33:
+    elif atom_number == 33:
         alpha = 29.000000
         C6 = 246.000000
         R0 = 4.110000
-    elif atom_num == 34:
+    elif atom_number == 34:
         alpha = 25.000000
         C6 = 210.000000
         R0 = 4.040000
-    elif atom_num == 35:
+    elif atom_number == 35:
         alpha = 20.000000
         C6 = 162.000000
         R0 = 3.930000
-    para['alpha_free'][iat] = alpha
-    para['C6_free'][iat] = C6
-    para['R_vdw_free'][iat] = R0
+    return alpha, C6, R0

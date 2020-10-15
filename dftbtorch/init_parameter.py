@@ -148,7 +148,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'n_dataset' not in dataset.keys():
-        dataset['n_dataset'] = ['2']
+        dataset['n_dataset'] = ['1']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'n_test' not in dataset.keys():
@@ -463,7 +463,7 @@ def skf_parameter(skf=None):
 
     # skf directory
     if 'direSK' not in skf.keys():
-        skf['direSK'] = '../slko/test'
+        skf['direSK'] = '.'
 
     # SK transformation method
     if 'sk_tran' not in skf.keys():

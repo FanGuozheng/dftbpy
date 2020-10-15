@@ -9,16 +9,12 @@ import numpy as np
 import torch as t
 import dftbtorch.parameters as parameters
 from dftbtorch.matht import LinAl
-
+from ml.padding import pad1d, pad2d
 
 class MBD:
-    """Realize MBD-DFTB, revised based on MBD-DFTB branch.
+    """Realize MBD-DFTB, revised based on MBD-DFTB branch."""
 
-    including TS, SCS@MBD method
-    https://github.com/FanGuozheng/dftbplus/tree/mbd
-    """
-
-    def __init__(self, para):
+    def __init__(self, para, dataset):
         """Accrdong to args, run different functions.
 
         Initialize parameters;
@@ -26,7 +22,10 @@ class MBD:
         Calculate TS, SCS@MBD polarizability while NO MBD energy!!!
         """
         self.para = para
-        self.nat = para['natom']
+        self.nb = self.para['nbatch']
+        self.dataset = dataset
+        self.nat = self.dataset['natomall']
+        self.natommax = max(self.nat)
         self.mbd_init()
         self.onsite_population()
         self.get_cpa()
@@ -38,31 +37,30 @@ class MBD:
         Initialize parameters;
         """
         parameters.mbd_parameter(self.para)
-        ngrid = self.para['n_omega_grid']
-        self.para['num_pairs'] = int((self.nat ** 2 - self.nat) / 2 + self.nat)
-        self.para['alpha_free'] = t.zeros((self.nat), dtype=t.float64)
-        self.para['C6_free'] = t.zeros((self.nat), dtype=t.float64)
-        self.para['R_vdw_free'] = t.zeros((self.nat), dtype=t.float64)
+        self.para['num_pairs'] = [int((iat ** 2 - iat) / 2 + iat) for iat in self.nat]
         self.para['alpha_tsall'] = []
-        self.para['R_TS_VdW'] = t.zeros((self.nat), dtype=t.float64)
-        self.para['sigma'] = t.zeros((self.nat), dtype=t.float64)
-        pairs_scs_p = t.zeros((self.para['num_pairs']), dtype=t.float64)
-        pairs_scs_q = t.zeros((self.para['num_pairs']), dtype=t.float64)
+        self.para['R_TS_VdW'] = t.zeros((self.nb, self.natommax), dtype=t.float64)
+        self.para['sigma'] = t.zeros((self.nb, self.natommax), dtype=t.float64)
 
         if not self.para['Lperiodic']:
             latvec = t.ones((3), dtype=t.float64) * 1000000000
             self.para['latvec'] = latvec.diag()
 
-        for iat in range(self.nat):
-            parameters.mbd_vdw_para(self.para, iat)
+        # get the return values of alpha_free, C6 and R
+        alpha_c_r = pad2d([t.tensor([list(parameters.mbd_vdw_para(
+            self.dataset['atomNumber'][ibatch][iat]))
+            for iat in range(self.nat[ibatch])])
+            for ibatch in range(self.para['nbatch'])])
 
-        counter = 0
-        for p in range(self.nat):
-            for q in range(p, self.nat):
-                pairs_scs_p[counter], pairs_scs_q[counter] = p, q
-                counter += 1
-        self.para['pairs_scs_p'] = pairs_scs_p
-        self.para['pairs_scs_q'] = pairs_scs_q
+        # write the return values to dict
+        self.para['alpha_free'], self.para['C6_free'], self.para['R_vdw_free'] = \
+            alpha_c_r[:, :, 0], alpha_c_r[:, :, 1], alpha_c_r[:, :, 2]
+
+        # get the indice of each matrix (each matrixsieze: natom, natom)
+        pairs_pq = pad2d([t.triu_indices(self.nat[ib], self.nat[ib], 0)
+                          for ib in range(self.para['nbatch'])])
+        self.para['pairs_p'] = pairs_pq[:, 0]
+        self.para['pairs_q'] = pairs_pq[:, 1]
 
     def onsite_population(self):
         """Get onsite population for CPA DFTB.
@@ -70,29 +68,30 @@ class MBD:
         sum density matrix diagnal value for each atom
         """
         self.para['OnsitePopulation'] = t.zeros((self.nat), dtype=t.float64)
-        atomind = self.para['atomind']
-        denmat = self.para['denmat'][-1].diag()
-        for iatom in range(self.nat):
-            ii1 = atomind[iatom]
-            ii2 = atomind[iatom + 1]
-            self.para['OnsitePopulation'][iatom] = denmat[ii1: ii2].sum()
+        atomind = self.dataset['atomind']
+
+        # get the diagnal of density matrice
+        denmat = [idensity.diag() for idensity in self.para['denmat']]
+
+        # get onsite population
+        self.para['OnsitePopulation'] = \
+            [[denmat[ib][atomind[ib][iat]: atomind[ib][iat + 1]].sum()
+              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
 
     def get_cpa(self):
         """Get onsite population for CPA DFTB.
 
         J. Chem. Phys. 144, 151101 (2016)
         """
-        cpa = t.zeros((self.nat), dtype=t.float64)
-        vefftsvdw = t.zeros((self.nat), dtype=t.float64)
         onsite = self.para['OnsitePopulation']
         qzero = self.para['qzero']
-        coor = self.para['coor']
-        for iatom in range(self.nat):
-            cpa[iatom] = 1.0 + (onsite[iatom] - qzero[iatom]) / coor[iatom][0]
-            vefftsvdw[iatom] = coor[iatom][0] + onsite[iatom] - qzero[iatom]
-        # sedc_ts_veff_div_vfree = scaling_ratio
-        self.para['cpa'] = cpa
-        self.para['vefftsvdw'] = vefftsvdw
+        atomnumber = self.dataset['atomNumber']
+        self.para['cpa'] = \
+            [[1.0 + (onsite[ib][iat] - qzero[ib][iat]) / atomnumber[ib][iat]
+              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
+        self.para['vefftsvdw'] = \
+            [[atomnumber[ib][iat] + onsite[ib][iat] - qzero[ib][iat]
+              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
 
     def get_mbdenergy(self):
         """Get MBD energy for DFTB.
@@ -101,13 +100,14 @@ class MBD:
         Phys. Rev. Lett. 108, 236402 (2012)
         """
         omega = self.para['omega']
-        orig_idx = t.zeros((self.nat), dtype=t.float64)
+        '''orig_idx = t.zeros((self.nat), dtype=t.float64)
+        orig_idx =
         for ip in range(self.nat):
-            orig_idx[ip] = self.para['pairs_scs_p'][ip]
+            orig_idx[ip] = self.para['pairs_p'][ip]'''
 
         self.para['ainv_'] = LinAl(self.para).inv33_mat(self.para['latvec'])
         h_, ainv_ = self.para['latvec'], self.para['ainv_']
-        self.mbdvdw_pbc(self.para['coor'], h_, ainv_, self.nat)
+        self.mbdvdw_pbc(self.dataset['coordinate'], h_, ainv_, self.nat)
         for ieff in range(self.para['n_omega_grid'] + 1):
             self.mbdvdw_effqts(ieff, omega[ieff])
             self.mbdvdw_SCS(ieff)
@@ -128,43 +128,44 @@ class MBD:
         alpha_free = self.para['alpha_free']
         C6_free = self.para['C6_free']
         R_vdw_free = self.para['R_vdw_free']
-        vfree = self.para['atomNumber']
+        vfree = self.dataset['atomNumber']
         VefftsvdW = self.para['vefftsvdw']
-        alpha_ts_ = t.zeros((self.nat), dtype=t.float64)
+        alpha_ts_ = t.zeros((self.nb, self.natommax), dtype=t.float64)
         if self.para['vdw_self_consistent']:
             dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dalpha_tsdV = t.zeros((self.nat, self.nat), dtype=t.float64)
-        for iat in range(self.nat):
-            omega_free = ((4.0 / 3.0) * C6_free[iat] / (alpha_free[iat] ** 2))
+        for ib in range(self.para['nbatch']):
+            for iat in range(self.nat[ib]):
+                omega_free = ((4.0 / 3.0) * C6_free[ib][iat] / (alpha_free[ib][iat] ** 2))
 
-            # Padé Approx: Tang, K.T, M. Karplus. Phys Rev 171.1 (1968): 70
-            pade_approx = 1.0 / (1.0 + (omega / omega_free) ** 2)
+                # Padé Approx: Tang, K.T, M. Karplus. Phys Rev 171.1 (1968): 70
+                pade_approx = 1.0 / (1.0 + (omega / omega_free) ** 2)
 
-            # Computes sigma
-            gamma = (1.0 / 3.0) * np.sqrt(2.0 / np.pi) * pade_approx * \
-                (alpha_free[iat] / vfree[iat])
-            gamma = gamma ** (1.0 / 3.0)
-            self.para['sigma'][iat] = gamma * VefftsvdW[iat] ** (1.0 / 3.0)
+                # Computes sigma
+                gamma = (1.0 / 3.0) * np.sqrt(2.0 / np.pi) * pade_approx * \
+                    (alpha_free[ib][iat] / vfree[ib][iat])
+                gamma = gamma ** (1.0 / 3.0)
+                self.para['sigma'][ib, iat] = gamma * VefftsvdW[ib][iat] ** (1.0 / 3.0)
 
-            # Computes R_TS: equation 11 in [PRL 102, 073005 (2009)]
-            xi = R_vdw_free[iat] / (vfree[iat]) ** (1.0 / 3.0)
-            self.para['R_TS_VdW'][iat] = xi * VefftsvdW[iat] ** (1.0 / 3.0)
+                # Computes R_TS: equation 11 in [PRL 102, 073005 (2009)]
+                xi = R_vdw_free[ib][iat] / (vfree[ib][iat]) ** (1.0 / 3.0)
+                self.para['R_TS_VdW'][ib, iat] = xi * VefftsvdW[ib][iat] ** (1.0 / 3.0)
 
-            # Computes alpha_ts: equation 1 in [PRL 108 236402 (2012)]
-            lambda_ = pade_approx * alpha_free[iat] / vfree[iat]
-            # self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
-            alpha_ts_[iat] = lambda_ * VefftsvdW[iat]
+                # Computes alpha_ts: equation 1 in [PRL 108 236402 (2012)]
+                lambda_ = pade_approx * alpha_free[ib][iat] / vfree[ib][iat]
+                # self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
+                alpha_ts_[ib, iat] = lambda_ * VefftsvdW[ib][iat]
 
-            if self.para['vdw_self_consistent']:
-                for jat in range(self.nat):
-                    if iat == jat:
-                        dsigmadV[iat, jat] = gamma / \
-                            (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
-                        dR_TS_VdWdV[iat, jat] = xi / \
-                            (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
-                        dalpha_tsdV[iat, jat] = lambda_
-            self.para['alpha_tsall'].append(alpha_ts_)
+                if self.para['vdw_self_consistent']:
+                    for jat in range(self.nat):
+                        if iat == jat:
+                            dsigmadV[iat, jat] = gamma / \
+                                (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
+                            dR_TS_VdWdV[iat, jat] = xi / \
+                                (3.0 * VefftsvdW[iat] ** (2.0 / 3.0))
+                            dalpha_tsdV[iat, jat] = lambda_
+                self.para['alpha_tsall'].append(alpha_ts_)
 
     def mbdvdw_SCS(self, ieff):
         r"""Calculate SCS@MBD.
@@ -172,91 +173,86 @@ class MBD:
         $\bar{A}(i\omega) = \left(  A^{-1} + TSR \right)^{-1}$
         """
         num_pairs = self.para['num_pairs']
-        pairs_scs_p = self.para['pairs_scs_p']
-        pairs_scs_q = self.para['pairs_scs_q']
+        pairs_p = self.para['pairs_p']
+        pairs_q = self.para['pairs_q']
         alpha_ts = self.para['alpha_tsall'][ieff]
-        mytsr = t.zeros((num_pairs, 3, 3), dtype=t.float64)
-        collected_tsr = t.zeros((num_pairs, 3, 3), dtype=t.float64)
-        A_matrix = t.zeros((3 * self.nat, 3 * self.nat), dtype=t.float64)
+        mytsr = t.zeros((self.nb, max(num_pairs), 3, 3), dtype=t.float64)
+        collected_tsr = t.zeros((self.nb, max(num_pairs), 3, 3), dtype=t.float64)
+        A_matrix = t.zeros((self.nb, 3 * self.natommax, 3 * self.natommax), dtype=t.float64)
 
-        for ii in range(num_pairs):
-            p, q = int(pairs_scs_p[ii]), int(pairs_scs_q[ii])
+        for ib in range(self.nb):
+            for ii in range(num_pairs[ib]):
+                p, q = int(pairs_p[ib, ii]), int(pairs_q[ib, ii])
 
-            sl_mult = 1.0
-            h_, ainv_ = self.para['latvec'], self.para['ainv_']
-            tsr = self.mbdvdw_TGG(p, q, self.nat, h_, ainv_)
-            mytsr[ii, :, :] = tsr
-            # print('mytsr', tsr)
+                sl_mult = 1.0
+                h_, ainv_ = self.para['latvec'], self.para['ainv_']
+                tsr = self.mbdvdw_TGG(p, q, self.nat[ib], h_, ainv_, ib)
+                mytsr[ib, ii, :, :] = tsr
+                # print('mytsr', tsr)
 
-        # only loops over the upper triangle
-        counter = 0
-        for p in range(self.nat):
-            for q in range(p, self.nat):
-                tsr = mytsr[counter, :, :]
-                #if(vdw_self_consistent) TSRdv(:,:,:) = collected_dtsrdv(counter,:,:,:)
-                #if(do_forces) then
-                #    TSRdr(:,:,:) = collected_dtsrdr(counter, :, :, :)
-                #if(.not.mbd_vdw_isolated) TSRdh(:,:,:) = collected_dtsrdh(counter, :, :, :)
-                counter = counter + 1
-                for i_idx in range(3):
-                    for j_idx in range(i_idx, 3):
-                        ind = (3 * p + i_idx)
-                        jnd = (3 * q + j_idx)
-                        ind_T = (3 * p + j_idx)
-                        jnd_T = (3 * q + i_idx)
-                        if p == q:
-                            if i_idx == j_idx:
-                                A_matrix[ind, jnd] = 1.0 / alpha_ts[p]
-                                divisor = 1.0 / alpha_ts[p] ** 2.0
-                        A_matrix[ind, jnd] = A_matrix[ind, jnd] + tsr[i_idx, j_idx]
-                        A_matrix[jnd, ind] = A_matrix[ind, jnd]
-                        A_matrix[ind_T, jnd_T] = A_matrix[ind, jnd]
-                        A_matrix[jnd_T, ind_T] = A_matrix[jnd, ind]
+            # only loops over the upper triangle
+            counter = 0
+            for p in range(self.nat[ib]):
+                for q in range(p, self.nat[ib]):
+                    tsr = mytsr[ib, counter, :, :]
+                    counter = counter + 1
+                    for i_idx in range(3):
+                        for j_idx in range(i_idx, 3):
+                            ind = (3 * p + i_idx)
+                            jnd = (3 * q + j_idx)
+                            ind_T = (3 * p + j_idx)
+                            jnd_T = (3 * q + i_idx)
+                            if p == q:
+                                if i_idx == j_idx:
+                                    A_matrix[ib, ind, jnd] = 1.0 / alpha_ts[ib, p]
+                                    divisor = 1.0 / alpha_ts[ib, p] ** 2.0
+                            A_matrix[ib, ind, jnd] = A_matrix[ib, ind, jnd] + tsr[i_idx, j_idx]
+                            A_matrix[ib, jnd, ind] = A_matrix[ib, ind, jnd]
+                            A_matrix[ib, ind_T, jnd_T] = A_matrix[ib, ind, jnd]
+                            A_matrix[ib, jnd_T, ind_T] = A_matrix[ib, jnd, ind]
 
         A_LU, pivots = t.lu(A_matrix)
         self.para['A_matrix'] = A_matrix.inverse()
 
     def mbdvdw_screened_pol(self):
-        """Calculate polarizability.
-
-        $$
-        """
-        alpha_isotropic = t.zeros((self.nat), dtype=t.float64)
+        """Calculate polarizability."""
+        alpha_isotropic = t.zeros((self.nb, self.natommax), dtype=t.float64)
         A_matrix = self.para['A_matrix']
         # vdw_self_consistent = False
         # do_forces = False
         # mbd_vdw_isolated = True
-        for pat in range(self.nat):
-            for qat in range(self.nat):
-                for i_idx in range(3):
-                    # cnt_v = 1
-                    # cnt_h = 1
-                    # cnt_f = 1
-                    ind = 3 * pat
-                    jnd = 3 * qat
+        for ib in range(self.nb):
+            for pat in range(self.nat[ib]):
+                for qat in range(self.nat[ib]):
                     for i_idx in range(3):
-                        ind = (3 * pat)
-                        jnd = (3 * qat)
-                        alpha_isotropic[pat] = alpha_isotropic[pat] + \
-                            A_matrix[ind + i_idx, jnd + i_idx]
-        alpha_isotropic[:] = alpha_isotropic[:] / 3.0 ** 2
+                        # cnt_v = 1
+                        # cnt_h = 1
+                        # cnt_f = 1
+                        ind = 3 * pat
+                        jnd = 3 * qat
+                        for i_idx in range(3):
+                            ind = (3 * pat)
+                            jnd = (3 * qat)
+                            alpha_isotropic[ib, pat] = alpha_isotropic[ib, pat] + \
+                                A_matrix[ib, ind + i_idx, jnd + i_idx]
+        alpha_isotropic = alpha_isotropic / 3.0 ** 2
         # self.para['alpha_mbd'] = alpha_isotropic
         return alpha_isotropic
 
-    def mbdvdw_TGG(self, p, q, n, h_in, ainv_in):
+    def mbdvdw_TGG(self, p, q, n, h_in, ainv_in, ib):
         """TGG = TSR + TLR.
 
         h_in: normally the latice parameters
         ainv_in: inverse matrix of of 3*3 h_in
         """
-        coor = self.para['coor']
+        coor = self.dataset['coordinate']
         spq = t.zeros((3), dtype=t.float64)
         spq_lat = t.zeros((3), dtype=t.float64)
         rpq_lat = t.zeros((3), dtype=t.float64)
         tsr = t.zeros((3, 3), dtype=t.float64)
         Rc = 20.0
 
-        rpq = coor[p, :] - coor[q, :]
+        rpq = coor[ib, p, :] - coor[ib, q, :]
         spq[:] = ainv_in[0, :] * rpq[0] + ainv_in[1, :] * rpq[1] + \
             ainv_in[2, :] * rpq[2]
         sc = self.mbdvdw_circumscribe(h_in, Rc)
@@ -267,7 +263,7 @@ class MBD:
             spq_lat[:] = spq[:] + t.tensor([n1, n2, n3])
             rpq_lat[:] = h_in[0, :] * spq_lat[0] + \
                 h_in[1, :] * spq_lat[1] + h_in[2, :] * spq_lat[2]
-            tsr = self.mbdvdw_compute_TSR(p, q, rpq_lat, spq_lat)
+            tsr = self.mbdvdw_compute_TSR(p, q, rpq_lat, spq_lat, ib)
         return tsr
 
     def mbdvdw_circumscribe(self, uc, radius):
@@ -291,7 +287,7 @@ class MBD:
             sc[2] = 0
         return sc
 
-    def mbdvdw_compute_TSR(self, p, q, rpq, spq_lat):
+    def mbdvdw_compute_TSR(self, p, q, rpq, spq_lat, ib):
         sigma = self.para['sigma']
         R_TS_VdW = self.para['R_TS_VdW']
         beta = self.para['beta']
@@ -301,11 +297,11 @@ class MBD:
         rpq_norm = (rpq[:] ** 2.0).sum().sqrt()
         # Computes the effective correlation length of the interaction potential
         # defined from the widths of the QHO Gaussians
-        Sigma_pq = (sigma[p].clone() ** 2.0 + sigma[q].clone() ** 2.0).sqrt()
+        Sigma_pq = (sigma[ib, p].clone() ** 2.0 + sigma[ib, q].clone() ** 2.0).sqrt()
         # sigma_p, sigma_q = sigma[p].clone(), sigma[q].clone()
         # Sigma_pq = (sigma_p ** 2.0 + sigma_q ** 2.0) ** (0.5)
         # Computes the damping radius
-        R_VdW_pq = R_TS_VdW[p] + R_TS_VdW[q]
+        R_VdW_pq = R_TS_VdW[ib, p] + R_TS_VdW[ib, q]
         Spq = beta * R_VdW_pq
         Z = 6.0 * (rpq_norm / Spq - 1.0)
         fermi_fn = 1.0

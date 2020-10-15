@@ -121,9 +121,6 @@ class SKTran:
                 namej = self.dataset['atomnameall'][ibatch][jat]
                 nameij = namei + namej
 
-                # the cutoff is from former step when reading skf file
-                cutoff = self.skf['cutoffsk' + nameij]
-
                 # the distance is from cal_coor
                 dd = self.dataset['distance'][ibatch][iat, jat]
 
@@ -997,17 +994,7 @@ def sksp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
 
 
 def sksd(xx, yy, zz, data, ham, ovr):
-    ham, ovr = sksp(xx, yy, zz, data, ham, ovr)
-    ham[0, 4], ovr[0, 4] = hs_s_xy(xx, yy, zz, data[7], data[17])
-    ham[0, 5], ovr[0, 5] = hs_s_yz(xx, yy, zz, data[7], data[17])
-    ham[0, 6], ovr[0, 6] = hs_s_xz(xx, yy, zz, data[7], data[17])
-    ham[0, 7], ovr[0, 7] = hs_s_x2y2(xx, yy, zz, data[7], data[17])
-    ham[0, 8], ovr[0, 8] = hs_s_3z2r2(xx, yy, zz, data[7], data[17])
-    for ii in range(nls + nlp, nld):
-        ham[ii, 0] = ham[0, ii]
-        ovr[ii, 0] = ovr[0, ii]
-    return ham, ovr
-
+    pass
 
 def skpp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
     """SK tranformation of p and p orbitals."""
@@ -1049,82 +1036,11 @@ def skpp(para, xx, yy, zz, i, j, ham, ovr, li, lj):
 
 
 def skpd(self, xx, yy, zz, data, ham, ovr):
-    ham, ovr = self.skpp(xx, yy, zz, data, ham, ovr)
-    ham[1, 4], ovr[1, 4] = hs_x_xy(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[1, 5], ovr[1, 5] = hs_x_yz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[1, 6], ovr[1, 6] = hs_x_xz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[1, 7], ovr[1, 7] = hs_x_x2y2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[1, 8], ovr[1, 8] = hs_x_3z2r2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[2, 4], ovr[2, 4] = hs_y_xy(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[2, 5], ovr[2, 5] = hs_y_yz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[2, 6], ovr[2, 6] = hs_y_xz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[2, 7], ovr[2, 7] = hs_y_x2y2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[2, 8], ovr[2, 8] = hs_y_3z2r2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[3, 4], ovr[3, 4] = hs_z_xy(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[3, 5], ovr[3, 5] = hs_z_yz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[3, 6], ovr[3, 6] = hs_z_xz(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[3, 7], ovr[3, 7] = hs_z_x2y2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    ham[3, 8], ovr[3, 8] = hs_z_3z2r2(
-        xx, yy, zz, data[3], data[13], data[4], data[14])
-    for ii in range(nls, nls + nlp):
-        for jj in range(nls + nlp, nld):
-            ham[jj, ii] = -ham[ii, jj]
-            ovr[jj, ii] = -ovr[ii, jj]
-    return ham, ovr
+    pass
 
 
 def skdd(self, xx, yy, zz, data, ham, ovr):
-    ham, ovr = self.skpd(xx, yy, zz, data, ham, ovr)
-    ham[4, 4], ovr[4, 4] = hs_xy_xy(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[4, 5], ovr[4, 5] = hs_xy_yz(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[4, 6], ovr[4, 6] = hs_xy_xz(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[4, 7], ovr[4, 7] = hs_xy_x2y2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[4, 8], ovr[4, 8] = hs_xy_3z2r2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[5, 5], ovr[5, 5] = hs_yz_yz(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[5, 6], ovr[5, 6] = hs_yz_xz(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[5, 7], ovr[5, 7] = hs_yz_x2y2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[5, 8], ovr[5, 8] = hs_yz_3z2r2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[6, 6], ovr[6, 6] = hs_xz_xz(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[6, 7], ovr[6, 7] = hs_xz_x2y2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[6, 8], ovr[6, 8] = hs_xz_3z2r2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[7, 7], ovr[7, 7] = hs_x2y2_x2y2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[7, 8], ovr[7, 8] = hs_x2y2_3z2r2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    ham[8, 8], ovr[8, 8] = hs_3z2r2_3z2r2(
-        xx, yy, zz, data[0], data[10], data[1], data[11], data[2], data[12])
-    for ii in range(nls+nlp, nld):
-        for jj in range(nls+nlp, ii+nls):
-            ham[ii, jj] = ham[jj, ii]
-            ovr[ii, jj] = ovr[jj, ii]
-    return ham, ovr
-
+    pass
 
 def hs_s_s(x, y, z, hss0, sss0):
     return hss0, sss0

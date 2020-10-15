@@ -3,8 +3,6 @@
 
 implement pytorch to DFTB
 """
-# !/usr/bin/env python3
-# -*- coding: utf-8 -*-
 import numpy as np
 import torch as t
 import bisect
@@ -571,13 +569,13 @@ class SCF:
 
             # Append the density matrix to "denmat", this is needed by MBD
             # at least.
-            denmat.append(rho)
+            # denmat.append(rho)
             # calculate mulliken charges
             '''q_new = pad1d([self.elect.mulliken(
                 self.over[i], rho[i], self.atind[i], self.nat[i])
                 for i in range(self.nb)])'''
             q_new = pad1d([self.elect.mulliken(i, j, m, n)
-                for i, j, m, n in zip(self.over, rho, self.atind, self.nat)])
+                           for i, j, m, n in zip(self.over, rho, self.atind, self.nat)])
 
             # Last mixed charge is the current step now
             if not self.batch:
@@ -617,7 +615,7 @@ class SCF:
         self.para['eigenvalue'], self.para['charge'] = epsilon, q_mixed
 
         # return density matrix
-        self.para['denmat'] = denmat
+        self.para['denmat'] = rho
 
         # return the eigenvector
         self.para['eigenvec'] = C
@@ -1058,7 +1056,7 @@ class Analysis:
 
         # calculate MBD-DFTB
         if self.para['LMBD_DFTB']:
-            MBD(self.para)
+            MBD(self.para, self.dataset)
 
         # calculate PDOS or not
         if self.para['Lpdos']:

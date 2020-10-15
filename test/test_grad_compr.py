@@ -44,7 +44,7 @@ def opt(para):
     time_begin = time.time()
 
     # get the initial parameters
-    para['Lbatch'] = True
+    para['Lbatch'] = False
     para = initpara.dftb_parameter(para)
     skf = initpara.skf_parameter()
     para, ml, dataset = initpara.init_ml(para)
@@ -620,7 +620,7 @@ class RunML:
         elif self.ml['mlType'] == 'compressionRadius' and self.para['Lbatch']:
             self.ml_compr_batch()
         elif self.ml['mlType'] == 'compressionRadius' and not self.para['Lbatch']:
-            self.ml_compr()
+            self.ml_compr_single()
         elif self.ml['mlType'] == 'integral':
             self.ml_compr_interp()
         elif self.ml['mlType'] == 'ACSF':
@@ -759,7 +759,7 @@ class RunML:
             if 'dipole' in self.ml['target']:
                 loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refdipole']))
             print("istep:", istep, '\n loss', loss)
-            print(self.para['dipole'] - pad1d(self.dataset['refdipole']))
+            print("compression radius:", self.para['compr_ml'])
 
             # save data
             self.save.save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
@@ -770,7 +770,7 @@ class RunML:
             optimizer.step()
         print(self.para['compr_ml'].grad)
 
-    def ml_compr_batch2(self):
+    def ml_compr_single(self):
         """DFTB optimization of compression radius for given dataset."""
         # clear some documents
         os.system('rm .data/loss.dat .data/compr.dat')
@@ -877,121 +877,6 @@ class RunML:
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
             optimizer.step()
-
-    def ml_compr(self):
-        """DFTB optimization of compression radius for given dataset."""
-        # calculate one by one to optimize para
-        self.ml['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
-        self.para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
-
-        for ibatch in range(self.nbatch):
-
-            # if batch calculation
-            assert not self.para['Lbatch']
-
-            # temporal ibatch, if calculate system by system, the 1st
-            # dimension of DFTB data will be 1 and then ibatch_ will be 0
-            ibatch_ = 0
-
-            # get the ith coordinates
-            self.get_coor(ibatch)
-
-            # number of atoms in molecule
-            nat = self.dataset['coordinate'].shape[0]
-
-            # initialize DFTB calculations with geometry and input parameters
-            # read skf according to global atom species
-            dftb_torch.Initialization(self.para, self.dataset, self.skf)
-            atomname = self.dataset['atomnameall'][ibatch]
-
-            # only read skf data once when calculate the first molecule
-            self.para['LreadSKFinterp'] = False
-
-            # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-            if self.ml['ref'] == 'hdf':
-                self.slako.genskf_interp_dist_hdf(ibatch_, nat)
-            else:
-                self.slako.genskf_interp_dist(ibatch)
-
-            # update (ML predict) compression radius during ML process
-            # if self.ml['Lopt_ml_compr']:
-            #    self.update_compr_para()
-            # do not update compression radius parameters
-            # else:
-            self.genml.genml_init_compr(ibatch, atomname)
-
-            # get the reference data
-            self.get_iref(ibatch, nat)
-
-            self.para['compr_ml'] = \
-                self.para['compr_init'].clone().requires_grad_(True)
-
-            # get optimizer
-            if self.ml['optimizer'] == 'SCG':
-                optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
-            elif self.ml['optimizer'] == 'Adam':
-                optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
-
-            # for each molecule we will run mlsteps
-            savestep_ = 0
-            for it in range(self.ml['mlsteps']):
-                # 2D interpolation with compression radius of atom pairs
-                if self.ml['ref'] == 'hdf':
-                    self.slako.genskf_interp_compr(ibatch_)
-                else:
-                    self.slako.genskf_interp_compr(ibatch)
-
-                # dftb calculations
-                self.runcal.idftb_torchspline(ibatch)
-                self.para['formation_energy'] = self.cal_optfor_energy(
-                        self.para['electronic_energy'], ibatch_)
-
-                # get loss function type
-                if self.ml['loss_function'] == 'MSELoss':
-                    self.criterion = t.nn.MSELoss(reduction='sum')
-                elif self.ml['loss_function'] == 'L1Loss':
-                    self.criterion = t.nn.L1Loss(reduction='sum')
-
-                # get loss function
-                loss = self.get_loss(ibatch_)
-
-                # clear gradients and define back propagation
-                optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-                optimizer.step()
-
-                # save and print information
-                if (it + 1) % self.ml['save_steps'] == 0 or it == 0:
-                    savestep_ += 1
-                    if self.ml['loss_function'] == 'MSELoss':
-                        self.loss_ = t.sqrt(loss.detach()) / nat
-                    elif self.ml['loss_function'] == 'L1Loss':
-                        self.loss_ = loss.detach() / nat
-                    self.ml["nsteps"][ibatch_] = savestep_
-                    print('-' * 100)
-                    print('ibatch: {} steps: {} target: {}'.format(
-                              ibatch + 1, it + 1, self.ml['target']))
-                    print('average loss: {}'.format(self.loss_))
-                    print('compr_ml.grad', para['compr_ml'].grad.detach())
-                    print("para['compr_ml']", para['compr_ml'])
-                    print('-' * 100)
-                    self.save_idftbml()
-
-                # convergence or break condition
-                if self.ml['Lopt_step'] and it > self.ml['opt_step_min']:
-                    if self.loss_ < self.ml['opt_ml_tol']:
-                        print('loss is < {}'.format(self.ml['opt_ml_tol']))
-                        break
-                if t.lt(self.para['compr_ml'], self.ml['compr_min']).all():
-                    print("there is compression R smaller than {}".format(
-                        para['compr_min']))
-                    break
-                if t.gt(self.para['compr_ml'], self.ml['compr_max']).all():
-                    print("there is compression larger than {}".format(
-                        self.ml['compr_max']))
-                    break
-        self.save.save1D(self.ml['nsteps'].detach().numpy(),
-                         name='nsave.dat', dire='.data', ty='a')
 
     def update_compr_para(self, ibatch):
         nbatchml_ = int(para['opt_ml_step'] * self.nbatch)

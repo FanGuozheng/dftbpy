@@ -71,7 +71,7 @@ class DFTBelect:
         Returns:
             Gamma matrix in second order
         """
-        gmat = t.empty((natom, natom), dtype=t.float64)
+        gmat = t.zeros((natom, natom), dtype=t.float64)
         for iatom in range(natom):
             namei = atomname[iatom] + atomname[iatom]
             for jatom in range(natom):

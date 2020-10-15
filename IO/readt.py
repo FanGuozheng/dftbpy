@@ -606,9 +606,6 @@ class ReadSlaKo:
         # the atom specie in the system
         atomspecie = self.dataset['atomspecie'][self.ibatch]
 
-        # path of sk directory
-        diresk = self.skf['direSK']
-
         # number of specie
         nspecie = len(atomspecie)
 
@@ -620,7 +617,7 @@ class ReadSlaKo:
 
                 # name of skf file
                 skname = atomspecie[iat] + '-' + atomspecie[jat] + '.skf'
-                fp = open(os.path.join(diresk, skname), "r")
+                fp = open(os.path.join(self.skf['direSK'], skname), "r")
 
                 # get the first line information
                 words = fp.readline().split()

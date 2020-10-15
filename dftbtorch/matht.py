@@ -431,7 +431,7 @@ class EigenSolver:
         # get how many systems in batch and the largest atom index
         nbatch = len(self.atomindex)
         maxind = max([iindex[-1] for iindex in self.atomindex])
-        chol_l = t.empty(nbatch, maxind, maxind)
+        chol_l = t.zeros(nbatch, maxind, maxind, dtype=A.dtype)
 
         # get the decomposition L, B = LL^{T} and padding zero
         chol_l = utilsbatch.pack([t.cholesky(
@@ -467,8 +467,6 @@ class EigenSolver:
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
-        print([il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]]
-            for il, ii in zip(linv_a_linvt, ibatch)])
         eigval_eigvec = [
             t.symeig(il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]], eigenvectors=True)
             for il, ii in zip(linv_a_linvt, ibatch)]

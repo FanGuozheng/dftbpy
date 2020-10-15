@@ -92,7 +92,7 @@ def pad2d(in_tensor):
     size = max(ibatch.shape for ibatch in in_tensor)
 
     # define output tensor
-    out_batch = t.empty(nbatch, *size, dtype=in_tensor[0].dtype)
+    out_batch = t.zeros(nbatch, *size, dtype=in_tensor[0].dtype)
 
     # get the output tensor
     for ibtch, ivalue in enumerate(in_tensor):
