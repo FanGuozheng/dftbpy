@@ -10,7 +10,7 @@ import subprocess
 from ase.build import molecule
 from ase.calculators.dftb import Dftb
 from ase.calculators.aims import Aims
-import dftbtorch.dftb_torch as dftb_torch
+import dftbtorch.dftbcalculator as dftbcalculator
 from IO.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
@@ -109,7 +109,7 @@ class DFTB:
                 if self.para['Lpdos']:
 
                     # calculate PDOS
-                    dftb_torch.Analysis(self.para).pdos()
+                    dftbcalculator.Analysis(self.para).pdos()
                     self.para['pdosdftbplus'].append(self.para['pdos'])
 
                     # save PDOS

@@ -4,6 +4,9 @@
 import os
 import torch as t
 
+# get global path
+path = os.getcwd()
+
 
 def dftb_parameter(parameter=None):
     """Return the general parameters for DFTB calculations.
@@ -22,6 +25,10 @@ def dftb_parameter(parameter=None):
 
     """
     parameter = {} if parameter is None else parameter
+
+    # is machine learning is on, the following is machine learning target
+    if 'Lml' not in parameter.keys():
+        parameter['Lml'] = False
 
     # batch calculation, usually True for machine learning
     if 'Lbatch' not in parameter.keys():
@@ -43,6 +50,14 @@ def dftb_parameter(parameter=None):
     # parameter from skf
     if 'Lrepulsive' not in parameter.keys():
         parameter['Lrepulsive'] = False
+
+    # input directory
+    if 'directory' not in parameter.keys():
+        parameter['directory'] = os.path.join(path, '.')
+
+    # SKF directory
+    if 'directorySK' not in parameter.keys():
+        parameter['directorySK'] = os.path.join(path, '.')
 
     # mixing method: simple. anderson, broyden
     if 'mixMethod' not in parameter.keys():
@@ -118,6 +133,10 @@ def dftb_parameter(parameter=None):
 
 def init_dataset(dataset=None):
     """Return the dataset or geometric parameters for DFTB calculations.
+
+    If parameters in dataset have nothing to do with ML, the parameters will be
+    in dict dataset, else it will be in ml.
+    If parameters used in both non-ML and ML, it will be in dict dataset.
 
     Args:
         dataset (dict, optional): a dictionary which includes dataset,
@@ -213,12 +232,8 @@ def init_ml(para=None, ml=None, dataset=None):
     ml = {} if ml is None else ml
     dataset = {} if dataset is None else dataset
 
-    # get current path
-    path = os.getcwd()
-
-    # is machine learning is on, the following is machine learning target
-    if 'Lml' not in ml.keys():
-        ml['Lml'] = True
+    # if initialize machine learning parameters, Lml switch from False to True
+    para['Lml'] = True
 
     # ML target: compressionRadius, integral
     if 'mlType' not in ml.keys():
@@ -262,20 +277,20 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # read hdf (with coordinates, reference physical properties) type
     if ml['reference'] == 'hdf':
+
         # run referecne calculations or directly get read reference properties
         ml['run_reference'] = False
 
-        # path of data
-        dataset['path_dataset'] = '../data/dataset'
-
-        # name of data in defined path
-        dataset['name_dataset'] = 'testfile.hdf5'
+        # path to dataset data
+        if 'referenceDataset' not in ml.keys():
+            ml['referenceDataset'] = '../data/dataset/testfile.hdf5'
 
         # if read SKF from a list of files with interpolation, instead from hdf
-        dataset['LSKFinterpolation'] = False
+        dataset['LSKFInterpolation'] = False
 
         # dire of skf with hdf type
-        ml['dire_hdfSK'] = '../slko/hdf'
+        if 'directoryHdfSK' not in ml.keys():
+            ml['directoryHdfSK'] = '../slko/hdf/'
 
         # name of skf with hdf type
         if ml['mlType'] == 'compressionRadius':
@@ -371,11 +386,11 @@ def init_ml(para=None, ml=None, dataset=None):
 
         # the grid point of compression radius is not uniform
         if ml['typeSKinterp'] == 'nonuniform':
-            ml['dire_interpSK'] = os.path.join(path, '../slko/nonuniform')
+            ml['directoryInterpSK'] = os.path.join(path, '.')
 
         # the grid point of compression radius is uniform
         elif ml['typeSKinterp'] == 'uniform':
-            ml['dire_interpSK'] = os.path.join(path, '../slko/uniform')
+            ml['directoryInterpSK'] = os.path.join(path, '.')
 
         # number of grid points, should be equal to atom_compr_grid
         ml['ncompr'] = 10
@@ -422,9 +437,6 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['N_init_compr'] = 3.5
         ml['O_init_compr'] = 3.5
 
-    # get input path
-    para['direInput'] = os.path.join(path, 'dftbtorch')
-
     # ---------------------- plotting and others ----------------------
     para['Lplot_ham'] = True
     para['Lplot_feature'] = False
@@ -460,10 +472,6 @@ def skf_parameter(skf=None):
     # skf interpolation number
     if 'ninterp' not in skf.keys():
         skf['ninterp'] = 8
-
-    # skf directory
-    if 'direSK' not in skf.keys():
-        skf['direSK'] = '.'
 
     # SK transformation method
     if 'sk_tran' not in skf.keys():

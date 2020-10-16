@@ -1,5 +1,4 @@
-
-"""Main DFTB code.
+"""DFTB calculator.
 
 implement pytorch to DFTB
 """
@@ -47,8 +46,8 @@ class DFTBCalculator:
         # define slater-koster dictionary
         self.skf = [skf, {}][skf is None]
 
-        # define machine learning dictionary
-        self.ml = [ml, {}][ml is None]
+        # define machine learning dictionary, this is optional for DFTB
+        self.ml = ml
 
         # return hamiltonian, overlap from input parameters and skf data
         self.initialization()
@@ -71,28 +70,24 @@ class DFTBCalculator:
 class Initialization:
     """Initialize parameters for DFTB.
 
-    this class aims to read input coordinates, calculation parameters and SK
-    tables;
-    Then with SK transformation, construct 1D Hamiltonian and overlap matrices
-    if symmetry is defined as half, otherwise build 2D, symmetric matrices for
-    the following DFTB calculations.
+    This class aims to read input parameters, coordinates, and SK integrals.
+    Then with SK transformation, get 3D Hamiltonian and overlap matrices, the
+    extra dimension is designed for batch calculations.
+    Reading input parameters section: firstly it will run constant_parameter,
+    dftb_parameter, skf_parameter, init_dataset, init_ml (optional). After
+    running the above functions, you will get default parameters. If you run
+    code by command line and define a input file named 'dftb_in', the code will
+    automatically read dftb_in and replace the default values. If you do not
+    want to read dftb_in, set LReadInput as False.
 
     """
-
-    def __init__(self, parameter, dataset, skf, ml=None, Lreadskf=True):
-        """Interface for different applications.
-
-        Parameters:
-        ----------
-            LCmdArgs (optional): Get information from command line
-            LReadInput (optional): Get information form a defined file
-
-        """
+    def __init__(self, parameter, dataset=None, skf=None, ml=None, Lreadskf=True):
+        """Interface for different applications."""
         # get the constant DFTB parameters for DFTB
         self.parameter = parameters.constant_parameter(parameter)
 
         # get parameters from command line
-        parser.parser_cmd_args(self.parameter)
+        self.parameter = parser.parser_cmd_args(self.parameter)
 
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
@@ -103,9 +98,11 @@ class Initialization:
         # get dataset parameters dictionary
         self.dataset = initpara.init_dataset(dataset)
 
-        # get machine learning parameters dictionary
-        self.parameter, self.ml, self.dataset = \
-            initpara.init_ml(self.parameter, ml, self.dataset)
+        # get machine learning parameters dictionary, optional
+        self.ml = ml
+        if self.parameter['Lml']:
+            self.parameter, self.ml, self.dataset = \
+                initpara.init_ml(self.parameter, self.ml, self.dataset)
 
         # return/update DFTB, geometric, skf parameters from input
         readt.ReadInput(self.parameter, self.dataset, self.skf)
@@ -153,7 +150,7 @@ class Initialization:
 
         """
         # do not perform machine learning
-        if not self.ml['Lml']:
+        if not self.parameter['Lml']:
 
             # get integral from directly reading normal skf file
             if not self.dataset['LSKFinterpolation']:
@@ -174,7 +171,7 @@ class Initialization:
 
         # perform machine learning
         # read a list of skf files with various compression radius
-        elif self.ml['Lml'] and self.dataset['LSKFinterpolation']:
+        elif self.parameter['Lml'] and self.dataset['LSKFinterpolation']:
 
             # ML variables is skf parameters (compression radius)
             # read all corresponding skf files (different compression radius)
@@ -231,7 +228,7 @@ class Initialization:
 
         """
         # do not perform machine learning
-        if not self.ml['Lml']:
+        if not self.parameter['Lml']:
 
             # get integral from directly reading skf file
             if not self.dataset['LSKFinterpolation']:
@@ -498,8 +495,8 @@ class SCF:
         # max iteration
         maxiter = self.para['maxIteration']
 
-        # define convergence list
-        conv_ = []
+        # define convergence list, append charge or energy to convergencelist
+        convergencelist = []
 
         if self.para['density_profile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
@@ -521,7 +518,6 @@ class SCF:
         nelectron = qatom.sum(axis=1)
         self.para['qzero'] = qzero = qatom
 
-        denmat = []
         q_mixed = qzero.clone()
         self.para['reach_convergence'] = False
         for iiter in range(maxiter):
@@ -567,13 +563,7 @@ class SCF:
             # batch calculation of density, normal code: C_scaled @ C_scaled.T
             rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
-            # Append the density matrix to "denmat", this is needed by MBD
-            # at least.
-            # denmat.append(rho)
-            # calculate mulliken charges
-            '''q_new = pad1d([self.elect.mulliken(
-                self.over[i], rho[i], self.atind[i], self.nat[i])
-                for i in range(self.nb)])'''
+            # calculate mulliken charges for each system in batch
             q_new = pad1d([self.elect.mulliken(i, j, m, n)
                            for i, j, m, n in zip(self.over, rho, self.atind, self.nat)])
 
@@ -588,28 +578,28 @@ class SCF:
             if self.para['convergenceType'] == 'energy':
 
                 # get energy: E0 + E_coul
-                '''conv_.append(t.stack([epsilon[i] @ occ[i] +
-                             0.5 * shift_[i] @ (q_mixed[i] + qzero[i])
-                             for i in range(self.nb)]))'''
-                conv_.append(t.stack([iep @ iocc + 0.5 * ish @ (iqm + iqz)
+                convergencelist.append(
+                    t.stack([iep @ iocc + 0.5 * ish @ (iqm + iqz)
                              for iep, iocc, ish, iqm, iqz in
                              zip(epsilon, occ, shift_, q_mixed, qzero)]))
 
                 # print energy information
-                dif = self.print_.print_energy(iiter, conv_,
+                dif = self.print_.print_energy(iiter, convergencelist,
                                                self.batch, self.nb)
 
             # use charge as convergence condition
             elif self.para['convergenceType'] == 'charge':
-                conv_.append(q_mixed)
-                dif = self.print_.print_charge(iiter, conv_, self.nat,
-                                               self.batch, self.nb)
+                convergencelist.append(q_mixed)
+                dif = self.print_.print_charge(iiter, convergencelist, self.nat)
 
             # if reached convergence
             if self.convergence(iiter, maxiter, dif, self.batch,
                                 self.para['convergenceTolerance']):
                 self.para['reach_convergence'] = True
                 break
+
+            # delete the previous charge or energy to save memory
+            del convergencelist[:-2]
 
         # return eigenvalue and charge
         self.para['eigenvalue'], self.para['charge'] = epsilon, q_mixed
@@ -707,7 +697,7 @@ class SCF:
         self.para['eigenvalue'], self.para['charge'] = eigval_, qatom_
         self.para['denmat'] = denmat_
 
-    def convergence(self, iiter, maxiter, dif, batch=False, tol=1E-6):
+    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6):
         """Convergence for SCC loops."""
         # for multi system, the max of difference will be chosen instead
         if batch:
@@ -716,12 +706,12 @@ class SCF:
         # use energy as convergence condition
         if self.para['convergenceType'] == 'energy':
 
-            if abs(dif) < tol:
+            if abs(dif) < tolerance:
                 return True
 
             # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
-                if abs(dif) > tol:
+                if abs(dif) > tolerance:
                     print('Warning: SCF donot reach required convergence')
                     return False
 
@@ -731,12 +721,12 @@ class SCF:
 
         # use charge as convergence condition
         elif self.para['convergenceType'] == 'charge':
-            if abs(dif) < self.para['convergence_tol']:
+            if abs(dif) < tolerance:
                 return True
 
             # read max iterations, end DFTB calculation
             elif iiter + 1 >= maxiter:
-                if abs(dif) > self.para['convergence_tol']:
+                if abs(dif) > tolerance:
                     print('Warning: SCF donot reach required convergence')
                     return True
             else:

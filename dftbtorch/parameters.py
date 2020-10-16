@@ -6,8 +6,7 @@ import torch as t
 
 def constant_parameter(para=None):
     """Constant parameters for ML and DFTB."""
-    if para is None:
-        para = {}
+    para = [para, {}][para is None]
 
     # unit between Hartree and eV
     para["AUEV"] = 27.2113845
@@ -43,8 +42,6 @@ def constant_parameter(para=None):
                  "l_O": 2,
                  "l_Ti": 3})
 
-    HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0,  'HH': 1, 'HO': 2, 'OC': 0,
-        'OH': 0, 'OO': 4}
 
     para.update({"atom_periodic_table": ["H", "He", "Li", "Be", "B", "C",
                                          "N", "O", "F", "Ne", "Na", "Mg",

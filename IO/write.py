@@ -44,14 +44,14 @@ class Print:
         """Print energy in each SCC loops."""
         # for the 0th loop, dE == energy
         if iiter == 0:
-            dE = energy[iiter].detach()
+            dE = energy[-1].detach()
 
             # single system
             if not batch:
 
                 # print the first title line
                 print('iteration', ' ' * 8, 'energy', ' ' * 20, 'dE')
-                energy_ = energy[iiter].squeeze(0)
+                energy_ = energy[-1].squeeze(0)
                 dE_ = dE.squeeze(0)
 
                 # print 0th loop energy
@@ -70,8 +70,7 @@ class Print:
 
                     # print 0th loop energy
                     for i in range(nbatch):
-                        print(f'{iiter:5} {energy[iiter].detach():25}',
-                              f'{dE:25}')
+                        print(f'{iiter:5} {energy[-1].detach():25}', f'{dE:25}')
                 return dE
 
         # for loops >= 1
@@ -81,8 +80,8 @@ class Print:
             if not batch:
 
                 # get energy
-                dE = energy[iiter].detach() - energy[iiter - 1].detach()
-                energy_ = energy[iiter].squeeze(0)
+                dE = energy[-1].detach() - energy[-2].detach()
+                energy_ = energy[-1].squeeze(0)
                 dE_ = dE.squeeze(0)
 
                 # print nth loop energy
@@ -93,7 +92,7 @@ class Print:
             elif batch:
 
                 # get energy
-                dE = energy[iiter].detach() - energy[iiter - 1].detach()
+                dE = energy[-1].detach() - energy[-2].detach()
 
                 # if print the energy
                 if Lprint:
@@ -101,32 +100,71 @@ class Print:
 
                     # print nth loop energy
                     for i in range(nbatch):
-                        print(f'{iiter:5} {energy[iiter].detach():25}',
-                              f'{dE:25}')
+                        print(f'{iiter:5} {energy[-1].detach():25}', f'{dE:25}')
                 return dE
 
-    def print_charge(self, iiter, charge, nat):
+    def print_charge(self, iiter, charge, batch, nbatch=None, Lprint=False):
         """Print charge in each SCC loops."""
-        # for the 0th loop, dQ == energy
+        # for the 0th loop, dE == energy
         if iiter == 0:
-            dQ = charge[0].detach().sum() / nat
+            dQ = charge[-1].detach().sum()
 
-            # print title
-            print('iteration', ' ' * 8, 'total charge', ' ' * 20, 'dQ')
+            # single system
+            if not batch:
 
-            # print 0th loop charge
-            print(f'{iiter:5} {charge[-1].detach().sum():25}', f'{dQ:25}')
-            return dQ
+                # print the first title line
+                print('iteration', ' ' * 8, 'charge', ' ' * 20, 'dQ')
+                charge_ = charge[-1].squeeze(0)
+                dQ_ = dQ.squeeze(0)
 
-        # print dE and charge
+                # print 0th loop energy
+                print(f'{iiter:5} {charge_.detach():25}', f'{dQ_:25}')
+                return dQ
+
+            # multi system
+            elif batch:
+
+                # if print the energy
+                if Lprint:
+                    assert nbatch is not None
+                    # print the first title line
+                    print('iteration', ' ' * 8,
+                          'energy list', ' ' * 20, 'dE list')
+
+                    # print 0th loop energy
+                    for i in range(nbatch):
+                        print(f'{iiter:5} {charge[-1].detach():25}', f'{dQ:25}')
+                return dQ
+
+        # for loops >= 1
         elif iiter >= 1:
 
-            # get charge
-            dQ = abs((charge[-2].detach() - charge[-1].detach())).sum() / nat
+            # single system
+            if not batch:
 
-            # print nth loop charge
-            print(f'{iiter:5} {charge[-1].detach().sum():25}', f'{dQ:25}')
-            return dQ
+                # get energy
+                dQ = (charge[-1].detach() - charge[-2].detach()).sum()
+                energy_ = charge[-1].squeeze(0)
+                dQ_ = dQ.squeeze(0)
+
+                # print nth loop energy
+                print(f'{iiter:5} {energy_.detach():25}', f'{dQ_:25}')
+                return dQ
+
+            # multi system
+            elif batch:
+
+                # get energy
+                dQ = (charge[-1].detach() - charge[-2].detach()).sum()
+
+                # if print the energy
+                if Lprint:
+                    assert nbatch is not None
+
+                    # print nth loop energy
+                    for i in range(nbatch):
+                        print(f'{iter:5} {charge[-1].detach():25}', f'{dQ:25}')
+                return dQ
 
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""

@@ -43,7 +43,7 @@ class SKTran:
         self.ibatch = ibatch
 
         # if machine learning or not
-        if not self.ml['Lml']:
+        if not self.para['Lml']:
 
             # read integrals from .skf with various compression radius
             if not self.dataset['LSKFinterpolation']:
@@ -58,7 +58,7 @@ class SKTran:
                 self.sk_tran_half(self.ibatch)
 
         # machine learning is True, some method only apply in this case
-        if self.ml['Lml']:
+        if self.para['Lml']:
 
             # use ACSF to generate compression radius, then SK transformation
             if self.ml['mlType'] in ('compressionRadius', 'ACSF'):
@@ -625,7 +625,7 @@ class SKinterp:
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
         # dist_1d = distance[ind[0], ind[1]]
         # get the skf with hdf type
-        hdfsk = os.path.join(self.ml['dire_hdfSK'], self.ml['name_hdfSK'])
+        hdfsk = os.path.join(self.ml['directoryHdfSK'], self.ml['name_hdfSK'])
 
         # read all skf according to atom number (species) and indices and add
         # these skf to a list, attention: hdf only store numpy type data
@@ -716,54 +716,6 @@ class SKinterp:
         timeend = time.time()
         print('time of distance interpolation: ', time2 - time0)
         print('total time of distance interpolation in skf: ', timeend - time0)
-
-    def genskf_interp_ijd_old(self, dij, nameij, rgrid):
-        """Interpolate skf of i and j atom with various compression radius."""
-        cutoff = self.para['interpcutoff']
-        ncompr = int(np.sqrt(self.skf['nfile_rall' + nameij]))
-        for icompr in range(ncompr):
-            for jcompr in range(ncompr):
-                grid_dist = \
-                    self.skf['grid_dist_rall' + nameij][icompr, jcompr]
-                skfijd = \
-                    self.skf['hs_all_rall' + nameij][icompr, jcompr, :, :]
-                col = skfijd.shape[1]
-                for icol in range(0, col):
-                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
-                        self.para['hs_ij'][icompr, jcompr, icol] = 0.0
-                    else:
-                        nline = int((cutoff - grid_dist) / grid_dist + 1)
-                        xp = t.linspace(grid_dist, nline * grid_dist, nline)
-                        yp = skfijd[:, icol][:nline]
-                        self.skf['hs_ij'][icompr, jcompr, icol] = \
-                            matht.polyInter(xp, yp, dij)
-
-    def genskf_interp_ijd(self, dij, nameij, rgrid):
-        """Interpolate skf of i and j atom with various compression radius."""
-        cutoff = self.skf['interpcutoff']
-        ncompr = int(np.sqrt(self.para['nfile_rall' + nameij]))
-        assert self.skf['grid_dist_rall' + nameij][0, 0] == \
-            self.skf['grid_dist_rall' + nameij][-1, -1]
-        grid_dist = self.para['grid_dist_rall' + nameij][0, 0]
-        nline = int((cutoff - grid_dist) / grid_dist + 1)
-        xp = t.linspace(grid_dist, nline * grid_dist, nline)
-        # timelist = [0]
-
-        for icompr in range(0, ncompr):
-            for jcompr in range(0, ncompr):
-                # timelist.append(time.time())
-                # print('timeijd:', timelist[-1] - timelist[-2])
-                skfijd = \
-                    self.skf['hs_all_rall' + nameij][icompr, jcompr, :, :]
-                col = skfijd.shape[1]
-                for icol in range(0, col):
-                    if (max(skfijd[:, icol]), min(skfijd[:, icol])) == (0, 0):
-                        self.skf['hs_ij'][icompr, jcompr, icol] = 0.0
-                    else:
-                        yp = skfijd[:, icol][:nline]
-                        func = interpolate.interp1d(xp.numpy(), yp.numpy(), kind='cubic')
-                        self.skf['hs_ij'][icompr, jcompr, icol] = \
-                            t.from_numpy(func(dij))
 
     def genskf_interp_ijd_(self, dij, nameij, rgrid):
         """Interpolate skf of i and j atom with various compression radius."""

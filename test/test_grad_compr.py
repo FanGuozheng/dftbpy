@@ -11,7 +11,7 @@ import torch as t
 import h5py
 import time
 import write_output as write
-import dftbtorch.dftb_torch as dftb_torch
+import dftbtorch.dftbcalculator as dftbcalculator
 import dftbtorch.slakot as slakot
 import utils.plot as plot
 import dftbtorch.init_parameter as initpara
@@ -24,11 +24,7 @@ from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
 import dftbmalt.utils.maths as maths
 from ml.padding import pad1d, pad2d
-ATOMIND = {'H': 1, 'HH': 2, 'HC': 3, 'C': 4, 'CH': 5, 'CC': 6}
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
-HNUM = {'CC': 4, 'CH': 2, 'CO': 4, 'HC': 0, 'HH': 1, 'HO': 2, 'OC': 0,
-        'OH': 0, 'OO': 4}
-COMP_R = {'H': 3.0, 'C': 3.0}
 VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
 AIMS_ENERGY = {"H": -0.45891649, "C": -37.77330663, "N": -54.46973501,
                "O": -75.03140052}
@@ -44,7 +40,7 @@ def opt(para):
     time_begin = time.time()
 
     # get the initial parameters
-    para['Lbatch'] = False
+    para['Lbatch'] = True
     para = initpara.dftb_parameter(para)
     skf = initpara.skf_parameter()
     para, ml, dataset = initpara.init_ml(para)
@@ -228,8 +224,9 @@ class RunML:
     def get_hdf_data(self):
         """Read data from hdf for reference or the following ML."""
         # join the path and hdf data
-        hdffile = os.path.join(self.dataset['path_dataset'],
-                               self.dataset['name_dataset'])
+        hdffile = self.ml['referenceDataset']
+        if not os.path.isfile(hdffile):
+            raise FileExistsError('reference dataset do not exist')
         self.dataset['coordinateAll'] = []
         self.dataset['natomall'] = []
         self.dataset['atomnameall'] = []
@@ -390,7 +387,7 @@ class RunML:
             if self.para['Lml_skf']:
 
                 # initialize DFTB calculation data
-                dftb_torch.Initialization(self.para)
+                dftbcalculator.Initialization(self.para)
 
                 # get inital compression radius
                 self.slako.genskf_interp_dist()
@@ -409,7 +406,7 @@ class RunML:
                 self.runcal.idftb_torchspline()
 
             elif self.para['Lml_HS']:
-                dftb_torch.Initialization(self.para)
+                dftbcalculator.Initialization(self.para)
                 self.runcal.idftb_torchspline()
 
             self.save_ref_idata(ref='dftb', LWHL=self.para['LHL'],
@@ -633,7 +630,7 @@ class RunML:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftb_torch.Initialization(self.para, self.dataset, self.skf)
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -668,7 +665,7 @@ class RunML:
                 slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
 
                 # run each DFTB calculation separatedly
-                dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
+                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
                 # define loss function
                 # get loss function
@@ -695,7 +692,7 @@ class RunML:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftb_torch.Initialization(self.para, self.dataset, self.skf)
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
         maxorb = max(self.dataset['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
@@ -729,8 +726,6 @@ class RunML:
         for istep in range(self.ml['mlsteps']):
             ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
             over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
-
-            # dftb_torch.Initialization(self.para, Lreadskf=False)
             for ibatch in range(self.nbatch):
                 self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
                 if self.ml['ref'] == 'hdf':
@@ -743,7 +738,7 @@ class RunML:
                 over[ibatch, :iorb, :iorb] = self.skf['overmat']
             self.skf['hammat_'] = ham
             self.skf['overmat_'] = over
-            dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
+            dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
 
             # dftb formation energy calculations
             self.para['formation_energy'] = self.cal_optfor_energy(
@@ -784,7 +779,7 @@ class RunML:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftb_torch.Initialization(self.para, self.dataset, self.skf)
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -830,7 +825,6 @@ class RunML:
             if 'offsetenergy' in self.ml['target']:
                 initenergy = []
 
-            # dftb_torch.Initialization(self.para, Lreadskf=False)
             for ibatch in range(self.nbatch):
                 self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
                 if self.ml['ref'] == 'hdf':
@@ -840,7 +834,7 @@ class RunML:
                 slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
 
                 # run each DFTB calculation separatedly
-                dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
+                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
                 # get loss function
                 if 'dipole' in self.ml['target']:
@@ -1007,7 +1001,7 @@ class RunML:
                 para['ibatch'] = ibatch
                 self.get_coor(ibatch)
                 nat = self.para['coor'].shape[0]
-                dftb_torch.Initialization(self.para)
+                dftbcalculator.Initialization(self.para)
                 # get natom * natom * [ncompr, ncompr, 20] by interpolation
                 self.slako.genskf_interp_dist()
                 self.para['LreadSKFinterp'] = False  # read SKF list only once
@@ -1105,13 +1099,10 @@ class RunML:
         for ibatch in range(self.nbatch):
             para['ibatch'] = ibatch
             self.get_coor(ibatch)
-            dftb_torch.Initialization(self.para)
+            dftbcalculator.Initialization(self.para)
 
-            if self.para['atomspecie'] != self.para['atomspecie_old']:
-                self.genml.get_spllabel()
-            else:
-                self.para['LreadSKFinterp'] = False
-            dftb_torch.Initialization(self.para)
+            self.para['LreadSKFinterp'] = False
+            dftbcalculator.Initialization(self.para)
             self.slako.genskf_interp_dist()
             self.genml.genml_init_compr()
 
@@ -1147,7 +1138,7 @@ class RunML:
             para['coor'] = para['coordinate'][0][:, :]
         elif type(para['coordinate'][0]) is np.ndarray:
             para['coor'] = t.from_numpy(para['coordinate'][0][:, :])
-        dftb_torch.Initialization(para)
+        dftbcalculator.Initialization(para)
         # interpskf(para)
         self.genml.genml_init_compr()
         para['compr_ml'] = para['compr_init'] + 1
@@ -1228,26 +1219,6 @@ class GenMLPara:
             [self.ml[ia + '_init_compr'] for ia in atomname], dtype=t.float64)
 
 
-    def get_spllabel(self):
-        """Check if atom specie is the same, if not, then update."""
-        if self.para['atomspecie'] != self.para['atomspecie_old']:
-            for iatomspecie in self.para['atomspecie']:
-                if iatomspecie not in self.para['atomspecie_old']:
-                    self.para['atomspecie_old'].append(iatomspecie)
-            if self.para['Lml_HS']:
-                h_spl_num = 0
-                self.para['spl_label'] = []
-                for iatom in self.para['atomspecie_old']:
-                    for jatom in self.para['atomspecie_old']:
-                        nameij = iatom + jatom
-                        h_spl_num += HNUM[nameij]
-                        if HNUM[nameij] > 0:
-                            self.para['spl_label'].append(nameij)
-                            self.para['spl_label'].append(h_spl_num)
-                            self.para['spl_label'].append(HNUM[nameij])
-                self.para['h_spl_num'] = h_spl_num
-
-
 class RunCalc:
     """Run different DFT(B) calculations.
 
@@ -1284,7 +1255,7 @@ class RunCalc:
         para['coor'] = t.from_numpy(coor)
         dipolemall = para['dipolemall']
         eigvalall = para['eigvalall']
-        dipolem, eigval = dftb_torch.dftb(para)
+        dipolem, eigval = dftbcalculator.dftb(para)
         dipolemall.append(dipolem)
         eigvalall.append(eigval)
         para['dipolemall'] = dipolemall
@@ -1293,9 +1264,8 @@ class RunCalc:
 
     def idftb_torchspline(self, ibatch=None):
         """Perform DFTB_python with integrals."""
-        # dftb_torch.Initialization(self.para).gen_sk_matrix(self.para)
         slakot.SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-        dftb_torch.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
+        dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
 
 def check_data(para, rmdata=False):
@@ -1339,7 +1309,7 @@ if __name__ == "__main__":
     para = {}
 
     # interface to shell terminal and get the default task
-    parser.parser_cmd_args(para)
+    para['task'] = 'opt'
     if para['task'] == 'opt':
         opt(para)
     elif para['task'] == 'test':

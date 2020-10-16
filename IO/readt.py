@@ -121,68 +121,54 @@ class ReadInput:
         self.para = parameter
 
         # geometry information
-        if dataset is None:
-            self.dataset = {}
-        else:
-            self.dataset = dataset
+        self.dataset = [dataset, {}][dataset is None]
 
         # skf information
-        if skf is None:
-            self.skf = {}
-        else:
-            self.skf = skf
+        self.skf = [skf, {}][skf is None]
+
+        # input file name
+        filename = self.para['inputName']
+
+        # directory of input file
+        direct = self.para['directory']
+        inputfile = os.path.join(direct, filename)
 
         # multi options for parameters: defined json file,
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
 
-                # read parameters from input json files
-                self.dftb_parameter = self.read_input()
-
-                # read dataset
-                self.dataset = self.read_coor()
-
-                # read skf parameter
-                self.skf = self.read_skf()
-
-            # if do not read from json
-            else:
-
-                # use default value from initpara
-                self.dftb_parameter = initpara.dftb_parameter(self.para)
-                self.skf = initpara.skf_parameter(self.skf)
-
-                # dataset in this case should be given directly
-                self.dataset = self.cal_coor_batch()
-
-        # do not define LReadInput
-        else:
-
-            # if donot read from json, then use default value from initpara
-            self.dftb_parameter = initpara.dftb_parameter(self.para)
-            self.skf = initpara.skf_parameter(self.skf)
+                # read parameters from input json files if file exists
+                if os.path.isfile(inputfile):
+                    self.dftb_parameter = self.read_dftb_parameter(inputfile)
 
             # dataset in this case should be given directly
             self.dataset = self.cal_coor_batch()
 
-    def read_input(self):
+        # do not define LReadInput
+        else:
+
+            # read parameters from input json files if file exists
+            if os.path.isfile(inputfile):
+                self.dftb_parameter = self.read_dftb_parameter(inputfile)
+
+            # dataset in this case should be given directly
+            self.dataset = self.cal_coor_batch()
+
+    def read_dftb_parameter(self, inputfile):
         """Read the general information from .json file."""
-        # input file name
-        filename = self.para['filename']
-
-        # directory of input file
-        direct = self.para['pathInput']
-
-        with open(os.path.join(direct, filename), 'r') as fp:
+        print("Read from input file and rewrite default parameters")
+        with open(inputfile, 'r') as fp:
 
             # load json type file
             fpinput = json.load(fp)
 
             # parameter of task
             if 'task' in fpinput['general']:
-                self.para['task'] = fpinput['general']['task']
-            else:
-                self.para['task'] = 'normal'
+                task = fpinput['general']['task']
+                if task in ('dftb', 'train', 'test'):
+                    self.para['task'] = task
+                else:
+                    raise ValueError('task value not defined correctly')
 
             # parameter of scc
             if 'scc' in fpinput['general']:
@@ -190,9 +176,7 @@ class ReadInput:
                 if scc in ('scc', 'nonscc', 'xlbomd'):
                     self.para['scc'] = scc
                 else:
-                    raise ImportError('Error: scc not defined correctly')
-            else:
-                self.para['scc'] = False
+                    raise ValueError('scc not defined correctly')
 
             # perform ML or not
             if 'Lml' in fpinput['general']:
@@ -202,48 +186,55 @@ class ReadInput:
                 elif Lml in ('F', 'False', 'false'):
                     self.para['Lml'] = False
                 else:
-                    raise ImportError('Error: scc not defined correctly')
-            else:
-                self.para['Lml'] = False
+                    raise ValueError('Lml not defined correctly')
 
             # parameter: mixing parameters
             if 'mixMethod' in fpinput['general']:
-                self.para['mixMethod'] = fpinput['general']['mixMethod']
-            else:
-                self.para['mixMethod'] = 'anderson'
+                mixmethod = fpinput['general']['mixMethod']
+                if mixmethod in ('simple', 'anderson', 'broyden'):
+                    self.para['mixMethod'] = mixmethod
+                else:
+                    raise NotImplementedError('not implement the method', mixmethod)
+
+            # parameter: max iteration
             if 'maxIteration' in fpinput['general']:
-                self.para['maxIteration'] = fpinput['general']['maxIteration']
-            else:
-                self.para['maxIteration'] = 60
+                maxiter = fpinput['general']['maxIteration']
+                if type(maxiter) is int and 6 <= maxiter <= 100:
+                    self.para['maxIteration'] = maxiter
+                else:
+                    raise ValueError('maxIteration not defined correctly')
 
             # parameter: mixFactor
             if 'mixFactor' in fpinput['general']:
-                self.para['mixFactor'] = fpinput['general']['mixFactor']
-            else:
-                self.para['mixFactor'] = 0.2
+                mixfactor = fpinput['general']['mixFactor']
+                if 0 < mixfactor < 1:
+                    self.para['mixFactor'] = mixfactor
+                else:
+                    raise ValueError('mixFactor not defined correctly')
 
-            # parameter of temperature: tElec
-            if 'tElec' in fpinput['general']:
-                self.para['tElec'] = fpinput['general']['tElec']
-            else:
-                self.para['tElec'] = 0
+            # parameter of temperature: tElectron
+            if 'tElectron' in fpinput['general']:
+                telect = fpinput['general']['tElectron']
+                if 0. <= telect <= 1E3:
+                    self.para['tElec'] = telect
+                else:
+                    raise ValueError('tElectron not defined correctly')
 
-            # convergence for energy, charge ...
+            # convergence type: energy, charge ...
             if 'convergenceType' in fpinput['general']:
-                self.para['convergenceType'] = \
-                    fpinput['general']['convergenceType']
-            else:
-                self.para['convergenceType'] = 'charge'
-            if 'energyTolerance' in fpinput['general']:
-                self.para['energyTolerance'] = \
-                    fpinput['general']['energyTolerance']
-            else:
-                self.para['energyTolerance'] = 1e-6
-            if 'charge_tol' in fpinput['general']:
-                self.para['chargeTolerance'] = \
-                    fpinput['general']['chargeTolerance']
-            else:
-                self.para['chargeTolerance'] = 1e-6
+                convergence = fpinput['general']['convergenceType']
+                if convergence in ('charge', 'energy'):
+                    self.para['convergenceType'] = convergence
+                else:
+                    raise ValueError('convergenceType not defined correctly')
+
+            # convergence tolerance
+            if 'convergenceTolerance' in fpinput['general']:
+                tol = fpinput['general']['convergenceTolerance']
+                if 0 < tol < 1E-2:
+                    self.para['convergenceTolerance'] = tol
+                else:
+                    raise ValueError('convergenceTolerance not defined correctly')
 
             # ************************ analysis *************************
             # if write dipole or not
@@ -254,9 +245,7 @@ class ReadInput:
                 elif dipole in ('False', 'F', 'false'):
                     self.para['Ldipole'] = False
                 else:
-                    ImportError('Error: dipole not defined correctly')
-            else:
-                self.para['Ldipole'] = True
+                    raise ValueError('dipole not defined correctly')
 
             # if perform MBD-DFTB with CPA
             if 'LMBD_DFTB' in fpinput['analysis']:
@@ -266,9 +255,7 @@ class ReadInput:
                 elif dipole in ('False', 'F', 'false'):
                     self.para['LMBD_DFTB'] = False
                 else:
-                    ImportError('Error: dipole not defined correctly')
-            else:
-                self.para['LMBD_DFTB'] = True
+                    raise ValueError('LMBD_DFTB not defined correctly')
 
             # if calculate repulsive part
             if 'Lrepulsive' in fpinput['analysis']:
@@ -278,108 +265,36 @@ class ReadInput:
                 elif dipole in ('False', 'F', 'false'):
                     self.para['Lrepulsive'] = False
                 else:
-                    ImportError('Error: dipole not defined correctly')
-            else:
-                self.para['dipole'] = True
+                    raise ValueError('Lrepulsive not defined correctly')
 
             # periodic or molecule
-            if 'periodic' in fpinput['general']:
+            if 'Lperiodic' in fpinput['general']:
                 period = fpinput['general']['periodic']
                 if period in ('True', 'T', 'true'):
-                    self.para['periodic'] = True
+                    self.para['Lperiodic'] = True
                 elif period in ('False', 'F', 'false'):
-                    self.para['periodic'] = False
+                    self.para['Lperiodic'] = False
                 else:
-                    self.para['periodic'] = False
-                    print('Warning: periodic not defined correctly')
-            else:
-                self.para['periodic'] = False
+                    raise ValueError('Lperiodic not defined correctly')
 
             # *********************** geometry **************************
-            # type of coordinate
+            # type of coordinate C (Cartesian)
             if 'type' in fpinput['geometry']:
-                self.para['coorType'] = fpinput['geometry']['periodic']
-            else:
-                self.para['coorType'] = 'C'
-
-            # use interpolation to generate SK instead of read .skf
-            if 'LreadSKFinterp' in fpinput['general']:
-                scc = fpinput['general']['LreadSKFinterp']
-                if scc in ('True', 'T', 'true'):
-                    self.para['LreadSKFinterp'] = True
-                elif scc in ('False', 'F', 'false'):
-                    self.para['LreadSKFinterp'] = False
+                coortype = fpinput['geometry']['periodic']
+                if coortype in ('C', 'Cartesian', 'cartesian'):
+                    self.para['coordinateType'] = 'C'
                 else:
-                    raise ImportError('Error: Lml_HS not defined correctly')
-            else:
-                self.para['LreadSKFinterp'] = False
+                    raise ValueError('coordinateType not defined correctly')
 
-            # directly generate integrals
-            if 'Lml_HS' in fpinput['general']:
-                scc = fpinput['general']['Lml_HS']
-                if scc in ('True', 'T', 'true'):
-                    self.para['Lml_HS'] = True
-                elif scc in ('False', 'F', 'false'):
-                    self.para['Lml_HS'] = False
-                else:
-                    raise ImportError('Error: Lml_HS not defined correctly')
-            else:
-                self.para['Lml_HS'] = False
-
-        # return DFTB calculation parameters
-        return self.para
-
-    def read_skf(self):
-        """Read skf parameter from input."""
-        # get the input file name
-        filename = self.para['filename']
-
-        # the directory of input file
-        direct = self.para['direInput']
-
-        with open(os.path.join(direct, filename), 'r') as f:
-            fpinput = json.load(f)
-
-            # the number of points for interpolation when read .skf
-            if 'ninterp' in fpinput['skf']:
-                self.skf['ninterp'] = fpinput['skf']['ninterp']
-            else:
-                self.skf['ninterp'] = 8
-
-            # smooth the tail of integral table, the tail distance
-            if 'dist_tailskf' in fpinput['skf']:
-                self.skf['dist_tailskf'] = fpinput['skf']['dist_tailskf']
-            else:
-                self.skf['dist_tailskf'] = 1.0
-            if 'delta_r_skf' in fpinput['skf']:
-                self.skf['delta_r_skf'] = fpinput['skf']['delta_r_skf']
-            else:
-                self.skf['delta_r_skf'] = 1E-5
-        # return skf
-        return self.skf
-
-    def read_coor(self):
-        """Read and process coordinate, get coordinate from input."""
-        # get the input file name
-        filename = self.para['filename']
-
-        # the directory of input file
-        direct = self.para['direInput']
-
-        with open(os.path.join(direct, filename), 'r') as f:
-            fpinput = json.load(f)
-            try:
+            # read coordinate and atom number
+            if 'coordinate' in fpinput['geometry']:
                 coordinate = fpinput['geometry']['coordinate']
+            if 'atomNumber' in fpinput['geometry']:
                 atom_number = fpinput['geometry']['atomNumber']
-            except IOError:
-                print('please define the coordination')
 
-        # return coordinate and transfer to tensor
-        self.dataset['coordinate'] = t.from_numpy(np.asarray(coordinate))
-        self.dataset['atomNumber'] = t.from_numpy(np.asarray(atom_number))
-
-        # return geometry information
-        return self.cal_coor_batch()
+            # return coordinate and transfer to tensor
+            self.dataset['coordinate'] = t.from_numpy(np.asarray(coordinate))
+            self.dataset['atomNumber'] = t.from_numpy(np.asarray(atom_number))
 
     def cal_coor_batch(self):
         """Generate vector, distance ... according to input geometry.
@@ -617,7 +532,7 @@ class ReadSlaKo:
 
                 # name of skf file
                 skname = atomspecie[iat] + '-' + atomspecie[jat] + '.skf'
-                fp = open(os.path.join(self.skf['direSK'], skname), "r")
+                fp = open(os.path.join(self.para['directorySK'], skname), "r")
 
                 # get the first line information
                 words = fp.readline().split()
