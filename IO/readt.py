@@ -128,7 +128,6 @@ class ReadInput:
 
         # input file name
         filename = self.para['inputName']
-        print("self.dataset['atomNumber']11", self.dataset['atomNumber'], self.para['LReadInput'])
 
         # multi options for parameters: defined json file,
         if 'LReadInput' in self.para.keys():
@@ -147,16 +146,6 @@ class ReadInput:
         # getting from code, then generate some geometric information
         self.dataset = self.cal_coor_batch()
 
-        '''# do not define LReadInput
-        else:
-
-            # read parameters from input file if file exists, if not
-            if os.path.isfile(inputfile):
-                self.dftb_parameter = self.read_dftb_parameter(inputfile)
-
-            # dataset in this case should be given directly
-            self.dataset = self.cal_coor_batch()'''
-
     def read_dftb_parameter(self, inputfile):
         """Read the general information from .json file."""
         print("Read parameters from: ", inputfile)
@@ -172,6 +161,10 @@ class ReadInput:
                     self.para['task'] = task
                 else:
                     raise ValueError('task value not defined correctly')
+
+            # parameter of task
+            if 'directorySK' in fpinput['general']:
+                self.para['directorySK'] = fpinput['general']['directorySK']
 
             # parameter of scc
             if 'scc' in fpinput['general']:
@@ -322,6 +315,9 @@ class ReadInput:
             self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
         else:
             nfile = self.dataset['coordinate'].shape[0]
+            if 'natomAll' not in self.dataset.keys():
+                self.dataset['natomAll'] = \
+                    [len(icoor) for icoor in self.dataset['coordinate']]
             nmax = max(self.dataset['natomAll'])
 
         # if generate the atomname, if atomname exist, pass
@@ -356,7 +352,6 @@ class ReadInput:
             atomnumber = self.dataset['atomNumber'][ib]
 
             coor = self.dataset['coordinate'][ib]
-            # self.dataset['coordinate'][ib, :natom, 0] = coor[:natom, 0]
 
             # get index of orbitals atom by atom
             atomind.append(0)

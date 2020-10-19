@@ -71,7 +71,7 @@ def dftb_parameter(parameter=None):
 
     # dire of skf dataset (write SKF as binary file)
     if 'SKDataset' not in parameter.keys():
-        parameter['SKDataset'] = '../../slko/hdf/skf.hdf5'
+        parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
 
     # input file name, default is dftb_in
     if 'inputName' not in parameter.keys():
@@ -292,7 +292,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # path to dataset data
     if 'referenceDataset' not in ml.keys():
-        ml['referenceDataset'] = '../../data/dataset/testfile.hdf5'
+        ml['referenceDataset'] = '../data/dataset/testfile.hdf5'
 
     # read hdf (with coordinates, reference physical properties) type
     if ml['reference'] == 'hdf':
