@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 
-class SaveData:
+class Save1D(object):
     """Simple code dor saving data.
 
     data is numpy type matrix
@@ -16,11 +16,7 @@ class SaveData:
 
     """
 
-    def __init__(self, para):
-        """Initialize data."""
-        self.para = para
-
-    def save1D(self, data, name, blank='lower', dire=None, ty='w'):
+    def __init__(self, data, name, blank='lower', dire=None, ty='w'):
         """Save 0D/1D numpy array or tensor."""
         if len(data.shape) == 0:
             data = data.reshape(1)
@@ -32,7 +28,9 @@ class SaveData:
             np.savetxt(fopen, data, newline=" ")
             fopen.write('\n')
 
-    def save2D(self, data, name, blank='lower', dire=None, ty='w'):
+class Save2D(object):
+
+    def __init__(self, data, name, blank='lower', dire=None, ty='w'):
         """Save 2D numpy array or tensor."""
         if dire is None:
             newdire = os.getcwd()
@@ -47,13 +45,3 @@ class SaveData:
                 if blank == 'lower':
                     fopen.write('\n')
 
-    def save_envir(para, Directory):
-        """Save atomic environment data."""
-        ang_paraall = para['ang_paraall']
-        rad_paraall = para['rad_paraall']
-        with open(os.path.join(Directory, 'rad_para.dat'), 'w') as fopen:
-            np.savetxt(fopen, rad_paraall, fmt="%s", newline=' ')
-            fopen.write('\n')
-        with open(os.path.join(Directory, 'ang_para.dat'), 'w') as fopen:
-            np.savetxt(fopen, ang_paraall, fmt="%s", newline=' ')
-            fopen.write('\n')

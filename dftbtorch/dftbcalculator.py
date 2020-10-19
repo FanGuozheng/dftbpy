@@ -384,7 +384,7 @@ class SCF:
         self.atind2 = self.dataset['atomind2']
 
         # the name of all atoms
-        self.atomname = self.dataset['atomnameall']
+        self.atomname = self.dataset['atomNameAll']
 
         # eigen solver
         self.eigen = EigenSolver(self.para['eigenMethod'])
@@ -499,7 +499,7 @@ class SCF:
         if self.para['densityProfile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
                 self.dataset['distance'][i], self.nat[i],
-                self.dataset['atomnameall'][i]) for i in ibatch]
+                self.dataset['atomNameAll'][i]) for i in ibatch]
 
             # pad a list of 2D gmat with different size
             gmat = pad2d(gmat_)

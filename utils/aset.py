@@ -11,7 +11,7 @@ from ase.build import molecule
 from ase.calculators.dftb import Dftb
 from ase.calculators.aims import Aims
 import dftbtorch.dftbcalculator as dftbcalculator
-from IO.save import SaveData
+from IO.save import Save1D, Save2D
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
                "O": -3.0861916005}
@@ -268,40 +268,29 @@ class RunASEAims:
         self.ml = ml
         self.dataset = dataset
 
-        # FHI-aims binary name, normally aims
-        self.aims_bin = self.ml['aims_bin']
-
-        # GHI-aims binary path
-        self.aims_path = ml['aims_ase_path']
-
         # set environment before calculations
         if setenv:
             self.set_env()
 
     def set_env(self):
         """Set the environment before DFTB calculations with ase."""
-        # merge DFTB+ binary path and name
-        path_bin_org = os.path.join(self.aims_path, self.aims_bin)
 
         # copy binary to current path
-        os.system('cp ' + path_bin_org + ' ./aims.x')
+        os.system('cp ' + self.ml['aims'] + ' ./aims.x')
 
         # get the current binary path and name
-        path_bin = os.path.join(os.getcwd(), self.aims_bin)
+        path_bin = os.path.join(os.getcwd(), 'aims.x')
         self.aimsout = os.path.join(os.getcwd(), 'aims.out')
 
         # set ase environemt
         os.environ['ASE_AIMS_COMMAND'] = path_bin + ' > PREFIX.out'
-        os.environ['AIMS_SPECIES_DIR'] = self.ml['aims_specie_path']
+        os.environ['AIMS_SPECIES_DIR'] = self.ml['aimsSpecie']
 
     def run_aims(self, nbatch, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
         coorall = self.dataset['coorall']
         if begin is None:
             begin = 0
-
-        # source and set environment for python, ase before calculations
-        self.save = SaveData(self.para)
 
         # if calculate, deal with pdos or not
         if self.para['Lpdos']:

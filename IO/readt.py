@@ -128,31 +128,34 @@ class ReadInput:
 
         # input file name
         filename = self.para['inputName']
-
-        # directory of input file
-        direct = self.para['directory']
-        inputfile = os.path.join(direct, filename)
+        print("self.dataset['atomNumber']11", self.dataset['atomNumber'], self.para['LReadInput'])
 
         # multi options for parameters: defined json file,
         if 'LReadInput' in self.para.keys():
             if self.para['LReadInput']:
 
-                # read parameters from input json files if file exists
+                # directory of input file
+                direct = self.para['directory']
+                inputfile = os.path.join(direct, filename)
+
+                # if file exists, read inputfile, else use default parameters
                 if os.path.isfile(inputfile):
+                    # read parameters from input json files if file exists
                     self.dftb_parameter = self.read_dftb_parameter(inputfile)
 
-            # dataset in this case should be given directly
-            self.dataset = self.cal_coor_batch()
+        # after reading geometry, parameters from input file or directly
+        # getting from code, then generate some geometric information
+        self.dataset = self.cal_coor_batch()
 
-        # do not define LReadInput
+        '''# do not define LReadInput
         else:
 
-            # read parameters from input json files if file exists
+            # read parameters from input file if file exists, if not
             if os.path.isfile(inputfile):
                 self.dftb_parameter = self.read_dftb_parameter(inputfile)
 
             # dataset in this case should be given directly
-            self.dataset = self.cal_coor_batch()
+            self.dataset = self.cal_coor_batch()'''
 
     def read_dftb_parameter(self, inputfile):
         """Read the general information from .json file."""
@@ -307,6 +310,11 @@ class ReadInput:
             atomind: how many orbitals of each atom in DFTB calculations
 
         """
+        # check if cordinate is defined
+        if 'coordinate' not in self.dataset.keys():
+            raise ValueError('coordinate is not found')
+
+        # check dimension of coordinate and transfer to batch calculations
         if self.dataset['coordinate'].dim() == 2:
             nfile = 1
             nmax = len(self.dataset['coordinate'])
@@ -316,11 +324,11 @@ class ReadInput:
             nfile = self.dataset['coordinate'].shape[0]
             nmax = max(self.dataset['natomAll'])
 
-        # if generate the atomname
-        if 'atomnameall' in self.dataset.keys():
+        # if generate the atomname, if atomname exist, pass
+        if 'atomNameAll' in self.dataset.keys():
             latomname = False
         else:
-            self.dataset['atomnameall'] = []
+            self.dataset['atomNameAll'] = []
             latomname = True
 
         # distance matrix
@@ -397,7 +405,7 @@ class ReadInput:
 
             # the name of all the atoms
             if latomname:
-                self.dataset['atomnameall'].append(atomnamelist)
+                self.dataset['atomNameAll'].append(atomnamelist)
 
         # return dataset
         return self.dataset
@@ -421,7 +429,7 @@ class ReadInput:
         natom = np.shape(coor)[0]
 
         # atom number
-        self.dataset['atomNumber'] = self.dataset['coordinate'][:, 0]
+        # self.dataset['atomNumber'] = self.dataset['coordinate'][:, 0]
 
         # distance matrix
         distance = t.zeros((natom, natom), dtype=t.float64)

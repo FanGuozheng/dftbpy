@@ -167,7 +167,8 @@ class LoadData:
         self.dataset['specie_all'] = []
 
         # number of molecules in dataset
-        for hdf5file in self.dataset['hdffile']:
+        for hdf5file in self.dataset['Dataset']:
+            print("hdf5file", hdf5file)
             adl = pya.anidataloader(hdf5file)
             for data in adl:
 
@@ -228,8 +229,6 @@ class LoadData:
             g = f.create_group('globalgroup')
             g.attrs['specie_all'] = self.dataset['specie_all']
             # g.attrs['totalmolecule'] = nmol
-
-
 
     def load_json_data(self):
         """Load the data from json type input files."""
@@ -387,7 +386,6 @@ class LoadReferenceData:
         self.dataset['refHirshfeldVolume'] = []
         self.dataset['refMBDAlpha'] = []
         self.dataset['refDipole'] = []
-        # the number of atom specie in each system
         self.dataset['numberatom'] = []
 
         # read global parameters

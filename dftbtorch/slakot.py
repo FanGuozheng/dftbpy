@@ -61,7 +61,7 @@ class SKTran:
         if self.para['Lml']:
 
             # use ACSF to generate compression radius, then SK transformation
-            if self.ml['mlType'] in ('compressionRadius', 'ACSF'):
+            if self.para['task'] in ('mlCompressionR', 'ACSF'):
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSSymmetry'] == 'all':
@@ -72,7 +72,7 @@ class SKTran:
                     self.sk_tran_half(self.ibatch)
 
             # directly get integrals with spline, or some other method
-            elif self.ml['mlType'] == 'integral':
+            elif self.para['task'] == 'mlIntegral':
                 self.get_hs_spline(self.ibatch)
                 self.sk_tran_symall(self.ibatch)
 
@@ -89,8 +89,8 @@ class SKTran:
                 if iat != jat:
 
                     # get the name of i, j atom pair
-                    namei = self.dataset['atomnameall'][ibatch][iat]
-                    namej = self.dataset['atomnameall'][ibatch][jat]
+                    namei = self.dataset['atomNameAll'][ibatch][iat]
+                    namej = self.dataset['atomNameAll'][ibatch][jat]
                     nameij = namei + namej
 
                     # get spline parameters
@@ -117,8 +117,8 @@ class SKTran:
             for jat in range(natom):
 
                 # get the name of i, j atom pair
-                namei = self.dataset['atomnameall'][ibatch][iat]
-                namej = self.dataset['atomnameall'][ibatch][jat]
+                namei = self.dataset['atomNameAll'][ibatch][iat]
+                namej = self.dataset['atomNameAll'][ibatch][jat]
                 nameij = namei + namej
 
                 # the distance is from cal_coor
@@ -159,7 +159,7 @@ class SKTran:
         natom = self.para['natom']
 
         # name of all atom in each calculation
-        atomname = self.para['atomnameall']
+        atomname = self.para['atomNameAll']
 
         # vectors between different atoms (Bohr)
         dvec = self.para['dvec']
@@ -245,7 +245,7 @@ class SKTran:
         norb = atomind[natom]
 
         # atom name
-        atomname = self.dataset['atomnameall'][ibatch]
+        atomname = self.dataset['atomNameAll'][ibatch]
 
         # atom coordinate vector (Bohr)
         dvec = self.dataset['dvec']
@@ -580,7 +580,7 @@ class SKinterp:
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
 
-    def skf_integral_spline_parameter(self):
+    def integral_spline_parameter(self):
         """Get integral from hdf binary according to atom species."""
         time0 = time.time()
 
@@ -588,12 +588,18 @@ class SKinterp:
         ml_variable = []
 
         # get the skf with hdf type
-        hdfsk = os.path.join(self.ml['dire_hdfSK'], self.ml['name_hdfSK'])
+        hdfsk = self.para['SKDataset']
+
+        # check if skf dataset exists
+        if not os.path.isfile(hdfsk):
+            raise FileNotFoundError('%s not found' % hdfsk)
+
         self.skf['hs_compr_all'] = []
         with h5py.File(hdfsk, 'r') as f:
             for ispecie in self.skf['specie_all']:
                 for jspecie in self.skf['specie_all']:
                     nameij = ispecie + jspecie
+                    print("hdfsk", f[nameij])
                     grid_distance = f[nameij + '/grid_dist'][()]
                     ngrid = f[nameij + '/ngridpoint'][()]
                     yy = t.from_numpy(f[nameij + '/hs_all'][()])
@@ -673,7 +679,7 @@ class SKinterp:
         """
         time0 = time.time()
         # all atom name for current calculation
-        atomname = self.dataset['atomnameall']
+        atomname = self.dataset['atomNameAll']
 
         # number of atom
         natom = self.dataset['natomall']
@@ -763,7 +769,7 @@ class SKinterp:
 
         """
         natom = para['natom']
-        atomname = para['atomnameall']
+        atomname = para['atomNameAll']
         bicubic = BicubInterp()
         hs_ij = t.zeros(natom, natom, 20)
 
@@ -812,7 +818,7 @@ class SKinterp:
 
         """
         natom = self.dataset['natomAll'][ibatch]
-        atomname = self.dataset['atomnameall'][ibatch]
+        atomname = self.dataset['atomNameAll'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')

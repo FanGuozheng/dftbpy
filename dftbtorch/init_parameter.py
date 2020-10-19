@@ -26,9 +26,16 @@ def dftb_parameter(parameter=None):
     """
     parameter = {} if parameter is None else parameter
 
+    # Main task: dftb, mlCompressionR, mlIntegral
+    if 'task' not in parameter.keys():
+        parameter['task'] = 'dftb'
+
     # is machine learning is on, it means that the task is machine learning
-    if 'Lml' not in parameter.keys():
-        parameter['Lml'] = False
+    parameter['Lml'] = True if parameter['task'] in ('mlCompressionR', 'mlIntegral') else False
+
+    # precision control
+    if 'precision' not in parameter.keys():
+        parameter['precision'] = 'float64'
 
     # batch calculation, usually True for machine learning
     if 'Lbatch' not in parameter.keys():
@@ -188,10 +195,6 @@ def init_dataset(dataset=None):
     if 'sizeTest' not in dataset.keys():
         dataset['sizeTest'] = ['2']
 
-    # determine the type of molecule specie: str(integer), 'all' !!
-    '''if 'hdf_nu' not in dataset.keys():
-        dataset['hdf_num'] = ['all']'''
-
     # mix different molecule specie type
     if 'LdatasetMixture' not in dataset.keys():
         dataset['LdatasetMixture'] = True
@@ -200,7 +203,8 @@ def init_dataset(dataset=None):
     if 'json' in dataset['datasetType']:
 
         # path of data
-        dataset['Dataset'] = '../data/json/H2_data'
+        if 'Dataset' not in dataset.keys():
+            dataset['Dataset'] = '../data/json/H2_data'
 
     # read ANI dataset
     elif 'ani' in dataset['datasetType']:
@@ -209,7 +213,8 @@ def init_dataset(dataset=None):
         hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
 
         # transfer to list
-        dataset['Dataset'] = hdffilelist
+        if 'Dataset' not in dataset.keys():
+            dataset['Dataset'] = [hdffilelist]
 
     # read QM7 dataset
     elif 'qm7' in dataset['datasetType']:
@@ -238,13 +243,6 @@ def init_ml(para=None, ml=None, dataset=None):
     para = {} if para is None else para
     ml = {} if ml is None else ml
     dataset = {} if dataset is None else dataset
-
-    # if initialize machine learning parameters, Lml switch from False to True
-    para['Lml'] = True
-
-    # ML target: compressionRadius, integral
-    if 'mlType' not in ml.keys():
-        ml['mlType'] = 'compressionRadius'
 
     # machine learning algorithm: linear, svm, schnet, nn...!!!!
     if 'MLmodel' not in ml.keys():
@@ -300,20 +298,24 @@ def init_ml(para=None, ml=None, dataset=None):
     if ml['reference'] == 'hdf':
 
         # if read SKF from a list of files with interpolation, instead from hdf
-        dataset['LSKFInterpolation'] = False
+        if 'LSKFInterpolation' not in ml.keys():
+            dataset['LSKFInterpolation'] = False
 
     if ml['reference'] in ('dftbase', 'dftbplus'):
 
         # path of binary, executable DFTB file
-        ml['dftb+'] = '../test/bin/dftb+'
+        if 'dftb+' not in ml.keys():
+            ml['dftb+'] = '../test/bin/dftb+'
 
     if ml['reference'] in ('aimsase', 'aims'):
 
         # path of binary, executable FHI-aims file
-        ml['aims'] = '../test/bin/aims.171221_1.scalapack.mpi.x'
+        if 'aims' not in ml.keys():
+            ml['aims'] = '../test/bin/aims.171221_1.scalapack.mpi.x'
 
         # path of atom specie parameters
-        ml['aimsSpecie'] = '../test/species_defaults/tight/'
+        if 'aimsSpecie' not in ml.keys():
+            ml['aimsSpecie'] = '../test/species_defaults/tight/'
 
     # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
     if 'target' not in ml.keys():
@@ -360,13 +362,13 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['lossFunction'] = 'MSELoss'
 
     # optimize integral directly
-    if ml['mlType'] == 'integral':
+    if para['task'] == 'mlIntegral':
 
         # spline type to generate integral
         ml['interpolationType'] = 'Polyspline'
 
     # optimize compression radius: by interpolation or by ML prediction
-    if ml['mlType'] in ('compressionRadius', 'ACSF'):
+    if para['task'] in ('mlCompressionR', 'ACSF'):
 
         # interpolation of compression radius: BiCub, BiCubVec
         if 'interpolationType' not in ml.keys():

@@ -14,7 +14,7 @@ def parser_cmd_args(para=None):
     _description = 'get DFTB-ML parameters'
     parser = argparse.ArgumentParser(description=_description)
 
-    # default task: opt, test
+    # default task: dftb, mlCompressionR, mlIntegral
     if 'task' not in para.keys():
         msg = 'task of DFTB-ML framework'
         parser.add_argument('-t', '--task', default='dftb', help=msg)
