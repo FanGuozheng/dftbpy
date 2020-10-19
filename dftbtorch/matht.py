@@ -42,8 +42,8 @@ class DFTBmath:
         datalist = self.skf['hs_all' + nameij]
         incr = self.skf['grid_dist' + nameij]
         ngridpoint = self.skf['ngridpoint' + nameij]
-        ninterp = self.skf['ninterp']
-        delta_r = self.skf['deltaRskf']
+        ninterp = self.skf['sizeInterpolationPoints']
+        delta_r = self.skf['deltaSK']
 
         xa = t.zeros((ninterp), dtype=t.float64)
         yb = t.zeros((ninterp, 20), dtype=t.float64)

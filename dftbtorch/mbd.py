@@ -24,7 +24,7 @@ class MBD:
         self.para = para
         self.nb = self.para['nbatch']
         self.dataset = dataset
-        self.nat = self.dataset['natomall']
+        self.nat = self.dataset['natomAll']
         self.natommax = max(self.nat)
         self.mbd_init()
         self.onsite_population()
@@ -108,7 +108,7 @@ class MBD:
         self.para['ainv_'] = LinAl(self.para).inv33_mat(self.para['latvec'])
         h_, ainv_ = self.para['latvec'], self.para['ainv_']
         self.mbdvdw_pbc(self.dataset['coordinate'], h_, ainv_, self.nat)
-        for ieff in range(self.para['n_omega_grid'] + 1):
+        for ieff in range(self.para['nOmegaGrid'] + 1):
             self.mbdvdw_effqts(ieff, omega[ieff])
             self.mbdvdw_SCS(ieff)
             if ieff == 0:
@@ -131,7 +131,7 @@ class MBD:
         vfree = self.dataset['atomNumber']
         VefftsvdW = self.para['vefftsvdw']
         alpha_ts_ = t.zeros((self.nb, self.natommax), dtype=t.float64)
-        if self.para['vdw_self_consistent']:
+        if self.para['vdwConsistent']:
             dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dalpha_tsdV = t.zeros((self.nat, self.nat), dtype=t.float64)
@@ -157,7 +157,7 @@ class MBD:
                 # self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
                 alpha_ts_[ib, iat] = lambda_ * VefftsvdW[ib][iat]
 
-                if self.para['vdw_self_consistent']:
+                if self.para['vdwConsistent']:
                     for jat in range(self.nat):
                         if iat == jat:
                             dsigmadV[iat, jat] = gamma / \

@@ -11,13 +11,13 @@ def parser_cmd_args(para=None):
     """
     para = [para, {}][para is None]
 
-    _description = 'Test script demonstrating argparse'
+    _description = 'get DFTB-ML parameters'
     parser = argparse.ArgumentParser(description=_description)
 
     # default task: opt, test
     if 'task' not in para.keys():
-        msg = 'task'
-        parser.add_argument('-t', '--task', type=str, default='dftb', help=msg)
+        msg = 'task of DFTB-ML framework'
+        parser.add_argument('-t', '--task', default='dftb', help=msg)
 
     # default running path
     if 'directory' not in para.keys():

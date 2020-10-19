@@ -156,7 +156,7 @@ class ReadInput:
 
     def read_dftb_parameter(self, inputfile):
         """Read the general information from .json file."""
-        print("Read from input file and rewrite default parameters")
+        print("Read parameters from: ", inputfile)
         with open(inputfile, 'r') as fp:
 
             # load json type file
@@ -310,11 +310,11 @@ class ReadInput:
         if self.dataset['coordinate'].dim() == 2:
             nfile = 1
             nmax = len(self.dataset['coordinate'])
-            self.dataset['natomall'] = [nmax]
+            self.dataset['natomAll'] = [nmax]
             self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
         else:
             nfile = self.dataset['coordinate'].shape[0]
-            nmax = max(self.dataset['natomall'])
+            nmax = max(self.dataset['natomAll'])
 
         # if generate the atomname
         if 'atomnameall' in self.dataset.keys():
@@ -344,7 +344,7 @@ class ReadInput:
             atomind = []
 
             # total number of atom
-            natom = self.dataset['natomall'][ib]
+            natom = self.dataset['natomAll'][ib]
             atomnumber = self.dataset['atomNumber'][ib]
 
             coor = self.dataset['coordinate'][ib]
@@ -556,7 +556,7 @@ class ReadSlaKo:
                     self.skf['occ_skf' + nameij] = fp_line_[7:10]
 
                     # if orbital resolved
-                    if not self.skf['Lorbres']:
+                    if not self.skf['LOrbitalResolve']:
                         self.skf['uhubb' + nameij][:] = fp_line_[6]
 
                     # read third line: mass...
@@ -711,7 +711,7 @@ class ReadSlaKo:
     def get_cutoff_all(self):
         """Get the cutoff of atomi-atomj in .skf file."""
         atomspecie = self.dataset['atomspecie'][self.ibatch]
-        disttailsk = self.skf['dist_tailskf']
+        disttailsk = self.skf['tailSKDistance']
         for iat in range(0, len(atomspecie)):
             for jat in range(0, len(atomspecie)):
                 nameij = atomspecie[iat] + atomspecie[jat]

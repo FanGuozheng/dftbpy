@@ -3,7 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import dftbtorch.init_parameter as initpara
-from IO.load import LoadData
+from IO.dataloader import LoadData
 
 
 def plot_ml_compr(para, ml):
@@ -490,7 +490,7 @@ def plot_energy_f(para):
 
 def plot_loss2(para, ml):
     fploss = open('.data/loss.dat', 'r')
-    yp = np.fromfile(fploss, dtype=float, count=ml['mlsteps'], sep=' ')
+    yp = np.fromfile(fploss, dtype=float, count=ml['mlSteps'], sep=' ')
     xp = np.linspace(1, len(yp), len(yp))
     plt.plot(xp, yp)
     plt.show()

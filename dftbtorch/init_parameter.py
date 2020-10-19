@@ -26,15 +26,15 @@ def dftb_parameter(parameter=None):
     """
     parameter = {} if parameter is None else parameter
 
-    # is machine learning is on, the following is machine learning target
+    # is machine learning is on, it means that the task is machine learning
     if 'Lml' not in parameter.keys():
         parameter['Lml'] = False
 
     # batch calculation, usually True for machine learning
     if 'Lbatch' not in parameter.keys():
-        parameter['Lbatch'] = False
+        parameter['Lbatch'] = True if parameter['Lml'] is True else False
 
-    # read parameters from input file, if False, you can define in python
+    # if True, read parameters from input (default name: dftb_in)
     if 'LReadInput' not in parameter.keys():
         parameter['LReadInput'] = False
 
@@ -46,18 +46,29 @@ def dftb_parameter(parameter=None):
     if 'Lperiodic' not in parameter.keys():
         parameter['Lperiodic'] = False
 
-    # calculate repulsive term or not, if True, the code will read repulsive
-    # parameter from skf
+    # if calculate repulsive or not
     if 'Lrepulsive' not in parameter.keys():
         parameter['Lrepulsive'] = False
 
-    # input directory
+    # plot results during or after calculations
+    if 'Lplot' not in parameter.keys():
+        parameter['Lplot'] = False
+
+    # input (dftb_in) directory
     if 'directory' not in parameter.keys():
-        parameter['directory'] = os.path.join(path, '.')
+        parameter['directory'] = path
 
     # SKF directory
     if 'directorySK' not in parameter.keys():
-        parameter['directorySK'] = os.path.join(path, '.')
+        parameter['directorySK'] = path
+
+    # dire of skf dataset (write SKF as binary file)
+    if 'SKDataset' not in parameter.keys():
+        parameter['SKDataset'] = '../../slko/hdf/skf.hdf5'
+
+    # input file name, default is dftb_in
+    if 'inputName' not in parameter.keys():
+        parameter['inputName'] = 'dftb_in'
 
     # mixing method: simple. anderson, broyden
     if 'mixMethod' not in parameter.keys():
@@ -75,7 +86,7 @@ def dftb_parameter(parameter=None):
     if 'convergenceTolerance' not in parameter.keys():
         parameter['convergenceTolerance'] = 1e-8
 
-    # electron temperature
+    # system temperature
     if 'tElec' not in parameter.keys():
         parameter['tElec'] = 0
 
@@ -84,31 +95,31 @@ def dftb_parameter(parameter=None):
         parameter['maxIteration'] = 60
 
     # density basis: spherical, gaussian
-    if 'density_profile' not in parameter.keys():
-        parameter['density_profile'] = 'spherical'
+    if 'densityProfile' not in parameter.keys():
+        parameter['densityProfile'] = 'spherical'
 
     # coordinate type: 'C': cartesian...
     if 'coordinateType' not in parameter.keys():
         parameter['coordinateType'] = 'C'
 
     # ******************************** H, S ********************************
-    # how to write H0, S: symhalf (write upper or lower), symall (write whole)
-    if 'HSsym' not in parameter.keys():
-        parameter['HSsym'] = 'symall'
+    # how to write H0, S: half (write upper or lower HS), all (write whole HS)
+    if 'HSSymmetry' not in parameter.keys():
+        parameter['HSSymmetry'] = 'all'
 
-    # general eigenvalue method: cholesky, lowdin_qr
-    if 'eigenmethod' not in parameter.keys():
-        parameter['eigenmethod'] = 'cholesky'
+    # general eigenvalue method: cholesky, lowdinQR
+    if 'eigenMethod' not in parameter.keys():
+        parameter['eigenMethod'] = 'cholesky'
 
     # ****************************** MBD-DFTB ******************************
     if 'LMBD_DFTB' not in parameter.keys():
         parameter['LMBD_DFTB'] = False
 
     # omega grid
-    if 'n_omega_grid' not in parameter.keys():
-        parameter['n_omega_grid'] = 15
-    if 'vdw_self_consistent' not in parameter.keys():
-        parameter['vdw_self_consistent'] = False
+    if 'nOmegaGrid' not in parameter.keys():
+        parameter['nOmegaGrid'] = 15
+    if 'vdwConsistent' not in parameter.keys():
+        parameter['vdwConsistent'] = False
     if 'beta' not in parameter.keys():
         parameter['beta'] = 1.05
 
@@ -126,6 +137,10 @@ def dftb_parameter(parameter=None):
 
     if 'Lenergy' not in parameter.keys():
         parameter['Lenergy'] = True
+
+    # calculate HOMO-LUMO
+    if 'LHomoLumo' not in parameter.keys():
+        parameter['LHomoLumo'] = True
 
     # return DFTB calculation parameters
     return parameter
@@ -150,14 +165,14 @@ def init_dataset(dataset=None):
     dataset = {} if dataset is None else dataset
 
     # optional datatype: ani, json, hdf
-    if 'dataType' not in dataset.keys():
-        dataset['dataType'] = 'hdf'
+    if 'datasetType' not in dataset.keys():
+        dataset['datasetType'] = 'ani'
 
-    # get the current path
-    if 'path_dataset' not in dataset.keys():
-        dataset['path_dataset'] = '../data/dataset/'
+    # get the dataset path
+    if 'directoryDataset' not in dataset.keys():
+        dataset['directoryDataset'] = '../data/dataset/'
 
-    # skf: directly read or interpolate from a list of skf files
+    # directly read SKF or interpolate from a list of skf files
     if 'LSKFinterpolation' not in dataset.keys():
         dataset['LSKFinterpolation'] = False
 
@@ -166,53 +181,45 @@ def init_dataset(dataset=None):
         dataset['pathFeature'] = '.'
 
     # how many molecules for each molecule specie !!
-    if 'n_dataset' not in dataset.keys():
-        dataset['n_dataset'] = ['1']
+    if 'sizeDataset' not in dataset.keys():
+        dataset['sizeDataset'] = ['1']
 
     # used to test (optimize ML algorithm parameters) !!
-    if 'n_test' not in dataset.keys():
-        dataset['n_test'] = ['2']
+    if 'sizeTest' not in dataset.keys():
+        dataset['sizeTest'] = ['2']
 
     # determine the type of molecule specie: str(integer), 'all' !!
-    if 'hdf_num' not in dataset.keys():
-        dataset['hdf_num'] = ['all']
+    '''if 'hdf_nu' not in dataset.keys():
+        dataset['hdf_num'] = ['all']'''
 
     # mix different molecule specie type
-    dataset['LdatasetMixture'] = True
+    if 'LdatasetMixture' not in dataset.keys():
+        dataset['LdatasetMixture'] = True
 
     # read json type geometry
-    if dataset['dataType'] == 'json':
+    if 'json' in dataset['datasetType']:
 
         # path of data
-        dataset['path_dataset'] = '../data/json'
-
-        # name of data in defined path
-        dataset['name_dataset'] = 'H2_data'
+        dataset['Dataset'] = '../data/json/H2_data'
 
     # read ANI dataset
-    elif dataset['dataType'] == 'ani':
-        hdffilelist = []
+    elif 'ani' in dataset['datasetType']:
 
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist.append(os.path.join(dataset['path_dataset'], 'an1/ani_gdb_s01.h5'))
+        hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
 
         # transfer to list
-        dataset['hdffile'] = hdffilelist
-
-        # test the molecule specie is the same
-        assert len(dataset['n_dataset']) == len(dataset['n_test'])
+        dataset['Dataset'] = hdffilelist
 
     # read QM7 dataset
-    elif dataset['dataType'] == 'qm7':
+    elif 'qm7' in dataset['datasetType']:
 
         # define path and dataset name
-        dataset['qm7_data'] = os.path.join(dataset['path_dataset'], 'qm7.mat')
+        dataset['Dataset'] = os.path.join(dataset['directoryDataset'], 'qm7.mat')
 
-        # define dataset specie
-        dataset['train_specie'] = [1, 6, 8]
+    # test the molecule specie is the same (the length means speices size)
+    assert len(dataset['sizeDataset']) == len(dataset['sizeTest'])
 
-        # test the molecule specie is the same
-        assert len(dataset['n_dataset']) == len(dataset['n_test'])
     return dataset
 
 
@@ -239,175 +246,155 @@ def init_ml(para=None, ml=None, dataset=None):
     if 'mlType' not in ml.keys():
         ml['mlType'] = 'compressionRadius'
 
-    ml['MLmodel'] = 'linear'  # linear, svm, schnet, nn...!!!!!
+    # machine learning algorithm: linear, svm, schnet, nn...!!!!
+    if 'MLmodel' not in ml.keys():
+        ml['MLmodel'] = 'linear'
 
-    # define atomic representation: rad, cm (CoulombMatrix), acsf!!!!!
-    ml['featureType'] = 'acsf'
+    # define atomic representation: cm (CoulombMatrix), acsf!!!!!
+    if 'featureType' not in ml.keys():
+        ml['featureType'] = 'acsf'
 
     # define ACSF parameter
     if ml['featureType'] == 'acsf':
 
         # cutoff, for G1
-        ml['acsf_rcut'] = 6.0
+        if 'acsfRcut' not in ml.keys():
+            ml['acsfRcut'] = 6.
 
         # G2 parameters
-        ml['Lacsf_g2'] = True
-        ml['acsf_g2'] = [[1, 1]]
+        if 'LacsfG2' not in ml.keys():
+            ml['LacsfG2'] = True
+        if 'acsfG2' not in ml.keys():
+            ml['acsfG2'] = [[1., 1.]]
 
         # G3 parameters
-        ml['Lacsf_g3'] = False
+        if 'LacsfG3' not in ml.keys():
+            ml['LacsfG3'] = False
 
         # G4 parameters
-        ml['Lacsf_g4'] = True
-        ml['acsf_g4'] = [[0.02, 1, -1]]
+        if 'LacsfG4' not in ml.keys():
+            ml['LacsfG4'] = True
+        if 'acsfG4' not in ml.keys():
+            ml['acsfG4'] = [[0.02, 1., -1.]]
 
         # G5 parameters
-        ml['Lacsf_g5'] = False
-
-    # for test, where to read the optimized parameters, 1 means read the last
-    # optimized para in path_dataset, 0 is the unoptimized !!!!!
-    ml['opt_para_test'] = 1.0
+        if 'LacsfG5' not in ml.keys():
+            ml['LacsfG5'] = False
 
     # *********************************************************************
     #                              DFTB-ML
     # *********************************************************************
+    # run referecne calculations or directly get read reference properties
+    if 'runReference' not in ml.keys():
+        ml['runReference'] = False
+
     # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
     if 'reference' not in ml.keys():
         ml['reference'] = 'hdf'
 
+    # path to dataset data
+    if 'referenceDataset' not in ml.keys():
+        ml['referenceDataset'] = '../../data/dataset/testfile.hdf5'
+
     # read hdf (with coordinates, reference physical properties) type
     if ml['reference'] == 'hdf':
-
-        # run referecne calculations or directly get read reference properties
-        ml['run_reference'] = False
-
-        # path to dataset data
-        if 'referenceDataset' not in ml.keys():
-            ml['referenceDataset'] = '../data/dataset/testfile.hdf5'
 
         # if read SKF from a list of files with interpolation, instead from hdf
         dataset['LSKFInterpolation'] = False
 
-        # dire of skf with hdf type
-        if 'directoryHdfSK' not in ml.keys():
-            ml['directoryHdfSK'] = '../slko/hdf/'
-
-        # name of skf with hdf type
-        if ml['mlType'] == 'compressionRadius':
-            ml['name_hdfSK'] = 'skf.hdf5'
-        elif ml['mlType'] == 'integral':
-            ml['name_hdfSK'] = 'skfmio.hdf5'
-
     if ml['reference'] in ('dftbase', 'dftbplus'):
 
         # path of binary, executable DFTB file
-        ml['dftb_ase_path'] = '../test/dftbplus'
-
-        # name of binary, executable DFTB file
-        ml['dftb_bin'] = 'dftb+'
-
-        # path slater-koster file
-        ml['skf_ase_path'] = '../slko/mio'
+        ml['dftb+'] = '../test/bin/dftb+'
 
     if ml['reference'] in ('aimsase', 'aims'):
 
         # path of binary, executable FHI-aims file
-        ml['aims_ase_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/bin'
-
-        # name of binary, executable FHI-aims file
-        ml['aims_bin'] = 'aims.171221_1.scalapack.mpi.x'
+        ml['aims'] = '../test/bin/aims.171221_1.scalapack.mpi.x'
 
         # path of atom specie parameters
-        ml['aims_specie_path'] = '/home/gz_fan/Downloads/software/fhiaims/fhiaims/species_defaults/tight/'
+        ml['aimsSpecie'] = '../test/species_defaults/tight/'
 
     # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
-    ml['target'] = ['dipole']
+    if 'target' not in ml.keys():
+        ml['target'] = ['dipole']
 
     # If turn on some calculations related to these physical properties
     # turn on anyway
     if 'energy' in ml['target']:
-        para['Lrepulsive'] = False
-    else:
-        para['Lrepulsive'] = False
+        para['Lrepulsive'] = True
 
     # the machine learning energy type
-    para['mlenergy'] = 'formationenergy'
-
-    # calculate, read, save the HOMO LUMO
-    if 'homo_lumo' in ml['target']:
-        para['LHL'] = True
-    else:
-        para['LHL'] = False
+    if 'mlEnergyType' not in ml.keys():
+        para['mlEnergyType'] = 'formationEnergy'
 
     if 'cpa' in ml['target']:
         para['LMBD_DFTB'] = True
 
     # define weight in loss function
-    ml['dipole_loss_ratio'] = 1
-    ml['polarizability_loss_ratio'] = 0.15
+    if 'LossRatio' not in ml.keys():
+        ml['LossRatio'] = [1]
 
     # how many steps for optimize in DFTB-ML !!
-    ml['mlsteps'] = 20
+    if 'mlSteps' not in ml.keys():
+        ml['mlSteps'] = 20
 
     # how many steps to save the DFTB-ML data !!
-    ml['save_steps'] = 2
+    if 'saveSteps' not in ml.keys():
+        ml['saveSteps'] = 2
 
-    # minimum steps
-    ml['opt_step_min'] = 2
+    # minimum ML steps
+    if 'stepMin' not in ml.keys():
+        ml['stepMin'] = 2
 
     # learning rate !!
-    ml['lr'] = 3E-2
+    if 'lr' not in ml.keys():
+        ml['lr'] = 3E-2
 
     # optimizer
-    ml['optimizer'] = 'Adam'
+    if 'optimizer' not in ml.keys():
+        ml['optimizer'] = 'Adam'
 
     # define loss function: MSELoss, L1Loss
-    ml['loss_function'] = 'MSELoss'
+    if 'lossFunction' not in ml.keys():
+        ml['lossFunction'] = 'MSELoss'
 
     # optimize integral directly
     if ml['mlType'] == 'integral':
 
-        # type to generate integral
-        ml['interptype'] = 'Polyspline'
-        ml['zero_threshold'] = 5E-3
-        ml['rand_threshold'] = 5E-2
+        # spline type to generate integral
+        ml['interpolationType'] = 'Polyspline'
 
     # optimize compression radius: by interpolation or by ML prediction
     if ml['mlType'] in ('compressionRadius', 'ACSF'):
 
         # interpolation of compression radius: BiCub, BiCubVec
-        ml['interp_compr_type'] = 'BiCubVec'
+        if 'interpolationType' not in ml.keys():
+            ml['interpolationType'] = 'BiCubVec'
 
         # grid of compression radius is uniform or not !!
-        ml['typeSKinterp'] = 'uniform'
+        if 'typeSKinterp' not in ml.keys():
+            ml['typeSKinterp'] = 'uniform'
 
         # skgen compression radius parameters: all, wavefunction, density
-        ml['typeSKinterpR'] = 'all'
+        if 'typeSKinterpR' not in ml.keys():
+            ml['typeSKinterpR'] = 'all'
 
         # the grid point of compression radius is not uniform
-        if ml['typeSKinterp'] == 'nonuniform':
-            ml['directoryInterpSK'] = os.path.join(path, '.')
-
-        # the grid point of compression radius is uniform
-        elif ml['typeSKinterp'] == 'uniform':
-            ml['directoryInterpSK'] = os.path.join(path, '.')
+        if 'directoryInterpSK' not in ml.keys():
+            ml['directoryInterpSK'] = path
 
         # number of grid points, should be equal to atom_compr_grid
-        ml['ncompr'] = 10
-
-        # if fix the optimization step and set convergence condition
-        ml['Lopt_step'] = True
-        ml['opt_ml_tol'] = 1E-3
-
-        # after opt_ml_step*nbatch molecule, perform ML predict compR!!!!!!
-        ml['opt_ml_step'] = 0.5
-        ml['opt_ml_all'] = False
+        if 'nCompressionR' not in ml.keys():
+            ml['nCompressionR'] = 10
 
         # if any compR < 2.2, break DFTB-ML loop
-        ml['compr_min'] = 2.2
+        if 'compressionRMin' not in ml.keys():
+            ml['compressionRMin'] = 2.2
 
         # if any compR > 9, break DFTB-ML loop
-        ml['compr_max'] = 9
+        if 'compressionRMax' not in ml.keys():
+            ml['compressionRMax'] = 9
 
         # compression radius of H
         ml['H_compr_grid'] = t.tensor((
@@ -426,10 +413,10 @@ def init_ml(para=None, ml=None, dataset=None):
                 [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
         # test the grid points length
-        assert len(ml['H_compr_grid']) == ml['ncompr']
-        assert len(ml['C_compr_grid']) == ml['ncompr']
-        assert len(ml['N_compr_grid']) == ml['ncompr']
-        assert len(ml['O_compr_grid']) == ml['ncompr']
+        assert len(ml['H_compr_grid']) == ml['nCompressionR']
+        assert len(ml['C_compr_grid']) == ml['nCompressionR']
+        assert len(ml['N_compr_grid']) == ml['nCompressionR']
+        assert len(ml['O_compr_grid']) == ml['nCompressionR']
 
         # set initial compression radius
         ml['H_init_compr'] = 3.5
@@ -437,16 +424,6 @@ def init_ml(para=None, ml=None, dataset=None):
         ml['N_init_compr'] = 3.5
         ml['O_init_compr'] = 3.5
 
-    # ---------------------- plotting and others ----------------------
-    para['Lplot_ham'] = True
-    para['Lplot_feature'] = False
-    para['hamold'] = 0
-
-    # save log during DFTB-ML as: txt, hdf (binary)
-    para['log_save_type'] = 'hdf'
-
-    # generate reference
-    para['ref_save_type'] = 'hdf'
     return para, ml, dataset
 
 
@@ -466,31 +443,31 @@ def skf_parameter(skf=None):
         skf['LSmoothTail'] = True
 
     # skf file tail distance
-    if 'dist_tailskf' not in skf.keys():
-        skf['dist_tailskf'] = 1.0
+    if 'tailSKDistance' not in skf.keys():
+        skf['tailSKDistance'] = 1.0
 
-    # skf interpolation number
-    if 'ninterp' not in skf.keys():
-        skf['ninterp'] = 8
+    # skf integral interpolation points number
+    if 'sizeInterpolationPoints' not in skf.keys():
+        skf['sizeInterpolationPoints'] = 8
 
     # SK transformation method
-    if 'sk_tran' not in skf.keys():
-        skf['sk_tran'] = 'new'
+    if 'transformationSK' not in skf.keys():
+        skf['transformationSK'] = 'new'
 
-    # delta distance when interpolate SKF integral
-    if 'deltaRskf' not in skf.keys():
-        skf['deltaRskf'] = 1E-5
+    # delta distance when interpolate SKF integral when calculate gradient
+    if 'deltaSK' not in skf.keys():
+        skf['deltaSK'] = 1E-5
 
     # orbital resolved: if Ture, only use Hubbert of s orbital
-    if 'Lorbres' not in skf.keys():
-        skf['Lorbres'] = False
+    if 'LOrbitalResolve' not in skf.keys():
+        skf['LOrbitalResolve'] = False
 
     # if optimize (True) or fix (False) onsite in DFTB-ML
     if 'Lonsite' not in skf.keys():
         skf['Lonsite'] = False
 
     # define onsite
-    if not skf['Lorbres']:
+    if not skf['LOrbitalResolve']:
         skf['onsiteHH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
         skf['onsiteCC'] = t.tensor((
@@ -519,7 +496,7 @@ def skf_parameter(skf=None):
 
     # Hubbert is orbital resolved
     # if use different parametrization method, remember revise value here
-    elif skf['Lorbres']:
+    elif skf['LOrbitalResolve']:
         skf['uhubbHH'] = t.tensor((
             [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
         skf['uhubbCC'] = t.tensor((

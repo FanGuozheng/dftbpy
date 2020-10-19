@@ -57,7 +57,8 @@ class DFTBCalculator:
 
     def initialization(self):
         """Initialize DFTB, geometric, skf, dataset, ML parametes."""
-        Initialization(self.parameter, self.dataset, self.skf, self.ml)
+        init = Initialization(self.parameter, self.dataset, self.skf, self.ml)
+        init.initialization_dftb()
 
     def run_dftb(self):
         """Run DFTB code."""
@@ -83,11 +84,9 @@ class Initialization:
     """
     def __init__(self, parameter, dataset=None, skf=None, ml=None, Lreadskf=True):
         """Interface for different applications."""
+        self.Lreadskf = Lreadskf
         # get the constant DFTB parameters for DFTB
         self.parameter = parameters.constant_parameter(parameter)
-
-        # get parameters from command line
-        self.parameter = parser.parser_cmd_args(self.parameter)
 
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
@@ -100,9 +99,8 @@ class Initialization:
 
         # get machine learning parameters dictionary, optional
         self.ml = ml
-        if self.parameter['Lml']:
-            self.parameter, self.ml, self.dataset = \
-                initpara.init_ml(self.parameter, self.ml, self.dataset)
+
+    def initialization_dftb(self):
 
         # return/update DFTB, geometric, skf parameters from input
         readt.ReadInput(self.parameter, self.dataset, self.skf)
@@ -112,11 +110,11 @@ class Initialization:
         self.pre_check()
 
         # read skf fike from normal skf or list of skf files
-        if Lreadskf:
+        if self.Lreadskf:
             self.read_sk()
 
         # get Hubbert for each if use gaussian density basis
-        if self.parameter['density_profile'] == 'gaussian':
+        if self.parameter['densityProfile'] == 'gaussian':
             self.get_this_hubbert()
 
         # deal with SK transformation
@@ -345,7 +343,7 @@ class SCF:
         natom: number of atoms
         atomind: lmax of atoms (valence electrons)
         atomind2: sum of all lamx od atoms (the length of Hamiltonian matrix)
-        HSsym: if write all / half of the matrices (due to symmetry)
+        HSSymmetry: if write all / half of the matrices (due to symmetry)
 
     """
 
@@ -377,7 +375,7 @@ class SCF:
         self.nb = self.para['nbatch']
 
         # number of atom in molecule
-        self.nat = self.dataset['natomall']
+        self.nat = self.dataset['natomAll']
 
         # number of orbital of each atom
         self.atind = self.dataset['atomind']
@@ -389,7 +387,7 @@ class SCF:
         self.atomname = self.dataset['atomnameall']
 
         # eigen solver
-        self.eigen = EigenSolver(self.para['eigenmethod'])
+        self.eigen = EigenSolver(self.para['eigenMethod'])
 
         # analyze DFTB result
         self.analysis = Analysis(self.para, self.dataset, self.skf)
@@ -422,13 +420,13 @@ class SCF:
         # get the dimension of 2D H0, S
         ind_nat = self.dataset['norbital']
 
-        if self.para['HSsym'] == 'symhalf':
+        if self.para['HSSymmetry'] == 'half':
 
             # transfer H0, S from 1D to 2D
             self.ham = self.half_to_sym(self.hmat, ind_nat)
             self.over = self.half_to_sym(self.smat, ind_nat)
 
-        elif self.para['HSsym'] == 'symall':
+        elif self.para['HSSymmetry'] == 'all':
 
             # replace H0, S name for convenience
             self.ham, self.over = self.hmat, self.smat
@@ -498,7 +496,7 @@ class SCF:
         # define convergence list, append charge or energy to convergencelist
         convergencelist = []
 
-        if self.para['density_profile'] == 'spherical':
+        if self.para['densityProfile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
                 self.dataset['distance'][i], self.nat[i],
                 self.dataset['atomnameall'][i]) for i in ibatch]
@@ -569,7 +567,7 @@ class SCF:
 
             # Last mixed charge is the current step now
             if not self.batch:
-                natom = self.dataset['natomall'][ibatch[0]]
+                natom = self.dataset['natomAll'][ibatch[0]]
                 q_new_ = q_new[0][: natom]
                 q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
             else:
@@ -639,7 +637,7 @@ class SCF:
                 shiftorb_[jind] = shift_[iat]
 
         icount = 0
-        if self.para['HSsym'] == 'symall':
+        if self.para['HSSymmetry'] == 'all':
             eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             for iind in range(0, ind_nat):
                 for j_i in range(0, ind_nat):
@@ -648,7 +646,7 @@ class SCF:
                         (shiftorb_[iind] + shiftorb_[j_i])
                     icount += 1
             oldsmat_ = self.hmat
-        elif self.para['HSsym'] == 'symhalf':
+        elif self.para['HSSymmetry'] == 'half':
             fockmat_ = t.zeros(self.atind2)
             eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
             oldsmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
@@ -687,7 +685,7 @@ class SCF:
                 denmat_[inum] = denmat_2d_[j_i, iind]
 
         # calculate mulliken charges
-        qatom_ = self.elect.mulliken(self.para['HSsym'], self.smat, denmat_)
+        qatom_ = self.elect.mulliken(self.para['HSSymmetry'], self.smat, denmat_)
         ecoul = 0.0
         for i in range(0, self.nat):
             ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
@@ -986,7 +984,7 @@ class Analysis:
         self.skf = skf
 
         # number of atom in batch
-        self.nat = self.dataset['natomall']
+        self.nat = self.dataset['natomAll']
 
     def dftb_energy(self, shift_=None, qatom=None):
         """Get energy for DFTB with electronic and eigen results."""

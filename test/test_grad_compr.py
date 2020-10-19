@@ -10,7 +10,7 @@ from torch.autograd import Variable
 import torch as t
 import h5py
 import time
-import write_output as write
+import IO.write_output as write
 import dftbtorch.dftbcalculator as dftbcalculator
 import dftbtorch.slakot as slakot
 import utils.plot as plot
@@ -18,7 +18,7 @@ import dftbtorch.init_parameter as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from ml.padding import pad1d
-from IO.load import LoadData
+from IO.dataloader import LoadData
 from IO.save import SaveData
 from utils.aset import DFTB, Aims
 import dftbtorch.parser as parser
@@ -51,17 +51,17 @@ def opt(para):
     if not ml['ref'] == 'hdf':
 
         if dataset['dataType'] == 'ani':
-            LoadData(para, dataset['n_dataset'][0]).load_ani()
-            LoadData(para, dataset['n_dataset'][0]).get_specie_all()
+            LoadData(para, dataset['n_dataset'][0], ml).load_ani()
+            LoadData(para, dataset['n_dataset'][0], ml).get_specie_all()
 
         # dataset is qm7
         elif dataset['dataType'] == 'qm7':
-            LoadData(para, dataset['n_dataset'][0]).loadqm7()
+            LoadData(para, dataset['n_dataset'][0], ml).loadqm7()
 
         # dataset is json
         elif dataset['dataType'] == 'json':
-            LoadData(para, dataset['n_dataset'][0]).load_json_data()
-            LoadData(para, dataset['n_dataset'][0]).get_specie_all()
+            LoadData(para, dataset['n_dataset'][0], ml).load_json_data()
+            LoadData(para, dataset['n_dataset'][0], ml).get_specie_all()
 
     # run reference calculations, either dft or dftb
     runml = RunML(para, ml, dataset, skf)
@@ -182,7 +182,7 @@ class RunML:
         self.build_ref_data()
 
         # run reference calculations (e.g., DFTB+ ...) before ML
-        if self.ml['run_reference']:
+        if self.ml['runReference']:
 
             # run DFTB python code as reference
             if self.ml['ref'] == 'dftb':
@@ -206,7 +206,7 @@ class RunML:
                 Aims(self.para).run_aims(self.nbatch, para['coordinate'])
 
         # read reference properties from defined dataset
-        elif not self.ml['run_reference']:
+        elif not self.ml['runReference']:
 
             # read reference from hdf
             if self.ml['ref'] == 'hdf':
@@ -226,17 +226,17 @@ class RunML:
         # join the path and hdf data
         hdffile = self.ml['referenceDataset']
         if not os.path.isfile(hdffile):
-            raise FileExistsError('reference dataset do not exist')
+            raise FileExistsError('reference dataset %s do not exist' % hdffile)
         self.dataset['coordinateAll'] = []
-        self.dataset['natomall'] = []
-        self.dataset['atomnameall'] = []
-        # element number of each atom
+        self.dataset['natomAll'] = []
+        self.dataset['atomnameAll'] = []
+        self.dataset['refDipole'] = []
         self.dataset['atomNumber'] = []
-        self.dataset['refcharge'] = []
+        self.dataset['refCharge'] = []
         self.dataset['refFormEnergy'] = []
         self.dataset['refTotEenergy'] = []
-        self.dataset['refhirshfeldvolume'] = []
-        self.dataset['refalpha_mbd'] = []
+        self.dataset['refHirshfeldVolume'] = []
+        self.dataset['refMBDAlpha'] = []
         # the number of atom specie in each system
         self.dataset['numberatom'] = []
 
@@ -261,14 +261,14 @@ class RunML:
         if self.dataset['LdatasetMixture']:
 
             # loop for molecules in each molecule specie
-            for ibatch in range(int(self.dataset['n_dataset'][0])):
+            for ibatch in range(int(self.dataset['sizeDataset'][0])):
 
                 # each molecule specie
                 for igroup in molecule2:
 
                     # add atom name and atom number
-                    self.dataset['atomnameall'].append([ii for ii in igroup])
-                    self.dataset['natomall'].append(len(igroup))
+                    self.dataset['atomnameAll'].append([ii for ii in igroup])
+                    self.dataset['natomAll'].append(len(igroup))
 
                     with h5py.File(hdffile, 'r') as f:
 
@@ -289,12 +289,12 @@ class RunML:
 
                         # charge
                         namecharge = str(ibatch) + 'charge'
-                        self.dataset['refcharge'].append(
+                        self.dataset['refCharge'].append(
                             t.from_numpy(f[igroup][namecharge][()]))
 
                         # dipole
                         namedip = str(ibatch) + 'dipole'
-                        self.dataset['refdipole'].append(
+                        self.dataset['refDipole'].append(
                             t.from_numpy(f[igroup][namedip][()]))
 
                         # formation energy
@@ -309,17 +309,17 @@ class RunML:
                         namehv = str(ibatch) + 'hirshfeldvolume'
                         volume = f[igroup][namehv][()]
                         volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
-                        self.dataset['refhirshfeldvolume'].append(volume)
+                        self.dataset['refHirshfeldVolume'].append(volume)
 
                         # polarizability
                         namepol = str(ibatch) + 'alpha_mbd'
-                        self.dataset['refalpha_mbd'].append(
+                        self.dataset['refMBDAlpha'].append(
                             f[igroup][namepol][()])
 
                     # total molecule number
                     self.nbatch += 1
                     self.save_ref_idata('hdf', ibatch,
-                                        LWHL=self.para['LHL'],
+                                        LWHL=self.para['LHomoLumo'],
                                         LWeigenval=self.para['Leigval'],
                                         LWenergy=self.para['Lenergy'],
                                         LWdipole=self.para['Ldipole'],
@@ -545,7 +545,7 @@ class RunML:
                     t.from_numpy(self.dataset['coordinateAll'][ibatch][:, :])
 
     def cal_optfor_energy(self, energy, ibatch):
-        natom = self.dataset['natomall'][ibatch]
+        natom = self.dataset['natomAll'][ibatch]
         for iat in range(natom):
             idx = int(self.dataset['atomNumber'][ibatch][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
@@ -574,7 +574,7 @@ class RunML:
                              name='totalenergy'+ref+'.dat',
                              dire=self.dire_res, ty='a')
         if LWdipole:
-            self.save.save1D(self.dataset['refdipole'][ibatch].detach().numpy(),
+            self.save.save1D(self.dataset['refDipole'][ibatch].detach().numpy(),
                              name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
         if LWpol:
             self.save.save1D(self.dataset['refalpha_mbd'][ibatch],
@@ -692,7 +692,7 @@ class RunML:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
         maxorb = max(self.dataset['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
@@ -702,7 +702,7 @@ class RunML:
         # get integral and compression radius
         for ibatch in range(self.nbatch):
             if self.ml['ref'] == 'hdf':
-                self.dataset['natom'] = self.dataset['natomall']
+                self.dataset['natom'] = self.dataset['natomAll']
                 natom = self.dataset['natom'][ibatch]
                 atomname = self.dataset['atomnameall'][ibatch]
 
@@ -723,7 +723,7 @@ class RunML:
         elif self.ml['optimizer'] == 'Adam':
             optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
-        for istep in range(self.ml['mlsteps']):
+        for istep in range(self.ml['mlSteps']):
             ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
             over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
             for ibatch in range(self.nbatch):
@@ -745,14 +745,14 @@ class RunML:
                 self.para['electronic_energy'], ibatch)
 
             # get loss function type
-            if self.ml['loss_function'] == 'MSELoss':
+            if self.ml['lossFunction'] == 'MSELoss':
                 self.criterion = t.nn.MSELoss(reduction='sum')
-            elif self.ml['loss_function'] == 'L1Loss':
+            elif self.ml['lossFunction'] == 'L1Loss':
                 self.criterion = t.nn.L1Loss(reduction='sum')
 
             # get loss function
             if 'dipole' in self.ml['target']:
-                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refdipole']))
+                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refDipole']))
             print("istep:", istep, '\n loss', loss)
             print("compression radius:", self.para['compr_ml'])
 
@@ -1083,7 +1083,7 @@ class RunML:
 
     def get_hirsh_vol_ratio(self, volume, ibatch=0):
         """Get Hirshfeld volume ratio."""
-        natom = self.dataset["natomall"][ibatch]
+        natom = self.dataset["natomAll"][ibatch]
         for iat in range(natom):
             idx = int(self.dataset['atomNumber'][ibatch][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]

@@ -50,11 +50,11 @@ class SKTran:
                 self.get_sk_all(self.ibatch)
 
             # build H0 and S with full, symmetric matrices
-            if self.para['HSsym'] == 'symall':
+            if self.para['HSSymmetry'] == 'all':
                 self.sk_tran_symall(self.ibatch)
 
             # build H0 and S with only half matrices
-            elif self.para['HSsym'] == 'symhalf':
+            elif self.para['HSSymmetry'] == 'half':
                 self.sk_tran_half(self.ibatch)
 
         # machine learning is True, some method only apply in this case
@@ -64,11 +64,11 @@ class SKTran:
             if self.ml['mlType'] in ('compressionRadius', 'ACSF'):
 
                 # build H0 and S with full, symmetric matrices
-                if self.para['HSsym'] == 'symall':
+                if self.para['HSSymmetry'] == 'all':
                     self.sk_tran_symall(self.ibatch)
 
                 # build H0, S with half matrices
-                elif self.para['HSsym'] == 'symhalf':
+                elif self.para['HSSymmetry'] == 'half':
                     self.sk_tran_half(self.ibatch)
 
             # directly get integrals with spline, or some other method
@@ -107,7 +107,7 @@ class SKTran:
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.dataset['natomall'][self.ibatch]
+        natom = self.dataset['natomAll'][self.ibatch]
 
         # build H0 or S
         self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
@@ -239,7 +239,7 @@ class SKTran:
         atomind = self.dataset['atomind'][ibatch]
 
         # number of atom
-        natom = self.dataset['natomall'][ibatch]
+        natom = self.dataset['natomAll'][ibatch]
 
         # total orbitals, equal to dimension of H0, S
         norb = atomind[natom]
@@ -294,9 +294,9 @@ class SKTran:
                 else:
 
                     # get H, S with distance, initial integrals
-                    if self.skf['sk_tran'] == 'new':
+                    if self.skf['transformationSK'] == 'new':
                         self.slkode_vec(rr, iat, jat, lmaxi, lmaxj)
-                    elif self.skf['sk_tran'] == 'old':
+                    elif self.skf['transformationSK'] == 'old':
                         self.slkode_ij(rr, iat, jat, lmaxi, lmaxj)
 
                     # write H0, S of i, j to final H0, S
@@ -616,7 +616,7 @@ class SKinterp:
     def genskf_interp_dist_hdf(self, ibatch, natom):
         """Generate integral along distance dimension."""
         time0 = time.time()
-        ninterp = self.skf['ninterp']
+        ninterp = self.skf['sizeInterpolationPoints']
         self.skf['hs_compr_all'] = []
         atomnumber = self.dataset['atomNumber'][ibatch]
         distance = self.dataset['distance'][ibatch]
@@ -625,7 +625,9 @@ class SKinterp:
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
         # dist_1d = distance[ind[0], ind[1]]
         # get the skf with hdf type
-        hdfsk = os.path.join(self.ml['directoryHdfSK'], self.ml['name_hdfSK'])
+        hdfsk = self.para['SKDataset']
+        if not os.path.isfile(hdfsk):
+            raise FileExistsError('dataset %s do not exist' % hdfsk)
 
         # read all skf according to atom number (species) and indices and add
         # these skf to a list, attention: hdf only store numpy type data
@@ -809,13 +811,13 @@ class SKinterp:
             H and S matrice ([natom, natom, 20])
 
         """
-        natom = self.dataset['natomall'][ibatch]
+        natom = self.dataset['natomAll'][ibatch]
         atomname = self.dataset['atomnameall'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')
 
-        if self.ml['interp_compr_type'] == 'BiCubVec':
+        if self.ml['interpolationType'] == 'BiCubVec':
             bicubic = BicubInterpVec(self.para, self.ml)
             zmesh = self.skf['hs_compr_all']
             if self.para['compr_ml'].dim() == 2:

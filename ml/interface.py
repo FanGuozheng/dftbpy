@@ -12,7 +12,7 @@ from dscribe.descriptors import ACSF
 from dscribe.descriptors import CoulombMatrix
 from IO.readt import ReadInput
 from ml.feature import ACSF as acsfml
-from IO.load import LoadData
+from IO.dataloader import LoadData
 from IO.save import SaveData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 

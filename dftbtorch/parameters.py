@@ -74,7 +74,7 @@ def constant_parameter(para=None):
 
 def mbd_parameter(para):
     """Constant parameters for MBD-DFTB+."""
-    if para['n_omega_grid'] == 15:
+    if para['nOmegaGrid'] == 15:
         gauss_legendre_grid15(para)
 
 

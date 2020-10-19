@@ -8,7 +8,7 @@ from dftbtorch.matht import EigenSolver
 
 
 para = {}
-para['eigenmethod'] = 'lowdin'  # lowdin, cholesky
+para['eigenMethod'] = 'lowdin'  # lowdin, cholesky
 tol4 = 1E-3
 t.manual_seed(1000)
 
@@ -47,7 +47,7 @@ class EigenValueTest(unittest.TestCase):
               '*' * 50)
         A, B = self.construct_ab()
         refval, refeig = self.linalg_eigh(A, B)
-        eigval, eigm_ab = EigenSolver(para['eigenmethod']).eigen(A, B)
+        eigval, eigm_ab = EigenSolver(para['eigenMethod']).eigen(A, B)
 
         # compare each element of eigenvalue from scipy and cholesky
         [self.assertAlmostEqual(i, j, delta=tol4) for i, j in zip(eigval, refval)]
@@ -59,7 +59,7 @@ class EigenValueTest(unittest.TestCase):
               'multi matrices. \n', '*' * 50)
         A, B = self.construct_ab_batch(size=5)
         # eigval, eigm_ab = cholesky(A, B)
-        eigval, eigm_ab = EigenSolver(para['eigenmethod']).eigen(A, B)
+        eigval, eigm_ab = EigenSolver(para['eigenMethod']).eigen(A, B)
         for i in range(5):
             refval, refeig = self.linalg_eigh(A[i].numpy(), B[i].numpy())
             # eigval, eigm_ab = EigenSolver(para).eigen(A[i], B[i])
@@ -71,7 +71,7 @@ class EigenValueTest(unittest.TestCase):
         """Test general eigenvalue from cholesky decomposition with gradient."""
         A, B = self.construct_ab()
         refval, refeig = self.linalg_eigh(A, B)
-        eigval, eigm_ab = EigenSolver(para['eigenmethod']).eigen(A, B)
+        eigval, eigm_ab = EigenSolver(para['eigenMethod']).eigen(A, B)
 
         # compare each element of eigenvalue from scipy and cholesky
         [self.assertAlmostEqual(i, j, delta=tol4) for i, j in zip(eigval, refval)]

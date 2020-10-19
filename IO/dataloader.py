@@ -13,6 +13,8 @@ from collections import Counter
 import IO.pyanitools as pya
 from utils.aset import DFTB, RunASEAims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
+HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207, "N": 29.90025370,
+             "O": 23.60491416}
 
 
 class LoadData:
@@ -30,7 +32,7 @@ class LoadData:
         speciedict: Counter(symbols)
     """
 
-    def __init__(self, dataset=None, para=None, ml=None, train_sample=None):
+    def __init__(self, para=None, dataset=None, ml=None, train_sample=None):
         """Initialize parameters."""
         self.dataset = [dataset, {}][dataset is None]
         self.para = [para, {}][para is None]
@@ -355,3 +357,183 @@ class LoadData:
                 if ispe not in atomspecieall:
                     atomspecieall.append(ispe)
         self.para['specie_all'] = atomspecieall
+
+
+class LoadReferenceData:
+    """"""
+
+    def __init__(self, para, dataset, skf, ml):
+        self.para = para
+        self.dataset = dataset
+        self.skf = skf
+        self.ml = ml
+        if self.ml['reference'] == 'hdf':
+            self.get_hdf_data()
+
+    def get_hdf_data(self):
+        """Read data from hdf for reference or the following ML."""
+        # join the path and hdf data
+        hdffile = self.ml['referenceDataset']
+        if not os.path.isfile(hdffile):
+            raise FileExistsError('reference dataset do not exist')
+        self.dataset['coordinateAll'] = []
+        self.dataset['natomAll'] = []
+        self.dataset['atomNameAll'] = []
+        self.dataset['refHomoLumo'] = []
+        self.dataset['atomNumber'] = []
+        self.dataset['refCharge'] = []
+        self.dataset['refFormEnergy'] = []
+        self.dataset['refTotEenergy'] = []
+        self.dataset['refHirshfeldVolume'] = []
+        self.dataset['refMBDAlpha'] = []
+        self.dataset['refDipole'] = []
+        # the number of atom specie in each system
+        self.dataset['numberatom'] = []
+
+        # read global parameters
+        with h5py.File(hdffile, 'r') as f:
+
+            # get all the molecule species
+            self.skf['specie_all'] = f['globalgroup'].attrs['specie_all']
+
+            # get the molecule species
+            molecule = [ikey.encode() for ikey in f.keys()]
+
+            # get rid of b-prefix
+            molecule2 = [istr.decode('utf-8') for istr in molecule]
+
+            # delete group which is not related to atom species
+            ind = molecule2.index('globalgroup')
+            del molecule2[ind]
+
+        # read and mix different molecules
+        self.nbatch = 0
+        if self.dataset['LdatasetMixture']:
+
+            # loop for molecules in each molecule specie
+            for ibatch in range(int(self.dataset['sizeDataset'][0])):
+
+                # each molecule specie
+                for igroup in molecule2:
+
+                    # add atom name and atom number
+                    self.dataset['atomNameAll'].append([ii for ii in igroup])
+                    self.dataset['natomAll'].append(len(igroup))
+
+                    with h5py.File(hdffile, 'r') as f:
+
+                        # coordinates: not tensor now !!!
+                        namecoor = str(ibatch) + 'coordinate'
+                        self.dataset['coordinateAll'].append(
+                            t.from_numpy(f[igroup][namecoor][()]))
+                        self.dataset['atomNumber'].append(
+                            f[igroup].attrs['atomNumber'])
+                        self.dataset['numberatom'].append(t.tensor(
+                            [np.count_nonzero(f[igroup].attrs['atomNumber'] == i)
+                             for i in [1, 6, 7, 8]], dtype=t.float64))
+
+                        # HOMO LUMO
+                        namehl = str(ibatch) + 'humolumo'
+                        self.dataset['refHomoLumo'].append(
+                            t.from_numpy(f[igroup][namehl][()]))
+
+                        # charge
+                        namecharge = str(ibatch) + 'charge'
+                        self.dataset['refCharge'].append(
+                            t.from_numpy(f[igroup][namecharge][()]))
+
+                        # dipole
+                        namedip = str(ibatch) + 'dipole'
+                        self.dataset['refDipole'].append(
+                            t.from_numpy(f[igroup][namedip][()]))
+
+                        # formation energy
+                        nameEf = str(ibatch) + 'formationenergy'
+                        self.dataset['refFormEnergy'].append(f[igroup][nameEf][()])
+
+                        # total energy
+                        nameEf = str(ibatch) + 'totalenergy'
+                        self.dataset['refTotEenergy'].append(f[igroup][nameEf][()])
+
+                        # get refhirshfeld volume ratios
+                        namehv = str(ibatch) + 'hirshfeldvolume'
+                        volume = f[igroup][namehv][()]
+                        volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
+                        self.dataset['refHirshfeldVolume'].append(volume)
+
+                        # polarizability
+                        namepol = str(ibatch) + 'alpha_mbd'
+                        self.dataset['refMBDAlpha'].append(
+                            f[igroup][namepol][()])
+
+                    # total molecule number
+                    self.nbatch += 1
+                    '''self.save_ref_idata('hdf', ibatch,
+                                        LWHL=self.para['LHomoLumo'],
+                                        LWeigenval=self.para['Leigval'],
+                                        LWenergy=self.para['Lenergy'],
+                                        LWdipole=self.para['Ldipole'],
+                                        LWpol=self.para['LMBD_DFTB'])'''
+            self.para['nfile'] = self.nbatch
+            self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
+
+        # read single molecule specie
+        elif not self.para['hdf_mixture']:
+            # loop for molecules in each molecule specie
+            for ibatch in range(int(self.para['n_dataset'][0])):
+
+                # each molecule specie
+                iatomspecie = int(self.para['hdf_num'][0])
+                igroup = molecule2[iatomspecie]
+                self.para['nfile'] = int(self.para['n_dataset'][0])
+
+                # add atom name
+                self.dataset['atomNameAll'].append([ii for ii in igroup])
+                self.dataset['natomAll'].append(len(igroup))
+
+                # read the molecule specie data
+                with h5py.File(hdffile) as f:
+
+                    # coordinates: not tensor now !!!
+                    namecoor = str(ibatch) + 'coordinate'
+                    self.dataset['coordinateAll'].append(
+                        t.from_numpy(f[igroup][namecoor][()]))
+
+                    # eigenvalue
+                    nameeig = str(ibatch) + 'eigenvalue'
+                    self.dataset['refEigval'].append(
+                        t.from_numpy(f[igroup][nameeig][()]))
+
+                    # charge
+                    namecharge = str(ibatch) + 'charge'
+                    self.dataset['refEigval'].append(
+                        t.from_numpy(f[igroup][namecharge][()]))
+
+                    # dipole
+                    namedip = str(ibatch) + 'dipole'
+                    self.dataset['refDipole'].append(
+                        t.from_numpy(f[igroup][namedip][()]))
+
+                    # formation energy
+                    nameEf = str(ibatch) + 'formationenergy'
+                    self.dataset['refEnergy'].append(f[igroup][nameEf][()])
+
+                    # total molecule number
+                    self.nbatch += 1
+                    self.save_ref_idata('hdf', ibatch,
+                                        LWHL=self.para['LHomoLumo'],
+                                        LWeigenval=self.para['Leigval'],
+                                        LWenergy=self.para['Lenergy'],
+                                        LWdipole=self.para['Ldipole'],
+                                        LWpol=self.para['LMBD_DFTB'])
+            self.para['nfile'] = self.nbatch
+            self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
+
+    def get_hirsh_vol_ratio(self, volume, ibatch=0):
+        """Get Hirshfeld volume ratio."""
+        natom = self.dataset["natomAll"][ibatch]
+        for iat in range(natom):
+            idx = int(self.dataset['atomNumber'][ibatch][iat])
+            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
+            volume[iat] = volume[iat] / HIRSH_VOL[iname]
+        return volume
