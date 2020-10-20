@@ -307,6 +307,10 @@ class ReadInput:
         if 'coordinate' not in self.dataset.keys():
             raise ValueError('coordinate is not found')
 
+        # check coordinate type
+        if type(self.dataset['coordinate']) is np.ndarray:
+            self.dataset['coordinate'] = t.from_numpy(self.dataset['coordinate'])
+
         # check dimension of coordinate and transfer to batch calculations
         if self.dataset['coordinate'].dim() == 2:
             nfile = 1
@@ -319,6 +323,19 @@ class ReadInput:
                 self.dataset['natomAll'] = \
                     [len(icoor) for icoor in self.dataset['coordinate']]
             nmax = max(self.dataset['natomAll'])
+
+        # check atom number
+        if type(self.dataset['atomNumber']) is list:
+            if type(self.dataset['atomNumber'][0]) is not list:
+                self.dataset['atomNumber'] = [self.dataset['atomNumber']]
+        elif type(self.dataset['atomNumber']) is np.ndarray:
+            self.dataset['atomNumber'] = t.from_numpy(self.dataset['atomNumber'])
+
+            # check atomnumber dimension
+            if self.dataset['atomNumber'].dim() == 1:
+                self.dataset['atomNumber'].unsqueeze_(0)
+            elif self.dataset['atomNumber'].dim() > 2:
+                raise ValueError('dimension of atomNumber is not correct')
 
         # if generate the atomname, if atomname exist, pass
         if 'atomNameAll' in self.dataset.keys():
@@ -341,8 +358,8 @@ class ReadInput:
         self.dataset['atomspecie'] = []
         self.dataset['lmaxall'] = []
         self.dataset['atomind'] = []
-
         self.dataset['coordinate'] /= self.para['BOHR']
+
         for ib in range(nfile):
             # define list for name of atom and index of orbital
             atomind = []
@@ -399,8 +416,8 @@ class ReadInput:
             self.dataset['atomind'].append(atomind)
 
             # the name of all the atoms
-            if latomname:
-                self.dataset['atomNameAll'].append(atomnamelist)
+            # if latomname:
+            self.dataset['atomNameAll'].append(atomnamelist)
 
         # return dataset
         return self.dataset
@@ -422,9 +439,6 @@ class ReadInput:
 
         # total number of atom
         natom = np.shape(coor)[0]
-
-        # atom number
-        # self.dataset['atomNumber'] = self.dataset['coordinate'][:, 0]
 
         # distance matrix
         distance = t.zeros((natom, natom), dtype=t.float64)

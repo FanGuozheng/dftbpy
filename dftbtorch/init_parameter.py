@@ -33,9 +33,9 @@ def dftb_parameter(parameter=None):
     # is machine learning is on, it means that the task is machine learning
     parameter['Lml'] = True if parameter['task'] in ('mlCompressionR', 'mlIntegral') else False
 
-    # precision control
+    # precision control: t.float64, t.float32
     if 'precision' not in parameter.keys():
-        parameter['precision'] = 'float64'
+        parameter['precision'] = t.float64
 
     # batch calculation, usually True for machine learning
     if 'Lbatch' not in parameter.keys():
@@ -71,7 +71,10 @@ def dftb_parameter(parameter=None):
 
     # dire of skf dataset (write SKF as binary file)
     if 'SKDataset' not in parameter.keys():
-        parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
+        if parameter['task'] == 'mlCompressionR':
+            parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
+        elif parameter['task'] == 'mlIntegral':
+            parameter['SKDataset'] = '../slko/hdf/skfmio.hdf5'
 
     # input file name, default is dftb_in
     if 'inputName' not in parameter.keys():
@@ -228,7 +231,7 @@ def init_dataset(dataset=None):
     return dataset
 
 
-def init_ml(para=None, ml=None, dataset=None):
+def init_ml(para=None, dataset=None, ml=None):
     """Return the machine learning parameters for DFTB calculations.
 
     Args:
@@ -339,7 +342,7 @@ def init_ml(para=None, ml=None, dataset=None):
 
     # how many steps for optimize in DFTB-ML !!
     if 'mlSteps' not in ml.keys():
-        ml['mlSteps'] = 20
+        ml['mlSteps'] = 5
 
     # how many steps to save the DFTB-ML data !!
     if 'saveSteps' not in ml.keys():

@@ -168,7 +168,6 @@ class LoadData:
 
         # number of molecules in dataset
         for hdf5file in self.dataset['Dataset']:
-            print("hdf5file", hdf5file)
             adl = pya.anidataloader(hdf5file)
             for data in adl:
 
@@ -425,7 +424,8 @@ class LoadReferenceData:
                         self.dataset['coordinateAll'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
                         self.dataset['atomNumber'].append(
-                            f[igroup].attrs['atomNumber'])
+                            list(f[igroup].attrs['atomNumber']))
+
                         self.dataset['numberatom'].append(t.tensor(
                             [np.count_nonzero(f[igroup].attrs['atomNumber'] == i)
                              for i in [1, 6, 7, 8]], dtype=t.float64))

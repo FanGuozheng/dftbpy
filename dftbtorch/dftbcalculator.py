@@ -302,15 +302,15 @@ class Rundftbpy:
 
             # non-SCC-DFTB
             if self.para['scc'] == 'nonscc':
-                scf.scf_npe_nscc(self.ibatch)
+                scf.scf_npe_nscc(self.ibatch, self.para['Lbatch'])
 
             # SCC-DFTB
             elif self.para['scc'] == 'scc':
-                scf.scf_npe_scc(self.ibatch)
+                scf.scf_npe_scc(self.ibatch, self.para['Lbatch'])
 
             # XLBOMD-DFTB
             elif self.para['scc'] == 'xlbomd':
-                scf.scf_npe_xlbomd(self.ibatch)
+                scf.scf_npe_xlbomd(self.ibatch, self.para['Lbatch'])
 
     def run_repulsive(self):
         """Calculate repulsive term."""
@@ -431,7 +431,7 @@ class SCF:
             # replace H0, S name for convenience
             self.ham, self.over = self.hmat, self.smat
 
-    def scf_npe_nscc(self, ibatch=0):
+    def scf_npe_nscc(self, ibatch=[0], Lbatch=False):
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
         qatom = self.analysis.get_qatom(self.atomname, ibatch)
@@ -483,7 +483,7 @@ class SCF:
                 icount += 1
         return out_mat
 
-    def scf_npe_scc(self, ibatch=[0]):
+    def scf_npe_scc(self, ibatch=[0], Lbatch=False):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
@@ -492,6 +492,9 @@ class SCF:
         # todo: using __slots__ to help with speed and memory instead of dict
         # max iteration
         maxiter = self.para['maxIteration']
+
+        # set initial reachConvergence as False
+        self.para['reachConvergence'] = False
 
         # define convergence list, append charge or energy to convergencelist
         convergencelist = []
@@ -508,23 +511,24 @@ class SCF:
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
                                               self.para['coordinate'])
 
-        qatom = self.analysis.get_qatom(self.atomname, ibatch)
-        # qatom = t.stack(
-        #    [self.analysis.get_qatom() for i in range(self.nb)])
+        qatom = self.analysis.get_qatom(self.atomname, ibatch, Lbatch)
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
         self.para['qzero'] = qzero = qatom
 
+        # for single calculations, we calcualte only one system, such as qatom,
+        # the dimension is [1, natom], therefore we get temporal ibatch as 0
+        ibatch_ = [0] if Lbatch is False else ibatch
+
         q_mixed = qzero.clone()
-        self.para['reach_convergence'] = False
         for iiter in range(maxiter):
 
             # The "shift_" term is the a product of the gamma and dQ values
             # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
             # unstable: RuntimeError: Function 'BmmBackward' returned ...
             # shift_ = t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat)
-            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in range(self.nb)])
+            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ibatch_])
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
@@ -593,7 +597,7 @@ class SCF:
             # if reached convergence
             if self.convergence(iiter, maxiter, dif, self.batch,
                                 self.para['convergenceTolerance']):
-                self.para['reach_convergence'] = True
+                self.para['reachConvergence'] = True
                 break
 
             # delete the previous charge or energy to save memory
@@ -1050,11 +1054,11 @@ class Analysis:
         if self.para['Lpdos']:
             self.pdos()
 
-    def get_qatom(self, atomname, batch):
+    def get_qatom(self, atomname, ibatch=[0], Lbatch=False):
         """Get the basic electronic information of each atom."""
         # get each intial atom charge
         qat = [[self.para['val_' + atomname[ib][iat]]
-                for iat in range(self.nat[ib])] for ib in batch]
+                for iat in range(self.nat[ib])] for ib in ibatch]
 
         # return charge information
         return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])

@@ -41,116 +41,63 @@ class DFTBMLTrain:
         dftbcalculator.Initialization(
             self.parameter, self.dataset, self.skf, self.ml)
 
-        # initialize machine learning parameters
+        # detect automatically
+        t.autograd.set_detect_anomaly(True)
+
+        # set the print precision
+        t.set_printoptions(precision=14)
+
+        # set the precision control
+        if self.parameter['precision'] in (t.float64, t.float32):
+            t.set_default_dtype(d=self.parameter['precision'])
+        else:
+            raise ValueError('please select either t.float64 or t.float32')
+
+        # initialize machine learning parameters based on
         self.initialization_ml()
 
-        # load dataset: read dataset, get reference data
+        # 1. read dataset then run DFT(B) to get reference data
+        # 2. directly get reference data from reading input dataset
         self.load_dataset()
 
         # load SKF dataset
+        self.load_skf()
 
         # run machine learning optimization
         self.run_ml()
 
-        time_end = time_begin
+        time_end = time.time()
 
     def initialization_ml(self):
         """Initialize machine learning parameters."""
         self.parameter, self.ml, self.dataset = \
-            initpara.init_ml(self.parameter, self.ml, self.dataset)
+            initpara.init_ml(self.parameter, self.dataset, self.ml)
 
     def load_dataset(self):
         """Load dataset for machine learning."""
         # run DFT(B) to get reference data
         if self.ml['runReference']:
+            RunReference(self.parameter, self.dataset, self.skf, self.ml)
 
-            # load dataset to get initial geometry ...
-            LoadData(self.parameter, self.dataset, self.ml)
+        # directly get reference data from dataset
         else:
             LoadReferenceData(self.parameter, self.dataset, self.skf, self.ml)
 
-        # directly get reference data from dataset
-        MLreference(self.parameter, self.dataset, self.skf, self.ml)
-
-        # LoadSKF()
+    def load_skf(self):
+        pass
 
     def run_ml(self):
         """Run machine learning optimization."""
+        # optimize integrals directly
         if self.parameter['task'] == 'mlIntegral':
             MLIntegral(self.parameter, self.dataset, self.skf, self.ml)
+
+        # optimize compression radius and then generate integrals
         elif self.parameter['task'] == 'mlCompressionR':
             MLCompressionR(self.parameter, self.dataset, self.skf, self.ml)
 
 
-class MLIntegral:
-    """"""
-
-    def __init__(self, parameter, dataset, skf, ml):
-        self.para = parameter
-        self.dataset = dataset
-        self.skf = skf
-        self.ml = ml
-        self.slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
-        self.ml_integral()
-
-    def ml_integral(self):
-        '''DFTB optimization for given dataset'''
-        # get the ith coordinates
-        get_coor(self.dataset)
-
-        # initialize DFTB calculations with datasetmetry and input parameters
-        # read skf according to global atom species
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
-
-        # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-        self.skf['hs_compr_all_'] = []
-        self.para['compr_init_'] = []
-
-        # get spline integral
-        ml_variable = self.slako.integral_spline_parameter()  # 0.2 s, too long!!!
-
-        # get loss function type
-        if self.ml['loss_function'] == 'MSELoss':
-            self.criterion = t.nn.MSELoss(reduction='sum')
-        elif self.ml['loss_function'] == 'L1Loss':
-            self.criterion = t.nn.L1Loss(reduction='sum')
-
-        # get optimizer
-        if self.ml['optimizer'] == 'SCG':
-            optimizer = t.optim.SGD(ml_variable, lr=self.ml['lr'])
-        elif self.ml['optimizer'] == 'Adam':
-            optimizer = t.optim.Adam(ml_variable, lr=self.ml['lr'])
-
-        # calculate one by one to optimize para
-        for istep in range(self.ml['mlsteps']):
-            loss = 0.
-            for ibatch in range(self.nbatch):
-                print("step:", istep + 1, "ibatch:", ibatch + 1)
-
-                # do not perform batch calculation
-                self.para['Lbatch'] = False
-
-                # get integral at certain distance, read raw integral from binary hdf
-                # SK transformations
-                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-
-                # run each DFTB calculation separatedly
-                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
-
-                # define loss function
-                # get loss function
-                if 'dipole' in self.ml['target']:
-                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refdipole'][ibatch])
-
-                # clear gradients and define back propagation
-                optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-                optimizer.step()
-            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
-
-
-
-class MLreference:
+class RunReference:
     """"""
 
     def __init__(self, para, dataset, skf, ml):
@@ -171,9 +118,6 @@ class MLreference:
         """
         # check data and path, rm *.dat, get path for saving data
         self.dire_res = check_data(self.para, rmdata=True)
-
-        # build reference data
-        self.build_ref_data()
 
         # run reference calculations (e.g., DFTB+ ...) before ML
         if self.ml['runReference']:
@@ -198,16 +142,6 @@ class MLreference:
             # FHI-aims as reference
             elif self.ml['ref'] == 'aimsase':
                 Aims(self.para).run_aims(self.nbatch, para['coordinate'])
-
-    def build_ref_data(self):
-        """Build reference data."""
-        # self.nbatch = self.para['nfile']
-        self.dataset['refhomo_lumo'] = []
-        self.dataset['refenergy'] = []
-        self.dataset['refdipole'] = []
-        self.dataset['specieall'] = []
-        self.dataset['refeigval'] = []
-
 
     def dftb_ref(self):
         """Calculate reference with DFTB(torch)"""
@@ -339,56 +273,138 @@ class MLreference:
                            LWpol=self.para['LMBD_DFTB'])
 
 
-class MLCompressionR:
-    def __init__(self, para, dataset, skf, ml):
-        self.para = para
+class MLIntegral:
+    """Optimize integrals."""
+
+    def __init__(self, parameter, dataset, skf, ml):
+        """Initialize parameters."""
+        self.para = parameter
         self.dataset = dataset
         self.skf = skf
         self.ml = ml
+
+        # total batch size
         self.nbatch = self.para['nfile']
-        self.slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
-        if self.para['Lbatch']:
-            self.ml_compr_batch()
+        self.ml_integral()
 
-    def ml_compr_batch(self):
-        """DFTB optimization of compression radius for given dataset."""
-        # clear some documents
-        os.system('rm .data/loss.dat .data/compr.dat')
-        genmlpara = GenMLPara(self.ml)
-
-        # calculate one by one to optimize para
-        self.para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
-        self.para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
-
+    def ml_integral(self):
+        '''DFTB optimization for given dataset'''
         # get the ith coordinates
         get_coor(self.dataset)
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
         dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
-        maxorb = max(self.dataset['norbital'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
+        self.para['compr_init_'] = []
+
+        # get spline integral
+        slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
+        ml_variable = slako.integral_spline_parameter()  # 0.2 s, too long!!!
+
+        # get loss function type
+        if self.ml['lossFunction'] == 'MSELoss':
+            self.criterion = t.nn.MSELoss(reduction='sum')
+        elif self.ml['lossFunction'] == 'L1Loss':
+            self.criterion = t.nn.L1Loss(reduction='sum')
+
+        # get optimizer
+        if self.ml['optimizer'] == 'SCG':
+            optimizer = t.optim.SGD(ml_variable, lr=self.ml['lr'])
+        elif self.ml['optimizer'] == 'Adam':
+            optimizer = t.optim.Adam(ml_variable, lr=self.ml['lr'])
+
+        # calculate one by one to optimize para
+        for istep in range(self.ml['mlSteps']):
+            loss = 0.
+            for ibatch in range(self.nbatch):
+                print("step:", istep + 1, "ibatch:", ibatch + 1)
+
+                # do not perform batch calculation
+                self.para['Lbatch'] = False
+
+                # get integral at certain distance, read raw integral from binary hdf
+                # SK transformations
+                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+
+                # run each DFTB calculation separatedly
+                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
+
+                # define loss function
+                # get loss function
+                if 'dipole' in self.ml['target']:
+                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refDipole'][ibatch])
+
+                # clear gradients and define back propagation
+                optimizer.zero_grad()
+                loss.backward(retain_graph=True)
+                optimizer.step()
+            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+
+
+class MLCompressionR:
+    """Optimize compression radii."""
+
+    def __init__(self, para, dataset, skf, ml):
+        """Initialize parameters."""
+        self.para = para
+        self.dataset = dataset
+        self.skf = skf
+        self.ml = ml
+
+        # batch size
+        self.nbatch = self.para['nfile']
+
+        # process dataset for machine learning
+        self.process_dataset()
+
+        # batch calculations, all systems in batch together
+        if self.para['Lbatch']:
+            self.ml_compr_batch()
+
+        # single calculations, run optimization system by system in batch
+        elif not self.para['Lbatch']:
+            self.ml_compr_single()
+
+    def process_dataset(self):
+        """Get all parameters for compression radii machine learning."""
+        # remove some documents
+        os.system('rm loss.dat compr.dat')
+
+        # set coordinates type
+        get_coor(self.dataset)
+
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+        self.slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
+        self.genmlpara = GenMLPara(self.ml)
+
+        # get nbatch * natom * natom * [ncompr, ncompr, 20] integrals
+        self.skf['hs_compr_all_'] = []
         self.ml['CompressionRInit'] = []
 
-        # get integral and compression radius
+        # loop in batch
         for ibatch in range(self.nbatch):
             if self.ml['reference'] == 'hdf':
                 natom = self.dataset['natomAll'][ibatch]
                 atomname = self.dataset['atomNameAll'][ibatch]
 
-                # get integral at certain distance, read raw integral from binary hdf
+                # get integral at certain distance, read integrals from hdf5
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
 
                 # get initial compression radius
                 self.ml['CompressionRInit'].append(
-                    genmlpara.genml_init_compr(atomname))
+                    self.genmlpara.genml_init_compr(atomname))
 
         self.para['compr_ml'] = \
-            pad1d(self.ml['CompressionRInit']).clone().requires_grad_(True)
+            Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
+        # pad1d(self.para['compr_init_']).requires_grad_(True)
 
+    def ml_compr_batch(self):
+        """DFTB optimization of compression radius for given dataset."""
+        maxorb = max(self.dataset['norbital'])
         # get optimizer
         if self.ml['optimizer'] == 'SCG':
             optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
@@ -440,42 +456,6 @@ class MLCompressionR:
 
     def ml_compr_single(self):
         """DFTB optimization of compression radius for given dataset."""
-        # clear some documents
-        os.system('rm .data/loss.dat .data/compr.dat')
-
-        # calculate one by one to optimize para
-        self.para['nsteps'] = t.zeros((self.nbatch), dtype=t.float64)
-        self.para['shape_pdos'] = t.zeros((self.nbatch, 2), dtype=t.int32)
-
-        # get the ith coordinates
-        self.get_coor()
-
-        # initialize DFTB calculations with datasetmetry and input parameters
-        # read skf according to global atom species
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf)
-
-        # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
-        self.skf['hs_compr_all_'] = []
-        self.para['compr_init_'] = []
-
-        # get integral and compression radius
-        for ibatch in range(self.nbatch):
-            if self.ml['ref'] == 'hdf':
-                natom = self.dataset['natomAll'][ibatch]
-                atomname = self.dataset['atomnameall'][ibatch]
-
-                # get integral at certain distance, read raw integral from binary hdf
-                self.slako.genskf_interp_dist_hdf(ibatch, natom)
-                self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
-
-                # get initial compression radius
-                self.genml.genml_init_compr(ibatch, atomname)
-                self.para['compr_init_'].append(self.para['compr_init'])
-
-        self.para['compr_ml'] = \
-            Variable(pad1d(self.para['compr_init_']), requires_grad=True)
-        # pad1d(self.para['compr_init_']).requires_grad_(True)
-
         # get optimizer
         if self.ml['optimizer'] == 'SCG':
             optimizer = t.optim.SGD([self.para['compr_ml']], lr=self.ml['lr'])
@@ -483,14 +463,14 @@ class MLCompressionR:
             optimizer = t.optim.Adam([self.para['compr_ml']], lr=self.ml['lr'])
 
         # get loss function type
-        if self.ml['loss_function'] == 'MSELoss':
+        if self.ml['lossFunction'] == 'MSELoss':
             self.criterion = t.nn.MSELoss(reduction='sum')
-        elif self.ml['loss_function'] == 'L1Loss':
+        elif self.ml['lossFunction'] == 'L1Loss':
             self.criterion = t.nn.L1Loss(reduction='sum')
 
         # do not perform batch calculation
         self.para['Lbatch'] = False
-        for istep in range(self.ml['mlsteps']):
+        for istep in range(self.ml['mlSteps']):
 
             # set compr_ml every several steps, to avoid memory problem
             # self.para['compr_ml'] = self.para['compr_ml'].clone().requires_grad_(True)
@@ -500,7 +480,7 @@ class MLCompressionR:
 
             for ibatch in range(self.nbatch):
                 self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
-                if self.ml['ref'] == 'hdf':
+                if self.ml['reference'] == 'hdf':
                     self.slako.genskf_interp_compr(ibatch)
 
                 # SK transformations
@@ -511,11 +491,11 @@ class MLCompressionR:
 
                 # get loss function
                 if 'dipole' in self.ml['target']:
-                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refdipole'][ibatch])
+                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refDipole'][ibatch])
                 elif 'charge' in self.ml['target']:
-                    loss += self.criterion(self.para['charge'].squeeze(), self.dataset['refcharge'][ibatch])
+                    loss += self.criterion(self.para['charge'].squeeze(), self.dataset['refCharge'][ibatch])
                 elif 'homo_lumo' in self.ml['target']:
-                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refhomo_lumo'][ibatch])
+                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refHomoLumo'][ibatch])
                 elif 'formationenergy' in self.ml['target']:
                     self.para['formation_energy'] = self.cal_optfor_energy(
                         self.para['electronic_energy'], ibatch)
@@ -523,7 +503,7 @@ class MLCompressionR:
                 elif 'offsetenergy' in self.ml['target']:
                     initenergy.append(self.para['electronic_energy'])
                 elif 'cpa' in self.ml['target']:
-                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refhirshfeldvolume'][ibatch])
+                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch])
 
                 print("*" * 50, "\n istep:", istep + 1, "\n ibatch", ibatch + 1)
                 print("loss:", loss, self.para['compr_ml'].grad)

@@ -79,7 +79,7 @@ class SKTran:
     def get_hs_spline(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.dataset['natomall'][self.ibatch]
+        natom = self.dataset['natomAll'][self.ibatch]
 
         # build H0 or S
         self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
@@ -102,7 +102,8 @@ class SKTran:
 
                     # the distance is from cal_coor
                     dd = self.dataset['distance'][ibatch][iat, jat]
-                    self.skf['hs_all'][iat, jat] = PolySpline(x=xx, d=dd, abcd=abcd).ynew
+                    poly = PolySpline(x=xx, abcd=abcd)
+                    self.skf['hs_all'][iat, jat] = poly(dd)
 
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
@@ -599,7 +600,6 @@ class SKinterp:
             for ispecie in self.skf['specie_all']:
                 for jspecie in self.skf['specie_all']:
                     nameij = ispecie + jspecie
-                    print("hdfsk", f[nameij])
                     grid_distance = f[nameij + '/grid_dist'][()]
                     ngrid = f[nameij + '/ngridpoint'][()]
                     yy = t.from_numpy(f[nameij + '/hs_all'][()])
