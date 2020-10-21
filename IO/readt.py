@@ -286,11 +286,10 @@ class ReadInput:
             if 'coordinate' in fpinput['geometry']:
                 coordinate = fpinput['geometry']['coordinate']
             if 'atomNumber' in fpinput['geometry']:
-                atom_number = fpinput['geometry']['atomNumber']
+                self.dataset['atomNumber'] = fpinput['geometry']['atomNumber']
 
             # return coordinate and transfer to tensor
             self.dataset['coordinate'] = t.from_numpy(np.asarray(coordinate))
-            self.dataset['atomNumber'] = t.from_numpy(np.asarray(atom_number))
 
     def cal_coor_batch(self):
         """Generate vector, distance ... according to input geometry.
@@ -326,16 +325,22 @@ class ReadInput:
 
         # check atom number
         if type(self.dataset['atomNumber']) is list:
+
+            # check atomnumber dimension
             if type(self.dataset['atomNumber'][0]) is not list:
                 self.dataset['atomNumber'] = [self.dataset['atomNumber']]
         elif type(self.dataset['atomNumber']) is np.ndarray:
-            self.dataset['atomNumber'] = t.from_numpy(self.dataset['atomNumber'])
+
+            # check atomnumber dimension
+            if self.dataset['atomNumber'].ndim == 1:
+                self.dataset['atomNumber'] = np.expand_dims(
+                    self.dataset['atomNumber'], axis=0)
+
+        elif type(self.dataset['atomNumber']) == t.Tensor:
 
             # check atomnumber dimension
             if self.dataset['atomNumber'].dim() == 1:
-                self.dataset['atomNumber'].unsqueeze_(0)
-            elif self.dataset['atomNumber'].dim() > 2:
-                raise ValueError('dimension of atomNumber is not correct')
+                self.dataset['atomNumber'].unsqueeze_(0).numpy()
 
         # if generate the atomname, if atomname exist, pass
         if 'atomNameAll' in self.dataset.keys():

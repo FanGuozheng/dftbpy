@@ -260,10 +260,10 @@ class DFTB:
         return energy
 
 
-class RunASEAims:
+class AseAims:
     """RunASEAims will run FHI-aims with both batch or single calculations."""
 
-    def __init__(self, para, ml, dataset, setenv=False):
+    def __init__(self, para, dataset, ml, setenv=False):
         self.para = para
         self.ml = ml
         self.dataset = dataset
@@ -288,31 +288,32 @@ class RunASEAims:
 
     def run_aims(self, nbatch, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
-        coorall = self.dataset['coorall']
+        coorall = self.dataset['coordinateAll']
         if begin is None:
             begin = 0
 
         # if calculate, deal with pdos or not
         if self.para['Lpdos']:
-            self.para['pdosdftbplus'] = []
+            self.dataset['pdosdftbplus'] = []
 
         # save eigenvalue as reference eigenvalue for ML
         if 'eigval' in self.ml['target']:
-            self.para['refeigval'] = []
+            self.dataset['refEigval'] = []
 
         # create reference list for following ML
-        self.para['refenergy'] = []
-        self.para['refdipole'] = []
-        self.para['refalpha_mbd'] = []
-        self.para['refHirshfeldvolume'] = []
+        self.dataset['refEnergy'] = []
+        self.dataset['refDipole'] = []
+        self.dataset['refMBDAlpha'] = []
+        self.dataset['refHirshfeldVolume'] = []
+        self.dataset['refCharge'] = []
 
         for ibatch in range(begin, nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
             print('ibatch', ibatch)
             if group is None:
-                self.para['natom'] = self.para['natomall'][ibatch]
-                ispecie = ''.join(self.para['symbols'][ibatch])
+                self.para['natom'] = self.dataset['natomAll'][ibatch]
+                ispecie = ''.join(self.dataset['symbols'][ibatch])
             else:
                 ispecie = group.attrs['specie']
                 self.para['natom'] = group.attrs['natom']
@@ -324,7 +325,7 @@ class RunASEAims:
             self.ase_iaims(ispecie, self.coor)
 
             # process each result (overmat, eigenvalue, eigenvect, dipole)
-            self.process_iresult()
+            self.process_iresult(ibatch)
 
             # creat or write  reference data as hdf type
             if self.para['task'] == 'get_aims_hdf':
@@ -359,7 +360,7 @@ class RunASEAims:
             mol.calc.__dict__["parameters"]['Options_WriteHS'] = 'No'
             mol.get_potential_energy()
 
-    def process_iresult(self):
+    def process_iresult(self, ibatch):
         """Process result for each calculation."""
         # get number of atoms in molecule
         self.nat = len(self.coor)
@@ -386,7 +387,7 @@ class RunASEAims:
             " | tail -n 1 | awk '{print $5}'"
         self.E_tot = float(
             subprocess.check_output(comme, shell=True).decode('utf-8'))
-        self.E_f = self.cal_optfor_energy(self.E_tot)
+        self.E_f = self.cal_optfor_energy(self.E_tot, ibatch)
 
         # read polarizability
         commp = "grep -A " + str(self.nat + 1) + \
@@ -407,9 +408,13 @@ class RunASEAims:
 
         # add each molecule properties
         self.alpha_mbd = np.asarray([float(i) for i in ipol.split('\n')[:-1]])
+        self.dataset['refMBDAlpha'].append(t.from_numpy(self.alpha_mbd))
         self.dip = np.asarray([idipx, idipy, idipz])
+        self.dataset['refDipole'].append(t.from_numpy(self.dip))
         self.hirshfeldvolume = np.asarray([float(i) for i in ivol.split('\n')[:-1]])
+        self.dataset['refHirshfeldVolume'].append(t.from_numpy(self.hirshfeldvolume))
         self.charge = np.asarray([float(i) for i in icharge.split('\n')[:-1]])
+        self.dataset['refCharge'].append(t.from_numpy(self.charge))
 
     def write_hdf5(self, hdf, ibatch, ispecie, begin, group=None):
         """Write each molecule DFTB calculation results to hdf type data."""
@@ -485,14 +490,10 @@ class RunASEAims:
         """Remove all DFTB data after calculations."""
         os.system('rm aims.x aims.out control.in geometry.in')
 
-    def cal_optfor_energy(self, energy):
+    def cal_optfor_energy(self, energy, ibatch):
         natom = self.para['natom']
-        for iat in range(natom):
-            idx = int(self.dataset['atomNumber'][iat])
-            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-            energy = energy - AIMS_ENERGY[iname]
-        return energy
-        pass
+        return energy - sum([AIMS_ENERGY[self.dataset['symbols'][ibatch][iat]]
+                             for iat in range(natom)])
 
 
 def get_matrix(filename):

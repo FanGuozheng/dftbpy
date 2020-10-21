@@ -186,15 +186,15 @@ class Dftbplus:
 class FHIaims:
     """Interface to FHI-aims."""
 
-    def __init__(self, para):
+    def __init__(self, dataset):
         """Initialize parameters."""
-        self.para = para
+        self.dataset = dataset
 
-    def geo_nonpe_hdf(self, para, ibatch, coor):
+    def geo_nonpe_hdf(self, ibatch, coor):
         """Input is from hdf data, output is FHI-aims input: geo.in."""
-        specie = para['specie'][ibatch]
-        speciedict = para['speciedict'][ibatch]
-        symbols = para['symbols'][ibatch]
+        specie = self.dataset['specie'][ibatch]
+        speciedict = self.dataset['speciedict'][ibatch]
+        symbols = self.dataset['symbols'][ibatch]
         with open('geometry.in.{}'.format(ibatch), 'w') as fp:
             ispecie = 0
             iatom = 0
@@ -211,7 +211,7 @@ class FHIaims:
         """Generate periodic coordinate input."""
         pass
 
-    def read_bandenergy(self, para, nfile, dire, inunit='H', outunit='H'):
+    def read_bandenergy(self, nfile, dire, inunit='H', outunit='H'):
         """Read file bandenergy.dat, which is HOMO and LUMO data."""
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2))
@@ -221,7 +221,7 @@ class FHIaims:
                 bandenergy[ifile, :] = ibandenergy[:]
         return t.from_numpy(bandenergy)
 
-    def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
+    def read_dipole(self, nfile, dire, unit='eang', outunit='debye'):
         """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3), dtype=float)
@@ -236,7 +236,7 @@ class FHIaims:
                 dipole[ifile, :] = idipole[:] * 0.2081943
         return t.from_numpy(dipole)
 
-    def read_energy(self, para, nfile, dire, inunit='H', outunit='H'):
+    def read_energy(self, nfile, dire, inunit='H', outunit='H'):
         """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros((nfile), dtype=float)
@@ -247,44 +247,44 @@ class FHIaims:
                 energy[ifile] = iener[:]
         return t.from_numpy(energy)
 
-    def read_qatom(self, para, nfile, dire, inunit='e', outunit='e'):
+    def read_qatom(self, nfile, dire, inunit='e', outunit='e'):
         """Read file dip.dat, which is dipole data."""
-        nmaxatom = int(max(para['natomall']))
+        nmaxatom = int(max(self.dataset['natomAll']))
         qatom = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'qatomref.dat'))
         for ifile in range(0, nfile):
-            natom = int(para['natomall'][ifile])
+            natom = int(self.dataset['natomAll'][ifile])
             iqatom = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             if inunit == outunit:
                 qatom[ifile, :natom] = iqatom[:]
         return t.from_numpy(qatom)
 
-    def read_alpha(self, para, nfile, dire):
+    def read_alpha(self, nfile, dire):
         """Read alpha data.
 
         Returns:
             polarizability_MBD.
 
         """
-        nmaxatom = int(max(para['natomall']))
+        nmaxatom = int(max(self.dataset['natomAll']))
         alpha = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'pol.dat'))
         for ifile in range(nfile):
-            natom = int(para['natomall'][ifile])
+            natom = int(self.dataset['natomAll'][ifile])
             ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             alpha[ifile, :natom] = ial[:]
         return t.from_numpy(alpha)
 
-    def read_hirshfeld_vol(self, para, nfile, dire):
+    def read_hirshfeld_vol(self, nfile, dire):
         """Read Hirshfeld volume."""
-        nmaxatom = int(max(para['natomall']))
+        nmaxatom = int(max(self.dataset['natomAll']))
         vol = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'vol.dat'))
         for ifile in range(nfile):
-            natom = int(para['natomall'][ifile])
+            natom = int(self.dataset['natomAll'][ifile])
             ivol = np.fromfile(fp, dtype=float, count=natom, sep=' ')
             vol[ifile, :natom] = ivol[:]
         return t.from_numpy(vol)

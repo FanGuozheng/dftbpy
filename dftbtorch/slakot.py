@@ -597,8 +597,8 @@ class SKinterp:
 
         self.skf['hs_compr_all'] = []
         with h5py.File(hdfsk, 'r') as f:
-            for ispecie in self.skf['specie_all']:
-                for jspecie in self.skf['specie_all']:
+            for ispecie in self.dataset['specieGlobal']:
+                for jspecie in self.dataset['specieGlobal']:
                     nameij = ispecie + jspecie
                     grid_distance = f[nameij + '/grid_dist'][()]
                     ngrid = f[nameij + '/ngridpoint'][()]

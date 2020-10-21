@@ -3,7 +3,6 @@ import numpy as np
 from torch.autograd import Variable
 import torch as t
 import time
-import IO.write_output as write
 import dftbtorch.dftbcalculator as dftbcalculator
 from dftbtorch.slakot import SKTran, SKinterp
 import utils.plot as plot
@@ -13,7 +12,7 @@ from ml.feature import ACSF as acsfml
 from ml.padding import pad1d
 from IO.dataloader import LoadData, LoadReferenceData
 from IO.save import Save1D, Save2D
-from utils.aset import DFTB, Aims
+from utils.runcalculation import RunReference
 import dftbmalt.utils.maths as maths
 from ml.padding import pad1d, pad2d
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
@@ -77,6 +76,7 @@ class DFTBMLTrain:
         """Load dataset for machine learning."""
         # run DFT(B) to get reference data
         if self.ml['runReference']:
+            LoadData(self.parameter, self.dataset, self.ml).load_ani()
             RunReference(self.parameter, self.dataset, self.skf, self.ml)
 
         # directly get reference data from dataset
@@ -96,181 +96,6 @@ class DFTBMLTrain:
         elif self.parameter['task'] == 'mlCompressionR':
             MLCompressionR(self.parameter, self.dataset, self.skf, self.ml)
 
-
-class RunReference:
-    """"""
-
-    def __init__(self, para, dataset, skf, ml):
-        """Initialize reference parameters."""
-        self.para = para
-        self.ml = ml
-        self.dataset = dataset
-        self.skf = skf
-
-        # some outside class or functions used during DFTB-ML
-        self.runcal = RunCalc(self.para, self.dataset, self.skf, self.ml)
-
-        """Run different reference calculations according to reference type.
-
-        Args:
-            run_reference (L): if run calculations or read from defined file
-            nfile (Int): number of total molecules
-        """
-        # check data and path, rm *.dat, get path for saving data
-        self.dire_res = check_data(self.para, rmdata=True)
-
-        # run reference calculations (e.g., DFTB+ ...) before ML
-        if self.ml['runReference']:
-
-            # run DFTB python code as reference
-            if self.ml['ref'] == 'dftb':
-                self.dftb_ref()
-
-            # run DFTB+ as reference
-            elif self.ml['ref'] == 'dftbplus':
-                self.dftbplus_ref(self.para)
-
-            # run DFTB+ with ASE interface as reference
-            elif self.ml['ref'] == 'dftbase':
-                DFTB(self.para, setenv=True).run_dftb(
-                    self.nbatch, para['coordinate'])
-
-            # FHI-aims as reference
-            elif self.ml['ref'] == 'aims':
-                self.aims_ref(self.para)
-
-            # FHI-aims as reference
-            elif self.ml['ref'] == 'aimsase':
-                Aims(self.para).run_aims(self.nbatch, para['coordinate'])
-
-    def dftb_ref(self):
-        """Calculate reference with DFTB(torch)"""
-        for ibatch in range(self.nbatch):
-            # get the tensor type coordinates
-            self.get_coor(ibatch)
-
-            # interpolation with compression radius to generate skf data
-            if self.para['Lml_skf']:
-
-                # initialize DFTB calculation data
-                dftbcalculator.Initialization(self.para)
-
-                # get inital compression radius
-                self.slako.genskf_interp_dist()
-
-                # interpolate along compression radius (2) dimension
-                self.genml.genml_init_compr()
-                self.para['LreadSKFinterp'] = False  # read SKF list only once
-
-                # minus compression redius to test the following gradient in ML
-                self.para['compr_ml'] = self.para['compr_init'] - 1
-
-                # interpolate along distance dimension
-                self.slako.genskf_interp_compr()
-
-                # run DFTB calculations
-                self.runcal.idftb_torchspline()
-
-            elif self.para['Lml_HS']:
-                dftbcalculator.Initialization(self.para)
-                self.runcal.idftb_torchspline()
-
-            self.save_ref_idata(ref='dftb', LWHL=self.para['LHL'],
-                                LWeigenval=self.para['Leigval'],
-                                LWenergy=self.para['Lenergy'],
-                                LWdipole=self.para['Ldipole'],
-                                LWpol=self.para['LMBD_DFTB'])
-
-    def dftbplus_ref(self, para):
-        """Calculate reference (DFTB+)"""
-        # get the binary aims
-        dftb = write.Dftbplus(self.para)
-        bdftb = os.path.join(self.para['dftb_ase_path'], self.para['dftb_bin'])
-
-        # copy executable dftb+ as ./dftbplus/dftb+
-        self.dir_ref = os.getcwd() + '/dftbplus'
-        os.system('cp ' + bdftb + ' ./dftbplus/dftb+')
-
-        # check binary FHI-aims
-        if os.path.isfile(bdftb) is False:
-            raise FileNotFoundError("Could not find binary, executable DFTB+")
-
-        for ibatch in range(self.nbatch):
-            # get and check the nth coordinates
-            self.get_coor(ibatch)
-
-            # check if atom specie is the same to the former
-            self.runcal.dftbplus(para, ibatch, self.dir_ref)
-
-        # calculate formation energy
-        self.para['totalenergy'] = write.Dftbplus(self.para).read_energy(
-            self.para, self.nbatch, self.dir_ref)
-        self.para['refenergy'] = self.cal_for_energy(
-            self.para['totalenergy'], para['coor'])
-        self.para['homo_lumo'] = dftb.read_bandenergy(
-            self.para, self.para['nfile'], self.dir_ref)
-        self.para['refdipole'] = dftb.read_dipole(
-            self.para, self.para['nfile'], self.dir_ref, 'debye', 'eang')
-        self.para['alpha_mbd'] = dftb.read_alpha(
-            self.para, self.para['nfile'], self.dir_ref)
-
-        # save results for each single molecule
-        self.save_ref_data(ref='dftbplus', LWHL=self.para['LHL'],
-                           LWeigenval=self.para['Leigval'],
-                           LWenergy=self.para['Lenergy'],
-                           LWdipole=self.para['Ldipole'],
-                           LWpol=self.para['LMBD_DFTB'])
-
-    def aims_ref(self, para):
-        """Calculate reference (FHI-aims)"""
-        # get the binary aims
-        baims = os.path.join(self.para['aims_ase_path'], self.para['aims_bin'])
-
-        # check binary FHI-aims
-        if os.path.isfile(baims) is False:
-            raise FileNotFoundError("Could not find binary FHI-aims")
-
-        if os.path.isdir('aims'):
-
-            # if exist aims folder, remove files
-            os.system('rm ./aims/*.dat')
-
-        elif os.path.isdir('aims'):
-            # if exist aims folder
-            os.system('mkdir aims')
-
-        # copy executable aims as ./aims/aims
-        self.dir_ref = os.getcwd() + '/aims'
-        os.system('cp ' + baims + ' ./aims/aim')
-
-        for ibatch in range(self.nbatch):
-            # get the nth coordinates
-            self.get_coor(ibatch)
-
-            # check if atom specie is the same to the former
-            self.runcal.aims(para, ibatch, self.dir_ref)
-
-        # read results, including energy, dipole ...
-        self.para['totalenergy'] = write.FHIaims(self.para).read_energy(
-            self.para, self.nbatch, self.dir_ref)
-        if self.para['mlenergy'] == 'formationenergy':
-            self.para['refenergy'] = self.cal_for_energy(
-                self.para['totalenergy'], para['coor'])
-        self.para['refdipole'] = write.FHIaims(self.para).read_dipole(
-            self.para, self.nbatch, self.dir_ref, 'eang', 'eang')
-        self.para['homo_lumo'] = write.FHIaims(self.para).read_bandenergy(
-            self.para, self.nbatch, self.dir_ref)
-        self.para['alpha_mbd'] = write.FHIaims(self.para).read_alpha(
-            self.para, self.nbatch, self.dir_ref)
-        self.para['refvol'] = write.FHIaims(self.para).read_hirshfeld_vol(
-            self.para, self.nbatch, self.dir_ref)
-
-        # save results
-        self.save_ref_data(ref='aims', LWHL=self.para['LHL'],
-                           LWeigenval=self.para['Leigval'],
-                           LWenergy=self.para['Lenergy'],
-                           LWdipole=self.para['Ldipole'],
-                           LWpol=self.para['LMBD_DFTB'])
 
 
 class MLIntegral:
@@ -549,37 +374,6 @@ def get_coor(dataset, ibatch=None):
 def get_formation_energy(energy, atomname, ibatch):
     """Calculate formation energy"""
     return energy - sum([DFTB_ENERGY[ina] for ina in atomname[ibatch]])
-
-class RunML:
-    """Perform DFTB-ML optimization.
-
-    loading reference data and dataset
-    running calculations of reference method and DFTB method
-    saving ml data (numpy.save type or hdf type)
-    Assumption: the atom specie in each dataset maintain unchanged, otherwise
-    we have to check for each new moluecle, if there is new atom specie.
-    """
-    def __init__(self):
-        pass
-
-    def cal_for_energy(self, energy, coor):
-        """calculate formation energy for molecule"""
-        if self.para['ref'] == 'aims':
-            for ibatch in range(self.nbatch):
-                natom = len(self.para['coordinate'][ibatch])
-                for iat in range(natom):
-                    idx = int(self.para['coordinate'][ibatch][iat, 0])
-                    iname = list(ATOMNUM.keys())[list(
-                        ATOMNUM.values()).index(idx)]
-                    energy[ibatch] -= AIMS_ENERGY[iname]
-        elif self.para['ref'] == 'dftb' or self.para['ref'] == 'dftbplus':
-            for ibatch in range(self.nbatch):
-                natom = len(self.para['coordinate'][ibatch])
-                for iat in range(0, natom):
-                    idx = int(coor[iat, 0])
-                    iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-                    energy = energy - DFTB_ENERGY[iname]
-        return energy
 
 
 
@@ -970,82 +764,3 @@ class GenMLPara:
         """Get initial compression radius for each atom in system."""
         return t.tensor([self.ml[ia + '_init_compr']
                          for ia in atomname], dtype=t.float64)
-
-
-class RunCalc:
-    """Run different DFT(B) calculations.
-
-    with both ASE interface or code in write_output.py
-    """
-
-    def __init__(self, para, dataset, skf, ml):
-        self.para = para
-        self.skf = skf
-        self.dataset = dataset
-        self.ml = ml
-
-    def aims(self, para, ibatch, dire):
-        """DFT means FHI-aims here."""
-        coor = para['coor']
-        self.para['natom'] = int(self.dataset['natomAll'][ibatch])
-        write.FHIaims(para).geo_nonpe_hdf(para, ibatch, coor[:, 1:])
-        os.rename('geometry.in.{}'.format(ibatch), 'aims/geometry.in')
-        os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch) +
-                  ' ' + str(self.para['natom']))
-
-    def dftbplus(self, para, ibatch, dire):
-        """Perform DFTB+ to calculate."""
-        dftb = write.Dftbplus(para)
-        coor = para['coor']
-        self.para['natom'] = int(self.dataset['natomall'][ibatch])
-        scc = para['scc']
-        dftb.geo_nonpe(dire, coor)
-        dftb.write_dftbin(self.para, dire, scc, coor)
-        os.system('bash ' + dire + '/run.sh ' + dire + ' ' + str(ibatch))
-
-    def dftbtorchrun(self, para, coor, DireSK):
-        """Perform DFTB_python with reading SKF."""
-        para['coor'] = t.from_numpy(coor)
-        dipolemall = para['dipolemall']
-        eigvalall = para['eigvalall']
-        dipolem, eigval = dftbcalculator.dftb(para)
-        dipolemall.append(dipolem)
-        eigvalall.append(eigval)
-        para['dipolemall'] = dipolemall
-        para['eigvalall'] = eigvalall
-        return para
-
-    def idftb_torchspline(self, ibatch=None):
-        """Perform DFTB_python with integrals."""
-        SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-        dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
-
-
-def check_data(para, rmdata=False):
-    """Check and build folder/data before run or read reference part."""
-    if 'dire_result' in para.keys():
-        dire_res = para['dire_result']
-
-        # rm .dat file
-        if rmdata:
-            os.system('rm ' + dire_res + '/*.dat')
-
-    # build new directory for saving results
-    else:
-        # do not have .data folder
-        if os.path.isdir('.data'):
-
-            # rm all the .dat files
-            if rmdata:
-                os.system('rm .data/*.dat')
-
-        # .data folder exist
-        else:
-            os.system('mkdir .data')
-
-        # new path for saving result
-        dire_res = os.path.join(os.getcwd(), '.data')
-
-    return dire_res
-
-

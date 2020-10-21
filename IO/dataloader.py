@@ -11,7 +11,7 @@ import h5py
 from torch.autograd import Variable
 from collections import Counter
 import IO.pyanitools as pya
-from utils.aset import DFTB, RunASEAims
+from utils.aset import DFTB, AseAims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207, "N": 29.90025370,
              "O": 23.60491416}
@@ -47,110 +47,112 @@ class LoadData:
     def load_ani(self):
         """Load the data from hdf type input files."""
         # define the output
-        self.dataset['coorall'] = []
-        self.dataset['natomall'] = []
+        self.dataset['coordinateAll'] = []
+        self.dataset['natomAll'] = []
         self.dataset['symbols'] = []
         self.dataset['specie'] = []
-        self.dataset['specie_global'] = []
+        self.dataset['specieGlobal'] = []
         self.dataset['speciedict'] = []
+        self.dataset['atomNumber'] = []
 
         # temporal coordinates for all
-        coorall_ = []
+        _coorall = []
 
         # temporal molecule species for all
-        specie_hdf = []
+        _specie = []
 
         # temporal number of molecules in all molecule species
         nmolecule = []
 
-        # number which control reading ani_gdb_s01~08.h5
-        ihdf = 0
-
-        # number of molecule type
-        nmoleculespecie = 0
-
         # hdf data: ani_gdb_s01.h5 ~ ani_gdb_s08.h5
-        for hdf5file in self.dataset['hdffile']:
-            ntype = self.para['hdf_num'][ihdf]
-
-            # update ihdf, define iadl
-            ihdf += 1
-            iadl = 0
+        for itype, hdf5file in enumerate(self.dataset['Dataset']):
+            # sizeDataset is input dataset size parameters
+            nn = self.dataset['sizeDataset'][itype]
 
             # load each ani_gdb_s0*.h5 data in datalist
             adl = pya.anidataloader(hdf5file)
 
             # loop for each molecule specie
-            for data in adl:
-                # iadl represent the nth molecule specie
-                iadl += 1
+            # such as for ani_gdb_s01.h5, there are 3 species: CH4, NH3, H2O
+            for iadl, data in enumerate(adl):
 
-                # read molecule specie according to input parameters
-                if 'all' in ntype or str(iadl) in ntype:
+                # get each molecule specie size
+                _isize = len(data['coordinates'])
+                imol = _isize if 'all' in nn else int(nn)
 
-                    # get the number of molecule in each molecule specie
-                    if self.train_sample == 'all':
-                        imol = len(data['coordinates'])
-                    else:
-                        imol = int(self.train_sample)
+                # global species
+                for ispe in data['species']:
+                    if ispe not in self.dataset['specieGlobal']:
+                        self.dataset['specieGlobal'].append(ispe)
 
-                    nmolecule.append(imol)
-                    coorall_.append(data['coordinates'][:imol])
-                    specie_hdf.append(data['species'])
-                    nmoleculespecie += 1
+                # check if imol (size of this molecule specie) out of range
+                imol = _isize if imol > _isize else imol
+
+                # size of each molecule specie
+                nmolecule.append(imol)
+
+                # selected coordinates of each molecule specie
+                _coorall.append(data['coordinates'][:imol])
+
+                # add atom species in each molecule specie
+                _specie.append(data['species'])
 
         # get the min number of molecules in all molecule specie
-        minnmolecule = min(nmolecule)
+        # this makes sure each molecule specie size is the same
+        minsize = min(nmolecule)
 
-        # mix different type of molecule specie
-        if self.para['hdf_mixture']:
-            for ifile in range(minnmolecule):
+        # loop over molecule specie size
+        if self.dataset['LdatasetMixture']:
+            for ifile in range(minsize):
 
-                # all molecule specie
-                for imolecule in range(nmoleculespecie):
-                    icoor = coorall_[imolecule][ifile]
-                    ispecie = specie_hdf[imolecule]
-                    row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                    coor = t.zeros((row, col + 1), dtype=t.float64)
-                    coor[:, 1:] = t.from_numpy(icoor[:, :])
+                # loop over each molecule specie
+                for ispe in range(len(_specie)):
+                    natom = len(_coorall[ispe][ifile])
+                    self.dataset['coordinateAll'].append(
+                        t.from_numpy(_coorall[ispe][ifile]))
 
-                    # get the global atom species
-                    for iat in range(len(ispecie)):
-                        coor[iat, 0] = ATOMNUM[ispecie[iat]]
-                        ispe = ispecie[iat]
-                        if ispe not in self.para['specie_global']:
-                            self.para['specie_global'].append(ispe)
-                    self.dataset['natomall'].append(coor.shape[0])
-                    self.dataset['coorall'].append(coor)
-                    self.dataset['symbols'].append(ispecie)
-                    self.dataset['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.dataset['speciedict'].append(Counter(ispecie))
+                    # number of atom in each molecule
+                    self.dataset['natomAll'].append(natom)
+
+                    # get symbols of each atom
+                    self.dataset['symbols'].append(_specie[ispe])
+
+                    # get set of symbols according to order of appearance
+                    self.dataset['specie'].append(
+                        list(dict.fromkeys(_specie[ispe])))
+                    self.dataset['speciedict'].append(Counter(_specie[ispe]))
+
+                    # atom number of each atom in molecule
+                    self.dataset['atomNumber'].append(
+                        [ATOMNUM[ispe] for ispe in _specie[ispe]])
+                    # print("self.dataset['symbols']", self.dataset['symbols'], 'ifile', ifile, 'imolecule', imolecule)
 
         # do not mix molecule species
         else:
-            for imolecule in range(nmoleculespecie):
+            for ispe, isize in enumerate(nmolecule):
+                # get the first length in molecule specie and '* size'
+                self.dataset['natomAll'].extend([len(_coorall[ispe][0])] * isize)
+                natom = len(_coorall[ispe][ifile])
 
-                # get the global atom species
-                specie0 = specie_hdf[imolecule]
+                # get symbols of each atom
+                self.dataset['symbols'].extend([_specie[ispe]] * isize)
 
-                for iat in range(len(specie0)):
-                    if specie0[iat] not in self.para['specie_global']:
-                        self.para['specie_global'].append(ispe)
+                # add coordinates
+                self.dataset['coordinateAll'].append(
+                    [t.from_numpy(icoor) for icoor in _coorall[ispe][:isize]])
 
-                for ifile in range(minnmolecule):
-                    icoor = coorall_[imolecule][ifile]
-                    ispecie = specie_hdf[imolecule]
-                    row, col = np.shape(icoor)[0], np.shape(icoor)[1]
-                    coor = t.zeros((row, col + 1), dtype=t.float64)
-                    coor[:, 1:] = t.from_numpy(icoor[:, :])
-                    self.dataset['natomall'].append(coor.shape[0])
-                    self.dataset['coorall'].append(coor)
-                    self.dataset['symbols'].append(ispecie)
-                    self.dataset['specie'].append(list(dict.fromkeys(ispecie)))
-                    self.dataset['speciedict'].append(Counter(ispecie))
+                # get set of symbols according to order of appearance
+                self.dataset['specie'].append(
+                    [list(dict.fromkeys(_isp)) for _isp in [_specie[ispe]] * isize])
+                self.dataset['speciedict'].append(
+                    [Counter(_isp) for _isp in [_specie[ispe]] * isize])
+
+                # atom number of each atom in molecule
+                self.dataset['atomNumber'].extend(
+                    [ATOMNUM[ispe] for ispe in _specie[ispe] * isize])
 
         # return training dataset number
-        self.para['nfile'] = len(self.dataset['coorall'])
+        self.para['nfile'] = len(self.dataset['natomAll'])
 
     def load_data_hdf(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
@@ -164,7 +166,7 @@ class LoadData:
             os.system('rm ' + path_file)
 
         # the global atom species in dataset (training data)
-        self.dataset['specie_all'] = []
+        self.dataset['specieGlobal'] = []
 
         # number of molecules in dataset
         for hdf5file in self.dataset['Dataset']:
@@ -203,8 +205,8 @@ class LoadData:
 
                 # write global atom species
                 for ispe in data['species']:
-                    if ispe not in self.dataset['specie_all']:
-                        self.dataset['specie_all'].append(ispe)
+                    if ispe not in self.dataset['specieGlobal']:
+                        self.dataset['specieGlobal'].append(ispe)
 
                 # write metadata
                 with h5py.File(path_file, 'a') as self.f:
@@ -221,12 +223,12 @@ class LoadData:
 
                     # run FHI-aims with ase interface
                     elif self.ml['reference'] == 'aimsase':
-                        RunASEAims(self.para, self.ml, self.dataset, setenv=True).run_aims(nend, hdf=self.f, group=self.g)
+                        AseAims(self.para, self.dataset, self.ml, setenv=True).run_aims(nend, hdf=self.f, group=self.g)
 
         # save rest to global attrs
         with h5py.File(path_file, 'a') as f:
             g = f.create_group('globalgroup')
-            g.attrs['specie_all'] = self.dataset['specie_all']
+            g.attrs['specieGlobal'] = self.dataset['specieGlobal']
             # g.attrs['totalmolecule'] = nmol
 
     def load_json_data(self):
@@ -309,11 +311,11 @@ class LoadData:
         qatom_ = dataset['Z']
         train_specie = self.para['train_specie']  # not training all species
         n_dataset = 0
-        self.para['coorall'] = []
-        self.para['natomall'] = []
+        self.para['coordinateAll'] = []
+        self.para['natomAll'] = []
         self.para['specie'] = []
         self.para['symbols'] = []
-        self.para['specie_global'] = []
+        self.para['specieGlobal'] = []
         self.para['speciedict'] = []
         for idata in range(n_dataset_):
             icoor = coor_[idata]
@@ -338,8 +340,8 @@ class LoadData:
                 coor = t.zeros((row, col), dtype=t.float64)
                 coor[:, 0] = t.from_numpy(qatom_[idata][:natom_])
                 coor[:, 1:] = t.from_numpy(icoor[:natom_, :])
-                self.para['natomall'].append(coor.shape[0])
-                self.para['coorall'].append(coor)
+                self.para['natomAll'].append(coor.shape[0])
+                self.para['coordinateAll'].append(coor)
                 self.para['symbols'].append(symbols_)
                 self.para['specie'].append(list(set(symbols_)))
                 self.para['speciedict'].append(Counter(symbols_))
@@ -354,7 +356,7 @@ class LoadData:
                 ispe = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
                 if ispe not in atomspecieall:
                     atomspecieall.append(ispe)
-        self.para['specie_all'] = atomspecieall
+        self.para['specieGlobal'] = atomspecieall
 
 
 class LoadReferenceData:
@@ -391,7 +393,7 @@ class LoadReferenceData:
         with h5py.File(hdffile, 'r') as f:
 
             # get all the molecule species
-            self.skf['specie_all'] = f['globalgroup'].attrs['specie_all']
+            self.dataset['specieGlobal'] = f['globalgroup'].attrs['specie_all']
 
             # get the molecule species
             molecule = [ikey.encode() for ikey in f.keys()]

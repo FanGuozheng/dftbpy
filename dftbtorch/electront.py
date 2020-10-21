@@ -38,7 +38,7 @@ class DFTBelect:
         assert False not in t.ge(nelectron, 1)
 
         # the number of full occupied state
-        electron_pair = nelectron.clone().detach().int() / 2
+        electron_pair = t.true_divide(nelectron.clone().detach(), 2).int()
 
         # the left single electron
         electron_single = (nelectron.clone().detach() % 2).unsqueeze(1)

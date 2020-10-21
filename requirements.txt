@@ -1,7 +1,7 @@
 
 # packages
 conda
-torch
+pytorch[>=1.6.0]
 ase
 dscribe
 h5py
