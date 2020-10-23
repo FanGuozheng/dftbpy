@@ -44,10 +44,17 @@ class LoadData:
         else:
             self.train_sample = train_sample
 
+        if self.dataset['datasetType'] == 'ani':
+            self.load_ani()
+        elif self.dataset['datasetType'] == 'hdf':
+            self.load_data_hdf()
+        elif self.dataset['datasetType'] == 'qm7':
+            self.loadqm7()
+
     def load_ani(self):
         """Load the data from hdf type input files."""
         # define the output
-        self.dataset['coordinateAll'] = []
+        self.dataset['positions'] = []
         self.dataset['natomAll'] = []
         self.dataset['symbols'] = []
         self.dataset['specie'] = []
@@ -77,7 +84,7 @@ class LoadData:
             for iadl, data in enumerate(adl):
 
                 # get each molecule specie size
-                _isize = len(data['coordinates'])
+                _isize = len(data['positions'])
                 imol = _isize if 'all' in nn else int(nn)
 
                 # global species
@@ -92,7 +99,7 @@ class LoadData:
                 nmolecule.append(imol)
 
                 # selected coordinates of each molecule specie
-                _coorall.append(data['coordinates'][:imol])
+                _coorall.append(data['positions'][:imol])
 
                 # add atom species in each molecule specie
                 _specie.append(data['species'])
@@ -108,7 +115,7 @@ class LoadData:
                 # loop over each molecule specie
                 for ispe in range(len(_specie)):
                     natom = len(_coorall[ispe][ifile])
-                    self.dataset['coordinateAll'].append(
+                    self.dataset['positions'].append(
                         t.from_numpy(_coorall[ispe][ifile]))
 
                     # number of atom in each molecule
@@ -125,7 +132,6 @@ class LoadData:
                     # atom number of each atom in molecule
                     self.dataset['atomNumber'].append(
                         [ATOMNUM[ispe] for ispe in _specie[ispe]])
-                    # print("self.dataset['symbols']", self.dataset['symbols'], 'ifile', ifile, 'imolecule', imolecule)
 
         # do not mix molecule species
         else:
@@ -138,7 +144,7 @@ class LoadData:
                 self.dataset['symbols'].extend([_specie[ispe]] * isize)
 
                 # add coordinates
-                self.dataset['coordinateAll'].append(
+                self.dataset['positions'].append(
                     [t.from_numpy(icoor) for icoor in _coorall[ispe][:isize]])
 
                 # get set of symbols according to order of appearance
@@ -152,7 +158,7 @@ class LoadData:
                     [ATOMNUM[ispe] for ispe in _specie[ispe] * isize])
 
         # return training dataset number
-        self.para['nfile'] = len(self.dataset['natomAll'])
+        self.dataset['nfile'] = len(self.dataset['natomAll'])
 
     def load_data_hdf(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
@@ -181,13 +187,13 @@ class LoadData:
                 [self.dataset['atomNumber'].append(ATOMNUM[spe]) for spe in data['species']]
 
                 # number of molecule in current molecule species
-                imol = len(data['coordinates'])
+                imol = len(data['positions'])
 
                 # the code will write molecule from range(0, end)
                 nend = min(self.train_sample, imol)
 
                 # number of atom in molecule
-                natom = len(data['coordinates'][0])
+                natom = len(data['positions'][0])
 
                 # write all coordinates to list "corrall" and first column is
                 # atom number
@@ -197,7 +203,7 @@ class LoadData:
                 #     for coor in np.asarray(
                 #             data['coordinates'][:nend], dtype=float)])
                 self.dataset['coorall'].extend(
-                    [coor for coor in np.asarray(data['coordinates'][:nend], dtype=float)])
+                    [coor for coor in np.asarray(data['positions'][:nend], dtype=float)])
 
                 # write the current atom species in molecule to list "symbols"
                 # use metadata instead
@@ -311,7 +317,7 @@ class LoadData:
         qatom_ = dataset['Z']
         train_specie = self.para['train_specie']  # not training all species
         n_dataset = 0
-        self.para['coordinateAll'] = []
+        self.para['positionsAll'] = []
         self.para['natomAll'] = []
         self.para['specie'] = []
         self.para['symbols'] = []
@@ -341,7 +347,7 @@ class LoadData:
                 coor[:, 0] = t.from_numpy(qatom_[idata][:natom_])
                 coor[:, 1:] = t.from_numpy(icoor[:natom_, :])
                 self.para['natomAll'].append(coor.shape[0])
-                self.para['coordinateAll'].append(coor)
+                self.para['positions'].append(coor)
                 self.para['symbols'].append(symbols_)
                 self.para['specie'].append(list(set(symbols_)))
                 self.para['speciedict'].append(Counter(symbols_))
@@ -376,7 +382,7 @@ class LoadReferenceData:
         hdffile = self.ml['referenceDataset']
         if not os.path.isfile(hdffile):
             raise FileExistsError('reference dataset do not exist')
-        self.dataset['coordinateAll'] = []
+        self.dataset['positions'] = []
         self.dataset['natomAll'] = []
         self.dataset['atomNameAll'] = []
         self.dataset['refHomoLumo'] = []
@@ -423,7 +429,7 @@ class LoadReferenceData:
 
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'coordinate'
-                        self.dataset['coordinateAll'].append(
+                        self.dataset['positions'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
                         self.dataset['atomNumber'].append(
                             list(f[igroup].attrs['atomNumber']))
@@ -474,7 +480,7 @@ class LoadReferenceData:
                                         LWenergy=self.para['Lenergy'],
                                         LWdipole=self.para['Ldipole'],
                                         LWpol=self.para['LMBD_DFTB'])'''
-            self.para['nfile'] = self.nbatch
+            self.dataset['nfile'] = self.nbatch
             self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
 
         # read single molecule specie
@@ -485,7 +491,6 @@ class LoadReferenceData:
                 # each molecule specie
                 iatomspecie = int(self.para['hdf_num'][0])
                 igroup = molecule2[iatomspecie]
-                self.para['nfile'] = int(self.para['n_dataset'][0])
 
                 # add atom name
                 self.dataset['atomNameAll'].append([ii for ii in igroup])
@@ -496,7 +501,7 @@ class LoadReferenceData:
 
                     # coordinates: not tensor now !!!
                     namecoor = str(ibatch) + 'coordinate'
-                    self.dataset['coordinateAll'].append(
+                    self.dataset['positions'].append(
                         t.from_numpy(f[igroup][namecoor][()]))
 
                     # eigenvalue
@@ -526,7 +531,7 @@ class LoadReferenceData:
                                         LWenergy=self.para['Lenergy'],
                                         LWdipole=self.para['Ldipole'],
                                         LWpol=self.para['LMBD_DFTB'])
-            self.para['nfile'] = self.nbatch
+            self.dataset['nfile'] = self.nbatch
             self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
 
     def get_hirsh_vol_ratio(self, volume, ibatch=0):
@@ -537,3 +542,44 @@ class LoadReferenceData:
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             volume[iat] = volume[iat] / HIRSH_VOL[iname]
         return volume
+
+
+class Split:
+    """Split tensor according to chunks of split_sizes.
+
+    Parameters
+    ----------
+    tensor : `torch.Tensor`
+        Tensor to be split
+    split_sizes : `list` [`int`], `torch.tensor` [`int`]
+        Size of the chunks
+    dim : `int`
+        Dimension along which to split tensor
+
+    Returns
+    -------
+    chunked : `tuple` [`torch.tensor`]
+        List of tensors viewing the original ``tensor`` as a
+        series of ``split_sizes`` sized chunks.
+
+    Raises
+    ------
+    KeyError
+        If number of elements requested via ``split_sizes`` exceeds hte
+        the number of elements present in ``tensor``.
+    """
+    def __init__(tensor, split_sizes, dim=0):
+        if dim < 0:  # Shift dim to be compatible with torch.narrow
+            dim += tensor.dim()
+
+        # Ensure the tensor is large enough to satisfy the chunk declaration.
+        if tensor.size(dim) != split_sizes.sum():
+            raise KeyError(
+                'Sum of split sizes fails to match tensor length along specified dim')
+
+        # Identify the slice positions
+        splits = t.cumsum(t.Tensor([0, *split_sizes]), dim=0)[:-1]
+
+        # Return the sliced tensor. use torch.narrow to avoid data duplication
+        return tuple(tensor.narrow(int(dim), int(start), int(length))
+                     for start, length in zip(splits, split_sizes))

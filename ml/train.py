@@ -4,9 +4,9 @@ from torch.autograd import Variable
 import torch as t
 import time
 import dftbtorch.dftbcalculator as dftbcalculator
-from dftbtorch.slakot import SKTran, SKinterp
+from dftbtorch.sk import SKTran, SKinterp
 import utils.plot as plot
-import dftbtorch.init_parameter as initpara
+import dftbtorch.initparams as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
 from ml.padding import pad1d
@@ -53,6 +53,9 @@ class DFTBMLTrain:
             raise ValueError('please select either t.float64 or t.float32')
 
         # initialize machine learning parameters based on
+        # self.ml['reference'] = 'dftbplus'
+        # self.ml['runReference'] = True
+        # self.parameter['directorySK'] = '../slko/test'
         self.initialization_ml()
 
         # 1. read dataset then run DFT(B) to get reference data
@@ -76,7 +79,7 @@ class DFTBMLTrain:
         """Load dataset for machine learning."""
         # run DFT(B) to get reference data
         if self.ml['runReference']:
-            LoadData(self.parameter, self.dataset, self.ml).load_ani()
+            LoadData(self.parameter, self.dataset, self.ml)
             RunReference(self.parameter, self.dataset, self.skf, self.ml)
 
         # directly get reference data from dataset
@@ -109,7 +112,7 @@ class MLIntegral:
         self.ml = ml
 
         # total batch size
-        self.nbatch = self.para['nfile']
+        self.nbatch = self.dataset['nfile']
         self.ml_integral()
 
     def ml_integral(self):
@@ -120,6 +123,7 @@ class MLIntegral:
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
         dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+        print("self.para['task']1", self.para['task'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -152,7 +156,9 @@ class MLIntegral:
 
                 # get integral at certain distance, read raw integral from binary hdf
                 # SK transformations
+                print("self.para['task']", self.para['task'])
                 SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                print("self.skf['hammat']", self.skf['hammat'])
 
                 # run each DFTB calculation separatedly
                 dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
@@ -355,20 +361,20 @@ def get_coor(dataset, ibatch=None):
     """get the ith coor according to data type"""
     # for batch system
     if ibatch is None:
-        if type(dataset['coordinateAll']) is t.Tensor:
-            coordinate = dataset['coordinateAll']
-        elif type(dataset['coordinateAll']) is np.ndarray:
-            coordinate = t.from_numpy(dataset['coordinateAll'])
-        elif type(dataset['coordinateAll']) is list:
-            coordinate = dataset['coordinateAll']
-        dataset['coordinate'] = pad2d(coordinate)
+        if type(dataset['positions']) is t.Tensor:
+            coordinate = dataset['positions']
+        elif type(dataset['positions']) is np.ndarray:
+            coordinate = t.from_numpy(dataset['positions'])
+        elif type(dataset['positions']) is list:
+            coordinate = dataset['positions']
+        dataset['positions'] = pad2d(coordinate)
     # for single system
     else:
-        if type(dataset['coordinateAll'][ibatch]) is t.Tensor:
-            dataset['coordinate'] = dataset['coordinateAll'][ibatch][:, :]
-        elif type(dataset['coordinateAll'][ibatch]) is np.ndarray:
-            dataset['coordinate'] = \
-                t.from_numpy(dataset['coordinateAll'][ibatch][:, :])
+        if type(dataset['positions'][ibatch]) is t.Tensor:
+            dataset['positions'] = dataset['positions'][ibatch][:, :]
+        elif type(dataset['positions'][ibatch]) is np.ndarray:
+            dataset['positions'] = \
+                t.from_numpy(dataset['positions'][ibatch][:, :])
 
 
 def get_formation_energy(energy, atomname, ibatch):

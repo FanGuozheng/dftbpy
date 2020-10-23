@@ -22,8 +22,8 @@ class MBD:
         Calculate TS, SCS@MBD polarizability while NO MBD energy!!!
         """
         self.para = para
-        self.nb = self.para['nbatch']
         self.dataset = dataset
+        self.nb = self.dataset['nbatch']
         self.nat = self.dataset['natomAll']
         self.natommax = max(self.nat)
         self.mbd_init()
@@ -50,7 +50,7 @@ class MBD:
         alpha_c_r = pad2d([t.tensor([list(parameters.mbd_vdw_para(
             self.dataset['atomNumber'][ibatch][iat]))
             for iat in range(self.nat[ibatch])])
-            for ibatch in range(self.para['nbatch'])])
+            for ibatch in range(self.dataset['nbatch'])])
 
         # write the return values to dict
         self.para['alpha_free'], self.para['C6_free'], self.para['R_vdw_free'] = \
@@ -58,7 +58,7 @@ class MBD:
 
         # get the indice of each matrix (each matrixsieze: natom, natom)
         pairs_pq = pad2d([t.triu_indices(self.nat[ib], self.nat[ib], 0)
-                          for ib in range(self.para['nbatch'])])
+                          for ib in range(self.dataset['nbatch'])])
         self.para['pairs_p'] = pairs_pq[:, 0]
         self.para['pairs_q'] = pairs_pq[:, 1]
 
@@ -76,7 +76,7 @@ class MBD:
         # get onsite population
         self.para['OnsitePopulation'] = \
             [[denmat[ib][atomind[ib][iat]: atomind[ib][iat + 1]].sum()
-              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
+              for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
 
     def get_cpa(self):
         """Get onsite population for CPA DFTB.
@@ -88,10 +88,10 @@ class MBD:
         atomnumber = self.dataset['atomNumber']
         self.para['cpa'] = \
             [[1.0 + (onsite[ib][iat] - qzero[ib][iat]) / atomnumber[ib][iat]
-              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
+              for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
         self.para['vefftsvdw'] = \
             [[atomnumber[ib][iat] + onsite[ib][iat] - qzero[ib][iat]
-              for iat in range(self.nat[ib])] for ib in range(self.para['nbatch'])]
+              for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
 
     def get_mbdenergy(self):
         """Get MBD energy for DFTB.
@@ -107,7 +107,7 @@ class MBD:
 
         self.para['ainv_'] = LinAl(self.para).inv33_mat(self.para['latvec'])
         h_, ainv_ = self.para['latvec'], self.para['ainv_']
-        self.mbdvdw_pbc(self.dataset['coordinate'], h_, ainv_, self.nat)
+        self.mbdvdw_pbc(self.dataset['positions'], h_, ainv_, self.nat)
         for ieff in range(self.para['nOmegaGrid'] + 1):
             self.mbdvdw_effqts(ieff, omega[ieff])
             self.mbdvdw_SCS(ieff)
@@ -135,7 +135,7 @@ class MBD:
             dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
             dalpha_tsdV = t.zeros((self.nat, self.nat), dtype=t.float64)
-        for ib in range(self.para['nbatch']):
+        for ib in range(self.dataset['nbatch']):
             for iat in range(self.nat[ib]):
                 omega_free = ((4.0 / 3.0) * C6_free[ib][iat] / (alpha_free[ib][iat] ** 2))
 
@@ -245,7 +245,7 @@ class MBD:
         h_in: normally the latice parameters
         ainv_in: inverse matrix of of 3*3 h_in
         """
-        coor = self.dataset['coordinate']
+        coor = self.dataset['positions']
         spq = t.zeros((3), dtype=t.float64)
         spq_lat = t.zeros((3), dtype=t.float64)
         rpq_lat = t.zeros((3), dtype=t.float64)

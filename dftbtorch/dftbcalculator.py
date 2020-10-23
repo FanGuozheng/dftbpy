@@ -5,7 +5,7 @@ implement pytorch to DFTB
 import numpy as np
 import torch as t
 import bisect
-from dftbtorch.slakot import SKTran
+from dftbtorch.sk import SKTran
 from dftbtorch.electront import DFTBelect
 import IO.readt as readt
 from dftbtorch.periodic import Periodic
@@ -17,7 +17,7 @@ from dftbtorch.mbd import MBD
 from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
 from ml.padding import pad1d, pad2d
-import dftbtorch.init_parameter as initpara
+import dftbtorch.initparams as initpara
 
 
 class DFTBCalculator:
@@ -62,7 +62,10 @@ class DFTBCalculator:
 
     def run_dftb(self):
         """Run DFTB code."""
-        Rundftbpy(self.parameter, self.dataset, self.skf)
+        if not self.parameter['Lbatch']:
+            Rundftbpy(self.parameter, self.dataset, self.skf)
+        else:
+            Rundftbpy(self.parameter, self.dataset, self.skf, self.dataset['nfile'])
 
     def get_result(self):
         pass
@@ -118,7 +121,7 @@ class Initialization:
             self.get_this_hubbert()
 
         # deal with SK transformation
-        for ib in range(self.parameter['nbatch']):
+        for ib in range(self.dataset['nbatch']):
             self.skf = self.run_sk(ib)
 
     def pre_check(self):
@@ -127,17 +130,17 @@ class Initialization:
         if not self.parameter['Lbatch']:
 
             # number of batch, single system will be one
-            self.parameter['nbatch'] = 1
+            self.dataset['nbatch'] = 1
 
             # add 1 dimension to tensor
             if self.dataset['distance'].dim() == 2:
                 self.dataset['distance'] = self.dataset['distance'].unsqueeze(0)
-            if self.dataset['coordinate'].dim() == 2:
-                self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
+            if self.dataset['positions'].dim() == 2:
+                self.dataset['positions'] = self.dataset['positions'].unsqueeze(0)
             self.ibatch = 0
         else:
             # number of batch, single system will be one
-            self.parameter['nbatch'] = self.parameter['nfile']
+            self.dataset['nbatch'] = self.dataset['nfile']
 
     def read_sk(self):
         """Read integrals and perform SK transformations.
@@ -372,7 +375,7 @@ class SCF:
             # S after SK transformation
             self.smat = self.skf['overmat_']
 
-        self.nb = self.para['nbatch']
+        self.nb = self.dataset['nbatch']
 
         # number of atom in molecule
         self.nat = self.dataset['natomAll']
@@ -509,7 +512,7 @@ class SCF:
 
         elif self.para['scc_den_basis'] == 'gaussian':
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
-                                              self.para['coordinate'])
+                                              self.para['positions'])
 
         qatom = self.analysis.get_qatom(self.atomname, ibatch, Lbatch)
 
@@ -1043,7 +1046,7 @@ class Analysis:
 
         # calculate dipole
         self.para['dipole'] = t.stack(
-            [self.get_dipole(iqz, iqa, self.dataset['coordinate'][i], self.nat[i])
+            [self.get_dipole(iqz, iqa, self.dataset['positions'][i], self.nat[i])
              for iqz, iqa, i in zip(qzero, qatom, ibatch)])
 
         # calculate MBD-DFTB

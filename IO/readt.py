@@ -7,7 +7,7 @@ import scipy
 import time
 import numpy as np
 import torch as t
-import dftbtorch.init_parameter as initpara
+import dftbtorch.initparams as initpara
 err = 1E-4
 ATOMNAME = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg",
             "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr",
@@ -278,18 +278,15 @@ class ReadInput:
             if 'type' in fpinput['geometry']:
                 coortype = fpinput['geometry']['periodic']
                 if coortype in ('C', 'Cartesian', 'cartesian'):
-                    self.para['coordinateType'] = 'C'
+                    self.para['positionType'] = 'C'
                 else:
-                    raise ValueError('coordinateType not defined correctly')
+                    raise ValueError('positionType not defined correctly')
 
             # read coordinate and atom number
-            if 'coordinate' in fpinput['geometry']:
-                coordinate = fpinput['geometry']['coordinate']
+            if 'positions' in fpinput['geometry']:
+                self.dataset['positions'] = t.tensor(fpinput['geometry']['positions'])
             if 'atomNumber' in fpinput['geometry']:
                 self.dataset['atomNumber'] = fpinput['geometry']['atomNumber']
-
-            # return coordinate and transfer to tensor
-            self.dataset['coordinate'] = t.from_numpy(np.asarray(coordinate))
 
     def cal_coor_batch(self):
         """Generate vector, distance ... according to input geometry.
@@ -303,24 +300,24 @@ class ReadInput:
 
         """
         # check if cordinate is defined
-        if 'coordinate' not in self.dataset.keys():
-            raise ValueError('coordinate is not found')
+        if 'positions' not in self.dataset.keys():
+            raise ValueError('positions is not found')
 
         # check coordinate type
-        if type(self.dataset['coordinate']) is np.ndarray:
-            self.dataset['coordinate'] = t.from_numpy(self.dataset['coordinate'])
+        if type(self.dataset['positions']) is np.ndarray:
+            self.dataset['positions'] = t.from_numpy(self.dataset['positions'])
 
         # check dimension of coordinate and transfer to batch calculations
-        if self.dataset['coordinate'].dim() == 2:
+        if self.dataset['positions'].dim() == 2:
             nfile = 1
-            nmax = len(self.dataset['coordinate'])
+            nmax = len(self.dataset['positions'])
             self.dataset['natomAll'] = [nmax]
-            self.dataset['coordinate'] = self.dataset['coordinate'].unsqueeze(0)
+            self.dataset['positions'] = self.dataset['positions'].unsqueeze(0)
         else:
-            nfile = self.dataset['coordinate'].shape[0]
+            nfile = self.dataset['positions'].shape[0]
             if 'natomAll' not in self.dataset.keys():
                 self.dataset['natomAll'] = \
-                    [len(icoor) for icoor in self.dataset['coordinate']]
+                    [len(icoor) for icoor in self.dataset['positions']]
             nmax = max(self.dataset['natomAll'])
 
         # check atom number
@@ -363,7 +360,7 @@ class ReadInput:
         self.dataset['atomspecie'] = []
         self.dataset['lmaxall'] = []
         self.dataset['atomind'] = []
-        self.dataset['coordinate'] /= self.para['BOHR']
+        self.dataset['positions'] /= self.para['BOHR']
 
         for ib in range(nfile):
             # define list for name of atom and index of orbital
@@ -373,7 +370,7 @@ class ReadInput:
             natom = self.dataset['natomAll'][ib]
             atomnumber = self.dataset['atomNumber'][ib]
 
-            coor = self.dataset['coordinate'][ib]
+            coor = self.dataset['positions'][ib]
 
             # get index of orbitals atom by atom
             atomind.append(0)
@@ -427,8 +424,8 @@ class ReadInput:
         # return dataset
         return self.dataset
 
-    def cal_coor(self):
-        """Generate vector, distance ... according to input dataset.
+    """def cal_coor(self):
+        Generate vector, distance ... according to input dataset.
 
         Args:
             coor: [natom, 4], the first column is atom number
@@ -437,10 +434,10 @@ class ReadInput:
             natomtype: the type of atom, the 1st is 0, the 2nd different is 1
             atomind: how many orbitals of each atom in DFTB calculations
 
-        """
+
         # transfer from angstrom to bohr
-        self.dataset['coordinate'][:, 1:] = self.para['coordinate'][:, 1:] / self.para['BOHR']
-        coor = self.para['coordinate']
+        self.dataset['positions'][:, 1:] = self.para['positions'][:, 1:] / self.para['BOHR']
+        coor = self.dataset['coordinate']
 
         # total number of atom
         natom = np.shape(coor)[0]
@@ -515,7 +512,7 @@ class ReadInput:
                                                            1)
 
         # calculate neighbour, for solid
-        self.cal_neighbour()
+        self.cal_neighbour()"""
 
     def cal_neighbour(self):
         """Get number of neighbours, this is for solid."""

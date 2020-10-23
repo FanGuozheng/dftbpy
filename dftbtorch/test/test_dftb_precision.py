@@ -1,14 +1,13 @@
 '''Test dftbpy precision with DFTB+.'''
-from __future__ import absolute_import
+# from __future__ import absolute_import
 import os
 import unittest
 import torch as t
 import numpy as np
 import matplotlib.pyplot as plt
-import dftbtorch.slakot as slakot
+from dftbtorch.sk import SKinterp
 import dftbtorch.dftbcalculator as dftbcalculator
 from dftbtorch.dftbcalculator import DFTBCalculator
-# import test_grad_compr
 
 
 class DFTBChargePrecision(unittest.TestCase):
@@ -16,7 +15,7 @@ class DFTBChargePrecision(unittest.TestCase):
     def test_CH4_nonscc(self):
         """Test charge of CH4 with non-scc DFTB."""
         dataset = {}
-        dataset['coordinate'] = t.tensor([
+        dataset['positions'] = t.tensor([
                 [0.0000000000, 0.0000000000, 0.0000000000],
                 [0.6287614522, 0.6287614522, 0.6287614522],
                 [-0.6287614522, -0.6287614522, 0.6287614522],
@@ -35,7 +34,7 @@ class DFTBChargePrecision(unittest.TestCase):
     def test_scc_CH4(self):
         """Test charge of CH4 with scc DFTB."""
         dataset = {}
-        dataset['coordinate'] = t.tensor([
+        dataset['positions'] = t.tensor([
                 [0.0000000000, 0.0000000000, 0.0000000000],
                 [0.6287614522, 0.6287614522, 0.6287614522],
                 [-0.6287614522, -0.6287614522, 0.6287614522],
@@ -417,8 +416,8 @@ def scc_CH4_compr(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.3646063221278348, 0.9088484194680416,
                               0.9088484194680417, 0.9088484194680415,
@@ -451,8 +450,8 @@ def nonscc_CH4_compr(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.4496774784067616, 0.88758063039831014,
                               0.88758063039831003, 0.88758063039830970,
@@ -485,8 +484,8 @@ def nonscc_CH4_compr_nongrid(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.432334830876546, 0.89191629228086289,
                               0.89191629228086433, 0.89191629228086344,
@@ -519,8 +518,8 @@ def scc_CH4_compr_nongrid(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.344983266502259, 0.91375418337443615,
                               0.91375418337443592, 0.91375418337443526,
@@ -554,8 +553,8 @@ def nonscc_nonsymCH4_compr_nongrid(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.484911884572298, 0.91035699703592665,
                               0.90308465186766396, 0.86536815155461833,
@@ -585,8 +584,8 @@ def scc_nonsymCH4_compr_nongrid(para):
 
     # build the ref data
     para['compr_ml'] = para['compr_init']
-    slakot.SKinterp(para).genskf_interp_dist()
-    slakot.SKinterp(para).genskf_interp_compr()
+    SKinterp(para).genskf_interp_dist()
+    SKinterp(para).genskf_interp_compr()
     # test_grad_compr.RunCalc(para).idftb_torchspline()
     para['dataq'] = t.tensor([4.388307607607844, 0.93181547074361015,
                               0.92499369526174935, 0.89058299898052096,
@@ -764,7 +763,7 @@ def test_compr_para_10points(para):
                     # test_grad_compr.RunML(para).get_compr_specie()
                     # build the ref data
                     para['compr_ml'] = para['compr_init']
-                    slakot.SlaKo(para).genskf_interp_compr()
+                    SKinterp(para).genskf_interp_compr()
                     # test_grad_compr.RunCalc(para).idftb_torchspline()
                     qatomall[iscc, ik, ir, :] = para['charge']
 
@@ -895,7 +894,7 @@ def test_compr_para_15points(para):
                     # test_grad_compr.RunML(para).get_compr_specie()
                     # build the ref data
                     para['compr_ml'] = para['compr_init']
-                    slakot.SlaKo(para).genskf_interp_compr()
+                    SKinterp(para).genskf_interp_compr()
                     # test_grad_compr.RunCalc(para).idftb_torchspline()
                     qatomall[iscc, ik, ir, :] = para['charge']
 

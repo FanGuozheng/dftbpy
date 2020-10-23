@@ -2,7 +2,7 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import dftbtorch.init_parameter as initpara
+import dftbtorch.initparams as initpara
 from IO.dataloader import LoadData
 
 

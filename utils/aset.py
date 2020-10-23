@@ -21,17 +21,16 @@ AIMS_ENERGY = {"H": -0.45891649, "C": -37.77330663, "N": -54.46973501,
 class DFTB:
     """"""
 
-    def __init__(self, para, setenv=False):
+    def __init__(self, para, dataset, ml, setenv=False):
         self.para = para
+        self.dataset = dataset
+        self.ml = ml
 
-        # DFTB+ binary name, normally dftb+
-        self.dftb_bin = self.para['dftb_bin']
-
-        # DFTB+ binary path
-        self.dftb_path = para['dftb_ase_path']
+        # path to dftb+
+        self.dftb = self.ml['dftbplus']
 
         # SKF path
-        self.slko_path = self.para['skf_ase_path']
+        self.slko_path = self.para['directorySK']
 
         # set environment before calculations
         self.setenv = setenv
@@ -43,14 +42,11 @@ class DFTB:
 
     def set_env(self):
         """Set the environment before DFTB calculations with ase."""
-        # merge DFTB+ binary path and name
-        path_bin_org = os.path.join(self.dftb_path, self.dftb_bin)
-
         # copy binary to current path
-        os.system('cp ' + path_bin_org + ' ./aims.x')
+        os.system('cp ' + self.dftb + ' ./dftb+')
 
         # get the current binary path and name
-        path_bin = os.path.join(os.getcwd(), 'aims.x')
+        path_bin = os.path.join(os.getcwd(), 'dftb+')
 
         # set ase environemt
         os.environ['ASE_DFTB_COMMAND'] = path_bin + ' > PREFIX.out'
@@ -61,40 +57,37 @@ class DFTB:
         if begin is None:
             begin = 0
 
-        # source and set environment for python, ase before calculations
-        self.save = SaveData(self.para)
-
         # if calculate, deal with pdos or not
         if self.para['Lpdos']:
-            self.para['pdosdftbplus'] = []
+            self.dataset['pdosdftbplus'] = []
 
         # save eigenvalue as reference eigenvalue for ML
-        if 'eigval' in self.para['target']:
-            self.para['refeigval'] = []
+        if 'eigval' in self.ml['target']:
+            self.dataset['refEigval'] = []
 
         # create reference list for following ML
-        self.para['refenergy'], self.para['refqatom'] = [], []
-        self.para['refdipole'] = []
+        self.dataset['refFormEnergy'], self.dataset['refCharge'] = [], []
+        self.dataset['refDipole'] = []
 
         for ibatch in range(begin, nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
             print('ibatch', ibatch)
             if group is None:
-                self.para['natom'] = self.para['natomall'][ibatch]
-                ispecie = ''.join(self.para['symbols'][ibatch])
+                self.dataset['natom'] = self.dataset['natomAll'][ibatch]
+                ispecie = ''.join(self.dataset['symbols'][ibatch])
             else:
                 ispecie = group.attrs['specie']
-                self.para['natom'] = group.attrs['natom']
+                self.dataset['natom'] = group.attrs['natom']
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]
 
             # run each molecule in batches
-            self.ase_idftb(ispecie, self.coor[:, 1:])
+            self.ase_idftb(ispecie, self.coor)
 
             # process each result (overmat, eigenvalue, eigenvect, dipole)
-            self.process_iresult()
+            self.process_iresult(ibatch)
 
             # creat or write  reference data as hdf type
             if self.para['task'] == 'get_dftb_hdf':
@@ -103,7 +96,7 @@ class DFTB:
             # save dftb results as reference .txt
             elif self.para['task'] == 'opt':
                 if 'eigval' in self.para['target']:
-                    self.para['refeigval'].append(self.para['eigenvalue'])
+                    self.dataset['refEigval'].append(self.para['eigenvalue'])
 
                 # calculate PDOS or not
                 if self.para['Lpdos']:
@@ -113,20 +106,20 @@ class DFTB:
                     self.para['pdosdftbplus'].append(self.para['pdos'])
 
                     # save PDOS
-                    self.save.save2D(self.para['pdos'].numpy(),
-                                     name='refpdos.dat', dire='.data', ty='a')
+                    Save2D(self.para['pdos'].numpy(),
+                           name='refpdos.dat', dire='.data', ty='a')
 
                     # save charge
-                    self.save.save1D(self.para['refqatom'][ibatch].numpy(),
-                                     name='refqatom.dat', dire='.data', ty='a')
+                    Save1D(self.para['refqatom'][ibatch].numpy(),
+                           name='refqatom.dat', dire='.data', ty='a')
 
                     # save eigenvalue
-                    self.save.save1D(self.para['eigenvalue'],
-                                     name='HLdftbplus.dat', dire='.data', ty='a')
+                    Save1D(self.para['eigenvalue'],
+                           name='HLdftbplus.dat', dire='.data', ty='a')
 
                 # save energy
-                self.save.save1D(np.asarray(self.para['refenergy']),
-                                 name='energydftbplus.dat', dire='.data', ty='a')
+                Save1D(np.asarray(self.para['refenergy']),
+                       name='energydftbplus.dat', dire='.data', ty='a')
 
         # deal with DFTB data
         self.process_results()
@@ -166,27 +159,27 @@ class DFTB:
             mol.calc.__dict__["parameters"]['Options_WriteHS'] = 'No'
             mol.get_potential_energy()
 
-    def process_iresult(self):
+    def process_iresult(self, ibatch):
         """Process result for each calculation."""
         # read in the H (hamsqr1.dat) and S (oversqr.dat) matrices now
-        self.para['overmat'] = get_matrix('oversqr.dat')
+        self.dataset['overmat'] = get_matrix('oversqr.dat')
 
         # read final eigenvector
-        self.para['eigenvec'] = get_eigenvec('eigenvec.out')
+        self.dataset['eigenvec'] = get_eigenvec('eigenvec.out')
 
         # read final eigenvalue
-        self.para['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
+        self.dataset['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
 
         # read detailed.out and return energy, charge
-        self.E_tot, self.Q_, self.dip = read_detailed_out(self.para['natom'])
+        self.E_tot, self.Q_, self.dip = read_detailed_out(self.dataset['natom'])
 
         # calculate formation energy
-        self.E_f = self.cal_optfor_energy(self.E_tot)
+        self.E_f = self.cal_optfor_energy(self.E_tot, ibatch)
 
         # add each molecule properties
-        self.para['refenergy'].append(self.E_f)
-        self.para['refqatom'].append(self.Q_)
-        self.para['refdipole'].append(self.dip)
+        self.dataset['refFormEnergy'].append(self.E_f)
+        self.dataset['refCharge'].append(self.Q_)
+        self.dataset['refDipole'].append(self.dip)
 
     def write_hdf5(self, hdf, ibatch, ispecie, begin, group=None):
         """Write each molecule DFTB calculation results to hdf type data."""
@@ -251,14 +244,15 @@ class DFTB:
     def process_results(self):
         pass
 
-    def cal_optfor_energy(self, energy):
-        natom = self.para['natom']
-        for iat in range(0, natom):
+    def cal_optfor_energy(self, energy, ibatch):
+        natom = self.dataset['natom']
+        '''for iat in range(0, natom):
             idx = int(self.coor[iat, 0])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             energy = energy - DFTB_ENERGY[iname]
-        return energy
-
+        return energy'''
+        return energy - sum([DFTB_ENERGY[self.dataset['symbols'][ibatch][iat]]
+                             for iat in range(natom)])
 
 class AseAims:
     """RunASEAims will run FHI-aims with both batch or single calculations."""
@@ -312,11 +306,11 @@ class AseAims:
             # so that satisfy ase.Atoms style
             print('ibatch', ibatch)
             if group is None:
-                self.para['natom'] = self.dataset['natomAll'][ibatch]
+                self.dataset['natom'] = self.dataset['natomAll'][ibatch]
                 ispecie = ''.join(self.dataset['symbols'][ibatch])
             else:
                 ispecie = group.attrs['specie']
-                self.para['natom'] = group.attrs['natom']
+                self.dataset['natom'] = group.attrs['natom']
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]
@@ -491,7 +485,7 @@ class AseAims:
         os.system('rm aims.x aims.out control.in geometry.in')
 
     def cal_optfor_energy(self, energy, ibatch):
-        natom = self.para['natom']
+        natom = self.dataset['natom']
         return energy - sum([AIMS_ENERGY[self.dataset['symbols'][ibatch][iat]]
                              for iat in range(natom)])
 

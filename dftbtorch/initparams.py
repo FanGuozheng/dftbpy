@@ -307,8 +307,8 @@ def init_ml(para=None, dataset=None, ml=None):
     if ml['reference'] in ('dftbase', 'dftbplus'):
 
         # path of binary, executable DFTB file
-        if 'dftb+' not in ml.keys():
-            ml['dftb+'] = '../test/bin/dftb+'
+        if 'dftbplus' not in ml.keys():
+            ml['dftbplus'] = '../test/bin/dftb+'
 
     if ml['reference'] in ('aimsase', 'aims'):
 

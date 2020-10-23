@@ -15,10 +15,10 @@ class Dftbplus:
 
     def geo_nonpe_ml(self, file, coor, specie, speciedict, symbols):
         """Write geo.gen in a dataset for non-periodic condition."""
-        row, col = np.shape(coor)
-        compressr0 = np.zeros(row)
+        natom = len(coor)
+        compressr0 = np.zeros(natom)
         with open('geo.gen.{}'.format(file), 'w') as fp:
-            fp.write(str(row)+" "+"C")
+            fp.write(str(natom)+" "+"C")
             fp.write('\n')
             for iname in specie:
                 atom_i = 0
@@ -36,24 +36,17 @@ class Dftbplus:
                     fp.write('\n')
         return compressr0
 
-    def geo_nonpe(self, dire, coor):
+    def geo_nonpe(self, dire, coor, atomname, specie):
         """Write geo.gen in a dataset for non-periodic condition.
 
         Args:
             coor: first coulumn should be the atom number
 
         """
-        row, col = np.shape(coor)
-        atname, specie = [], []
-        [atname.append(list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
-         for idx in coor[:, 0]]
-        for iname in atname:
-            if iname not in specie:
-                specie.append(iname)
-
+        natom = len(coor)
         with open(os.path.join(dire, 'geo.gen'), 'w') as fp:
             # lst line, number of atoms
-            fp.write(str(row) + " " + "C")
+            fp.write(str(natom) + " " + "C")
             fp.write('\n')
             # 2nd line: atom specie name
             for ispe in specie:
@@ -61,32 +54,25 @@ class Dftbplus:
             fp.write('\n')
             # coordination
             iatom = 0
-            for jatom in range(row):
-                nspe = specie.index(atname[jatom]) + 1
+            for jatom in range(natom):
+                nspe = specie.index(atomname[jatom]) + 1
                 iatom += 1
                 fp.write(str(iatom) + " " + str(nspe) + " ")
-                np.savetxt(fp, coor[jatom, 1:], fmt="%s", newline=" ")
+                np.savetxt(fp, coor[jatom], fmt="%s", newline=" ")
                 fp.write('\n')
 
     def geo_pe():
         """Write geo.gen in a dataset for periodic condition."""
         pass
 
-    def write_dftbin(self, para, dire, scc, coor):
+    def write_dftbin(self, dire, scc, atomname, specie):
         """Write dftb_in.hsd."""
-        atname, specie = [], []
-        [atname.append(list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)])
-         for idx in coor[:, 0]]
-        for iname in atname:
-            if iname not in specie:
-                specie.append(iname)
-
         with open(os.path.join(dire, 'dftb_in.hsd'), 'w') as fp:
             fp.write('Geometry = GenFormat { \n')
             fp.write('  <<< "geo.gen" \n } \n')
             fp.write('Driver {} \n')
             fp.write('Hamiltonian = DFTB { \n')
-            if scc in ['scc', 'mbdscc']:
+            if scc == 'scc':
                 fp.write('Scc = Yes \n')
                 fp.write('SccTolerance = 1e-8 \n MaxSccIterations = 100 \n')
                 fp.write('Mixer = Broyden { \n MixingParameter = 0.2 } \n')
@@ -108,7 +94,7 @@ class Dftbplus:
             fp.write('Temperature [Kelvin] = 0.0 \n } \n')
             fp.write('SlaterKosterFiles = Type2FileNames { \n')
             fp.write('Separator = "-" \n Suffix = ".skf" \n } \n')
-            if para['LMBD_DFTB']:
+            if self.para['LMBD_DFTB']:
                 fp.write('Dispersion = Mbd { \n')
                 fp.write('ReferenceSet = "ts" \n')
                 fp.write('NOmegaGrid = 15 \n')
@@ -120,7 +106,7 @@ class Dftbplus:
             fp.write('ParserOptions { \n ParserVersion = 5 \n } \n')
             fp.write('Parallel { \n UseOmpThreads = Yes \n } \n')
 
-    def read_bandenergy(self, para, nfile, dire, inunit='H', outunit='H'):
+    def read_bandenergy(self, nfile, dire, inunit='H', outunit='H'):
         """Read file bandenergy.dat, which is HOMO and LUMO data."""
         fp = open(os.path.join(dire, 'bandenergy.dat'))
         bandenergy = np.zeros((nfile, 2), dtype=float)
@@ -130,7 +116,7 @@ class Dftbplus:
                 bandenergy[ifile, :] = ibandenergy[:]
         return t.from_numpy(bandenergy)
 
-    def read_dipole(self, para, nfile, dire, unit='eang', outunit='debye'):
+    def read_dipole(self, nfile, dire, unit='eang', outunit='debye'):
         """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'dip.dat'))
         dipole = np.zeros((nfile, 3), dtype=float)
@@ -144,7 +130,7 @@ class Dftbplus:
                 dipole[ifile, :] = idipole[:] * 0.2081943
         return t.from_numpy(dipole)
 
-    def read_energy(self, para, nfile, dire, inunit='H', outunit='H'):
+    def read_energy(self, nfile, dire, inunit='H', outunit='H'):
         """Read file dip.dat, which is dipole data."""
         fp = open(os.path.join(dire, 'energy.dat'))
         energy = np.zeros((nfile), dtype=float)
@@ -165,20 +151,21 @@ class Dftbplus:
             hstable_ref[:] = ibandenergy[:]
         return t.from_numpy(hstable_ref)
 
-    def read_alpha(self, para, nfile, dire):
+    def read_alpha(self, natomall, nfile, dire):
         """Read alpha data.
 
         Returns:
             polarizability_MBD.
 
         """
-        nmaxatom = int(max(para['natomall']))
+        nmaxatom = int(max(natomall))
         alpha = np.zeros((nfile, nmaxatom), dtype=float)
 
         fp = open(os.path.join(dire, 'poldftbplus.dat'))
         for ifile in range(nfile):
-            natom = int(para['natomall'][ifile])
+            natom = int(natomall[ifile])
             ial = np.fromfile(fp, dtype=float, count=natom, sep=' ')
+            print(alpha[ifile, :natom], ial[:])
             alpha[ifile, :natom] = ial[:]
         return t.from_numpy(alpha)
 
