@@ -15,7 +15,7 @@ def main(parameter=None):
     parameter = parsert.parser_cmd_args(parameter)
 
     # run optional task
-    # parameter['task'] = 'mlIntegral'
+    parameter['task'] = 'mlIntegral'  # mlCompressionR, mlIntegral
     if parameter['task'] == 'dftb':
         DFTBCalculator(parameter)
 

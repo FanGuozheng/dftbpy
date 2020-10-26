@@ -283,17 +283,10 @@ class DFTBelect:
             index of orbital information for each atom
         """
         # sum overlap and density by hadamard product, get charge by orbital
-        qatom_orbital = (denmat * overmat).sum(dim=1)
+        charge_orbital = (denmat * overmat).sum(dim=1)
 
         # define charge by atom
-        qatom = t.zeros((natom), dtype=t.float64)
-
-        # transfer charge from orbital to atom
-        # qatom = qatom_orbital[]
-        for iat in range(natom):
-
-            # get the sum of orbital of ith atom
-            init, end = atomindex[iat], atomindex[iat + 1]
-            qatom[iat] = qatom_orbital[init: end].sum()
-
-        return qatom
+        ind_cumsum = t.cat((t.zeros(1), t.cumsum(atomindex, -1)))
+        return t.stack([sum(
+            charge_orbital[int(ind_cumsum[iat]): int(ind_cumsum[iat + 1])])
+            for iat in range(natom)])

@@ -5,13 +5,14 @@ implement pytorch to DFTB
 import numpy as np
 import torch as t
 import bisect
-from dftbtorch.sk import SKTran
+from dftbtorch.sk import SKTran, GetSKTable, GetSK_, skt
 from dftbtorch.electront import DFTBelect
 import IO.readt as readt
 from dftbtorch.periodic import Periodic
 from dftbtorch.matht import EigenSolver
 import dftbtorch.parameters as parameters
 import dftbtorch.parser as parser
+from IO.system import System
 from DFTBMaLT.dftbmalt.dftb.mixer import Simple, Anderson  # Broyden
 from dftbtorch.mbd import MBD
 from IO.write import Print
@@ -87,7 +88,7 @@ class Initialization:
     """
     def __init__(self, parameter, dataset=None, skf=None, ml=None, Lreadskf=True):
         """Interface for different applications."""
-        self.Lreadskf = Lreadskf
+        # self.Lreadskf = Lreadskf
         # get the constant DFTB parameters for DFTB
         self.parameter = parameters.constant_parameter(parameter)
 
@@ -108,103 +109,75 @@ class Initialization:
         # return/update DFTB, geometric, skf parameters from input
         readt.ReadInput(self.parameter, self.dataset, self.skf)
 
+        # get geometric, systematic information
+        # System(self.parameter, self.dataset, self.skf)
+        if type(self.dataset['numbers'][0]) is list:
+            self.dataset['numbers'] = pad1d([t.tensor(ii) for ii in self.dataset['numbers']])
+        self.sys = System(self.dataset['numbers'], self.dataset['positions'])
+        self.dataset['positions'] = self.sys.positions
+        self.dataset['positions_vec'] = self.sys.get_positions_vec()
+        self.dataset['distances'] = self.sys.distances
+        self.dataset['symbols'] = self.sys.symbols
+        self.dataset['natomAll'] = self.sys.size_system
+        self.dataset['lmaxall'] = self.sys.get_l_numbers()
+        self.dataset['atomind'], _, self.dataset['norbital'] = \
+            self.sys.get_accumulated_orbital_numbers()
+        self.dataset['globalSpecies'] = self.sys.get_global_species()
+        self.specie_res, self.l_res = self.sys.get_resolved_orbital()
         # check all parameters before interpolation of integrals and
         # DFTB calculations
         self.pre_check()
-
-        # read skf fike from normal skf or list of skf files
-        if self.Lreadskf:
-            self.read_sk()
 
         # get Hubbert for each if use gaussian density basis
         if self.parameter['densityProfile'] == 'gaussian':
             self.get_this_hubbert()
 
-        # deal with SK transformation
-        for ib in range(self.dataset['nbatch']):
-            self.skf = self.run_sk(ib)
+        # Get SK table from normal skf, or hdf according to input parameters
+        # GetSK(self.parameter, self.dataset, self.skf, self.ml)
+        if self.parameter['task'] == 'dftb':
+            self.skf = GetSKTable.read(self.parameter['directorySK'],
+                                       self.dataset['globalSpecies'],
+                                       orbresolve=self.skf['LOrbitalResolve'],
+                                       skf=self.skf)
+            # deal with SK transformation
+            for ib in range(self.dataset['nbatch']):
+                # SK transformations
+                SKTran(self.parameter, self.dataset, self.skf, self.ml, ib)
+        elif self.skf['ReadSKType'] == 'compressionRadii':
+            GetSK_(self.parameter, self.dataset, self.skf, self.ml)
+
+
+        '''from IO.system import Basis, Bases
+        from dftbtorch.sk import SKIntegralGenerator
+        max_l_key = {1: 0, 6: 1, 7: 1, 8: 1, 79: 2}
+        skf_path = '/home/gz_fan/Documents/ML/dftb/slko/test'
+        sk_integral_generator = SKIntegralGenerator.from_dir(skf_path)
+        basis_info_list = [Basis(self.sys.numbers[i], max_l_key) for i in range(self.dataset['nbatch'])]
+        bases_info = Bases(basis_info_list, max_l_key)
+        self.skf['hammat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='H')
+        self.skf['overmat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='S')
+        mask = pad2d([t.eye(*iover.shape).bool() for iover in self.skf['overmat']])
+        self.skf['overmat'].masked_fill_(mask, 1.)
+        onsite = t.tensor([[t.flip(self.skf['onsite'+iispe+iispe], [0])[iil]
+                            for iispe, iil in zip(ispe, il)]
+                           for ispe, il in zip(self.specie_res, self.l_res)])
+        idx = t.arange(0, len(self.skf['overmat'][0]), out=t.LongTensor())
+        self.skf['hammat'][:, idx, idx] = onsite'''
 
     def pre_check(self):
         """Check every parameters used in DFTB calculations."""
         # a single system
         if not self.parameter['Lbatch']:
-
             # number of batch, single system will be one
             self.dataset['nbatch'] = 1
 
             # add 1 dimension to tensor
-            if self.dataset['distance'].dim() == 2:
-                self.dataset['distance'] = self.dataset['distance'].unsqueeze(0)
-            if self.dataset['positions'].dim() == 2:
-                self.dataset['positions'] = self.dataset['positions'].unsqueeze(0)
+            if self.sys.distances.dim() == 2:
+                self.sys.distances.unsqueeze_(0)
             self.ibatch = 0
         else:
             # number of batch, single system will be one
             self.dataset['nbatch'] = self.dataset['nfile']
-
-    def read_sk(self):
-        """Read integrals and perform SK transformations.
-
-        Read integrals from .skf
-        direct offer integral
-        get integrals by interpolation from a list of skf files.
-
-        """
-        # do not perform machine learning
-        if not self.parameter['Lml']:
-
-            # get integral from directly reading normal skf file
-            if not self.dataset['LSKFinterpolation']:
-
-                # read normal skf file by atom specie
-                readt.ReadSlaKo(self.parameter,
-                                self.dataset, self.skf,
-                                self.ibatch).read_sk_specie()
-
-            # get integral from a list of skf file (compr) by interpolation
-            if self.dataset['LSKFinterpolation']:
-
-                # read all corresponding skf files by defined dftb_parametermeters
-                readt.interpskf(self.parameter,
-                                self.parameter['typeSKinterpR'],
-                                self.parameter['atomspecie'],
-                                self.parameter['dire_interpSK'])
-
-        # perform machine learning
-        # read a list of skf files with various compression radius
-        elif self.parameter['Lml'] and self.dataset['LSKFinterpolation']:
-
-            # ML variables is skf parameters (compression radius)
-            # read all corresponding skf files (different compression radius)
-            if self.parameter['Lml_skf']:
-
-                # replace local specie with global specie
-                self.parameter['atomspecie'] = self.parameter['specie_all']
-
-                # read all corresponding skf files by defined parameters
-                readt.interpskf(self.parameter,
-                                self.parameter['typeSKinterpR'],
-                                self.parameter['atomspecie'],
-                                self.parameter['dire_interpSK'])
-
-            # ML variables is ACSF parameters
-            # read all corresponding skf files (different compression radius)
-            elif self.parameter['Lml_acsf']:
-
-                # replace local specie with global specie
-                self.parameter['atomspecie'] = self.parameter['specie_all']
-
-                # read all corresponding skf files by defined parameters
-                readt.interpskf(self.parameter,
-                                self.parameter['typeSKinterpR'],
-                                self.parameter['atomspecie'],
-                                self.parameter['dire_interpSK'])
-
-            # get integrals directly from spline interpolation
-            elif self.parameter['Lml_HS']:
-
-                self.readsk.read_sk_specie()
-                # SKspline(self.parameter).get_sk_spldata()
 
     def get_this_hubbert(self):
         """Get Hubbert for current calculation, nou orbital resolved."""
@@ -255,7 +228,6 @@ class Rundftbpy:
 
         # for single system
         if not self.para['Lbatch']:
-
             # single calculation, do not define ibatch, ibatch is always 0
             if ibatch is None:
                 self.ibatch = [0]
@@ -295,14 +267,11 @@ class Rundftbpy:
 
         # calculate solid
         if self.para['Lperiodic']:
-
             # SCC-DFTB
             if self.para['scc'] == 'scc':
                 scf.scf_pe_scc()
-
         # calculate molecule
         else:
-
             # non-SCC-DFTB
             if self.para['scc'] == 'nonscc':
                 scf.scf_npe_nscc(self.ibatch, self.para['Lbatch'])
@@ -358,17 +327,12 @@ class SCF:
 
         # single systems
         self.batch = self.para['Lbatch']
-        if not self.batch:
-
-            # H0 after SK transformation
-            self.hmat = self.skf['hammat'].unsqueeze(0)
-
-            # S after SK transformation
-            self.smat = self.skf['overmat'].unsqueeze(0)
+        hamt, smat = self.skf['hammat'], self.skf['overmat']
+        self.hmat = hamt if hamt.dim() == 3 else hamt.unsqueeze(0)
+        self.smat = smat if smat.dim() == 3 else smat.unsqueeze(0)
 
         # multi systems
-        elif self.batch:
-
+        if self.batch:
             # H0 after SK transformation
             self.hmat = self.skf['hammat_']
 
@@ -383,11 +347,8 @@ class SCF:
         # number of orbital of each atom
         self.atind = self.dataset['atomind']
 
-        # number of total orbital number if flatten H, S into 1D
-        self.atind2 = self.dataset['atomind2']
-
         # the name of all atoms
-        self.atomname = self.dataset['atomNameAll']
+        self.atomname = self.dataset['symbols']
 
         # eigen solver
         self.eigen = EigenSolver(self.para['eigenMethod'])
@@ -421,7 +382,7 @@ class SCF:
                                  generations=self.para['maxIter'])
 
         # get the dimension of 2D H0, S
-        ind_nat = self.dataset['norbital']
+        ind_nat = sum(self.dataset['atomind'])  # self.dataset['norbital']
 
         if self.para['HSSymmetry'] == 'half':
 
@@ -438,8 +399,6 @@ class SCF:
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
         qatom = self.analysis.get_qatom(self.atomname, ibatch)
-        # qatom = t.stack(
-        #    [self.analysis.get_qatom() for i in range(self.nb)])
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
@@ -504,8 +463,8 @@ class SCF:
 
         if self.para['densityProfile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
-                self.dataset['distance'][i], self.nat[i],
-                self.dataset['atomNameAll'][i]) for i in ibatch]
+                self.dataset['distances'][i], self.nat[i],
+                self.dataset['symbols'][i]) for i in ibatch]
 
             # pad a list of 2D gmat with different size
             gmat = pad2d(gmat_)
@@ -535,14 +494,10 @@ class SCF:
 
             # "n_orbitals" should be a system constant which should not be
             # defined here.
-            '''n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
-                                for i in range(self.nb)])
-            shiftorb_ = pad1d([shift_[i].repeat_interleave(n_orbitals[i])
-                               for i in range(self.nb)])
-            shift_mat = t.stack([t.unsqueeze(shiftorb_[i], 1) + shiftorb_[i]
-                                 for i in range(self.nb)])'''
-            n_orbitals = pad1d([t.tensor(np.diff(self.atind[i]))
-                                for i in ibatch])
+            if not Lbatch:
+                n_orbitals = [self.atind[ibatch[0]][:len(shift_[0])]]
+            else:
+                n_orbitals = self.atind
             shiftorb_ = pad1d([ishif.repeat_interleave(iorb)
                                for iorb, ishif in zip(n_orbitals, shift_)])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
@@ -1037,9 +992,6 @@ class Analysis:
         qzero, qatom = self.para['qzero'], self.para['charge']
 
         # get HOMO-LUMO, not orbital resolved
-        '''self.para['homo_lumo'] = t.stack([
-            eigval[i][int(nocc[i]) - 1:int(nocc[i]) + 1] * self.para['AUEV']
-            for i in range(self.para['nbatch'])])'''
         self.para['homo_lumo'] = t.stack([
             ieig[int(iocc) - 1:int(iocc) + 1] * self.para['AUEV']
             for ieig, iocc in zip(eigval, nocc)])
@@ -1062,21 +1014,13 @@ class Analysis:
         # get each intial atom charge
         qat = [[self.para['val_' + atomname[ib][iat]]
                 for iat in range(self.nat[ib])] for ib in ibatch]
-
         # return charge information
         return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])
 
     def get_dipole(self, qzero, qatom, coor, natom):
         """Read and process dipole data."""
-        dipole = t.zeros((3), dtype=t.float64)
-        for iatom in range(natom):
-            if type(coor[iatom][:]) is list:
-                coor_t = t.from_numpy(np.asarray(coor[iatom]))
-                dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * coor_t
-            else:
-                dipole[:] = dipole[:] + (qzero[iatom] - qatom[iatom]) * \
-                    coor[iatom]
-        return dipole
+        return sum([(qzero[iat] - qatom[iat]) * coor[iat]
+                    for iat in range(natom)])
 
     def pdos(self):
         """Calculate PDOS."""

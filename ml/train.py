@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import torch as t
 import time
 import dftbtorch.dftbcalculator as dftbcalculator
-from dftbtorch.sk import SKTran, SKinterp
+from dftbtorch.sk import SKTran, GetSKTable, GetSK_
 import utils.plot as plot
 import dftbtorch.initparams as initpara
 import ml.interface as interface
@@ -113,7 +113,10 @@ class MLIntegral:
 
         # total batch size
         self.nbatch = self.dataset['nfile']
-        self.ml_integral()
+        if self.para['Lbatch']:
+            self.ml_integral_batch()
+        else:
+            self.ml_integral()
 
     def ml_integral(self):
         '''DFTB optimization for given dataset'''
@@ -123,14 +126,13 @@ class MLIntegral:
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
         dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
-        print("self.para['task']1", self.para['task'])
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
         self.para['compr_init_'] = []
 
         # get spline integral
-        slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
+        slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
         ml_variable = slako.integral_spline_parameter()  # 0.2 s, too long!!!
 
         # get loss function type
@@ -156,9 +158,7 @@ class MLIntegral:
 
                 # get integral at certain distance, read raw integral from binary hdf
                 # SK transformations
-                print("self.para['task']", self.para['task'])
                 SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-                print("self.skf['hammat']", self.skf['hammat'])
 
                 # run each DFTB calculation separatedly
                 dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
@@ -174,6 +174,65 @@ class MLIntegral:
                 optimizer.step()
             Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
 
+    def ml_integral_batch(self):
+        '''DFTB optimization for given dataset'''
+        # get the ith coordinates
+        get_coor(self.dataset)
+
+        # initialize DFTB calculations with datasetmetry and input parameters
+        # read skf according to global atom species
+        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+
+        # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
+        self.skf['hs_compr_all_'] = []
+        self.para['compr_init_'] = []
+
+        # get spline integral
+        slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
+        ml_variable = slako.integral_spline_parameter()  # 0.2 s, too long!!!
+
+        # get loss function type
+        if self.ml['lossFunction'] == 'MSELoss':
+            self.criterion = t.nn.MSELoss(reduction='sum')
+        elif self.ml['lossFunction'] == 'L1Loss':
+            self.criterion = t.nn.L1Loss(reduction='sum')
+
+        # get optimizer
+        if self.ml['optimizer'] == 'SCG':
+            optimizer = t.optim.SGD(ml_variable, lr=self.ml['lr'])
+        elif self.ml['optimizer'] == 'Adam':
+            optimizer = t.optim.Adam(ml_variable, lr=self.ml['lr'])
+        maxorb = max(self.dataset['norbital'])
+
+        # calculate one by one to optimize para
+        for istep in range(self.ml['mlSteps']):
+            ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
+            over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
+            for ibatch in range(self.nbatch):
+                print("step:", istep + 1, "ibatch:", ibatch + 1)
+                # get integral at certain distance, read raw integral from binary hdf
+                # SK transformations
+                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                iorb = self.dataset['norbital'][ibatch]
+                ham[ibatch, :iorb, :iorb] = self.skf['hammat']
+                over[ibatch, :iorb, :iorb] = self.skf['overmat']
+            self.skf['hammat_'] = ham
+            self.skf['overmat_'] = over
+
+            # run each DFTB calculation separatedly
+            dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
+
+            # define loss function
+            # get loss function
+            if 'dipole' in self.ml['target']:
+                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refDipole']))
+
+            # clear gradients and define back propagation
+            optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            optimizer.step()
+            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+
 
 class MLCompressionR:
     """Optimize compression radii."""
@@ -186,7 +245,7 @@ class MLCompressionR:
         self.ml = ml
 
         # batch size
-        self.nbatch = self.para['nfile']
+        self.nbatch = self.dataset['nfile']
 
         # process dataset for machine learning
         self.process_dataset()
@@ -208,7 +267,7 @@ class MLCompressionR:
         get_coor(self.dataset)
 
         dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
-        self.slako = SKinterp(self.para, self.dataset, self.skf, self.ml)
+        self.slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
         self.genmlpara = GenMLPara(self.ml)
 
         # get nbatch * natom * natom * [ncompr, ncompr, 20] integrals
@@ -219,7 +278,7 @@ class MLCompressionR:
         for ibatch in range(self.nbatch):
             if self.ml['reference'] == 'hdf':
                 natom = self.dataset['natomAll'][ibatch]
-                atomname = self.dataset['atomNameAll'][ibatch]
+                atomname = self.dataset['symbols'][ibatch]
 
                 # get integral at certain distance, read integrals from hdf5
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)

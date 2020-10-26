@@ -385,10 +385,6 @@ def init_ml(para=None, dataset=None, ml=None):
         if 'typeSKinterpR' not in ml.keys():
             ml['typeSKinterpR'] = 'all'
 
-        # the grid point of compression radius is not uniform
-        if 'directoryInterpSK' not in ml.keys():
-            ml['directoryInterpSK'] = path
-
         # number of grid points, should be equal to atom_compr_grid
         if 'nCompressionR' not in ml.keys():
             ml['nCompressionR'] = 10
@@ -442,6 +438,10 @@ def skf_parameter(skf=None):
     """
     if skf is None:
         skf = {}
+
+    # read input skf type: normal, compressionRadii, hdf
+    if 'ReadSKType' not in skf.keys():
+        skf['ReadSKType'] = 'normal'
 
     # smooth the tail when read the skf
     if 'LSmoothTail' not in skf.keys():

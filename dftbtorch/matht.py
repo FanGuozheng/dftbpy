@@ -56,7 +56,6 @@ class DFTBmath:
         tail = 5 * incr
         rmax = (ngridpoint - 1) * incr + tail
         ind = int(rr / incr)
-        # ind = t.round(rr / incr)
         leng = ngridpoint
         if leng < ninterp + 1:
             print("Warning: not enough points for interpolation!")
@@ -374,7 +373,7 @@ class EigenSolver:
         """
         self.eigenmethod = eigenmethod
 
-    def eigen(self, A, B=None, Lbatch=False, atomindex=None, ibatch=None, **kwargs):
+    def eigen(self, A, B=None, Lbatch=False, norbital=None, ibatch=None, **kwargs):
         """Choose different mothod for (general) eigenvalue problem.
 
         Parameters
@@ -386,10 +385,8 @@ class EigenSolver:
             Complementary positive definite real symmetric matrix for the
             generalised eigenvalue problem. Typically the overlap matrix.
         """
-        # get the atom orbital index of single/batch systems
-        self.atomindex = atomindex
-
         # simple eigenvalue problem
+        self.norb = [sum(iorb) for iorb in norbital]
         if B is None:
             eigval, eigvec = t.symeig(A, eigenvectors=True)
 
@@ -429,14 +426,13 @@ class EigenSolver:
 
         """
         # get how many systems in batch and the largest atom index
-        nbatch = len(self.atomindex)
-        maxind = max([iindex[-1] for iindex in self.atomindex])
+        nbatch = A.shape[0]
+        maxind = max([ia.shape[-1] for ia in A])
         chol_l = t.zeros(nbatch, maxind, maxind, dtype=A.dtype)
 
         # get the decomposition L, B = LL^{T} and padding zero
         chol_l = utilsbatch.pack([t.cholesky(
-            iB[:self.atomindex[ii][-1], :self.atomindex[ii][-1]])
-            for iB, ii in zip(B, ibatch)])
+            iB[:self.norb[ii], :self.norb[ii]]) for iB, ii in zip(B, ibatch)])
 
         # directly use inverse matrix
         if direct_inv:
@@ -455,7 +451,7 @@ class EigenSolver:
             # get L^{-1}, the 1st method only work if all sizes are the same
             # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
             linv = utilsbatch.pack([t.solve(t.eye(
-                self.atomindex[ii][-1]), il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]])[0]
+                self.norb[ii]), il[:self.norb[ii], :self.norb[ii]])[0]
                 for il, ii in zip(chol_l, ibatch)])
 
             # get L^{-T}
@@ -468,7 +464,7 @@ class EigenSolver:
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
         eigval_eigvec = [
-            t.symeig(il[:self.atomindex[ii][-1], :self.atomindex[ii][-1]], eigenvectors=True)
+            t.symeig(il[:self.norb[ii], :self.norb[ii]], eigenvectors=True)
             for il, ii in zip(linv_a_linvt, ibatch)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])

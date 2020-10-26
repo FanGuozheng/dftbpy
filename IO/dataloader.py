@@ -60,7 +60,7 @@ class LoadData:
         self.dataset['specie'] = []
         self.dataset['specieGlobal'] = []
         self.dataset['speciedict'] = []
-        self.dataset['atomNumber'] = []
+        self.dataset['numbers'] = []
 
         # temporal coordinates for all
         _coorall = []
@@ -130,7 +130,7 @@ class LoadData:
                     self.dataset['speciedict'].append(Counter(_specie[ispe]))
 
                     # atom number of each atom in molecule
-                    self.dataset['atomNumber'].append(
+                    self.dataset['numbers'].append(
                         [ATOMNUM[ispe] for ispe in _specie[ispe]])
 
         # do not mix molecule species
@@ -154,7 +154,7 @@ class LoadData:
                     [Counter(_isp) for _isp in [_specie[ispe]] * isize])
 
                 # atom number of each atom in molecule
-                self.dataset['atomNumber'].extend(
+                self.dataset['numbers'].extend(
                     [ATOMNUM[ispe] for ispe in _specie[ispe] * isize])
 
         # return training dataset number
@@ -181,10 +181,10 @@ class LoadData:
 
                 # this loop will write information of the same molecule with
                 # different datasetmetries
-                self.dataset['atomNumber'] = []
+                self.dataset['numbers'] = []
 
                 # get atom number of each atom
-                [self.dataset['atomNumber'].append(ATOMNUM[spe]) for spe in data['species']]
+                [self.dataset['numbers'].append(ATOMNUM[spe]) for spe in data['species']]
 
                 # number of molecule in current molecule species
                 imol = len(data['positions'])
@@ -219,7 +219,7 @@ class LoadData:
                     self.g = self.f.create_group(ispecie)
                     self.g.attrs['specie'] = ispecie
                     self.g.attrs['natom'] = natom
-                    self.g.attrs['atomNumber'] = self.dataset['atomNumber']
+                    self.g.attrs['atomNumber'] = self.dataset['numbers']
 
                     # run dftb with ase interface
                     if self.ml['reference'] == 'dftbase':
@@ -386,7 +386,7 @@ class LoadReferenceData:
         self.dataset['natomAll'] = []
         self.dataset['atomNameAll'] = []
         self.dataset['refHomoLumo'] = []
-        self.dataset['atomNumber'] = []
+        self.dataset['numbers'] = []
         self.dataset['refCharge'] = []
         self.dataset['refFormEnergy'] = []
         self.dataset['refTotEenergy'] = []
@@ -431,7 +431,7 @@ class LoadReferenceData:
                         namecoor = str(ibatch) + 'coordinate'
                         self.dataset['positions'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
-                        self.dataset['atomNumber'].append(
+                        self.dataset['numbers'].append(
                             list(f[igroup].attrs['atomNumber']))
 
                         self.dataset['numberatom'].append(t.tensor(
@@ -538,7 +538,7 @@ class LoadReferenceData:
         """Get Hirshfeld volume ratio."""
         natom = self.dataset["natomAll"][ibatch]
         for iat in range(natom):
-            idx = int(self.dataset['atomNumber'][ibatch][iat])
+            idx = int(self.dataset['numbers'][ibatch][iat])
             iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
             volume[iat] = volume[iat] / HIRSH_VOL[iname]
         return volume

@@ -48,7 +48,7 @@ class MBD:
 
         # get the return values of alpha_free, C6 and R
         alpha_c_r = pad2d([t.tensor([list(parameters.mbd_vdw_para(
-            self.dataset['atomNumber'][ibatch][iat]))
+            self.dataset['numbers'][ibatch][iat]))
             for iat in range(self.nat[ibatch])])
             for ibatch in range(self.dataset['nbatch'])])
 
