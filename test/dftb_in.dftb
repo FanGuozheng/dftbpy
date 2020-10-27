@@ -1,0 +1,30 @@
+{
+"general": 
+  {
+  "scc": "scc",
+  "periodic": "false",
+  "mixMethod": "anderson",
+  "mixFactor": 0.2,
+  "tElec": 0,
+  "task": "dftb",
+  "maxIter": 60,
+  "directorySK": "../slko/test/"
+  },
+  
+ "analysis":
+  {
+  "writeMulliken": "true",
+  "Ldipole": "true"
+  },
+  
+  "geometry":
+  {
+  "unit": [[10, 0, 0],[0, 10, 0], [0, 0, 10]],
+  "positions":[[[-0.0034502,   0.01017081,  0.01938033],
+          	 [-0.7954868,   0.5766599,  -0.5472012],
+          	 [-0.39378393, -0.97992676,  0.2722862],
+         	 [0.6344988,    0.4473651,   0.93568736],
+          	 [0.59581804,  -0.16517928, -0.8915708]]],
+  "numbers": [[6, 1, 1, 1, 1]]
+  }
+}
