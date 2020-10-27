@@ -177,7 +177,7 @@ class MLIntegral:
                 optimizer.zero_grad()
                 loss.backward(retain_graph=True)
                 optimizer.step()
-            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
 
     def ml_integral_batch(self):
         '''DFTB optimization for given dataset'''
@@ -236,7 +236,7 @@ class MLIntegral:
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
             optimizer.step()
-            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
 
 
 class MLCompressionR:
@@ -337,7 +337,7 @@ class MLCompressionR:
             print("compression radius:", self.para['compr_ml'])
 
             # save data
-            Save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             optimizer.zero_grad()
@@ -407,9 +407,9 @@ class MLCompressionR:
                 loss = self.criterion(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
 
             # save data
-            self.save.save1D(np.array([loss]), name='loss.dat', dire='.data', ty='a')
+            self.save.save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
             self.save.save2D(self.para['compr_ml'].detach().numpy(),
-                             name='compr.dat', dire='.data', ty='a')
+                             name='compr.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             optimizer.zero_grad()
@@ -541,9 +541,9 @@ class MLACSF:
                     print('-' * 100)
                     self.save_idftbml()
                     self.save.save1D(bias.detach().numpy(),
-                                     name='bias.dat', dire='.data', ty='a')
+                                     name='bias.dat', dire='.', ty='a')
                     self.save.save1D(acsf_weight.detach().numpy(),
-                                     name='weight.dat', dire='.data', ty='a')
+                                     name='weight.dat', dire='.', ty='a')
 
                 # convergence or break condition
                 if t.lt(para['compr_ml'], para['compr_min']).all():
@@ -555,7 +555,7 @@ class MLACSF:
                         para['compr_max']))
                     break
         self.save.save1D(para['nsteps'].detach().numpy(),
-                         name='nsave.dat', dire='.data', ty='a')
+                         name='nsave.dat', dire='.', ty='a')
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
@@ -635,7 +635,7 @@ class MLACSF:
                       it, loss.item(), para['target']))
                 print("para['compr_ml']", para['compr_ml'])
                 self.save.save1D(para['compr_ml'].detach().numpy(),
-                                 name='comprbp.dat', dire='.data', ty='a')
+                                 name='comprbp.dat', dire='.', ty='a')
 
 
 def readhs_ij_line(iat, jat, para):
