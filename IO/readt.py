@@ -125,25 +125,32 @@ class ReadInput:
 
                 # directory of input file
                 direct = self.para['directory']
-                inputfile = os.path.join(direct, filename)
+                self.inputfile = os.path.join(direct, filename)
 
                 # if file exists, read inputfile, else use default parameters
-                if os.path.isfile(inputfile):
+                if os.path.isfile(self.inputfile):
                     # read parameters from input json files if file exists
-                    self.dftb_parameter = self.read_dftb_parameter(inputfile)
+                    with open(self.inputfile, 'r') as fp:
+                        # load json type file
+                        fpinput = json.load(fp)
+                        if 'general' in fpinput.keys():
+                            self.dftb_parameter = self.read_general_param()
+                        if 'analysis' in fpinput.keys():
+                            self.dftb_parameter = self.read_analysis_param()
+                        if 'geometry' in fpinput.keys():
+                            self.dftb_parameter = self.read_geometry_param()
 
-    def read_dftb_parameter(self, inputfile):
+    def read_general_param(self):
         """Read the general information from .json file."""
-        print("Read parameters from: ", inputfile)
-        with open(inputfile, 'r') as fp:
-
+        print("Read parameters from: ", self.inputfile)
+        with open(self.inputfile, 'r') as fp:
             # load json type file
             fpinput = json.load(fp)
 
             # parameter of task
             if 'task' in fpinput['general']:
                 task = fpinput['general']['task']
-                if task in ('dftb', 'train', 'test'):
+                if task in ('dftb', 'mlCompressionR', 'mlIntegral'):
                     self.para['task'] = task
                 else:
                     raise ValueError('task value not defined correctly')
@@ -218,7 +225,20 @@ class ReadInput:
                 else:
                     raise ValueError('convergenceTolerance not defined correctly')
 
-            # ************************ analysis *************************
+            # periodic or molecule
+            if 'Lperiodic' in fpinput['general']:
+                period = fpinput['general']['periodic']
+                if period in ('True', 'T', 'true'):
+                    self.para['Lperiodic'] = True
+                elif period in ('False', 'F', 'false'):
+                    self.para['Lperiodic'] = False
+                else:
+                    raise ValueError('Lperiodic not defined correctly')
+
+    def read_analysis_param(self):
+        with open(self.inputfile, 'r') as fp:
+            # load json type file
+            fpinput = json.load(fp)
             # if write dipole or not
             if 'Ldipole' in fpinput['analysis']:
                 dipole = fpinput['analysis']['Ldipole']
@@ -249,17 +269,10 @@ class ReadInput:
                 else:
                     raise ValueError('Lrepulsive not defined correctly')
 
-            # periodic or molecule
-            if 'Lperiodic' in fpinput['general']:
-                period = fpinput['general']['periodic']
-                if period in ('True', 'T', 'true'):
-                    self.para['Lperiodic'] = True
-                elif period in ('False', 'F', 'false'):
-                    self.para['Lperiodic'] = False
-                else:
-                    raise ValueError('Lperiodic not defined correctly')
-
-            # *********************** geometry **************************
+    def read_geometry_param(self):
+        with open(self.inputfile, 'r') as fp:
+            # load json type file
+            fpinput = json.load(fp)
             # type of coordinate C (Cartesian)
             if 'type' in fpinput['geometry']:
                 coortype = fpinput['geometry']['periodic']
@@ -290,17 +303,16 @@ class ReadSlaKo:
     onsite, etc.
     """
 
-    def __init__(self, parameter, dataset, skf, ibatch):
+    def __init__(self, parameter, dataset, skf):
         """Read integral with different ways."""
         self.para = parameter
         self.dataset = dataset
         self.skf = skf
-        self.ibatch = ibatch
 
     def read_sk_specie(self):
         """Read the SKF table raw data according to atom specie."""
         # the atom specie in the system
-        atomspecie = self.dataset['symbols'][self.ibatch]
+        atomspecie = self.dataset['specieGlobal']
 
         # number of specie
         nspecie = len(atomspecie)

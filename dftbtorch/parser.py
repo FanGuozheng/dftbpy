@@ -15,37 +15,31 @@ def parser_cmd_args(para=None):
     parser = argparse.ArgumentParser(description=_description)
 
     # default task: dftb, mlCompressionR, mlIntegral
-    if 'task' not in para.keys():
-        msg = 'task of DFTB-ML framework'
-        parser.add_argument('-t', '--task', default='dftb', help=msg)
+    msg = 'task of DFTB-ML framework'
+    parser.add_argument('-t', '--task', default='dftb', help=msg)
 
     # default running path
-    if 'directory' not in para.keys():
-        msg = 'Running directory (default: .)'
-        parser.add_argument('-d', '--directory', default='.', help=msg)
+    msg = 'Running directory (default: .)'
+    parser.add_argument('-d', '--directory', default='.', help=msg)
 
     # default SK path
-    if 'directorySK' not in para.keys():
-        msg = 'Slater-Koster directory (default: .)'
-        parser.add_argument('-dsk', '--directorySK', default='.', help=msg)
+    msg = 'Slater-Koster directory (default: .)'
+    parser.add_argument('-dsk', '--directorySK', default='.', help=msg)
 
     # default input data path
-    if 'directoryData' not in para.keys():
-        msg = 'Directory saving data (default: .)'
-        parser.add_argument('-dsave', '--directoryData', default='.', help=msg)
+    msg = 'Directory saving data (default: .)'
+    parser.add_argument('-dsave', '--directoryData', default='.', help=msg)
 
     # default input file name
-    if 'inputName' not in para.keys():
-        msg = 'input file name'
-        parser.add_argument('-in', '--inputname', type=str, default='dftb_in',
-                            metavar='NAME', help=msg)
+    msg = 'input file name'
+    parser.add_argument('-in', '--inputname', type=str, default='dftb_in',
+                        metavar='NAME', help=msg)
 
     # L means logical, LReadInput defines if read parameters from dftb_in
-    if 'LReadInput' not in para.keys():
-        msg = 'Read input from dftb_in. default: True'
-        parser.add_argument('-Lread', '--LReadInput', default=True, help=msg)
+    msg = 'Read input from dftb_in. default: True'
+    parser.add_argument('-Lread', '--LReadInput', default=True, help=msg)
 
-    args = parser.parse_args()
+    args, unkown = parser.parse_known_args()
 
     # get current path
     path = os.getcwd()

@@ -192,7 +192,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'sizeDataset' not in dataset.keys():
-        dataset['sizeDataset'] = ['1']
+        dataset['sizeDataset'] = ['2']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'sizeTest' not in dataset.keys():
@@ -231,7 +231,7 @@ def init_dataset(dataset=None):
     return dataset
 
 
-def init_ml(para=None, dataset=None, ml=None):
+def init_ml(para=None, dataset=None, skf=None, ml=None):
     """Return the machine learning parameters for DFTB calculations.
 
     Args:
@@ -246,10 +246,17 @@ def init_ml(para=None, dataset=None, ml=None):
     para = {} if para is None else para
     ml = {} if ml is None else ml
     dataset = {} if dataset is None else dataset
+    skf = {} if skf is None else skf
 
     # machine learning algorithm: linear, svm, schnet, nn...!!!!
     if 'MLmodel' not in ml.keys():
         ml['MLmodel'] = 'linear'
+
+    if para['task'] == 'mlCompressionR':
+        skf['ReadSKType'] = 'compressionRadii'
+
+    if para['task'] == 'mlIntegral':
+        skf['ReadSKType'] = 'mlIntegral'
 
     # define atomic representation: cm (CoulombMatrix), acsf!!!!!
     if 'featureType' not in ml.keys():
@@ -377,55 +384,54 @@ def init_ml(para=None, dataset=None, ml=None):
         if 'interpolationType' not in ml.keys():
             ml['interpolationType'] = 'BiCubVec'
 
-        # grid of compression radius is uniform or not !!
-        if 'typeSKinterp' not in ml.keys():
-            ml['typeSKinterp'] = 'uniform'
+    # grid of compression radius is uniform or not !!
+    if 'typeSKinterp' not in ml.keys():
+        ml['typeSKinterp'] = 'uniform'
 
-        # skgen compression radius parameters: all, wavefunction, density
-        if 'typeSKinterpR' not in ml.keys():
-            ml['typeSKinterpR'] = 'all'
+    # skgen compression radius parameters: all, wavefunction, density
+    if 'typeSKinterpR' not in ml.keys():
+        ml['typeSKinterpR'] = 'all'
 
-        # number of grid points, should be equal to atom_compr_grid
-        if 'nCompressionR' not in ml.keys():
-            ml['nCompressionR'] = 10
+    # number of grid points, should be equal to atom_compr_grid
+    if 'nCompressionR' not in ml.keys():
+        ml['nCompressionR'] = 10
 
-        # if any compR < 2.2, break DFTB-ML loop
-        if 'compressionRMin' not in ml.keys():
-            ml['compressionRMin'] = 2.2
+    # if any compR < 2.2, break DFTB-ML loop
+    if 'compressionRMin' not in ml.keys():
+        ml['compressionRMin'] = 2.2
 
-        # if any compR > 9, break DFTB-ML loop
-        if 'compressionRMax' not in ml.keys():
-            ml['compressionRMax'] = 9
+    # if any compR > 9, break DFTB-ML loop
+    if 'compressionRMax' not in ml.keys():
+        ml['compressionRMax'] = 9
 
-        # compression radius of H
-        ml['H_compr_grid'] = t.tensor((
-                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
+    # compression radius of H
+    ml['H_compr_grid'] = t.tensor((
+        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
-        # compression radius of C
-        ml['C_compr_grid'] = t.tensor((
-                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
+    # compression radius of C
+    ml['C_compr_grid'] = t.tensor((
+        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
-        # compression radius of N
-        ml['N_compr_grid'] = t.tensor((
-                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
+    # compression radius of N
+    ml['N_compr_grid'] = t.tensor((
+        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
-        # compression radius of O
-        ml['O_compr_grid'] = t.tensor((
-                [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
+    # compression radius of O
+    ml['O_compr_grid'] = t.tensor((
+        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
 
-        # test the grid points length
-        assert len(ml['H_compr_grid']) == ml['nCompressionR']
-        assert len(ml['C_compr_grid']) == ml['nCompressionR']
-        assert len(ml['N_compr_grid']) == ml['nCompressionR']
-        assert len(ml['O_compr_grid']) == ml['nCompressionR']
+    # test the grid points length
+    assert len(ml['H_compr_grid']) == ml['nCompressionR']
+    assert len(ml['C_compr_grid']) == ml['nCompressionR']
+    assert len(ml['N_compr_grid']) == ml['nCompressionR']
+    assert len(ml['O_compr_grid']) == ml['nCompressionR']
 
-        # set initial compression radius
-        ml['H_init_compr'] = 3.5
-        ml['C_init_compr'] = 3.5
-        ml['N_init_compr'] = 3.5
-        ml['O_init_compr'] = 3.5
-
-    return para, ml, dataset
+    # set initial compression radius
+    ml['H_init_compr'] = 3.5
+    ml['C_init_compr'] = 3.5
+    ml['N_init_compr'] = 3.5
+    ml['O_init_compr'] = 3.5
+    return para, dataset, skf, ml
 
 
 def skf_parameter(skf=None):
@@ -439,7 +445,7 @@ def skf_parameter(skf=None):
     if skf is None:
         skf = {}
 
-    # read input skf type: normal, compressionRadii, hdf
+    # read input skf type: normal, mask, compressionRadii, hdf
     if 'ReadSKType' not in skf.keys():
         skf['ReadSKType'] = 'normal'
 

@@ -26,19 +26,25 @@ DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
 class DFTBMLTrain:
     """DFTB machine learning."""
 
-    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
+    def __init__(self, init=None, parameter=None, dataset=None, skf=None, ml=None):
         """Initialize parameters."""
         time_begin = time.time()
-
         # general, dataset, skf, ML parameters (dictionaries)
-        self.parameter = [parameter, {}][parameter is None]
-        self.dataset = [dataset, {}][dataset is None]
-        self.skf = [skf, {}][skf is None]
-        self.ml = [ml, {}][ml is None]
 
-        # initialize general, DFTB, dataset parameters
-        dftbcalculator.Initialization(
-            self.parameter, self.dataset, self.skf, self.ml)
+        if init is None:
+            self.parameter = [parameter, {}][parameter is None]
+            self.dataset = [dataset, {}][dataset is None]
+            self.skf = [skf, {}][skf is None]
+            self.ml = [ml, {}][ml is None]
+
+            # initialize general, DFTB, dataset parameters
+            self.init = dftbcalculator.Initialization(
+                    self.parameter, self.dataset, self.skf, self.ml)
+        else:
+            self.parameter = init.parameter
+            self.dataset = init.dataset
+            self.skf = init.skf
+            self.ml = ml
 
         # detect automatically
         t.autograd.set_detect_anomaly(True)
@@ -52,10 +58,7 @@ class DFTBMLTrain:
         else:
             raise ValueError('please select either t.float64 or t.float32')
 
-        # initialize machine learning parameters based on
-        # self.ml['reference'] = 'dftbplus'
-        # self.ml['runReference'] = True
-        # self.parameter['directorySK'] = '../slko/test'
+        # initialize machine learning parameters
         self.initialization_ml()
 
         # 1. read dataset then run DFT(B) to get reference data
@@ -72,8 +75,11 @@ class DFTBMLTrain:
 
     def initialization_ml(self):
         """Initialize machine learning parameters."""
-        self.parameter, self.ml, self.dataset = \
-            initpara.init_ml(self.parameter, self.dataset, self.ml)
+                # remove some documents
+        os.system('rm .data/loss.dat .data/compr.dat')
+
+        self.parameter, self.dataset, self.skf, self.ml = \
+            initpara.init_ml(self.parameter, self.dataset, self.skf, self.ml)
 
     def load_dataset(self):
         """Load dataset for machine learning."""
@@ -98,7 +104,6 @@ class DFTBMLTrain:
         # optimize compression radius and then generate integrals
         elif self.parameter['task'] == 'mlCompressionR':
             MLCompressionR(self.parameter, self.dataset, self.skf, self.ml)
-
 
 
 class MLIntegral:
@@ -260,15 +265,11 @@ class MLCompressionR:
 
     def process_dataset(self):
         """Get all parameters for compression radii machine learning."""
-        # remove some documents
-        os.system('rm loss.dat compr.dat')
-
         # set coordinates type
         get_coor(self.dataset)
 
         dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
         self.slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
-        self.genmlpara = GenMLPara(self.ml)
 
         # get nbatch * natom * natom * [ncompr, ncompr, 20] integrals
         self.skf['hs_compr_all_'] = []
@@ -280,13 +281,13 @@ class MLCompressionR:
                 natom = self.dataset['natomAll'][ibatch]
                 atomname = self.dataset['symbols'][ibatch]
 
-                # get integral at certain distance, read integrals from hdf5
+                # Get integral at certain distance, read integrals from hdf5
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
 
                 # get initial compression radius
                 self.ml['CompressionRInit'].append(
-                    self.genmlpara.genml_init_compr(atomname))
+                    genml_init_compr(self.ml, atomname))
 
         self.para['compr_ml'] = \
             Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
@@ -441,171 +442,22 @@ def get_formation_energy(energy, atomname, ibatch):
     return energy - sum([DFTB_ENERGY[ina] for ina in atomname[ibatch]])
 
 
+def genml_init_compr(ml, atomname):
+    """Get initial compression radius for each atom in system."""
+    return t.tensor([ml[ia + '_init_compr']
+                     for ia in atomname], dtype=t.float64)
 
-    def cal_offset_energy(self, energy, refenergy):
-        A = pad2d(self.dataset['numberatom'])
-        B = t.tensor(refenergy) - pad1d(energy)
-        offset, _ = t.lstsq(B, A)
-        return A @ offset
 
-    def save_ref_idata(self, ref, ibatch, LWHL=False, LWeigenval=False,
-                       LWenergy=False, LWdipole=False, LWpol=False):
-        """Save data for single molecule calculation result."""
-        if LWHL:
-            self.save.save1D(self.dataset['refhomo_lumo'][ibatch].numpy(),
-                             name='HL'+ref+'.dat', dire=self.dire_res, ty='a')
-        if LWeigenval:
-            self.para['refeigval'] = self.para['eigenvalue']
-            self.save.save1D(self.para['eigenvalue'].detach().numpy(),
-                             name='eigval'+ref+'.dat',
-                             dire=self.dire_res, ty='a')
-        if LWenergy:
-            self.save.save1D(self.dataset['refTotEenergy'][ibatch],
-                             name='totalenergy'+ref+'.dat',
-                             dire=self.dire_res, ty='a')
-        if LWdipole:
-            self.save.save1D(self.dataset['refdipole'][ibatch].detach().numpy(),
-                             name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
-        if LWpol:
-            self.save.save1D(self.dataset['refalpha_mbd'][ibatch],
-                             name='pol'+ref+'.dat', dire=self.dire_res, ty='a')
+def cal_offset_energy(self, energy, refenergy):
+    A = pad2d(self.dataset['numberatom'])
+    B = t.tensor(refenergy) - pad1d(energy)
+    offset, _ = t.lstsq(B, A)
+    return A @ offset
 
-    def save_ref_data(self, ref, LWHL=False, LWeigenval=False,
-                      LWenergy=False, LWdipole=False, LWpol=False):
-        """Save data for all molecule calculation results."""
-        if LWHL:
-            self.para['refhomo_lumo'] = self.para['homo_lumo']
-            self.save.save2D(self.para['homo_lumo'].detach().numpy(),
-                             name='HL'+ref+'.dat', dire=self.dire_res, ty='a')
-        if LWeigenval:
-            self.para['refeigval'] = self.para['eigenvalue']
-            self.save.save2D(self.para['eigenvalue'].detach().numpy(),
-                             name='eigval'+ref+'.dat',
-                             dire=self.dire_res, ty='a')
-        if LWenergy:
-            self.save.save1D(self.para['refenergy'],
-                             name='refenergy'+ref+'.dat',
-                             dire=self.dire_res, ty='a')
-            self.save.save1D(self.para['totalenergy'],
-                             name='totalenergy'+ref+'.dat',
-                             dire=self.dire_res, ty='a')
-        if LWdipole:
-            self.save.save2D(self.para['refdipole'].detach().numpy(),
-                             name='dip'+ref+'.dat', dire=self.dire_res, ty='a')
-        if LWpol:
-            self.save.save2D(self.para['alpha_mbd'].detach().numpy(),
-                             name='pol'+ref+'.dat', dire=self.dire_res, ty='a')
 
-    def update_compr_para(self, ibatch):
-        nbatchml_ = int(para['opt_ml_step'] * self.nbatch)
-        if ibatch == 0:
-            if para['opt_ml_all']:  # use training compR from beginning
-                npred_ = min(ibatch + int(nbatchml_), self.nbatch)
-                self.para['ntrain'] = ibatch
-                self.para['npred'] = npred_
-                interface.ML(para)
-            else:
-                self.genml.genml_init_compr()
-        elif ibatch % nbatchml_ == 0:
-            self.para['dire_data'] = '.data'
-            npred_ = min(ibatch + int(nbatchml_), self.nbatch)
-            self.para['ntrain'] = ibatch
-            self.para['npred'] = npred_
-            interface.ML(para)
-        elif ibatch > nbatchml_:
-            para['compr_init'] = self.para['compr_pred'][ibatch]
-
-    def get_iref(self, ibatch, nat):
-        """Get reference data for each single molecule."""
-        # self.homo_lumo_ref = self.para['refhomo_lumo'][ibatch]
-        self.dipref = self.dataset['refdipole'][ibatch]
-        if para['LMBD_DFTB']:
-            self.pol_ref = self.para['refalpha_mbd'][ibatch][:nat]
-            self.volref = self.para['refvol'][ibatch][:nat]
-        if 'hstable' in self.ml['target']:
-            self.hatableref = self.para['refhammat'][ibatch]
-        if 'eigval' in self.ml['target']:
-            self.eigvalref = self.para['refeigval'][ibatch]
-        if 'qatomall' in self.ml['target']:
-            self.qatomall_ref = para['refqatom'][ibatch]
-        if self.para['Lenergy']:
-            self.energy_ref = self.para['refenergy'][ibatch]
-
-    def get_loss(self, ibatch):
-        if len(self.ml['target']) == 1:
-            homo_lumo = para['homo_lumo']
-            dipole = para['dipole']
-            gap = t.abs(homo_lumo[ibatch][1] - homo_lumo[ibatch][0])
-            eigval = para['eigenvalue']
-            qatomall = para['charge']
-            energy = para['energy']
-            if 'homo_lumo' in self.ml['target']:
-                loss = self.criterion(self.homo_lumo, self.homo_lumo_ref)
-            elif 'gap' in self.ml['target']:
-                loss = self.criterion(gap, self.gapref)
-            elif 'dipole' in self.ml['target']:
-                loss = self.criterion(dipole, self.dipref)
-            elif 'hstable' in self.ml['target']:
-                hstable = self.skf['hammat']
-                loss = self.criterion(hstable, self.hatableref)
-            elif 'eigval' in self.ml['target']:
-                loss = self.criterion(eigval, self.eigvalref)
-            elif 'qatomall' in self.ml['target']:
-                loss = self.criterion(qatomall, self.qatomall_ref)
-            elif 'energy' in self.ml['target']:
-                loss = self.criterion(energy, self.energy_ref)
-            elif 'polarizability' in self.ml['target']:
-                pol = self.para['alpha_mbd']
-                loss = self.criterion(pol, self.pol_ref)
-            elif 'cpa' in self.ml['target']:
-                cpa = self.para['cpa']
-                vol_ratio_ref = self.get_hirsh_vol_ratio(self.volref)
-                loss = self.criterion(cpa, vol_ratio_ref)
-            elif 'pdos' in self.para['target']:
-                pdosref = self.para['pdosdftbplus'][ibatch]
-                loss = maths.hellinger(para['pdos'], pdosref).sum()
-                # loss = self.criterion(para['pdos'], pdosref)
-                self.para['shape_pdos'][ibatch][0] = self.para['pdos'].shape[0]
-                self.para['shape_pdos'][ibatch][1] = self.para['pdos'].shape[1]
-            elif len(self.ml['target']) == 2:
-                if 'dipole' and 'polarizability' in self.ml['target']:
-                    dipole = self.para['dipole']
-                    pol = self.para['alpha_mbd']
-                    loss = 2 * self.criterion(pol, self.pol_ref) + \
-                        self.criterion(dipole, self.dipref)
-            return loss
-
-    def save_idftbml(self):
-        #self.save.save1D(para['homo_lumo'].detach().numpy(),
-        #                 name='HLbp.dat', dire='.data', ty='a')
-        if self.para['Ldipole']:
-            print('dipole: {}, dipref: {}'.format(
-                self.para['dipole'], self.dipref))
-            self.save.save1D(self.para['dipole'].detach().numpy(),
-                             name='dipbp.dat', dire='.data', ty='a')
-        if self.para['Lenergy']:
-            print('energy: {}, energyref: {}'.format(
-                self.para['formation_energy'], self.energy_ref))
-            self.save.save1D(self.para['formation_energy'].detach().numpy().squeeze(),
-                             name='form_energybp.dat', dire='.data', ty='a')
-            if self.para['Lrepulsive']:
-                self.save.save1D(self.para['rep_energy'].detach().numpy(),
-                                 name='repenergybp.dat', dire='.data', ty='a')
-        if self.para['LMBD_DFTB']:
-            self.save.save1D(para['alpha_mbd'].detach().numpy(),
-                             name='polbp.dat', dire='.data', ty='a')
-            self.save.save1D(self.para['cpa'].detach().numpy(),
-                             name='cpa.dat', dire='.data', ty='a')
-        if self.para['Lpdos']:
-            self.save.save2D(self.para['pdos'].detach().numpy(),
-                             name='pdosbp.dat', dire='.data', ty='a')
-            self.save.save1D(self.para['hammat'].detach().numpy(),
-                             name='hambp.dat', dire='.data', ty='a')
-            self.save.save1D(self.para['compr_ml'].detach().numpy(),
-                             name='comprbp.dat', dire='.data', ty='a')
-            self.save.save1D(self.para['charge'].detach().numpy(),
-                             name='qatombp.dat', dire='.data', ty='a')
-        self.save.save1D(self.loss_, name='lossbp.dat', dire='.data', ty='a')
+class MLACSF:
+    def __init__(self):
+        pass
 
     def ml_acsf(self, para):
         """DFTB optimization of ACSF parameters radius for given dataset."""
@@ -704,7 +556,6 @@ def get_formation_energy(energy, atomname, ibatch):
                     break
         self.save.save1D(para['nsteps'].detach().numpy(),
                          name='nsave.dat', dire='.data', ty='a')
-
 
     def test_pred_compr(self, para):
         '''DFTB optimization for given dataset'''
@@ -812,20 +663,3 @@ def readhs_ij_line(iat, jat, para):
                         -para['hs_all_rall' + nameij][jj, ii, :, 18]
     elif lmax == 2 and lmin == 2:
         pass
-
-
-class GenMLPara:
-    """Aims to get parameters for ML.
-
-    genenvir: atomic environment parameters
-    get_spllabel: get how many row lines of c parameters in bspline
-
-    """
-
-    def __init__(self, ml):
-        self.ml = ml
-
-    def genml_init_compr(self, atomname):
-        """Get initial compression radius for each atom in system."""
-        return t.tensor([self.ml[ia + '_init_compr']
-                         for ia in atomname], dtype=t.float64)

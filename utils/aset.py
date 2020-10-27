@@ -282,7 +282,7 @@ class AseAims:
 
     def run_aims(self, nbatch, begin=None, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
-        coorall = self.dataset['coordinateAll']
+        coorall = self.dataset['positions']
         if begin is None:
             begin = 0
 

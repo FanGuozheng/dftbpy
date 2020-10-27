@@ -25,7 +25,7 @@ class LoadData:
         hdf_num: how many dataset in one hdf file
 
     Returns:
-        coorall: all the coordination of molecule
+        positions: all the coordination of molecule
         symbols: all the atoms in each molecule
         specie: the specie in each molecule
         specie_global: all the species in dataset
@@ -84,7 +84,7 @@ class LoadData:
             for iadl, data in enumerate(adl):
 
                 # get each molecule specie size
-                _isize = len(data['positions'])
+                _isize = len(data['coordinates'])
                 imol = _isize if 'all' in nn else int(nn)
 
                 # global species
@@ -99,7 +99,7 @@ class LoadData:
                 nmolecule.append(imol)
 
                 # selected coordinates of each molecule specie
-                _coorall.append(data['positions'][:imol])
+                _coorall.append(data['coordinates'][:imol])
 
                 # add atom species in each molecule specie
                 _specie.append(data['species'])
@@ -138,7 +138,7 @@ class LoadData:
             for ispe, isize in enumerate(nmolecule):
                 # get the first length in molecule specie and '* size'
                 self.dataset['natomAll'].extend([len(_coorall[ispe][0])] * isize)
-                natom = len(_coorall[ispe][ifile])
+                natom = len(_coorall[ispe][0])
 
                 # get symbols of each atom
                 self.dataset['symbols'].extend([_specie[ispe]] * isize)
@@ -187,23 +187,23 @@ class LoadData:
                 [self.dataset['numbers'].append(ATOMNUM[spe]) for spe in data['species']]
 
                 # number of molecule in current molecule species
-                imol = len(data['positions'])
+                imol = len(data['coordinates'])
 
                 # the code will write molecule from range(0, end)
-                nend = min(self.train_sample, imol)
+                nend = min(int(self.dataset['sizeDataset'][0]), imol)
 
                 # number of atom in molecule
-                natom = len(data['positions'][0])
+                natom = len(data['coordinates'][0])
 
                 # write all coordinates to list "corrall" and first column is
                 # atom number
-                self.dataset['coorall'] = []
-                # self.dataset['coorall'].extend(
+                self.dataset['positions'] = []
+                # self.dataset['positions'].extend(
                 #    [np.insert(coor, 0, atom_num, axis=1)
                 #     for coor in np.asarray(
                 #             data['coordinates'][:nend], dtype=float)])
-                self.dataset['coorall'].extend(
-                    [coor for coor in np.asarray(data['positions'][:nend], dtype=float)])
+                self.dataset['positions'].extend(
+                    [coor for coor in np.asarray(data['coordinates'][:nend], dtype=float)])
 
                 # write the current atom species in molecule to list "symbols"
                 # use metadata instead
@@ -223,13 +223,14 @@ class LoadData:
 
                     # run dftb with ase interface
                     if self.ml['reference'] == 'dftbase':
-                        DFTB(self.para, setenv=True).run_dftb(
-                            nend, self.dataset['coorall'],
+                        DFTB(self.para, self.dataset, self.ml, setenv=True).run_dftb(
+                            nend, self.dataset['positions'],
                             hdf=self.f, group=self.g)
 
                     # run FHI-aims with ase interface
                     elif self.ml['reference'] == 'aimsase':
-                        AseAims(self.para, self.dataset, self.ml, setenv=True).run_aims(nend, hdf=self.f, group=self.g)
+                        AseAims(self.para, self.dataset, self.ml,
+                                setenv=True).run_aims(nend, hdf=self.f, group=self.g)
 
         # save rest to global attrs
         with h5py.File(path_file, 'a') as f:
@@ -241,7 +242,7 @@ class LoadData:
         """Load the data from json type input files."""
         dire = self.para['pythondata_dire']
         filename = self.para['pythondata_file']
-        self.dataset['coorall'] = []
+        self.dataset['positions'] = []
         self.dataset['natomall'] = []
         self.dataset['specie'] = []
         self.dataset['speciedict'] = []
@@ -262,7 +263,7 @@ class LoadData:
 
             for iname in fpinput['geometry']:
                 icoor = fpinput['geometry'][iname]
-                self.dataset['coorall'].append(t.from_numpy(np.asarray(icoor)))
+                self.dataset['positions'].append(t.from_numpy(np.asarray(icoor)))
                 self.dataset['natomall'].append(len(icoor))
             self.para['ntrain'] = int(self.para['n_dataset'][0])
 
@@ -336,7 +337,7 @@ class LoadData:
                         list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
                     symbols_.append(ispe)
                     if iat in train_specie:
-                        if ispe not in self.para['specie_global']:
+                        if ispe not in self.para['specieGlobal']:
                             self.para['specie_global'].append(ispe)
                     else:
                         train_ = 'no'
@@ -356,7 +357,7 @@ class LoadData:
     def get_specie_all(self):
         """Get all the atom species in dataset before running Dscribe."""
         atomspecieall = []
-        for coor in self.para['coorall']:
+        for coor in self.para['positions']:
             for iat in range(coor.shape[0]):
                 idx = int(coor[iat, 0])
                 ispe = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]

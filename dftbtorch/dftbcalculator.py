@@ -24,7 +24,7 @@ import dftbtorch.initparams as initpara
 class DFTBCalculator:
     """DFTB calculator."""
 
-    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
+    def __init__(self, init=None, parameter=None, dataset=None, skf=None, ml=None):
         """Collect data, run DFTB calculations and return results.
 
         Args:
@@ -39,16 +39,24 @@ class DFTBCalculator:
 
         """
         # define general DFTB parameters dictionary
-        self.parameter = [parameter, {}][parameter is None]
+        self.init = init
+        if self.init is None:
+            self.parameter = [parameter, {}][parameter is None]
 
-        # define dataset and geometric dictionary
-        self.dataset = [dataset, {}][dataset is None]
+            # define dataset and geometric dictionary
+            self.dataset = [dataset, {}][dataset is None]
 
-        # define slater-koster dictionary
-        self.skf = [skf, {}][skf is None]
+            # define slater-koster dictionary
+            self.skf = [skf, {}][skf is None]
 
-        # define machine learning dictionary, this is optional for DFTB
-        self.ml = ml
+            # define machine learning dictionary, this is optional for DFTB
+            self.ml = ml
+            self.init = Initialization(self.parameter, self.dataset, self.skf, self.ml)
+        else:
+            self.parameter = self.init.parameter
+            self.dataset = self.init.dataset
+            self.skf = self.init.skf
+            self.ml = self.init.ml
 
         # return hamiltonian, overlap from input parameters and skf data
         self.initialization()
@@ -58,8 +66,7 @@ class DFTBCalculator:
 
     def initialization(self):
         """Initialize DFTB, geometric, skf, dataset, ML parametes."""
-        init = Initialization(self.parameter, self.dataset, self.skf, self.ml)
-        init.initialization_dftb()
+        self.init.initialization_dftb()
 
     def run_dftb(self):
         """Run DFTB code."""
@@ -86,11 +93,20 @@ class Initialization:
     want to read dftb_in, set LReadInput as False.
 
     """
-    def __init__(self, parameter, dataset=None, skf=None, ml=None, Lreadskf=True):
+    def __init__(self, parameter, dataset=None, skf=None, ml=None):
         """Interface for different applications."""
-        # self.Lreadskf = Lreadskf
         # get the constant DFTB parameters for DFTB
         self.parameter = parameters.constant_parameter(parameter)
+        self.parameter = parser.parser_cmd_args(self.parameter)
+        self.dataset = [dataset, {}][dataset is None]
+
+        if 'precision' in self.parameter.keys():
+            t.set_default_dtype(d=self.parameter['precision'])
+        else:
+            t.set_default_dtype(d=t.float64)
+
+        # return/update DFTB, geometric, skf parameters from input
+        readt.ReadInput(self.parameter, self.dataset)
 
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
@@ -105,12 +121,7 @@ class Initialization:
         self.ml = ml
 
     def initialization_dftb(self):
-
-        # return/update DFTB, geometric, skf parameters from input
-        readt.ReadInput(self.parameter, self.dataset, self.skf)
-
         # get geometric, systematic information
-        # System(self.parameter, self.dataset, self.skf)
         if type(self.dataset['numbers'][0]) is list:
             self.dataset['numbers'] = pad1d([t.tensor(ii) for ii in self.dataset['numbers']])
         self.sys = System(self.dataset['numbers'], self.dataset['positions'])
@@ -124,8 +135,8 @@ class Initialization:
             self.sys.get_accumulated_orbital_numbers()
         self.dataset['globalSpecies'] = self.sys.get_global_species()
         self.specie_res, self.l_res = self.sys.get_resolved_orbital()
-        # check all parameters before interpolation of integrals and
-        # DFTB calculations
+
+        # check all parameters before interpolation of integrals
         self.pre_check()
 
         # get Hubbert for each if use gaussian density basis
@@ -134,7 +145,7 @@ class Initialization:
 
         # Get SK table from normal skf, or hdf according to input parameters
         # GetSK(self.parameter, self.dataset, self.skf, self.ml)
-        if self.parameter['task'] == 'dftb':
+        if self.skf['ReadSKType'] == 'normal':
             self.skf = GetSKTable.read(self.parameter['directorySK'],
                                        self.dataset['globalSpecies'],
                                        orbresolve=self.skf['LOrbitalResolve'],
@@ -143,26 +154,25 @@ class Initialization:
             for ib in range(self.dataset['nbatch']):
                 # SK transformations
                 SKTran(self.parameter, self.dataset, self.skf, self.ml, ib)
-        elif self.skf['ReadSKType'] == 'compressionRadii':
-            GetSK_(self.parameter, self.dataset, self.skf, self.ml)
-
-
-        '''from IO.system import Basis, Bases
-        from dftbtorch.sk import SKIntegralGenerator
-        max_l_key = {1: 0, 6: 1, 7: 1, 8: 1, 79: 2}
-        skf_path = '/home/gz_fan/Documents/ML/dftb/slko/test'
-        sk_integral_generator = SKIntegralGenerator.from_dir(skf_path)
-        basis_info_list = [Basis(self.sys.numbers[i], max_l_key) for i in range(self.dataset['nbatch'])]
-        bases_info = Bases(basis_info_list, max_l_key)
-        self.skf['hammat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='H')
-        self.skf['overmat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='S')
-        mask = pad2d([t.eye(*iover.shape).bool() for iover in self.skf['overmat']])
-        self.skf['overmat'].masked_fill_(mask, 1.)
-        onsite = t.tensor([[t.flip(self.skf['onsite'+iispe+iispe], [0])[iil]
-                            for iispe, iil in zip(ispe, il)]
-                           for ispe, il in zip(self.specie_res, self.l_res)])
-        idx = t.arange(0, len(self.skf['overmat'][0]), out=t.LongTensor())
-        self.skf['hammat'][:, idx, idx] = onsite'''
+        # elif self.skf['ReadSKType'] == 'compressionRadii':
+        #    GetSK_(self.parameter, self.dataset, self.skf, self.ml)
+        elif self.skf['ReadSKType'] == 'mask':
+            from IO.system import Basis, Bases
+            from dftbtorch.sk import SKIntegralGenerator
+            max_l_key = {1: 0, 6: 1, 7: 1, 8: 1, 79: 2}
+            skf_path = '/home/gz_fan/Documents/ML/dftb/slko/test'
+            sk_integral_generator = SKIntegralGenerator.from_dir(skf_path)
+            basis_info_list = [Basis(self.sys.numbers[i], max_l_key) for i in range(self.dataset['nbatch'])]
+            bases_info = Bases(basis_info_list, max_l_key)
+            self.skf['hammat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='H')
+            self.skf['overmat'] = skt(self.sys, bases_info, sk_integral_generator, mat_type='S')
+            mask = pad2d([t.eye(*iover.shape).bool() for iover in self.skf['overmat']])
+            self.skf['overmat'].masked_fill_(mask, 1.)
+            onsite = t.tensor([[t.flip(self.skf['onsite'+iispe+iispe], [0])[iil]
+                                for iispe, iil in zip(ispe, il)]
+                               for ispe, il in zip(self.specie_res, self.l_res)])
+            idx = t.arange(0, len(self.skf['overmat'][0]), out=t.LongTensor())
+            self.skf['hammat'][:, idx, idx] = onsite
 
     def pre_check(self):
         """Check every parameters used in DFTB calculations."""
