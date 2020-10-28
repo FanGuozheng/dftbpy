@@ -1,6 +1,6 @@
 """This code is to print calculation information."""
 import torch as t
-
+import numpy as np
 
 class Print:
     """Print DFTB results."""
@@ -40,12 +40,11 @@ class Print:
             print(' ' * 30, 'periodic SCC-DFTB')
             print('*' * 80)
 
-    def print_energy(self, iiter, energy, batch, nbatch=None, Lprint=False):
+    def print_energy(self, iiter, energy, batch, nbatch=None, mask=None, Lprint=False):
         """Print energy in each SCC loops."""
         # for the 0th loop, dE == energy
         if iiter == 0:
             dE = energy[-1].detach()
-
             # single system
             if not batch:
 
@@ -60,7 +59,6 @@ class Print:
 
             # multi system
             elif batch:
-
                 # if print the energy
                 if Lprint:
                     assert nbatch is not None
@@ -75,10 +73,8 @@ class Print:
 
         # for loops >= 1
         elif iiter >= 1:
-
             # single system
             if not batch:
-
                 # get energy
                 dE = energy[-1].detach() - energy[-2].detach()
                 energy_ = energy[-1].squeeze(0)
@@ -88,11 +84,11 @@ class Print:
                 print(f'{iiter:5} {energy_.detach():25}', f'{dE_:25}')
                 return dE
 
-            # multi system
+            # batch system
             elif batch:
-
-                # get energy
-                dE = energy[-1].detach() - energy[-2].detach()
+                # return bool value where the second last loop did't converge
+                mask_1 = list(np.array(mask[-1])[mask[-2]])
+                dE = energy[-1].detach() - energy[-2][mask_1].detach()
 
                 # if print the energy
                 if Lprint:

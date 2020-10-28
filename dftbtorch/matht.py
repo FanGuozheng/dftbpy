@@ -14,7 +14,7 @@ import numpy as np
 import torch as t
 import scipy.interpolate
 from torch.autograd import Variable
-import DFTBMaLT.dftbmalt.utils.batch as utilsbatch
+from ml.padding import pad1d, pad2d
 from torch.nn.utils.rnn import pad_sequence
 
 
@@ -431,8 +431,9 @@ class EigenSolver:
         chol_l = t.zeros(nbatch, maxind, maxind, dtype=A.dtype)
 
         # get the decomposition L, B = LL^{T} and padding zero
-        chol_l = utilsbatch.pack([t.cholesky(
-            iB[:self.norb[ii], :self.norb[ii]]) for iB, ii in zip(B, ibatch)])
+        chol_l = pad2d([t.cholesky(
+            iB[:self.norb[ii], :self.norb[ii]]) for ii, iB in enumerate(B)],
+            B.shape[1], B.shape[2])  # make sure the shape is consistent with B
 
         # directly use inverse matrix
         if direct_inv:
@@ -450,14 +451,15 @@ class EigenSolver:
 
             # get L^{-1}, the 1st method only work if all sizes are the same
             # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
-            linv = utilsbatch.pack([t.solve(t.eye(
+            linv = pad2d([t.solve(t.eye(
                 self.norb[ii]), il[:self.norb[ii], :self.norb[ii]])[0]
-                for il, ii in zip(chol_l, ibatch)])
+                for ii, il in enumerate(chol_l)], B.shape[1], B.shape[2])
 
             # get L^{-T}
             linvt = t.stack([il.T for il in linv])
 
             # (L^{-1} @ A) @ L^{-T}
+            print("linv_a_linvt", linv.shape, A.shape, linvt.shape)
             linv_a_linvt = linv @ A @ linvt
 
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
@@ -465,9 +467,9 @@ class EigenSolver:
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
         eigval_eigvec = [
             t.symeig(il[:self.norb[ii], :self.norb[ii]], eigenvectors=True)
-            for il, ii in zip(linv_a_linvt, ibatch)]
+            for ii, il in enumerate(linv_a_linvt)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
-        eigvec_ = utilsbatch.pack([i[1] for i in eigval_eigvec])
+        eigvec_ = pad2d([i[1] for i in eigval_eigvec], B.shape[1], B.shape[2])
 
         # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
         eigvec = linvt @ eigvec_

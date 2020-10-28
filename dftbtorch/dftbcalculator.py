@@ -284,15 +284,15 @@ class Rundftbpy:
         else:
             # non-SCC-DFTB
             if self.para['scc'] == 'nonscc':
-                scf.scf_npe_nscc(self.ibatch, self.para['Lbatch'])
+                scf.scf_npe_nscc(self.ibatch)
 
             # SCC-DFTB
             elif self.para['scc'] == 'scc':
-                scf.scf_npe_scc(self.ibatch, self.para['Lbatch'])
+                scf.scf_npe_scc(self.ibatch)
 
             # XLBOMD-DFTB
             elif self.para['scc'] == 'xlbomd':
-                scf.scf_npe_xlbomd(self.ibatch, self.para['Lbatch'])
+                scf.scf_npe_xlbomd(self.ibatch)
 
     def run_repulsive(self):
         """Calculate repulsive term."""
@@ -337,19 +337,31 @@ class SCF:
 
         # single systems
         self.batch = self.para['Lbatch']
-        hamt, smat = self.skf['hammat'], self.skf['overmat']
-        self.hmat = hamt if hamt.dim() == 3 else hamt.unsqueeze(0)
-        self.smat = smat if smat.dim() == 3 else smat.unsqueeze(0)
 
-        # multi systems
-        if self.batch:
-            # H0 after SK transformation
-            self.hmat = self.skf['hammat_']
-
-            # S after SK transformation
-            self.smat = self.skf['overmat_']
-
+        # batch size
         self.nb = self.dataset['nbatch']
+        self.mask = [[True] * self.nb]  # mask for convergence in batch
+
+        # batch calculations for multi systems
+        if self.batch:
+            self.ham_ = self.skf['hammat_']
+            self.over_ = self.skf['overmat_']
+
+        # single system calculations
+        else:
+            ham_, over_ = self.skf['hammat'], self.skf['overmat']
+            self.ham_ = ham_ if ham_.dim() == 3 else ham_.unsqueeze(0)
+            self.over_ = over_ if over_.dim() == 3 else over_.unsqueeze(0)
+
+        # transfer lower or upper H0, S to full symmetric H0, S
+        ind_nat = sum(self.dataset['atomind'])  # self.dataset['norbital']
+        if self.para['HSSymmetry'] == 'half':
+            self.ham = self.half_to_sym(self.ham_, ind_nat)
+            self.over = self.half_to_sym(self.over_, ind_nat)
+
+        # replace H0, S name for convenience
+        elif self.para['HSSymmetry'] == 'all':
+            self.ham, self.over = self.ham_, self.over_
 
         # number of atom in molecule
         self.nat = self.dataset['natomAll']
@@ -391,21 +403,7 @@ class SCF:
                                  init_mix_param=self.para['mixFactor'],
                                  generations=self.para['maxIter'])
 
-        # get the dimension of 2D H0, S
-        ind_nat = sum(self.dataset['atomind'])  # self.dataset['norbital']
-
-        if self.para['HSSymmetry'] == 'half':
-
-            # transfer H0, S from 1D to 2D
-            self.ham = self.half_to_sym(self.hmat, ind_nat)
-            self.over = self.half_to_sym(self.smat, ind_nat)
-
-        elif self.para['HSSymmetry'] == 'all':
-
-            # replace H0, S name for convenience
-            self.ham, self.over = self.hmat, self.smat
-
-    def scf_npe_nscc(self, ibatch=[0], Lbatch=False):
+    def scf_npe_nscc(self, ibatch=[0]):
         """DFTB for non-SCC, non-perodic calculation."""
         # get electron information, such as initial charge
         qatom = self.analysis.get_qatom(self.atomname, ibatch)
@@ -436,9 +434,6 @@ class SCF:
         self.para['nocc'] = nocc
 
         # calculate mulliken charges
-        '''self.para['charge'] = pad1d([self.elect.mulliken(
-            self.over[i], self.para['denmat'][i], self.atind[i], self.nat[i])
-            for i in range(self.nb)])'''
         self.para['charge'] = pad1d([self.elect.mulliken(i, j, m, n)
             for i, j, m, n in zip(self.over, self.para['denmat'], self.atind, self.nat)])
 
@@ -455,7 +450,7 @@ class SCF:
                 icount += 1
         return out_mat
 
-    def scf_npe_scc(self, ibatch=[0], Lbatch=False):
+    def scf_npe_scc(self, ibatch=[0]):
         """SCF for non-periodic-ML system with scc.
 
         atomind is the number of atom, for C, lmax is 2, therefore
@@ -483,7 +478,7 @@ class SCF:
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
                                               self.para['positions'])
 
-        qatom = self.analysis.get_qatom(self.atomname, ibatch, Lbatch)
+        qatom = self.analysis.get_qatom(self.atomname, ibatch, self.batch)
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
@@ -491,25 +486,25 @@ class SCF:
 
         # for single calculations, we calcualte only one system, such as qatom,
         # the dimension is [1, natom], therefore we get temporal ibatch as 0
-        ibatch_ = [0] if Lbatch is False else ibatch
-
+        # ibatch_ = [0] if self.batch is False else ibatch
         q_mixed = qzero.clone()
+        q_new = qzero.clone()
         for iiter in range(maxiter):
+            # get index of mask where is True
+            ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
 
             # The "shift_" term is the a product of the gamma and dQ values
             # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
-            # unstable: RuntimeError: Function 'BmmBackward' returned ...
-            # shift_ = t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat)
-            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ibatch_])
+            # t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat) is much faster,
+            # but unstable: RuntimeError: Function 'BmmBackward' returned ...
+            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])  # ibatch
 
-            # "n_orbitals" should be a system constant which should not be
-            # defined here.
-            if not Lbatch:
-                n_orbitals = [self.atind[ibatch[0]][:len(shift_[0])]]
-            else:
-                n_orbitals = self.atind
-            shiftorb_ = pad1d([ishif.repeat_interleave(iorb)
-                               for iorb, ishif in zip(n_orbitals, shift_)])
+            # repeat shift according to number of orbitals
+            # for convinience, we will keep the size of shiftorb_ unchanged
+            # during the dynamic SCC-DFTB batch calculations
+            shiftorb_ = pad1d([
+                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                    self.atind[self.mask[-1]], shift_)], self.ham.shape[1])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
@@ -518,13 +513,17 @@ class SCF:
             # relative value for true vectorisation. shift_mat is precomputed
             # to make the code easier to understand, however it will be removed
             # later in the development process to save on memory allocation.
-            F = self.ham + 0.5 * self.over * shift_mat
+            print(self.ham[self.mask[-1]].shape, self.over[self.mask[-1]].shape, shift_mat.shape)
+            F = self.ham[self.mask[-1]] + 0.5 * self.over[self.mask[-1]] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.over, self.batch, self.atind, ibatch)
+            epsilon, C = self.eigen.eigen(F, self.over[self.mask[-1]],
+                                          self.batch, self.atind[self.mask[-1]],
+                                          t.tensor(ibatch)[self.mask[-1]])
 
             # Calculate the occupation of electrons via the fermi method
-            occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
+            occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
+                                         self.para['tElec'])
 
             # build density according to occ and eigenvector
             # t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
@@ -534,8 +533,10 @@ class SCF:
             rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
             # calculate mulliken charges for each system in batch
-            q_new = pad1d([self.elect.mulliken(i, j, m, n)
-                           for i, j, m, n in zip(self.over, rho, self.atind, self.nat)])
+            q_new = pad1d([
+                self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
+                    self.over[self.mask[-1]], rho, self.atind[self.mask[-1]],
+                    t.tensor(self.nat)[self.mask[-1]])])
 
             # Last mixed charge is the current step now
             if not self.batch:
@@ -543,28 +544,28 @@ class SCF:
                 q_new_ = q_new[0][: natom]
                 q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
             else:
-                q_mixed = self.mixer(q_new, q_mixed)
+                q_mixed = self.mixer(q_new, q_mixed[self.mask[-1]], self.mask[-1])
 
             if self.para['convergenceType'] == 'energy':
-
                 # get energy: E0 + E_coul
                 convergencelist.append(
                     t.stack([iep @ iocc + 0.5 * ish @ (iqm + iqz)
                              for iep, iocc, ish, iqm, iqz in
-                             zip(epsilon, occ, shift_, q_mixed, qzero)]))
+                             zip(epsilon, occ, shift_, q_mixed, qzero[self.mask[-1]])]))
 
-                # print energy information
+                # return energy difference and print energy information
                 dif = self.print_.print_energy(iiter, convergencelist,
-                                               self.batch, self.nb)
+                                               self.batch, self.nb, self.mask)
 
             # use charge as convergence condition
             elif self.para['convergenceType'] == 'charge':
                 convergencelist.append(q_mixed)
                 dif = self.print_.print_charge(iiter, convergencelist, self.nat)
 
-            # if reached convergence
-            if self.convergence(iiter, maxiter, dif, self.batch,
-                                self.para['convergenceTolerance']):
+            # if reached convergence, and append mask
+            conver_, self.mask = self.convergence(
+                iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask)
+            if conver_:
                 self.para['reachConvergence'] = True
                 break
 
@@ -667,41 +668,73 @@ class SCF:
         self.para['eigenvalue'], self.para['charge'] = eigval_, qatom_
         self.para['denmat'] = denmat_
 
-    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6):
+    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6, mask=None, ind=None):
         """Convergence for SCC loops."""
         # for multi system, the max of difference will be chosen instead
-        if batch:
-            dif = dif.max()
+        difmax = dif.max() if batch else None
 
         # use energy as convergence condition
         if self.para['convergenceType'] == 'energy':
+            if not batch:
+                if abs(dif) < tolerance:
+                    return True, mask
 
-            if abs(dif) < tolerance:
-                return True
+                # read max iterations, end DFTB calculation
+                elif iiter + 1 >= maxiter:
+                    if abs(dif) > tolerance:
+                        print('Warning: SCF donot reach required convergence')
+                        return False, mask
+                # do not reach convergence and iiter < maxiter
+                else:
+                    return False, mask
+            elif batch:
+                # if mask.append(mask[-1]), all columns will change
+                mask.append([True if ii is True else False for ii in mask[-1]])
+                for ii, iind in enumerate(ind):
+                    if abs(dif[ii]) < tolerance:  # ii is index in not convergenced
+                        mask[-1][iind] = False  # iind is index in whole batch
+                if abs(difmax) < tolerance:
+                    return True, mask
 
-            # read max iterations, end DFTB calculation
-            elif iiter + 1 >= maxiter:
-                if abs(dif) > tolerance:
-                    print('Warning: SCF donot reach required convergence')
-                    return False
-
-            # do not reach convergence and iiter < maxiter
-            else:
-                return False
+                # read max iterations, end DFTB calculation
+                elif iiter + 1 >= maxiter:
+                    if abs(difmax) > tolerance:
+                        print('Warning: SCF donot reach required convergence')
+                        return False, mask
+                # do not reach convergence and iiter < maxiter
+                else:
+                    return False, mask
 
         # use charge as convergence condition
         elif self.para['convergenceType'] == 'charge':
-            if abs(dif) < tolerance:
-                return True
+            if not batch:
+                if abs(dif) < tolerance:
+                    return True, mask
 
-            # read max iterations, end DFTB calculation
-            elif iiter + 1 >= maxiter:
-                if abs(dif) > tolerance:
-                    print('Warning: SCF donot reach required convergence')
-                    return True
-            else:
-                return False
+                # read max iterations, end DFTB calculation
+                elif iiter + 1 >= maxiter:
+                    if abs(dif) > tolerance:
+                        print('Warning: SCF donot reach required convergence')
+                        return False, mask
+                else:
+                    return False, mask
 
+            elif batch:
+                for ii, iind in enumerate(ind):
+                    mask.append(mask[-1])
+                    if abs(dif[ii]) < tolerance:  # ii ==> not convergenced
+                        mask[-1][iind] = False  # iind ==> whole batch
+                if abs(difmax) < tolerance:
+                    return True, mask
+
+                # read max iterations, end DFTB calculation
+                elif iiter + 1 >= maxiter:
+                    if abs(difmax) > tolerance:
+                        print('Warning: SCF donot reach required convergence')
+                        return False, mask
+                # do not reach convergence and iiter < maxiter
+                else:
+                    return False, mask
 
 class Repulsive():
     """Calculate repulsive for DFTB."""

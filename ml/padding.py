@@ -10,7 +10,7 @@ import time
 from torch.nn.utils.rnn import pad_sequence
 
 
-def pad1d(in_tensor, transpose=True):
+def pad1d_(in_tensor, transpose=True):
     """Pad a list of 1D tensor when size is not the same.
 
     Parameters
@@ -37,7 +37,7 @@ def pad1d(in_tensor, transpose=True):
         return pad_sequence(in_tensor)
 
 
-def pad1d_(in_tensor):
+def pad1d(in_tensor, size=None):
     """Pad a list of 1D tensor when size is not the same.
 
     Parameters
@@ -58,10 +58,11 @@ def pad1d_(in_tensor):
     nbatch = len(in_tensor)
 
     # max size in batch
-    size = max(ibatch.shape for ibatch in in_tensor)
+    if size is None:
+        size = max(ibatch.shape[0] for ibatch in in_tensor)
 
     # define output tensor
-    out_batch = t.empty(nbatch, *size, dtype=in_tensor[0].dtype)
+    out_batch = t.zeros(nbatch, size, dtype=in_tensor[0].dtype)
 
     # get the output tensor
     for ibtch, ivalue in enumerate(in_tensor):
@@ -70,7 +71,7 @@ def pad1d_(in_tensor):
     return out_batch
 
 
-def pad2d(in_tensor):
+def pad2d(in_tensor, size0=None, size1=None):
     """Pad a list of 2D tensor when size is not the same.
 
     Parameters
@@ -89,10 +90,14 @@ def pad2d(in_tensor):
     nbatch = len(in_tensor)
 
     # max size in batch
-    size = max(ibatch.shape for ibatch in in_tensor)
-
-    # define output tensor
-    out_batch = t.zeros(nbatch, *size, dtype=in_tensor[0].dtype)
+    if size0 is None and size1 is None:
+        size = max(ibatch.shape for ibatch in in_tensor)
+        # define output tensor
+        out_batch = t.zeros(nbatch, *size, dtype=in_tensor[0].dtype)
+    else:
+        size = max(ibatch.shape for ibatch in in_tensor)
+        # define output tensor
+        out_batch = t.zeros(nbatch, size0, size1, dtype=in_tensor[0].dtype)
 
     # get the output tensor
     for ibtch, ivalue in enumerate(in_tensor):
