@@ -11,7 +11,7 @@ def main(parameter=None, dataset=None):
     # define general DFTB parameters dictionary
     parameter = [parameter, {}][parameter is None]
     dataset = [dataset, {}][dataset is None]
-    parameter['task'] = 'mlCompressionR'
+
     # get command line parameters, add t in parsert to avoid naming conflicts
     parameter = parsert.parser_cmd_args(parameter)
     init = Initialization(parameter, dataset)

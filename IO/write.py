@@ -91,12 +91,10 @@ class Print:
                 dE = energy[-1].detach() - energy[-2][mask_1].detach()
 
                 # if print the energy
-                if Lprint:
-                    assert nbatch is not None
-
-                    # print nth loop energy
-                    for i in range(nbatch):
-                        print(f'{iiter:5} {energy[-1].detach():25}', f'{dE:25}')
+                for isys, iconv in enumerate(mask[-1]):
+                    if iconv != mask[-2][isys]:
+                        print(f'{iiter:5} step: {isys + 1:5}',
+                              ' system reached convergence')
                 return dE
 
     def print_charge(self, iiter, charge, batch, nbatch=None, Lprint=False):

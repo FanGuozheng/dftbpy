@@ -432,8 +432,7 @@ class EigenSolver:
 
         # get the decomposition L, B = LL^{T} and padding zero
         chol_l = pad2d([t.cholesky(
-            iB[:self.norb[ii], :self.norb[ii]]) for ii, iB in enumerate(B)],
-            B.shape[1], B.shape[2])  # make sure the shape is consistent with B
+            iB[:self.norb[ii], :self.norb[ii]]) for ii, iB in enumerate(B)])
 
         # directly use inverse matrix
         if direct_inv:
@@ -453,13 +452,12 @@ class EigenSolver:
             # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
             linv = pad2d([t.solve(t.eye(
                 self.norb[ii]), il[:self.norb[ii], :self.norb[ii]])[0]
-                for ii, il in enumerate(chol_l)], B.shape[1], B.shape[2])
+                for ii, il in enumerate(chol_l)])
 
             # get L^{-T}
             linvt = t.stack([il.T for il in linv])
 
             # (L^{-1} @ A) @ L^{-T}
-            print("linv_a_linvt", linv.shape, A.shape, linvt.shape)
             linv_a_linvt = linv @ A @ linvt
 
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
@@ -469,7 +467,7 @@ class EigenSolver:
             t.symeig(il[:self.norb[ii], :self.norb[ii]], eigenvectors=True)
             for ii, il in enumerate(linv_a_linvt)]
         eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
-        eigvec_ = pad2d([i[1] for i in eigval_eigvec], B.shape[1], B.shape[2])
+        eigvec_ = pad2d([ieigv[1] for ieigv in eigval_eigvec])
 
         # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
         eigvec = linvt @ eigvec_

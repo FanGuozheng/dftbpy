@@ -192,7 +192,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'sizeDataset' not in dataset.keys():
-        dataset['sizeDataset'] = ['2']
+        dataset['sizeDataset'] = ['10']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'sizeTest' not in dataset.keys():
@@ -349,7 +349,7 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
 
     # how many steps for optimize in DFTB-ML !!
     if 'mlSteps' not in ml.keys():
-        ml['mlSteps'] = 5
+        ml['mlSteps'] = 30
 
     # how many steps to save the DFTB-ML data !!
     if 'saveSteps' not in ml.keys():

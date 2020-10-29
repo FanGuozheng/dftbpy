@@ -487,8 +487,8 @@ class SCF:
         # for single calculations, we calcualte only one system, such as qatom,
         # the dimension is [1, natom], therefore we get temporal ibatch as 0
         # ibatch_ = [0] if self.batch is False else ibatch
-        q_mixed = qzero.clone()
-        q_new = qzero.clone()
+        q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
+        # q_new = qzero.clone()
         for iiter in range(maxiter):
             # get index of mask where is True
             ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
@@ -504,7 +504,7 @@ class SCF:
             # during the dynamic SCC-DFTB batch calculations
             shiftorb_ = pad1d([
                 ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                    self.atind[self.mask[-1]], shift_)], self.ham.shape[1])
+                    self.atind[self.mask[-1]], shift_)])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
@@ -513,11 +513,12 @@ class SCF:
             # relative value for true vectorisation. shift_mat is precomputed
             # to make the code easier to understand, however it will be removed
             # later in the development process to save on memory allocation.
-            print(self.ham[self.mask[-1]].shape, self.over[self.mask[-1]].shape, shift_mat.shape)
-            F = self.ham[self.mask[-1]] + 0.5 * self.over[self.mask[-1]] * shift_mat
+            dim_ = shift_mat.shape[-1]   # the new dimension of max orbitals
+            F = self.ham[self.mask[-1]][:, :dim_, :dim_] + \
+                0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.over[self.mask[-1]],
+            epsilon, C = self.eigen.eigen(F, self.over[self.mask[-1]][:, :dim_, :dim_],
                                           self.batch, self.atind[self.mask[-1]],
                                           t.tensor(ibatch)[self.mask[-1]])
 
@@ -535,7 +536,7 @@ class SCF:
             # calculate mulliken charges for each system in batch
             q_new = pad1d([
                 self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
-                    self.over[self.mask[-1]], rho, self.atind[self.mask[-1]],
+                    self.over[self.mask[-1]][:, :dim_, :dim_], rho, self.atind[self.mask[-1]],
                     t.tensor(self.nat)[self.mask[-1]])])
 
             # Last mixed charge is the current step now
@@ -573,18 +574,28 @@ class SCF:
             del convergencelist[:-2]
 
         # return eigenvalue and charge
-        self.para['eigenvalue'], self.para['charge'] = epsilon, q_mixed
-
-        # return density matrix
-        self.para['denmat'] = rho
-
-        # return the eigenvector
-        self.para['eigenvec'] = C
+        self.para['charge'] = q_mixed
 
         # return the final shift
-        self.para['shift'] = shift_
-        self.para['occ'] = occ
-        self.para['nocc'] = nocc
+        self.para['shift'] = t.stack([(iqm - iqz) @ igm for iqm, iqz, igm
+                                      in zip(q_mixed, qzero, gmat)])
+        shiftorb = pad1d([
+                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                    self.atind, self.para['shift'])])
+        shift_mat = t.stack([t.unsqueeze(ish, 1) + ish for ish in shiftorb])
+        fock = self.ham + 0.5 * self.over * shift_mat
+        self.para['eigenvalue'], self.para['eigenvec'] = \
+            self.eigen.eigen(fock, self.over, self.batch, self.atind)
+
+        # return occupied states
+        self.para['occ'], self.para['nocc'] = \
+            self.elect.fermi(self.para['eigenvalue'], nelectron, self.para['tElec'])
+
+        # return density matrix
+        C_scaled = t.sqrt(self.para['occ']).unsqueeze(1).expand_as(
+            self.para['eigenvec']) * self.para['eigenvec']
+        self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
+
 
     def scf_pe_scc(self):
         """SCF for periodic."""
@@ -687,6 +698,8 @@ class SCF:
                 # do not reach convergence and iiter < maxiter
                 else:
                     return False, mask
+
+            # batch calculations
             elif batch:
                 # if mask.append(mask[-1]), all columns will change
                 mask.append([True if ii is True else False for ii in mask[-1]])
@@ -694,6 +707,7 @@ class SCF:
                     if abs(dif[ii]) < tolerance:  # ii is index in not convergenced
                         mask[-1][iind] = False  # iind is index in whole batch
                 if abs(difmax) < tolerance:
+                    print('All systems reached convergence')
                     return True, mask
 
                 # read max iterations, end DFTB calculation
@@ -719,12 +733,14 @@ class SCF:
                 else:
                     return False, mask
 
+            # batch calculations
             elif batch:
                 for ii, iind in enumerate(ind):
                     mask.append(mask[-1])
                     if abs(dif[ii]) < tolerance:  # ii ==> not convergenced
                         mask[-1][iind] = False  # iind ==> whole batch
                 if abs(difmax) < tolerance:
+                    print('All systems reached convergence')
                     return True, mask
 
                 # read max iterations, end DFTB calculation
@@ -1011,7 +1027,7 @@ class Analysis:
         if self.para['scc'] == 'scc':
             qzero = self.para['qzero']
 
-            # get Coulomb energy, normal code: shift_ @ (qatom + qzero) / 2
+            # Coulomb energy, single system code: shift_ @ (qatom + qzero) / 2
             self.para['coul_energy'] = t.bmm(
                 shift_.unsqueeze(1), (qatom + qzero).unsqueeze(2)).squeeze() / 2
 
