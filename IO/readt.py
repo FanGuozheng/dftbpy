@@ -91,7 +91,7 @@ class ReadInput:
         cal_coor: calculate input coordinate, return distance, atom specie...
     """
 
-    def __init__(self, parameter=None, dataset=None, skf=None):
+    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
         """Read parameters for DFTB from hsd, json files.
 
         Parameters
@@ -116,178 +116,34 @@ class ReadInput:
         # skf information
         self.skf = [skf, {}][skf is None]
 
-        # input file name
-        filename = self.para['inputName']
+        # skf information
+        self.ml = [ml, {}][ml is None]
 
         # multi options for parameters: defined json file,
-        if 'LReadInput' in self.para.keys():
+        if 'LReadInput' in self.para:
             if self.para['LReadInput']:
-
-                # directory of input file
+                # input file name and directory of input file
+                filename = self.para['inputName']
                 direct = self.para['directory']
                 self.inputfile = os.path.join(direct, filename)
 
-                # if file exists, read inputfile, else use default parameters
-                if os.path.isfile(self.inputfile):
-                    # read parameters from input json files if file exists
-                    with open(self.inputfile, 'r') as fp:
-                        # load json type file
-                        fpinput = json.load(fp)
-                        if 'general' in fpinput.keys():
-                            self.dftb_parameter = self.read_general_param()
-                        if 'analysis' in fpinput.keys():
-                            self.dftb_parameter = self.read_analysis_param()
-                        if 'geometry' in fpinput.keys():
-                            self.dftb_parameter = self.read_geometry_param()
+                # raise error if json file do not exist
+                if not os.path.isfile(self.inputfile):
+                    raise FileExistsError('%s do not exist' % self.inputfile)
 
-    def read_general_param(self):
-        """Read the general information from .json file."""
-        print("Read parameters from: ", self.inputfile)
+                self.read_param()
+
+    def read_param(self):
+        """Read parameters."""
         with open(self.inputfile, 'r') as fp:
             # load json type file
             fpinput = json.load(fp)
-
-            # parameter of task
-            if 'task' in fpinput['general']:
-                task = fpinput['general']['task']
-                if task in ('dftb', 'mlCompressionR', 'mlIntegral'):
-                    self.para['task'] = task
-                else:
-                    raise ValueError('task value not defined correctly')
-
-            # parameter of task
-            if 'directorySK' in fpinput['general']:
-                self.para['directorySK'] = fpinput['general']['directorySK']
-
-            # parameter of scc
-            if 'scc' in fpinput['general']:
-                scc = fpinput['general']['scc']
-                if scc in ('scc', 'nonscc', 'xlbomd'):
-                    self.para['scc'] = scc
-                else:
-                    raise ValueError('scc not defined correctly')
-
-            # perform ML or not
-            if 'Lml' in fpinput['general']:
-                Lml = fpinput['general']['Lml']
-                if Lml in ('T', 'True', 'true'):
-                    self.para['Lml'] = True
-                elif Lml in ('F', 'False', 'false'):
-                    self.para['Lml'] = False
-                else:
-                    raise ValueError('Lml not defined correctly')
-
-            # parameter: mixing parameters
-            if 'mixMethod' in fpinput['general']:
-                mixmethod = fpinput['general']['mixMethod']
-                if mixmethod in ('simple', 'anderson', 'broyden'):
-                    self.para['mixMethod'] = mixmethod
-                else:
-                    raise NotImplementedError('not implement the method', mixmethod)
-
-            # parameter: max iteration
-            if 'maxIteration' in fpinput['general']:
-                maxiter = fpinput['general']['maxIteration']
-                if type(maxiter) is int and 6 <= maxiter <= 100:
-                    self.para['maxIteration'] = maxiter
-                else:
-                    raise ValueError('maxIteration not defined correctly')
-
-            # parameter: mixFactor
-            if 'mixFactor' in fpinput['general']:
-                mixfactor = fpinput['general']['mixFactor']
-                if 0 < mixfactor < 1:
-                    self.para['mixFactor'] = mixfactor
-                else:
-                    raise ValueError('mixFactor not defined correctly')
-
-            # parameter of temperature: tElectron
-            if 'tElectron' in fpinput['general']:
-                telect = fpinput['general']['tElectron']
-                if 0. <= telect <= 1E3:
-                    self.para['tElec'] = telect
-                else:
-                    raise ValueError('tElectron not defined correctly')
-
-            # convergence type: energy, charge ...
-            if 'convergenceType' in fpinput['general']:
-                convergence = fpinput['general']['convergenceType']
-                if convergence in ('charge', 'energy'):
-                    self.para['convergenceType'] = convergence
-                else:
-                    raise ValueError('convergenceType not defined correctly')
-
-            # convergence tolerance
-            if 'convergenceTolerance' in fpinput['general']:
-                tol = fpinput['general']['convergenceTolerance']
-                if 0 < tol < 1E-2:
-                    self.para['convergenceTolerance'] = tol
-                else:
-                    raise ValueError('convergenceTolerance not defined correctly')
-
-            # periodic or molecule
-            if 'Lperiodic' in fpinput['general']:
-                period = fpinput['general']['periodic']
-                if period in ('True', 'T', 'true'):
-                    self.para['Lperiodic'] = True
-                elif period in ('False', 'F', 'false'):
-                    self.para['Lperiodic'] = False
-                else:
-                    raise ValueError('Lperiodic not defined correctly')
-
-    def read_analysis_param(self):
-        with open(self.inputfile, 'r') as fp:
-            # load json type file
-            fpinput = json.load(fp)
-            # if write dipole or not
-            if 'Ldipole' in fpinput['analysis']:
-                dipole = fpinput['analysis']['Ldipole']
-                if dipole in ('True', 'T', 'true'):
-                    self.para['Ldipole'] = True
-                elif dipole in ('False', 'F', 'false'):
-                    self.para['Ldipole'] = False
-                else:
-                    raise ValueError('dipole not defined correctly')
-
-            # if perform MBD-DFTB with CPA
-            if 'LMBD_DFTB' in fpinput['analysis']:
-                dipole = fpinput['analysis']['LMBD_DFTB']
-                if dipole in ('True', 'T', 'true'):
-                    self.para['LMBD_DFTB'] = True
-                elif dipole in ('False', 'F', 'false'):
-                    self.para['LMBD_DFTB'] = False
-                else:
-                    raise ValueError('LMBD_DFTB not defined correctly')
-
-            # if calculate repulsive part
-            if 'Lrepulsive' in fpinput['analysis']:
-                dipole = fpinput['analysis']['Lrepulsive']
-                if dipole in ('True', 'T', 'true'):
-                    self.para['Lrepulsive'] = True
-                elif dipole in ('False', 'F', 'false'):
-                    self.para['Lrepulsive'] = False
-                else:
-                    raise ValueError('Lrepulsive not defined correctly')
-
-    def read_geometry_param(self):
-        with open(self.inputfile, 'r') as fp:
-            # load json type file
-            fpinput = json.load(fp)
-            # type of coordinate C (Cartesian)
-            if 'type' in fpinput['geometry']:
-                coortype = fpinput['geometry']['periodic']
-                if coortype in ('C', 'Cartesian', 'cartesian'):
-                    self.para['positionType'] = 'C'
-                else:
-                    raise ValueError('positionType not defined correctly')
-
-            # read coordinate and atom number
-            if 'positions' in fpinput['geometry']:
-                self.dataset['positions'] = t.tensor(np.asarray(
-                    fpinput['geometry']['positions']))
-            if 'numbers' in fpinput['geometry']:
-                self.dataset['numbers'] = t.from_numpy(np.asarray(
-                    fpinput['geometry']['numbers']))
+            if 'general' in fpinput:
+                self.para.update(fpinput['general'])
+            if 'dataset' in fpinput:
+                self.dataset.update(fpinput['dataset'])
+            if 'ml' in fpinput:
+                self.ml.update(fpinput['ml'])
 
     def cal_neighbour(self):
         """Get number of neighbours, this is for solid."""

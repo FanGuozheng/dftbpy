@@ -2,22 +2,18 @@
 "general": 
   {
   "scc": "scc",
-  "periodic": "false",
+  "periodic": false,
   "mixMethod": "anderson",
   "mixFactor": 0.2,
   "tElec": 0,
   "task": "dftb",
   "maxIter": 60,
-  "directorySK": "../slko/test/"
+  "directorySK": "../slko/test/",
+  "writeMulliken": "True",
+  "Ldipole": "True"
   },
   
- "analysis":
-  {
-  "writeMulliken": "true",
-  "Ldipole": "true"
-  },
-  
-  "geometry":
+  "dataset":
   {
   "unit": [[10, 0, 0],[0, 10, 0], [0, 0, 10]],
   "positions":[[[-0.0034502,   0.01017081,  0.01938033],

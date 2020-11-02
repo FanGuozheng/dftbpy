@@ -243,11 +243,15 @@ class System:
             raise ValueError("numbers should be LongTensor or sequences")
 
         # tensor
-        if type(positions) is not t.Tensor:
-            raise ValueError("positions should be torch.Tensor")
+        if type(positions) is list:
+            self.positions = t.tensor(positions)
+        elif type(positions) is t.Tensor:
+            self.positions = positions
+        else:
+            raise ValueError("positions should be torch.Tensor or list")
 
         # transfer positions from angstrom to bohr
-        self.positions = positions / _bohr if unit == 'angstrom' else positions
+        self.positions = self.positions / _bohr if unit == 'angstrom' else self.positions
 
         # add one dimension for single system to satisfy batch calculations
         if self.numbers.dim() == 1:

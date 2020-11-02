@@ -12,7 +12,7 @@ from dftbtorch.periodic import Periodic
 from dftbtorch.matht import EigenSolver
 import dftbtorch.parameters as parameters
 import dftbtorch.parser as parser
-from IO.system import System
+from IO.systems import System
 from DFTBMaLT.dftbmalt.dftb.mixer import Simple, Anderson  # Broyden
 from dftbtorch.mbd import MBD
 from IO.write import Print
@@ -93,6 +93,7 @@ class Initialization:
     want to read dftb_in, set LReadInput as False.
 
     """
+
     def __init__(self, parameter, dataset=None, skf=None, ml=None):
         """Interface for different applications."""
         # get the constant DFTB parameters for DFTB
@@ -119,6 +120,7 @@ class Initialization:
 
         # get machine learning parameters dictionary, optional
         self.ml = ml
+
 
     def initialization_dftb(self):
         # get geometric, systematic information
@@ -154,8 +156,7 @@ class Initialization:
             for ib in range(self.dataset['nbatch']):
                 # SK transformations
                 SKTran(self.parameter, self.dataset, self.skf, self.ml, ib)
-        # elif self.skf['ReadSKType'] == 'compressionRadii':
-        #    GetSK_(self.parameter, self.dataset, self.skf, self.ml)
+
         elif self.skf['ReadSKType'] == 'mask':
             from IO.system import Basis, Bases
             from dftbtorch.sk import SKIntegralGenerator

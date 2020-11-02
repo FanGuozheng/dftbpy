@@ -26,134 +26,104 @@ def dftb_parameter(parameter=None):
     """
     parameter = {} if parameter is None else parameter
 
-    # Main task: dftb, mlCompressionR, mlIntegral
-    if 'task' not in parameter.keys():
-        parameter['task'] = 'dftb'
+    # build temporal dictionary, the input parameter will override parameter_
+    parameter_ = {
+        # task: dftb, mlCompressionR, mlIntegral
+        'task': 'dftb',
+
+        # precision control: t.float64, t.float32
+        'precision': t.float64,
+
+        # if True, read parameters from input (default name: dftb_in)
+        'LReadInput': False,
+
+        # SCC, non-SCC DFTB calculation
+        'scc': 'scc',
+
+        # if the system perodic condition, with lattice parameter
+        'Lperiodic': False,
+
+        # if calculate repulsive or not
+        'Lrepulsive': False,
+
+        # plot results during or after calculations
+        'Lplot': False,
+
+        # input (dftb_in) directory
+        'directory': path,
+
+        # SKF directory
+        'directorySK': path,
+
+        # input file name, default is dftb_in
+        'inputName': 'dftb_in',
+
+        # mixing method: simple. anderson, broyden
+        'mixMethod': 'anderson',
+
+        # mixing factor
+        'mixFactor': 0.2,
+
+        # convergence method: energy, charge
+        'convergenceType': 'energy',
+
+        # convergence tolerance
+        'convergenceTolerance': 1e-8,
+
+        # system temperature
+        'tElec': 0,
+
+        # max interation of SCC loop
+        'maxIteration': 60,
+
+        # density basis: spherical, gaussian
+        'densityProfile': 'spherical',
+
+        # coordinate type: 'C': cartesian...
+        'coordinateType': 'C',
+
+        # write H0, S: half (write upper or lower HS), all (write whole HS)
+        'HSSymmetry': 'all',
+
+        # general eigenvalue method: cholesky, lowdinQR
+        'eigenMethod': 'cholesky',
+
+        # MBD-DFTB
+        'LMBD_DFTB': False,
+
+        # omega grid
+        'nOmegaGrid': 15,
+        'vdwConsistent': False,
+        'beta': 1.05,
+
+        # calculate dipole
+        'Ldipole': True,
+
+        # if calculate PDOS
+        'Lpdos': False,
+        'Leigval': False,
+        'Lenergy': True,
+
+        # calculate HOMO-LUMO
+        'LHomoLumo': True}
+
+    # update temporal parameter_ with input parameter
+    parameter_.update(parameter)
 
     # is machine learning is on, it means that the task is machine learning
-    parameter['Lml'] = True if parameter['task'] in ('mlCompressionR', 'mlIntegral') else False
-
-    # precision control: t.float64, t.float32
-    if 'precision' not in parameter.keys():
-        parameter['precision'] = t.float64
+    parameter_['Lml'] = True if parameter_['task'] in ('mlCompressionR', 'mlIntegral') else False
 
     # batch calculation, usually True for machine learning
-    if 'Lbatch' not in parameter.keys():
-        parameter['Lbatch'] = True if parameter['Lml'] is True else False
-
-    # if True, read parameters from input (default name: dftb_in)
-    if 'LReadInput' not in parameter.keys():
-        parameter['LReadInput'] = False
-
-    # SCC, non-SCC DFTB calculation
-    if 'scc' not in parameter.keys():
-        parameter['scc'] = 'scc'
-
-    # if the system perodic condition, with lattice parameter, switch to True
-    if 'Lperiodic' not in parameter.keys():
-        parameter['Lperiodic'] = False
-
-    # if calculate repulsive or not
-    if 'Lrepulsive' not in parameter.keys():
-        parameter['Lrepulsive'] = False
-
-    # plot results during or after calculations
-    if 'Lplot' not in parameter.keys():
-        parameter['Lplot'] = False
-
-    # input (dftb_in) directory
-    if 'directory' not in parameter.keys():
-        parameter['directory'] = path
-
-    # SKF directory
-    if 'directorySK' not in parameter.keys():
-        parameter['directorySK'] = path
+    parameter_['Lbatch'] = True if parameter_['Lml'] is True else False
 
     # dire of skf dataset (write SKF as binary file)
-    if 'SKDataset' not in parameter.keys():
-        if parameter['task'] == 'mlCompressionR':
-            parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
-        elif parameter['task'] == 'mlIntegral':
-            parameter['SKDataset'] = '../slko/hdf/skfmio.hdf5'
-
-    # input file name, default is dftb_in
-    if 'inputName' not in parameter.keys():
-        parameter['inputName'] = 'dftb_in'
-
-    # mixing method: simple. anderson, broyden
-    if 'mixMethod' not in parameter.keys():
-        parameter['mixMethod'] = 'anderson'
-
-    # mixing factor
-    if 'mixFactor' not in parameter.keys():
-        parameter['mixFactor'] = 0.2
-
-    # convergence method: energy, charge
-    if 'convergenceType' not in parameter.keys():
-        parameter['convergenceType'] = 'energy'
-
-    # convergence tolerance
-    if 'convergenceTolerance' not in parameter.keys():
-        parameter['convergenceTolerance'] = 1e-8
-
-    # system temperature
-    if 'tElec' not in parameter.keys():
-        parameter['tElec'] = 0
-
-    # max interation of SCC loop
-    if 'maxIteration' not in parameter.keys():
-        parameter['maxIteration'] = 60
-
-    # density basis: spherical, gaussian
-    if 'densityProfile' not in parameter.keys():
-        parameter['densityProfile'] = 'spherical'
-
-    # coordinate type: 'C': cartesian...
-    if 'coordinateType' not in parameter.keys():
-        parameter['coordinateType'] = 'C'
-
-    # ******************************** H, S ********************************
-    # how to write H0, S: half (write upper or lower HS), all (write whole HS)
-    if 'HSSymmetry' not in parameter.keys():
-        parameter['HSSymmetry'] = 'all'
-
-    # general eigenvalue method: cholesky, lowdinQR
-    if 'eigenMethod' not in parameter.keys():
-        parameter['eigenMethod'] = 'cholesky'
-
-    # ****************************** MBD-DFTB ******************************
-    if 'LMBD_DFTB' not in parameter.keys():
-        parameter['LMBD_DFTB'] = False
-
-    # omega grid
-    if 'nOmegaGrid' not in parameter.keys():
-        parameter['nOmegaGrid'] = 15
-    if 'vdwConsistent' not in parameter.keys():
-        parameter['vdwConsistent'] = False
-    if 'beta' not in parameter.keys():
-        parameter['beta'] = 1.05
-
-    # **************************** Result *********************************
-    # calculate dipole
-    if 'Ldipole' not in parameter.keys():
-        parameter['Ldipole'] = True
-
-    # if calculate PDOS
-    if 'Lpdos' not in parameter.keys():
-        parameter['Lpdos'] = True
-
-    if 'Leigval' not in parameter.keys():
-        parameter['Leigval'] = False
-
-    if 'Lenergy' not in parameter.keys():
-        parameter['Lenergy'] = True
-
-    # calculate HOMO-LUMO
-    if 'LHomoLumo' not in parameter.keys():
-        parameter['LHomoLumo'] = True
+    if parameter_['task'] == 'mlCompressionR':
+        parameter_['SKDataset'] = '../slko/hdf/skf.hdf5'
+    elif parameter_['task'] == 'mlIntegral':
+        parameter_['SKDataset'] = '../slko/hdf/skfmio.hdf5'
 
     # return DFTB calculation parameters
-    return parameter
+    return parameter_
 
 
 def init_dataset(dataset=None):
@@ -174,61 +144,54 @@ def init_dataset(dataset=None):
     """
     dataset = {} if dataset is None else dataset
 
-    # optional datatype: ani, json, hdf
-    if 'datasetType' not in dataset.keys():
-        dataset['datasetType'] = 'ani'
+    dataset_ = {
+        # optional datatype: ani, json, hdf
+        'datasetType': 'ani',
 
-    # get the dataset path
-    if 'directoryDataset' not in dataset.keys():
-        dataset['directoryDataset'] = '../data/dataset/'
+        # get the dataset path
+        'directoryDataset': '../data/dataset/',
 
-    # directly read SKF or interpolate from a list of skf files
-    if 'LSKFinterpolation' not in dataset.keys():
-        dataset['LSKFinterpolation'] = False
+        # directly read SKF or interpolate from a list of skf files
+        'LSKFinterpolation': False,
 
-    # define path of files with feature information in machine learning
-    if 'pathFeature' not in dataset.keys():
-        dataset['pathFeature'] = '.'
+        # define path of files with feature information in machine learning
+        'pathFeature': '.',
 
-    # how many molecules for each molecule specie !!
-    if 'sizeDataset' not in dataset.keys():
-        dataset['sizeDataset'] = ['2']
+        # how many molecules for each molecule specie !!
+        'sizeDataset': ['2'],
 
-    # used to test (optimize ML algorithm parameters) !!
-    if 'sizeTest' not in dataset.keys():
-        dataset['sizeTest'] = ['2']
+        # used to test (optimize ML algorithm parameters) !!
+        'sizeTest': ['2'],
 
-    # mix different molecule specie type
-    if 'LdatasetMixture' not in dataset.keys():
-        dataset['LdatasetMixture'] = True
+        # mix different molecule specie type
+        'LdatasetMixture': True}
+
+    # update temporal dataset_ with input dataset
+    dataset_.update(dataset)
 
     # read json type geometry
-    if 'json' in dataset['datasetType']:
-
-        # path of data
-        if 'Dataset' not in dataset.keys():
-            dataset['Dataset'] = '../data/json/H2_data'
+    if 'json' in dataset_['datasetType']:
+        if 'Dataset' not in dataset_.keys():
+            dataset_['Dataset'] = '../data/json/H2_data'
 
     # read ANI dataset
-    elif 'ani' in dataset['datasetType']:
-
+    elif 'ani' in dataset_['datasetType']:
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
+        hdffilelist = os.path.join(dataset_['directoryDataset'], 'an1/ani_gdb_s01.h5')
 
         # transfer to list
-        if 'Dataset' not in dataset.keys():
-            dataset['Dataset'] = [hdffilelist]
+        if 'Dataset' not in dataset_.keys():
+            dataset_['Dataset'] = [hdffilelist]
 
     # read QM7 dataset
-    elif 'qm7' in dataset['datasetType']:
-
+    elif 'qm7' in dataset_['datasetType']:
         # define path and dataset name
-        dataset['Dataset'] = os.path.join(dataset['directoryDataset'], 'qm7.mat')
+        dataset_['Dataset'] = os.path.join(dataset_['directoryDataset'], 'qm7.mat')
 
     # test the molecule specie is the same (the length means speices size)
-    assert len(dataset['sizeDataset']) == len(dataset['sizeTest'])
+    assert len(dataset_['sizeDataset']) == len(dataset_['sizeTest'])
 
-    return dataset
+    return dataset_
 
 
 def init_ml(para=None, dataset=None, skf=None, ml=None):
@@ -349,7 +312,7 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
 
     # how many steps for optimize in DFTB-ML !!
     if 'mlSteps' not in ml.keys():
-        ml['mlSteps'] = 10
+        ml['mlSteps'] = 5
 
     # how many steps to save the DFTB-ML data !!
     if 'saveSteps' not in ml.keys():
@@ -445,77 +408,73 @@ def skf_parameter(skf=None):
     if skf is None:
         skf = {}
 
-    # read input skf type: normal, mask, compressionRadii, hdf
-    if 'ReadSKType' not in skf.keys():
-        skf['ReadSKType'] = 'normal'
+    skf_ = {
+        # SKF type: normal, mask, compressionRadii, hdf
+        'ReadSKType': 'normal',
 
-    # smooth the tail when read the skf
-    if 'LSmoothTail' not in skf.keys():
-        skf['LSmoothTail'] = True
+        # smooth the tail when read the skf
+        'LSmoothTail': True,
 
-    # skf file tail distance
-    if 'tailSKDistance' not in skf.keys():
-        skf['tailSKDistance'] = 1.0
+        # skf file tail distance
+        'tailSKDistance': 1.0,
 
-    # skf integral interpolation points number
-    if 'sizeInterpolationPoints' not in skf.keys():
-        skf['sizeInterpolationPoints'] = 8
+        # skf integral interpolation points number
+        'sizeInterpolationPoints': 8,
 
-    # SK transformation method
-    if 'transformationSK' not in skf.keys():
-        skf['transformationSK'] = 'new'
+        # SK transformation method
+        'transformationSK': 'new',
 
-    # delta distance when interpolate SKF integral when calculate gradient
-    if 'deltaSK' not in skf.keys():
-        skf['deltaSK'] = 1E-5
+        # delta distance when interpolate SKF integral when calculate gradient
+        'deltaSK': 1E-5,
 
-    # orbital resolved: if Ture, only use Hubbert of s orbital
-    if 'LOrbitalResolve' not in skf.keys():
-        skf['LOrbitalResolve'] = False
+        # orbital resolved: if Ture, only use Hubbert of s orbital
+        'LOrbitalResolve': False,
 
-    # if optimize (True) or fix (False) onsite in DFTB-ML
-    if 'Lonsite' not in skf.keys():
-        skf['Lonsite'] = False
+        # if optimize (True) or fix (False) onsite in DFTB-ML
+        'Lonsite': False}
 
-    # define onsite
-    if not skf['LOrbitalResolve']:
-        skf['onsiteHH'] = t.tensor((
+    # the parameters from skf will overwrite skf_ default parameters
+    skf_.update(skf)
+
+    # define onsite if not orbital resolved
+    if not skf_['LOrbitalResolve']:
+        skf_['onsiteHH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-        skf['onsiteCC'] = t.tensor((
+        skf_['onsiteCC'] = t.tensor((
             [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
             dtype=t.float64)
-        skf['onsiteNN'] = t.tensor((
+        skf_['onsiteNN'] = t.tensor((
             [0.0E+00, -2.607280834222E-01, -6.400000000000E-01]),
             dtype=t.float64)
-        skf['onsiteOO'] = t.tensor((
+        skf_['onsiteOO'] = t.tensor((
             [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
             dtype=t.float64)
 
         # Hubbert is not orbital resolved, value from skgen
-        skf['uhubbHH'] = t.tensor(([4.196174261214E-01,
-                                    4.196174261214E-01,
-                                    4.196174261214E-01]), dtype=t.float64)
-        skf['uhubbCC'] = t.tensor(([3.646664973641E-01,
-                                    3.646664973641E-01,
-                                    3.646664973641E-01]), dtype=t.float64)
-        skf['uhubbNN'] = t.tensor(([4.308879578818E-01,
-                                    4.308879578818E-01,
-                                    4.308879578818E-01]), dtype=t.float64)
-        skf['uhubbOO'] = t.tensor(([4.954041702122E-01,
-                                    4.954041702122E-01,
-                                    4.954041702122E-01]), dtype=t.float64)
+        skf_['uhubbHH'] = t.tensor(([4.196174261214E-01,
+                                     4.196174261214E-01,
+                                     4.196174261214E-01]), dtype=t.float64)
+        skf_['uhubbCC'] = t.tensor(([3.646664973641E-01,
+                                     3.646664973641E-01,
+                                     3.646664973641E-01]), dtype=t.float64)
+        skf_['uhubbNN'] = t.tensor(([4.308879578818E-01,
+                                     4.308879578818E-01,
+                                     4.308879578818E-01]), dtype=t.float64)
+        skf_['uhubbOO'] = t.tensor(([4.954041702122E-01,
+                                     4.954041702122E-01,
+                                     4.954041702122E-01]), dtype=t.float64)
 
     # Hubbert is orbital resolved
     # if use different parametrization method, remember revise value here
-    elif skf['LOrbitalResolve']:
-        skf['uhubbHH'] = t.tensor((
+    elif skf_['LOrbitalResolve']:
+        skf_['uhubbHH'] = t.tensor((
             [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-        skf['uhubbCC'] = t.tensor((
+        skf_['uhubbCC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]), dtype=t.float64)
-        skf['uhubbNN'] = t.tensor((
+        skf_['uhubbNN'] = t.tensor((
             [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]), dtype=t.float64)
-        skf['uhubbOO'] = t.tensor((
+        skf_['uhubbOO'] = t.tensor((
             [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]), dtype=t.float64)
 
     # return skf
-    return skf
+    return skf_

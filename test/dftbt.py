@@ -12,6 +12,11 @@ def main(parameter=None, dataset=None):
     parameter = [parameter, {}][parameter is None]
     dataset = [dataset, {}][dataset is None]
 
+    # if use this code directly to run DFTB(ML), please set the following
+    # parameter['task'] = 'mlIntegral'
+    # parameter['LReadInput'] = True  # default is False
+    # parameter['inputName'] = 'dftb_in.dftb'
+
     # get command line parameters, add t in parsert to avoid naming conflicts
     parameter = parsert.parser_cmd_args(parameter)
     init = Initialization(parameter, dataset)

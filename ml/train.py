@@ -29,7 +29,6 @@ class DFTBMLTrain:
     def __init__(self, init=None, parameter=None, dataset=None, skf=None, ml=None):
         """Initialize parameters."""
         time_begin = time.time()
-        # general, dataset, skf, ML parameters (dictionaries)
 
         if init is None:
             self.parameter = [parameter, {}][parameter is None]
@@ -41,6 +40,7 @@ class DFTBMLTrain:
             self.init = dftbcalculator.Initialization(
                     self.parameter, self.dataset, self.skf, self.ml)
         else:
+            self.init = init
             self.parameter = init.parameter
             self.dataset = init.dataset
             self.skf = init.skf
@@ -99,18 +99,19 @@ class DFTBMLTrain:
         """Run machine learning optimization."""
         # optimize integrals directly
         if self.parameter['task'] == 'mlIntegral':
-            MLIntegral(self.parameter, self.dataset, self.skf, self.ml)
+            MLIntegral(self.init, self.parameter, self.dataset, self.skf, self.ml)
 
         # optimize compression radius and then generate integrals
         elif self.parameter['task'] == 'mlCompressionR':
-            MLCompressionR(self.parameter, self.dataset, self.skf, self.ml)
+            MLCompressionR(self.init, self.parameter, self.dataset, self.skf, self.ml)
 
 
 class MLIntegral:
     """Optimize integrals."""
 
-    def __init__(self, parameter, dataset, skf, ml):
+    def __init__(self, init, parameter, dataset, skf, ml):
         """Initialize parameters."""
+        self.init = init
         self.para = parameter
         self.dataset = dataset
         self.skf = skf
@@ -186,7 +187,7 @@ class MLIntegral:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+        self.init.initialization_dftb()
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -242,8 +243,9 @@ class MLIntegral:
 class MLCompressionR:
     """Optimize compression radii."""
 
-    def __init__(self, para, dataset, skf, ml):
+    def __init__(self, init, para, dataset, skf, ml):
         """Initialize parameters."""
+        self.init = init
         self.para = para
         self.dataset = dataset
         self.skf = skf
@@ -268,7 +270,8 @@ class MLCompressionR:
         # set coordinates type
         get_coor(self.dataset)
 
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+        self.init.initialization_dftb()
+        print("self.dataset['symbols']", self.dataset['symbols'])
         self.slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
 
         # get nbatch * natom * natom * [ncompr, ncompr, 20] integrals

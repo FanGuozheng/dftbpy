@@ -14,30 +14,30 @@ def parser_cmd_args(para=None):
     _description = 'get DFTB-ML parameters'
     parser = argparse.ArgumentParser(description=_description)
 
-    # default task: dftb, mlCompressionR, mlIntegral
+    # get task from command line else return None
     msg = 'task of DFTB-ML framework'
-    parser.add_argument('-t', '--task', default='dftb', help=msg)
+    parser.add_argument('-t', '--task', help=msg)
 
-    # default running path
+    # default running path is current path
     msg = 'Running directory (default: .)'
     parser.add_argument('-d', '--directory', default='.', help=msg)
 
-    # default SK path
-    msg = 'Slater-Koster directory (default: .)'
-    parser.add_argument('-dsk', '--directorySK', default='.', help=msg)
+    # get directory of SKF from command line else return None
+    msg = 'Slater-Koster directory'
+    parser.add_argument('-dsk', '--directorySK', help=msg)
 
-    # default input data path
-    msg = 'Directory saving data (default: .)'
-    parser.add_argument('-dsave', '--directoryData', default='.', help=msg)
+    # get directory of input dataset from command line else return None
+    msg = 'Directory saving data'
+    parser.add_argument('-dsave', '--directoryData', help=msg)
 
-    # default input file name
+    # get directory of input file name from command line else return None
     msg = 'input file name'
-    parser.add_argument('-in', '--inputname', type=str, default='dftb_in',
-                        metavar='NAME', help=msg)
+    parser.add_argument('-in', '--inputname', metavar='NAME', help=msg)
 
-    # L means logical, LReadInput defines if read parameters from dftb_in
-    msg = 'Read input from dftb_in. default: True'
-    parser.add_argument('-Lread', '--LReadInput', default=True, help=msg)
+    # LReadInput defines if read parameters from dftb_in
+    # it will automatically switch to True if you define input file name
+    msg = 'Read input from dftb_in'
+    parser.add_argument('-Lread', '--LReadInput', help=msg)
 
     args, unkown = parser.parse_known_args()
 
@@ -45,27 +45,26 @@ def parser_cmd_args(para=None):
     path = os.getcwd()
 
     # add task
-    if 'task' not in para:
+    if args.task is not None:
         para['task'] = args.task
 
     # add calculation path
-    if 'directory' not in para:
+    if args.directory is not None:
         para['directory'] = os.path.join(path, args.directory)
 
     # add sk path
-    if 'directorySK' not in para:
+    if args.directorySK is not None:
         para['directorySK'] = os.path.join(path, args.directorySK)
 
     # add input data path
-    if 'directoryData' not in para:
+    if args.directoryData is not None:
         para['directoryData'] = os.path.join(path, args.directoryData)
 
-    # add input file name
-    if 'inputName' not in para:
+    # add input file name, in this case read the input is True
+    if args.inputname is not None:
         para['inputName'] = args.inputname
 
-    # add if read parameters from dftb_in
-    if 'LReadInput' not in para:
-        para['LReadInput'] = args.LReadInput
+        # if you define input file, it suggests the code will read the input
+        para['LReadInput'] = True
 
     return para
