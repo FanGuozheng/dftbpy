@@ -1084,14 +1084,14 @@ class Analysis:
     def pdos(self):
         """Calculate PDOS."""
         # calculate pdos
-        self.para['pdos_E'] = t.linspace(-20, 20, 1000, dtype=t.float64)
+        self.para['pdos_E'] = t.linspace(5, 10, 1000, dtype=t.float64)
 
         self.para['pdos'] = dos.PDoS(
             # C eigen vector, the 1st dimension is batch dimension
             self.para['eigenvec'].transpose(1, 2),
 
             # overlap
-            self.para['overmat'],
+            self.skf['overmat'],
 
             # PDOS energy
             self.para['pdos_E'],
@@ -1101,3 +1101,6 @@ class Analysis:
 
             # gaussian smearing
             sigma=1E-1)
+        import matplotlib.pyplot as plt
+        plt.plot(self.para['pdos_E'], self.para['pdos'].squeeze())
+        print('dos', self.para['pdos'].squeeze().shape)

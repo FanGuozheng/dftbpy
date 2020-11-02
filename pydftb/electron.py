@@ -8,7 +8,7 @@ class DFTB_elect:
     def __init__(self, para):
         self.para = para
 
-    def fermi(self, eigval, occ):
+    def fermi(self, eigval):
         nelect = self.para['nelectrons']
         natom = self.para['natom']
         atomind = self.para['atomind']
@@ -18,6 +18,7 @@ class DFTB_elect:
         degtol = 1.0E-4
         racc = 2E-16
         dacc = 4 * racc
+        occ = np.zeros(norbs)
         for i in range(1, norbs):
             occ[i] = 0.0
         if nelect > 1.0E-5:
@@ -144,9 +145,8 @@ class DFTB_elect:
         return gval
 
     def shifthamgam(self, natom, qatom, qzero, gmat):
-        qdiff = np.zeros(natom)
         shift = []
-        qdiff[:] = qatom[:] - qzero[:]
+        qdiff = qatom - qzero
         for i in range(0, natom):
             shifti = 0
             for j in range(0, natom):
@@ -162,18 +162,8 @@ class DFTB_elect:
         return shift
 
     def mulliken(self, overmat, denmat):
-        '''calculate Mulliken charge'''
-        natom = self.para['natom']
+        """Calculate Mulliken charge."""
         atomind = self.para['atomind']
-        norbs = int(atomind[natom])
-        qat = np.zeros((natom), dtype=float)
-        for ii in range(natom):
-            qat[ii] = 0.0
-            for i in range(int(atomind[ii]), int(atomind[ii+1])):
-                for j in range(0, i):
-                    k = i*(i+1)/2+j
-                    qat[ii] = qat[ii]+denmat[int(k)]*overmat[int(k)]
-                for j in range(i, norbs):
-                    k = j*(j+1)/2+i
-                    qat[ii] = qat[ii]+denmat[int(k)]*overmat[int(k)]
-        return qat
+        charge_orbital = np.sum(denmat * overmat, axis=1)
+        return np.array([sum(charge_orbital[ii:jj])
+                         for ii, jj in zip(atomind[:-1], atomind[1:])])

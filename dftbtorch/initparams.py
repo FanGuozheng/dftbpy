@@ -140,7 +140,7 @@ def dftb_parameter(parameter=None):
 
     # if calculate PDOS
     if 'Lpdos' not in parameter.keys():
-        parameter['Lpdos'] = False
+        parameter['Lpdos'] = True
 
     if 'Leigval' not in parameter.keys():
         parameter['Leigval'] = False
@@ -192,7 +192,7 @@ def init_dataset(dataset=None):
 
     # how many molecules for each molecule specie !!
     if 'sizeDataset' not in dataset.keys():
-        dataset['sizeDataset'] = ['10']
+        dataset['sizeDataset'] = ['2']
 
     # used to test (optimize ML algorithm parameters) !!
     if 'sizeTest' not in dataset.keys():
@@ -349,7 +349,7 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
 
     # how many steps for optimize in DFTB-ML !!
     if 'mlSteps' not in ml.keys():
-        ml['mlSteps'] = 30
+        ml['mlSteps'] = 10
 
     # how many steps to save the DFTB-ML data !!
     if 'saveSteps' not in ml.keys():
