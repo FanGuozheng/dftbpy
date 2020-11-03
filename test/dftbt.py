@@ -12,24 +12,27 @@ def main(parameter=None, dataset=None):
     parameter = [parameter, {}][parameter is None]
     dataset = [dataset, {}][dataset is None]
 
-    # if use this code directly to run DFTB(ML), please set the following
-    # parameter['task'] = 'mlIntegral'
+    # if use this code directly to run DFTB
+    # parameter['task'] = 'dftb'
     # parameter['LReadInput'] = True  # default is False
     # parameter['inputName'] = 'dftb_in.dftb'
 
+    # if use this code directly to optimize compression radii
+    # parameter['task'] = 'mlCompressionR'
+
     # get command line parameters, add t in parsert to avoid naming conflicts
     parameter = parsert.parser_cmd_args(parameter)
-    init = Initialization(parameter, dataset)
+    # init = Initialization(parameter, dataset)
 
     # run optional task
     if parameter['task'] == 'dftb':
-        DFTBCalculator(init, parameter)
+        DFTBCalculator(parameter)
 
     elif parameter['task'] in ('mlCompressionR', 'mlIntegral'):
-        DFTBMLTrain(init, parameter)
+        DFTBMLTrain(parameter)
 
     elif parameter['task'] == 'test':
-        DFTBMLTest(init, parameter)
+        DFTBMLTest(parameter)
 
 
 if __name__ == "__main__":

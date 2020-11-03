@@ -24,7 +24,7 @@ import dftbtorch.initparams as initpara
 class DFTBCalculator:
     """DFTB calculator."""
 
-    def __init__(self, init=None, parameter=None, dataset=None, skf=None, ml=None):
+    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
         """Collect data, run DFTB calculations and return results.
 
         Args:
@@ -39,34 +39,54 @@ class DFTBCalculator:
 
         """
         # define general DFTB parameters dictionary
-        self.init = init
-        if self.init is None:
-            self.parameter = [parameter, {}][parameter is None]
+        '''self.parameter = [parameter, {}][parameter is None]
 
-            # define dataset and geometric dictionary
-            self.dataset = [dataset, {}][dataset is None]
+        # define dataset and geometric dictionary
+        self.dataset = [dataset, {}][dataset is None]
 
-            # define slater-koster dictionary
-            self.skf = [skf, {}][skf is None]
+        # define slater-koster dictionary
+        self.skf = [skf, {}][skf is None]
 
-            # define machine learning dictionary, this is optional for DFTB
-            self.ml = ml
-            self.init = Initialization(self.parameter, self.dataset, self.skf, self.ml)
-        else:
-            self.parameter = self.init.parameter
-            self.dataset = self.init.dataset
-            self.skf = self.init.skf
-            self.ml = self.init.ml
+        # define machine learning dictionary, this is optional for DFTB
+        self.ml = [ml, {}][ml is None]'''
 
-        # return hamiltonian, overlap from input parameters and skf data
+        # initialize parameters
+        self.init = Initialization(parameter, dataset, skf, ml)
+
+        # return DFTB parameters and skf data
         self.initialization()
+
+        # update parameter, dataset, skf if init is None
+        self.parameter = self.init.parameter
+        self.dataset = self.init.dataset
+        self.skf = self.init.skf
+        self.ml = self.init.ml
 
         # run DFTB calculations
         self.run_dftb()
 
     def initialization(self):
         """Initialize DFTB, geometric, skf, dataset, ML parametes."""
-        self.init.initialization_dftb()
+        self.init.initialize_parameter()
+        self.init.initialize_dftb()
+
+    def run_sk(self, ibatch=None):
+        """Read integrals and perform SK transformations.
+
+        Read integrals from .skf
+        direct offer integral
+        get integrals by interpolation from a list of skf files.
+
+        """
+        # do not perform machine learning
+        if not self.parameter['Lml']:
+
+            # get integral from directly reading skf file
+            if not self.dataset['LSKFinterpolation']:
+
+                # SK transformations
+                SKTran(self.parameter, self.dataset, self.skf, self.ml, ibatch)
+        return self.skf
 
     def run_dftb(self):
         """Run DFTB code."""
@@ -100,12 +120,18 @@ class Initialization:
         self.parameter = parameters.constant_parameter(parameter)
         self.parameter = parser.parser_cmd_args(self.parameter)
         self.dataset = [dataset, {}][dataset is None]
+        self.skf = [skf, {}][skf is None]
+        self.ml = [ml, {}][ml is None]
 
         if 'precision' in self.parameter.keys():
             t.set_default_dtype(d=self.parameter['precision'])
         else:
             t.set_default_dtype(d=t.float64)
 
+        # self.initialize_parameter()
+        # self.initialize_dftb()
+
+    def initialize_parameter(self):
         # return/update DFTB, geometric, skf parameters from input
         readt.ReadInput(self.parameter, self.dataset)
 
@@ -113,16 +139,12 @@ class Initialization:
         self.parameter = initpara.dftb_parameter(self.parameter)
 
         # get SKF parameters dictionary
-        self.skf = initpara.skf_parameter(skf)
+        self.skf = initpara.skf_parameter(self.skf)
 
         # get dataset parameters dictionary
-        self.dataset = initpara.init_dataset(dataset)
+        self.dataset = initpara.init_dataset(self.dataset)
 
-        # get machine learning parameters dictionary, optional
-        self.ml = ml
-
-
-    def initialization_dftb(self):
+    def initialize_dftb(self):
         # get geometric, systematic information
         if type(self.dataset['numbers'][0]) is list:
             self.dataset['numbers'] = pad1d([t.tensor(ii) for ii in self.dataset['numbers']])
@@ -203,24 +225,6 @@ class Initialization:
 
         # transfer to tensor
         self.parameter['this_U'] = t.tensor(this_U, dtype=t.float64)
-
-    def run_sk(self, ibatch=None):
-        """Read integrals and perform SK transformations.
-
-        Read integrals from .skf
-        direct offer integral
-        get integrals by interpolation from a list of skf files.
-
-        """
-        # do not perform machine learning
-        if not self.parameter['Lml']:
-
-            # get integral from directly reading skf file
-            if not self.dataset['LSKFinterpolation']:
-
-                # SK transformations
-                SKTran(self.parameter, self.dataset, self.skf, self.ml, ibatch)
-        return self.skf
 
 
 class Rundftbpy:

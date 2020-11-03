@@ -5,7 +5,6 @@ import torch as t
 import time
 import dftbtorch.dftbcalculator as dftbcalculator
 from dftbtorch.sk import SKTran, GetSKTable, GetSK_
-import utils.plot as plot
 import dftbtorch.initparams as initpara
 import ml.interface as interface
 from ml.feature import ACSF as acsfml
@@ -13,7 +12,6 @@ from ml.padding import pad1d
 from IO.dataloader import LoadData, LoadReferenceData
 from IO.save import Save1D, Save2D
 from utils.runcalculation import RunReference
-import dftbmalt.utils.maths as maths
 from ml.padding import pad1d, pad2d
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 VAL_ORB = {"H": 1, "C": 2, "N": 2, "O": 2, "Ti": 3}
@@ -26,25 +24,23 @@ DFTB_ENERGY = {"H": -0.238600544, "C": -1.398493891, "N": -2.0621839400,
 class DFTBMLTrain:
     """DFTB machine learning."""
 
-    def __init__(self, init=None, parameter=None, dataset=None, skf=None, ml=None):
+    def __init__(self, parameter=None, dataset=None, skf=None, ml=None):
         """Initialize parameters."""
         time_begin = time.time()
 
-        if init is None:
+        '''if init is None:
             self.parameter = [parameter, {}][parameter is None]
             self.dataset = [dataset, {}][dataset is None]
             self.skf = [skf, {}][skf is None]
-            self.ml = [ml, {}][ml is None]
+            self.ml = [ml, {}][ml is None]'''
 
-            # initialize general, DFTB, dataset parameters
-            self.init = dftbcalculator.Initialization(
-                    self.parameter, self.dataset, self.skf, self.ml)
-        else:
-            self.init = init
-            self.parameter = init.parameter
-            self.dataset = init.dataset
-            self.skf = init.skf
-            self.ml = ml
+        # initialize general, DFTB, dataset parameters
+        self.init = dftbcalculator.Initialization(parameter, dataset, skf, ml)
+        self.init.initialize_parameter()
+        self.parameter = self.init.parameter
+        self.dataset = self.init.dataset
+        self.skf = self.init.skf
+        self.ml = ml
 
         # detect automatically
         t.autograd.set_detect_anomaly(True)
@@ -75,8 +71,8 @@ class DFTBMLTrain:
 
     def initialization_ml(self):
         """Initialize machine learning parameters."""
-                # remove some documents
-        os.system('rm .data/loss.dat .data/compr.dat')
+        # remove some documents
+        os.system('rm loss.dat compr.dat')
 
         self.parameter, self.dataset, self.skf, self.ml = \
             initpara.init_ml(self.parameter, self.dataset, self.skf, self.ml)
@@ -99,19 +95,18 @@ class DFTBMLTrain:
         """Run machine learning optimization."""
         # optimize integrals directly
         if self.parameter['task'] == 'mlIntegral':
-            MLIntegral(self.init, self.parameter, self.dataset, self.skf, self.ml)
+            MLIntegral(self.parameter, self.dataset, self.skf, self.ml)
 
         # optimize compression radius and then generate integrals
         elif self.parameter['task'] == 'mlCompressionR':
-            MLCompressionR(self.init, self.parameter, self.dataset, self.skf, self.ml)
+            MLCompressionR(self.parameter, self.dataset, self.skf, self.ml)
 
 
 class MLIntegral:
     """Optimize integrals."""
 
-    def __init__(self, init, parameter, dataset, skf, ml):
+    def __init__(self, parameter, dataset, skf, ml):
         """Initialize parameters."""
-        self.init = init
         self.para = parameter
         self.dataset = dataset
         self.skf = skf
@@ -131,7 +126,8 @@ class MLIntegral:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        dftbcalculator.Initialization(self.para, self.dataset, self.skf).initialization_dftb()
+        dftbcalculator.Initialization(
+            self.para, self.dataset, self.skf).initialize_dftb()
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -187,7 +183,8 @@ class MLIntegral:
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
-        self.init.initialization_dftb()
+        dftbcalculator.Initialization(
+            self.para, self.dataset, self.skf).initialize_dftb()
 
         # get natom * natom * [ncompr, ncompr, 20] for interpolation DFTB
         self.skf['hs_compr_all_'] = []
@@ -243,9 +240,8 @@ class MLIntegral:
 class MLCompressionR:
     """Optimize compression radii."""
 
-    def __init__(self, init, para, dataset, skf, ml):
+    def __init__(self, para, dataset, skf, ml):
         """Initialize parameters."""
-        self.init = init
         self.para = para
         self.dataset = dataset
         self.skf = skf
@@ -267,11 +263,14 @@ class MLCompressionR:
 
     def process_dataset(self):
         """Get all parameters for compression radii machine learning."""
-        # set coordinates type
+        # deal with coordinates type
         get_coor(self.dataset)
 
-        self.init.initialization_dftb()
-        print("self.dataset['symbols']", self.dataset['symbols'])
+        # get DFTB system information
+        dftbcalculator.Initialization(
+            self.para, self.dataset, self.skf, self.ml).initialize_dftb()
+
+        # get SK parameters (integral tables)
         self.slako = GetSK_(self.para, self.dataset, self.skf, self.ml)
 
         # get nbatch * natom * natom * [ncompr, ncompr, 20] integrals

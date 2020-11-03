@@ -8,7 +8,7 @@ import torch as t
 path = os.getcwd()
 
 
-def dftb_parameter(parameter=None):
+def dftb_parameter(parameter_=None):
     """Return the general parameters for DFTB calculations.
 
     This function demonstrates the definition of general DFTB parameters.
@@ -24,10 +24,10 @@ def dftb_parameter(parameter=None):
             defined in advance.
 
     """
-    parameter = {} if parameter is None else parameter
+    parameter_ = {} if parameter_ is None else parameter_
 
-    # build temporal dictionary, the input parameter will override parameter_
-    parameter_ = {
+    # build new dictionary, the input parameter_ will override parameter
+    parameter = {
         # task: dftb, mlCompressionR, mlIntegral
         'task': 'dftb',
 
@@ -108,25 +108,25 @@ def dftb_parameter(parameter=None):
         'LHomoLumo': True}
 
     # update temporal parameter_ with input parameter
-    parameter_.update(parameter)
+    parameter.update(parameter_)
 
     # is machine learning is on, it means that the task is machine learning
-    parameter_['Lml'] = True if parameter_['task'] in ('mlCompressionR', 'mlIntegral') else False
+    parameter['Lml'] = True if parameter['task'] in ('mlCompressionR', 'mlIntegral') else False
 
     # batch calculation, usually True for machine learning
-    parameter_['Lbatch'] = True if parameter_['Lml'] is True else False
+    parameter['Lbatch'] = True if parameter['Lml'] is True else False
 
     # dire of skf dataset (write SKF as binary file)
-    if parameter_['task'] == 'mlCompressionR':
-        parameter_['SKDataset'] = '../slko/hdf/skf.hdf5'
-    elif parameter_['task'] == 'mlIntegral':
-        parameter_['SKDataset'] = '../slko/hdf/skfmio.hdf5'
+    if parameter['task'] == 'mlCompressionR':
+        parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
+    elif parameter['task'] == 'mlIntegral':
+        parameter['SKDataset'] = '../slko/hdf/skfmio.hdf5'
 
     # return DFTB calculation parameters
-    return parameter_
+    return parameter
 
 
-def init_dataset(dataset=None):
+def init_dataset(dataset_=None):
     """Return the dataset or geometric parameters for DFTB calculations.
 
     If parameters in dataset have nothing to do with ML, the parameters will be
@@ -142,9 +142,9 @@ def init_dataset(dataset=None):
             defined in advance.
 
     """
-    dataset = {} if dataset is None else dataset
+    dataset_ = {} if dataset_ is None else dataset_
 
-    dataset_ = {
+    dataset = {
         # optional datatype: ani, json, hdf
         'datasetType': 'ani',
 
@@ -167,34 +167,34 @@ def init_dataset(dataset=None):
         'LdatasetMixture': True}
 
     # update temporal dataset_ with input dataset
-    dataset_.update(dataset)
+    dataset.update(dataset_)
 
     # read json type geometry
-    if 'json' in dataset_['datasetType']:
-        if 'Dataset' not in dataset_.keys():
-            dataset_['Dataset'] = '../data/json/H2_data'
+    if 'json' in dataset['datasetType']:
+        if 'Dataset' not in dataset.keys():
+            dataset['Dataset'] = '../data/json/H2_data'
 
     # read ANI dataset
-    elif 'ani' in dataset_['datasetType']:
+    elif 'ani' in dataset['datasetType']:
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist = os.path.join(dataset_['directoryDataset'], 'an1/ani_gdb_s01.h5')
+        hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
 
         # transfer to list
-        if 'Dataset' not in dataset_.keys():
-            dataset_['Dataset'] = [hdffilelist]
+        if 'Dataset' not in dataset.keys():
+            dataset['Dataset'] = [hdffilelist]
 
     # read QM7 dataset
-    elif 'qm7' in dataset_['datasetType']:
+    elif 'qm7' in dataset['datasetType']:
         # define path and dataset name
-        dataset_['Dataset'] = os.path.join(dataset_['directoryDataset'], 'qm7.mat')
+        dataset['Dataset'] = os.path.join(dataset['directoryDataset'], 'qm7.mat')
 
     # test the molecule specie is the same (the length means speices size)
-    assert len(dataset_['sizeDataset']) == len(dataset_['sizeTest'])
+    assert len(dataset['sizeDataset']) == len(dataset['sizeTest'])
 
-    return dataset_
+    return dataset
 
 
-def init_ml(para=None, dataset=None, skf=None, ml=None):
+def init_ml(para=None, dataset=None, skf=None, ml_=None):
     """Return the machine learning parameters for DFTB calculations.
 
     Args:
@@ -207,23 +207,77 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
 
     """
     para = {} if para is None else para
-    ml = {} if ml is None else ml
+    ml_ = {} if ml_ is None else ml_
     dataset = {} if dataset is None else dataset
     skf = {} if skf is None else skf
 
-    # machine learning algorithm: linear, svm, schnet, nn...!!!!
-    if 'MLmodel' not in ml.keys():
-        ml['MLmodel'] = 'linear'
+    ml = {
+        # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
+        'target': 'dipole',
+
+        # define weight in loss function
+        'LossRatio': [1],
+
+        # how many steps for optimize in DFTB-ML !!
+        'mlSteps': 5,
+
+        # how many steps to save the DFTB-ML data !!
+        'saveSteps': 2,
+
+        # minimum ML steps
+        'stepMin': 2,
+
+        # learning rate !!
+        'lr': 3E-2,
+
+        # optimizer
+        'optimizer': 'Adam',
+
+        # define loss function: MSELoss, L1Loss
+        'lossFunction': 'MSELoss',
+
+        # ML energy type: total energy with offset or formation energy
+        'mlEnergyType': 'formationEnergy',
+
+        # machine learning algorithm: linear, svm, schnet, nn...!!!!
+        'MLmodel': 'linear',
+
+        # define atomic representation: cm (CoulombMatrix), acsf!!!!!
+        'featureType': 'acsf',
+
+        # do not run DFTB or DFT to get reference data
+        'runReference': False,
+
+        # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
+        'reference': 'hdf',
+
+        # path to dataset data
+        'referenceDataset': '../data/dataset/testfile.hdf5',
+
+        # grid of compression radius is uniform or not !!
+        'typeSKinterp': 'uniform',
+
+        # skgen compression radius parameters: all, wavefunction, density
+        'typeSKinterpR': 'all',
+
+        # number of grid points, should be equal to atom_compr_grid
+        'nCompressionR': 10,
+
+        # if any compR < 2.2, break DFTB-ML loop
+        'compressionRMin': 2.2,
+
+        # if any compR > 9, break DFTB-ML loop
+        'compressionRMax': 9,
+        }
+
+    # update ml with input ml_
+    ml.update(ml_)
 
     if para['task'] == 'mlCompressionR':
         skf['ReadSKType'] = 'compressionRadii'
 
     if para['task'] == 'mlIntegral':
         skf['ReadSKType'] = 'mlIntegral'
-
-    # define atomic representation: cm (CoulombMatrix), acsf!!!!!
-    if 'featureType' not in ml.keys():
-        ml['featureType'] = 'acsf'
 
     # define ACSF parameter
     if ml['featureType'] == 'acsf':
@@ -252,21 +306,6 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
         if 'LacsfG5' not in ml.keys():
             ml['LacsfG5'] = False
 
-    # *********************************************************************
-    #                              DFTB-ML
-    # *********************************************************************
-    # run referecne calculations or directly get read reference properties
-    if 'runReference' not in ml.keys():
-        ml['runReference'] = False
-
-    # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
-    if 'reference' not in ml.keys():
-        ml['reference'] = 'hdf'
-
-    # path to dataset data
-    if 'referenceDataset' not in ml.keys():
-        ml['referenceDataset'] = '../data/dataset/testfile.hdf5'
-
     # read hdf (with coordinates, reference physical properties) type
     if ml['reference'] == 'hdf':
 
@@ -290,49 +329,13 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
         if 'aimsSpecie' not in ml.keys():
             ml['aimsSpecie'] = '../test/species_defaults/tight/'
 
-    # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
-    if 'target' not in ml.keys():
-        ml['target'] = ['dipole']
-
     # If turn on some calculations related to these physical properties
     # turn on anyway
     if 'energy' in ml['target']:
         para['Lrepulsive'] = True
 
-    # the machine learning energy type
-    if 'mlEnergyType' not in ml.keys():
-        para['mlEnergyType'] = 'formationEnergy'
-
     if 'cpa' in ml['target']:
         para['LMBD_DFTB'] = True
-
-    # define weight in loss function
-    if 'LossRatio' not in ml.keys():
-        ml['LossRatio'] = [1]
-
-    # how many steps for optimize in DFTB-ML !!
-    if 'mlSteps' not in ml.keys():
-        ml['mlSteps'] = 5
-
-    # how many steps to save the DFTB-ML data !!
-    if 'saveSteps' not in ml.keys():
-        ml['saveSteps'] = 2
-
-    # minimum ML steps
-    if 'stepMin' not in ml.keys():
-        ml['stepMin'] = 2
-
-    # learning rate !!
-    if 'lr' not in ml.keys():
-        ml['lr'] = 3E-2
-
-    # optimizer
-    if 'optimizer' not in ml.keys():
-        ml['optimizer'] = 'Adam'
-
-    # define loss function: MSELoss, L1Loss
-    if 'lossFunction' not in ml.keys():
-        ml['lossFunction'] = 'MSELoss'
 
     # optimize integral directly
     if para['task'] == 'mlIntegral':
@@ -346,26 +349,6 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
         # interpolation of compression radius: BiCub, BiCubVec
         if 'interpolationType' not in ml.keys():
             ml['interpolationType'] = 'BiCubVec'
-
-    # grid of compression radius is uniform or not !!
-    if 'typeSKinterp' not in ml.keys():
-        ml['typeSKinterp'] = 'uniform'
-
-    # skgen compression radius parameters: all, wavefunction, density
-    if 'typeSKinterpR' not in ml.keys():
-        ml['typeSKinterpR'] = 'all'
-
-    # number of grid points, should be equal to atom_compr_grid
-    if 'nCompressionR' not in ml.keys():
-        ml['nCompressionR'] = 10
-
-    # if any compR < 2.2, break DFTB-ML loop
-    if 'compressionRMin' not in ml.keys():
-        ml['compressionRMin'] = 2.2
-
-    # if any compR > 9, break DFTB-ML loop
-    if 'compressionRMax' not in ml.keys():
-        ml['compressionRMax'] = 9
 
     # compression radius of H
     ml['H_compr_grid'] = t.tensor((
@@ -397,7 +380,7 @@ def init_ml(para=None, dataset=None, skf=None, ml=None):
     return para, dataset, skf, ml
 
 
-def skf_parameter(skf=None):
+def skf_parameter(skf_=None):
     """Return the default parameters for skf.
 
     Returns:
@@ -405,10 +388,9 @@ def skf_parameter(skf=None):
         skf: `dictionary`
         only for normal skf files, dataset skf parameters is in dataset.
     """
-    if skf is None:
-        skf = {}
+    skf_ = {} if skf_ is None else skf_
 
-    skf_ = {
+    skf = {
         # SKF type: normal, mask, compressionRadii, hdf
         'ReadSKType': 'normal',
 
@@ -434,47 +416,47 @@ def skf_parameter(skf=None):
         'Lonsite': False}
 
     # the parameters from skf will overwrite skf_ default parameters
-    skf_.update(skf)
+    skf.update(skf_)
 
     # define onsite if not orbital resolved
-    if not skf_['LOrbitalResolve']:
-        skf_['onsiteHH'] = t.tensor((
+    if not skf['LOrbitalResolve']:
+        skf['onsiteHH'] = t.tensor((
             [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-        skf_['onsiteCC'] = t.tensor((
+        skf['onsiteCC'] = t.tensor((
             [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
             dtype=t.float64)
-        skf_['onsiteNN'] = t.tensor((
+        skf['onsiteNN'] = t.tensor((
             [0.0E+00, -2.607280834222E-01, -6.400000000000E-01]),
             dtype=t.float64)
-        skf_['onsiteOO'] = t.tensor((
+        skf['onsiteOO'] = t.tensor((
             [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
             dtype=t.float64)
 
         # Hubbert is not orbital resolved, value from skgen
-        skf_['uhubbHH'] = t.tensor(([4.196174261214E-01,
-                                     4.196174261214E-01,
-                                     4.196174261214E-01]), dtype=t.float64)
-        skf_['uhubbCC'] = t.tensor(([3.646664973641E-01,
-                                     3.646664973641E-01,
-                                     3.646664973641E-01]), dtype=t.float64)
-        skf_['uhubbNN'] = t.tensor(([4.308879578818E-01,
-                                     4.308879578818E-01,
-                                     4.308879578818E-01]), dtype=t.float64)
-        skf_['uhubbOO'] = t.tensor(([4.954041702122E-01,
-                                     4.954041702122E-01,
-                                     4.954041702122E-01]), dtype=t.float64)
+        skf['uhubbHH'] = t.tensor(([4.196174261214E-01,
+                                    4.196174261214E-01,
+                                    4.196174261214E-01]), dtype=t.float64)
+        skf['uhubbCC'] = t.tensor(([3.646664973641E-01,
+                                    3.646664973641E-01,
+                                    3.646664973641E-01]), dtype=t.float64)
+        skf['uhubbNN'] = t.tensor(([4.308879578818E-01,
+                                    4.308879578818E-01,
+                                    4.308879578818E-01]), dtype=t.float64)
+        skf['uhubbOO'] = t.tensor(([4.954041702122E-01,
+                                    4.954041702122E-01,
+                                    4.954041702122E-01]), dtype=t.float64)
 
     # Hubbert is orbital resolved
     # if use different parametrization method, remember revise value here
-    elif skf_['LOrbitalResolve']:
-        skf_['uhubbHH'] = t.tensor((
+    elif skf['LOrbitalResolve']:
+        skf['uhubbHH'] = t.tensor((
             [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-        skf_['uhubbCC'] = t.tensor((
+        skf['uhubbCC'] = t.tensor((
             [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]), dtype=t.float64)
-        skf_['uhubbNN'] = t.tensor((
+        skf['uhubbNN'] = t.tensor((
             [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]), dtype=t.float64)
-        skf_['uhubbOO'] = t.tensor((
+        skf['uhubbOO'] = t.tensor((
             [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]), dtype=t.float64)
 
     # return skf
-    return skf_
+    return skf

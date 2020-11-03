@@ -25,11 +25,11 @@ class DFTBChargePrecision(unittest.TestCase):
         parameter = {}
         parameter['scc'] = 'nonscc'  # nonscc, scc, xlbomd
         parameter['directorySK'] = '../../slko/test/'
-        DFTBCalculator(None, parameter, dataset)
+        result = DFTBCalculator(parameter, dataset)
         refq = [4.4496774784067616, 0.88758063039831014, 0.88758063039831003,
                 0.88758063039830970, 0.88758063039831003]
         [self.assertAlmostEqual(i, j, delta=1E-6)
-         for i, j in zip(parameter['charge'].squeeze(), refq)]
+         for i, j in zip(result.parameter['charge'].squeeze(), refq)]
 
     def test_scc_CH4(self):
         """Test charge of CH4 with scc DFTB."""
@@ -46,7 +46,7 @@ class DFTBChargePrecision(unittest.TestCase):
         parameter['LMBD_DFTB'] = False
         parameter['directorySK'] = '../../slko/test/'
         parameter['scc'] = 'scc'  # nonscc, scc, xlbomd
-        DFTBCalculator(None, parameter, dataset)
+        result = DFTBCalculator(parameter, dataset)
         refq = [4.3646063221278348, 0.9088484194680416, 0.9088484194680417,
                 0.9088484194680415, 0.9088484194680422]
         refTS = [9.79705420433358, 2.57029836887912, 2.57029836887912,
@@ -54,18 +54,17 @@ class DFTBChargePrecision(unittest.TestCase):
         refMBD = [10.5834157921756, 1.82998716394802, 1.82998716394802,
                   1.82998716394802, 1.82998716394802]
         [self.assertAlmostEqual(i, j, delta=1E-6)
-         for i, j in zip(parameter['charge'].squeeze(), refq)]
+         for i, j in zip(result.parameter['charge'].squeeze(), refq)]
 
     def test_ase(self):
         from ase import Atoms
-        from dftbtorch.dftbcalculator import DFTBCalculator
         h2 = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.7]])
         dataset = {}
         dataset['positions'] = t.tensor(h2.get_positions())
         dataset['numbers'] = t.tensor(h2.get_atomic_numbers())
         parameter = {}
         parameter['directorySK'] = '../../slko/test/'
-        DFTBCalculator(None, parameter, dataset)
+        DFTBCalculator(parameter, dataset)
 
 def read_dftbplus_data(para, geo, dire, H0=None, S=None, q=None, p=None):
     """Return according to Input Agrs."""
