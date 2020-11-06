@@ -500,7 +500,7 @@ class GetSK_:
         ml_variable = []
 
         # get the skf with hdf type
-        hdfsk = self.para['SKDataset']
+        hdfsk = self.para['datasetSK']
 
         # check if skf dataset exists
         if not os.path.isfile(hdfsk):
@@ -542,7 +542,7 @@ class GetSK_:
         # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
         # dist_1d = distance[ind[0], ind[1]]
         # get the skf with hdf type
-        hdfsk = self.para['SKDataset']
+        hdfsk = self.para['datasetSK']
         if not os.path.isfile(hdfsk):
             raise FileExistsError('dataset %s do not exist' % hdfsk)
 
@@ -729,7 +729,7 @@ class GetSK_:
 
         """
         natom = self.dataset['natomAll'][ibatch]
-        atomname = self.dataset['atomNameAll'][ibatch]
+        atomname = self.dataset['symbols'][ibatch]
         time0 = time.time()
         print('Getting HS table according to compression R and build matrix:',
               '[N_atom1, N_atom2, 20], also for onsite and uhubb')

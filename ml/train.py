@@ -28,12 +28,6 @@ class DFTBMLTrain:
         """Initialize parameters."""
         time_begin = time.time()
 
-        '''if init is None:
-            self.parameter = [parameter, {}][parameter is None]
-            self.dataset = [dataset, {}][dataset is None]
-            self.skf = [skf, {}][skf is None]
-            self.ml = [ml, {}][ml is None]'''
-
         # initialize general, DFTB, dataset parameters
         self.init = dftbcalculator.Initialization(parameter, dataset, skf, ml)
         self.init.initialize_parameter()
@@ -324,7 +318,7 @@ class MLCompressionR:
             # dftb formation energy calculations
             self.para['formation_energy'] = get_formation_energy(
                 self.para['electronic_energy'],
-                self.dataset['atomNameAll'], ibatch)
+                self.dataset['symbols'], ibatch)
 
             # get loss function type
             if self.ml['lossFunction'] == 'MSELoss':

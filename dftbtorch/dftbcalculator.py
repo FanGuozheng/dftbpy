@@ -38,18 +38,6 @@ class DFTBCalculator:
             result: DFTB calculation results.
 
         """
-        # define general DFTB parameters dictionary
-        '''self.parameter = [parameter, {}][parameter is None]
-
-        # define dataset and geometric dictionary
-        self.dataset = [dataset, {}][dataset is None]
-
-        # define slater-koster dictionary
-        self.skf = [skf, {}][skf is None]
-
-        # define machine learning dictionary, this is optional for DFTB
-        self.ml = [ml, {}][ml is None]'''
-
         # initialize parameters
         self.init = Initialization(parameter, dataset, skf, ml)
 
@@ -139,7 +127,7 @@ class Initialization:
         self.parameter = initpara.dftb_parameter(self.parameter)
 
         # get SKF parameters dictionary
-        self.skf = initpara.skf_parameter(self.skf)
+        self.skf = initpara.skf_parameter(self.parameter, self.skf)
 
         # get dataset parameters dictionary
         self.dataset = initpara.init_dataset(self.dataset)
@@ -221,7 +209,7 @@ class Initialization:
 
             # get U hubbert (s orbital) for each atom
             [this_U.append(self.parameter['uhubb' + iname + iname][-1])
-             for iname in self.parameter['atomnameall']]
+             for iname in self.parameter['atomNameAll']]
 
         # transfer to tensor
         self.parameter['this_U'] = t.tensor(this_U, dtype=t.float64)
@@ -513,19 +501,19 @@ class SCF:
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
-            # To get the Fock matrix "F"; Construct the gamma matrix "G" then
+            # To get the Fock matrix "fock"; Construct the gamma matrix "G" then
             # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
             # relative value for true vectorisation. shift_mat is precomputed
             # to make the code easier to understand, however it will be removed
             # later in the development process to save on memory allocation.
             dim_ = shift_mat.shape[-1]   # the new dimension of max orbitals
-            F = self.ham[self.mask[-1]][:, :dim_, :dim_] + \
+            fock = self.ham[self.mask[-1]][:, :dim_, :dim_] + \
                 0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(F, self.over[self.mask[-1]][:, :dim_, :dim_],
-                                          self.batch, self.atind[self.mask[-1]],
-                                          t.tensor(ibatch)[self.mask[-1]])
+            epsilon, C = self.eigen.eigen(
+                fock, self.over[self.mask[-1]][:, :dim_, :dim_], self.batch,
+                self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]])
 
             # Calculate the occupation of electrons via the fermi method
             occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
@@ -546,8 +534,10 @@ class SCF:
 
             # Last mixed charge is the current step now
             if not self.batch:
-                natom = self.dataset['natomAll'][ibatch[0]]
-                q_new_ = q_new[0][: natom]
+                if q_new.squeeze().dim() == 1:  # single atom
+                    q_new_ = q_new[:, :self.dataset['natomAll'][ibatch[0]]]
+                else:
+                    q_new_ = q_new[0][: self.dataset['natomAll'][ibatch[0]]]
                 q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
             else:
                 q_mixed = self.mixer(q_new, q_mixed[self.mask[-1]], self.mask[-1])
@@ -776,7 +766,7 @@ class Repulsive():
     def cal_rep_energy(self):
         """Calculate repulsive energy."""
         self.rep_energy = t.zeros((self.nat), dtype=t.float64)
-        atomnameall = self.para['atomnameall']
+        atomnameall = self.para['atomNameAll']
 
         # repulsive cutoff not atom specie resolved
         if not self.para['cutoff_atom_resolve']:

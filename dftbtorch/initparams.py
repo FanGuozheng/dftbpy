@@ -28,6 +28,9 @@ def dftb_parameter(parameter_=None):
 
     # build new dictionary, the input parameter_ will override parameter
     parameter = {
+        # dataset of skf
+        'datasetSK': '../slko/hdf/skf.hdf5',
+
         # task: dftb, mlCompressionR, mlIntegral
         'task': 'dftb',
 
@@ -116,12 +119,6 @@ def dftb_parameter(parameter_=None):
     # batch calculation, usually True for machine learning
     parameter['Lbatch'] = True if parameter['Lml'] is True else False
 
-    # dire of skf dataset (write SKF as binary file)
-    if parameter['task'] == 'mlCompressionR':
-        parameter['SKDataset'] = '../slko/hdf/skf.hdf5'
-    elif parameter['task'] == 'mlIntegral':
-        parameter['SKDataset'] = '../slko/hdf/skfmio.hdf5'
-
     # return DFTB calculation parameters
     return parameter
 
@@ -145,7 +142,10 @@ def init_dataset(dataset_=None):
     dataset_ = {} if dataset_ is None else dataset_
 
     dataset = {
-        # optional datatype: ani, json, hdf
+        # default dataset is ani
+        'dataset': ['../data/dataset/an1/ani_gdb_s01.h5'],
+
+        # optional datatype: ani, json, hdf, runani
         'datasetType': 'ani',
 
         # get the dataset path
@@ -169,27 +169,14 @@ def init_dataset(dataset_=None):
     # update temporal dataset_ with input dataset
     dataset.update(dataset_)
 
-    # read json type geometry
-    if 'json' in dataset['datasetType']:
-        if 'Dataset' not in dataset.keys():
-            dataset['Dataset'] = '../data/json/H2_data'
-
     # read ANI dataset
-    elif 'ani' in dataset['datasetType']:
+    '''if 'ani' in dataset['datasetType']:
         # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
         hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
 
         # transfer to list
-        if 'Dataset' not in dataset.keys():
-            dataset['Dataset'] = [hdffilelist]
-
-    # read QM7 dataset
-    elif 'qm7' in dataset['datasetType']:
-        # define path and dataset name
-        dataset['Dataset'] = os.path.join(dataset['directoryDataset'], 'qm7.mat')
-
-    # test the molecule specie is the same (the length means speices size)
-    assert len(dataset['sizeDataset']) == len(dataset['sizeTest'])
+        if 'dataset' not in dataset.keys():
+            dataset['dataset'] = [hdffilelist]'''
 
     return dataset
 
@@ -268,16 +255,13 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
 
         # if any compR > 9, break DFTB-ML loop
         'compressionRMax': 9,
+
+        # multi interpolation method
+        'interpolationType': 'BiCubVec'
         }
 
     # update ml with input ml_
     ml.update(ml_)
-
-    if para['task'] == 'mlCompressionR':
-        skf['ReadSKType'] = 'compressionRadii'
-
-    if para['task'] == 'mlIntegral':
-        skf['ReadSKType'] = 'mlIntegral'
 
     # define ACSF parameter
     if ml['featureType'] == 'acsf':
@@ -314,13 +298,11 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
             dataset['LSKFInterpolation'] = False
 
     if ml['reference'] in ('dftbase', 'dftbplus'):
-
         # path of binary, executable DFTB file
         if 'dftbplus' not in ml.keys():
             ml['dftbplus'] = '../test/bin/dftb+'
 
     if ml['reference'] in ('aimsase', 'aims'):
-
         # path of binary, executable FHI-aims file
         if 'aims' not in ml.keys():
             ml['aims'] = '../test/bin/aims.171221_1.scalapack.mpi.x'
@@ -339,13 +321,12 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
 
     # optimize integral directly
     if para['task'] == 'mlIntegral':
-
         # spline type to generate integral
-        ml['interpolationType'] = 'Polyspline'
+        if 'interpolationType' not in ml.keys():
+            ml['interpolationType'] = 'Polyspline'
 
     # optimize compression radius: by interpolation or by ML prediction
     if para['task'] in ('mlCompressionR', 'ACSF'):
-
         # interpolation of compression radius: BiCub, BiCubVec
         if 'interpolationType' not in ml.keys():
             ml['interpolationType'] = 'BiCubVec'
@@ -380,7 +361,7 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
     return para, dataset, skf, ml
 
 
-def skf_parameter(skf_=None):
+def skf_parameter(para, skf_=None):
     """Return the default parameters for skf.
 
     Returns:
@@ -457,6 +438,11 @@ def skf_parameter(skf_=None):
             [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]), dtype=t.float64)
         skf['uhubbOO'] = t.tensor((
             [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]), dtype=t.float64)
+
+    if para['task'] == 'mlCompressionR':
+        skf['ReadSKType'] = 'compressionRadii'
+    elif para['task'] == 'mlIntegral':
+        skf['ReadSKType'] = 'mlIntegral'
 
     # return skf
     return skf

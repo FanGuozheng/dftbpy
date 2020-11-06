@@ -7,11 +7,10 @@ Created on Wed May 20 23:49:08 2020
 """
 import numpy as np
 from ase.io import read
-from ml.dscribe.descriptors import SOAP
+from dscribe.descriptors import SOAP
 from ase import Atoms
 from ase.build import molecule
-from ml.dscribe.descriptors.acsf import ACSF
-import test.test_grad_compr as compr
+from dscribe.descriptors.acsf import ACSF
 
 
 def test_acsf():
@@ -111,7 +110,6 @@ def test_acsf_for_dftb_ml():
     para['dire_data'] = '../data/results/200718compr_300mol_dip'
     para['Lacsf_g2'] = False
     para['Lacsf_g4'] = True
-    pred_dftb_ratio = []
     para['acsf_g2_all'] = [[0.1, 0.5], [0.1, 2], [0.1, 3], [0.1, 5], [0.1, 10],
                            [0.5, 0.5], [0.5, 2], [0.5, 3], [0.5, 5], [0.5, 10],
                            [1, 0.5], [1, 2], [1, 3], [1, 5], [1, 10],
@@ -138,19 +136,6 @@ def test_acsf_for_dftb_ml():
                            [0.5, 2, 2], [0.5, 2, 5], [0.5, 5, -1], [0.5, 5, 1],
                            [0.5, 5, 2], [0.5, 5, 5], [0.5, 10, -1],
                            [0.5, 10, 1], [0.5, 10, 2], [0.5, 10, 5]]
-    if para['Lacsf_g2']:
-        for g2 in para['acsf_g2_all']:
-            para['acsf_g2'] = []
-            para['acsf_g2'].append(g2)
-            compr.testml(para)
-            pred_dftb_ratio.append(para['dip_ratio_pred_dftb'])
-    if para['Lacsf_g4']:
-        for g4 in para['acsf_g4_all']:
-            para['acsf_g4'] = []
-            para['acsf_g4'].append(g4)
-            compr.testml(para)
-            pred_dftb_ratio.append(para['dip_ratio_pred_dftb'])
-    print(pred_dftb_ratio)
 
 
 test_acsf_for_dftb_ml()

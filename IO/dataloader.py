@@ -38,16 +38,11 @@ class LoadData:
         self.para = [para, {}][para is None]
         self.ml = [ml, {}][ml is None]
 
-        # load training data: interger number or string 'all'
-        if train_sample is None:
-            self.train_sample = train_sample
-        else:
-            self.train_sample = train_sample
-
         if self.dataset['datasetType'] == 'ani':
             self.load_ani()
-        elif self.dataset['datasetType'] == 'hdf':
-            self.load_data_hdf()
+        # load dataset and directly run DFTB+ or aims calculations
+        elif self.dataset['datasetType'] == 'runani':
+            self.load_run_ani()
         elif self.dataset['datasetType'] == 'qm7':
             self.loadqm7()
 
@@ -108,10 +103,9 @@ class LoadData:
         # this makes sure each molecule specie size is the same
         minsize = min(nmolecule)
 
-        # loop over molecule specie size
+        # mix different molecule species
         if self.dataset['LdatasetMixture']:
             for ifile in range(minsize):
-
                 # loop over each molecule specie
                 for ispe in range(len(_specie)):
                     natom = len(_coorall[ispe][ifile])
@@ -160,28 +154,37 @@ class LoadData:
         # return training dataset number
         self.dataset['nfile'] = len(self.dataset['natomAll'])
 
-    def load_data_hdf(self, path=None, filename=None):
+    def load_run_ani(self, path=None, filename=None):
         """Load data from original dataset, ani ... and write as hdf."""
         if path is not None and filename is not None:
-            path_file = os.path.join(path, filename)
-            os.system('rm ' + path_file)
+            self.path_file = os.path.join(path, filename)
+            os.system('rm ' + self.path_file)
 
         # default path is '.', default name is 'testfile.hdf5'
         else:
-            path_file = 'testfile.hdf5'
-            os.system('rm ' + path_file)
+            self.path_file = 'testfile.hdf5'
+            os.system('rm ' + self.path_file)
 
         # the global atom species in dataset (training data)
         self.dataset['specieGlobal'] = []
 
+        # if only define the first specie in dataset, it will qutomatically
+        # extend to all spcies by using the defined size
+        if len(self.dataset['sizeDataset']) == 1:
+            extend_dataset_seize = True
+
         # number of molecules in dataset
-        for hdf5file in self.dataset['Dataset']:
+        for hdf5file in self.dataset['dataset']:
             adl = pya.anidataloader(hdf5file)
-            for data in adl:
+            for idata, data in enumerate(adl):
+                # extend dataset
+                if extend_dataset_seize:
+                    self.dataset['sizeDataset'].extend(self.dataset['sizeDataset'][0])
 
                 # this loop will write information of the same molecule with
                 # different datasetmetries
                 self.dataset['numbers'] = []
+                self.dataset['symbols'] = []
 
                 # get atom number of each atom
                 [self.dataset['numbers'].append(ATOMNUM[spe]) for spe in data['species']]
@@ -190,53 +193,62 @@ class LoadData:
                 imol = len(data['coordinates'])
 
                 # the code will write molecule from range(0, end)
-                nend = min(int(self.dataset['sizeDataset'][0]), imol)
+                _isize = self.dataset['sizeDataset'][idata]
+                _isize = imol if _isize == 'all' else int(_isize)
+                self.nend = min(_isize, imol)
 
                 # number of atom in molecule
-                natom = len(data['coordinates'][0])
+                self.natom = len(data['coordinates'][0])
 
                 # write all coordinates to list "corrall" and first column is
                 # atom number
                 self.dataset['positions'] = []
-                # self.dataset['positions'].extend(
-                #    [np.insert(coor, 0, atom_num, axis=1)
-                #     for coor in np.asarray(
-                #             data['coordinates'][:nend], dtype=float)])
                 self.dataset['positions'].extend(
-                    [coor for coor in np.asarray(data['coordinates'][:nend], dtype=float)])
+                    [coor for coor in np.asarray(data['coordinates'][:self.nend], dtype=float)])
 
                 # write the current atom species in molecule to list "symbols"
                 # use metadata instead
-                ispecie = ''.join(data['species'])
+                self.ispecie = ''.join(data['species'])
+                self.dataset['symbols'].extend([data['species']] * self.nend)
 
                 # write global atom species
                 for ispe in data['species']:
                     if ispe not in self.dataset['specieGlobal']:
                         self.dataset['specieGlobal'].append(ispe)
 
-                # write metadata
-                with h5py.File(path_file, 'a') as self.f:
-                    self.g = self.f.create_group(ispecie)
-                    self.g.attrs['specie'] = ispecie
-                    self.g.attrs['natom'] = natom
-                    self.g.attrs['atomNumber'] = self.dataset['numbers']
+                self.write_hdf()
+        self.write_hdf_global()
 
-                    # run dftb with ase interface
-                    if self.ml['reference'] == 'dftbase':
-                        DFTB(self.para, self.dataset, self.ml, setenv=True).run_dftb(
-                            nend, self.dataset['positions'],
-                            hdf=self.f, group=self.g)
+    def write_hdf(self):
+        """Write metadata."""
+        with h5py.File(self.path_file, 'a') as self.f:
+            self.g = self.f.create_group(self.ispecie)
+            self.g.attrs['specie'] = self.ispecie
+            self.g.attrs['natom'] = self.natom
+            self.g.attrs['atomNumber'] = self.dataset['numbers']
 
-                    # run FHI-aims with ase interface
-                    elif self.ml['reference'] == 'aimsase':
-                        AseAims(self.para, self.dataset, self.ml,
-                                setenv=True).run_aims(nend, hdf=self.f, group=self.g)
+            # run dftb with ase interface
+            if self.ml['reference'] == 'dftbase':
+                DFTB(self.para, self.dataset, self.ml, setenv=True).run_dftb(
+                    self.nend, self.dataset['positions'],
+                    hdf=self.f, group=self.g)
 
+            # run FHI-aims with ase interface
+            elif self.ml['reference'] == 'aimsase':
+                AseAims(self.para, self.dataset, self.ml,
+                        setenv=True).run_aims(self.nend, hdf=self.f, group=self.g)
+
+            # run FHI-aims with ase interface
+            elif self.ml['reference'] == 'aims':
+                AseAims(self.para, self.dataset, self.ml,
+                        setenv=True).run_aims(self.nend, hdf=self.f, group=self.g)
+
+    def write_hdf_global(self):
         # save rest to global attrs
-        with h5py.File(path_file, 'a') as f:
+        with h5py.File(self.path_file, 'a') as f:
             g = f.create_group('globalgroup')
             g.attrs['specieGlobal'] = self.dataset['specieGlobal']
-            # g.attrs['totalmolecule'] = nmol
+            # g.attrs['totalmolecule'] = nmoldftbase
 
     def load_json_data(self):
         """Load the data from json type input files."""
@@ -385,7 +397,7 @@ class LoadReferenceData:
             raise FileExistsError('reference dataset do not exist')
         self.dataset['positions'] = []
         self.dataset['natomAll'] = []
-        self.dataset['atomNameAll'] = []
+        self.dataset['symbols'] = []
         self.dataset['refHomoLumo'] = []
         self.dataset['numbers'] = []
         self.dataset['refCharge'] = []
@@ -423,7 +435,7 @@ class LoadReferenceData:
                 for igroup in molecule2:
 
                     # add atom name and atom number
-                    self.dataset['atomNameAll'].append([ii for ii in igroup])
+                    self.dataset['symbols'].append([ii for ii in igroup])
                     self.dataset['natomAll'].append(len(igroup))
 
                     with h5py.File(hdffile, 'r') as f:
@@ -494,7 +506,7 @@ class LoadReferenceData:
                 igroup = molecule2[iatomspecie]
 
                 # add atom name
-                self.dataset['atomNameAll'].append([ii for ii in igroup])
+                self.dataset['symbols'].append([ii for ii in igroup])
                 self.dataset['natomAll'].append(len(igroup))
 
                 # read the molecule specie data

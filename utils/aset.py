@@ -304,13 +304,13 @@ class AseAims:
         for ibatch in range(begin, nbatch):
             # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
             # so that satisfy ase.Atoms style
-            print('ibatch', ibatch)
             if group is None:
                 self.dataset['natom'] = self.dataset['natomAll'][ibatch]
                 ispecie = ''.join(self.dataset['symbols'][ibatch])
             else:
                 ispecie = group.attrs['specie']
                 self.dataset['natom'] = group.attrs['natom']
+            print('ibatch', ibatch, ispecie)
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]
@@ -471,7 +471,6 @@ class AseAims:
         else:
             v_name = str(num) + 'hirshfeldvolume'
             group.create_dataset(v_name, data=self.hirshfeldvolume)
-
         # alpha_mbd, polarizability
         if group is None:
             p_name = ispecie + str(num) + 'alpha_mbd'

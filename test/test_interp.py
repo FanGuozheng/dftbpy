@@ -7,7 +7,7 @@ import torch as t
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
-import utils.pyanitools as pya
+import IO.pyanitools as pya
 from dftbtorch.geninterpskf import SkInterpolator
 from dftbtorch.matht import(BicubInterp)
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
