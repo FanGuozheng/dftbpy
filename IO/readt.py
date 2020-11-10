@@ -108,7 +108,7 @@ class ReadInput:
         dataset: `dictionary`
             update dataset for all geometric information
         """
-        self.para = parameter
+        self.parameter = parameter
 
         # geometry information
         self.dataset = [dataset, {}][dataset is None]
@@ -120,11 +120,11 @@ class ReadInput:
         self.ml = [ml, {}][ml is None]
 
         # multi options for parameters: defined json file,
-        if 'LReadInput' in self.para:
-            if self.para['LReadInput']:
+        if 'LReadInput' in self.parameter:
+            if self.parameter['LReadInput']:
                 # input file name and directory of input file
-                filename = self.para['inputName']
-                direct = self.para['directory']
+                filename = self.parameter['inputName']
+                direct = self.parameter['directory']
                 self.inputfile = os.path.join(direct, filename)
 
                 # raise error if json file do not exist
@@ -139,7 +139,7 @@ class ReadInput:
             # load json type file
             fpinput = json.load(fp)
             if 'general' in fpinput:
-                self.para.update(fpinput['general'])
+                self.parameter.update(fpinput['general'])
             if 'dataset' in fpinput:
                 self.dataset.update(fpinput['dataset'])
             if 'ml' in fpinput:
@@ -147,8 +147,8 @@ class ReadInput:
 
     def cal_neighbour(self):
         """Get number of neighbours, this is for solid."""
-        natom = self.para['natom']
-        self.para['Nneighbour'] = t.zeros(natom)
+        natom = self.parameter['natom']
+        self.parameter['Nneighbour'] = t.zeros(natom)
 
 
 class ReadSlaKo:

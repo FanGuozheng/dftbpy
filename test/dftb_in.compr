@@ -1,4 +1,15 @@
 {
 "general": {
-  "task": "mlCompressionR"}
+  "task": "mlCompressionR",
+  "datasetSK": "../slko/hdf/skf.hdf5",
+  "referenceDataset": "../data/dataset/testfile.hdf5"},
+
+"dataset": {
+  "sizeDataset": 100
+  },
+
+"ml": {
+  "mlSteps": 100,
+  "lr": 5E-2}
+
 }

@@ -302,7 +302,7 @@ class AseAims:
         self.dataset['refCharge'] = []
 
         for ibatch in range(begin, nbatch):
-            # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
+            # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CHHHH'
             # so that satisfy ase.Atoms style
             if group is None:
                 self.dataset['natom'] = self.dataset['natomAll'][ibatch]
@@ -310,7 +310,7 @@ class AseAims:
             else:
                 ispecie = group.attrs['specie']
                 self.dataset['natom'] = group.attrs['natom']
-            print('ibatch', ibatch, ispecie)
+            print('ibatch', ibatch, ispecie, 'size', nbatch)
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]

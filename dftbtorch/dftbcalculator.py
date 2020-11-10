@@ -120,9 +120,6 @@ class Initialization:
         # self.initialize_dftb()
 
     def initialize_parameter(self):
-        # return/update DFTB, geometric, skf parameters from input
-        readt.ReadInput(self.parameter, self.dataset)
-
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
 

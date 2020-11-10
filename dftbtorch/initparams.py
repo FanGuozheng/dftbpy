@@ -31,6 +31,9 @@ def dftb_parameter(parameter_=None):
         # dataset of skf
         'datasetSK': '../slko/hdf/skf.hdf5',
 
+        # path to dataset data
+        'referenceDataset': '../data/dataset/testfile.hdf5',
+
         # task: dftb, mlCompressionR, mlIntegral
         'task': 'dftb',
 
@@ -206,7 +209,7 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         'LossRatio': [1],
 
         # how many steps for optimize in DFTB-ML !!
-        'mlSteps': 5,
+        'mlSteps': 3,
 
         # how many steps to save the DFTB-ML data !!
         'saveSteps': 2,
@@ -237,9 +240,6 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
 
         # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
         'reference': 'hdf',
-
-        # path to dataset data
-        'referenceDataset': '../data/dataset/testfile.hdf5',
 
         # grid of compression radius is uniform or not !!
         'typeSKinterp': 'uniform',

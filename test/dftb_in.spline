@@ -1,5 +1,14 @@
 {
 "general": {
   "task": "mlIntegral",
-  "directorySK": "../slko/test/"}
+  "datasetSK": "../slko/hdf/skfmio.hdf5",
+  "referenceDataset": "../data/dataset/testfile.hdf5"},
+
+"dataset": {
+  "sizeDataset": 10
+  },
+
+"ml": {
+  "mlSteps": 4}
+
 }

@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import torch as t
+from collections import Counter
 default_r = {"H": 3, "C": 3.5, "N": 2.2, "O": 2.3, "S": 3.8}
 ATOMNUM = {"H": 1, "C": 6, "N": 7, "O": 8}
 
@@ -192,6 +193,19 @@ class FHIaims:
                     iatom += 1
                     np.savetxt(fp, coor[iatom - 1], fmt='%s', newline=' ')
                     fp.write(symbols[iatom - 1])
+                    fp.write('\n')
+
+    def geo_nonpe_hdf_batch(self, nbatch):
+        """Input is from hdf data, output is FHI-aims input: geo.in."""
+        symbols = self.dataset['symbols']
+        coorall = self.dataset['positions']
+        ispecie = ''.join(self.dataset['symbols'][0])
+        for ibatch in range(nbatch):
+            with open('geometry.in.{}.{}'.format(ispecie, ibatch + 1), 'w') as fp:
+                for iat, icoor in enumerate(coorall[ibatch]):
+                    fp.write('atom ')
+                    np.savetxt(fp, icoor, fmt='%s', newline=' ')
+                    fp.write(symbols[ibatch][iat])
                     fp.write('\n')
 
     def geo_pe():

@@ -11,6 +11,7 @@ import h5py
 from torch.autograd import Variable
 from collections import Counter
 import IO.pyanitools as pya
+import IO.write_output as write
 from utils.aset import DFTB, AseAims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207, "N": 29.90025370,
@@ -41,7 +42,7 @@ class LoadData:
         if self.dataset['datasetType'] == 'ani':
             self.load_ani()
         # load dataset and directly run DFTB+ or aims calculations
-        elif self.dataset['datasetType'] == 'runani':
+        elif self.dataset['datasetType'] in ('runani', 'writeinput'):
             self.load_run_ani()
         elif self.dataset['datasetType'] == 'qm7':
             self.loadqm7()
@@ -174,50 +175,56 @@ class LoadData:
             extend_dataset_seize = True
 
         # number of molecules in dataset
-        for hdf5file in self.dataset['dataset']:
-            adl = pya.anidataloader(hdf5file)
-            for idata, data in enumerate(adl):
-                # extend dataset
-                if extend_dataset_seize:
-                    self.dataset['sizeDataset'].extend(self.dataset['sizeDataset'][0])
+        adl = pya.anidataloader(self.dataset['dataset'][0])
+        for idata, data in enumerate(adl):
+            # extend dataset
+            if extend_dataset_seize:
+                self.dataset['sizeDataset'].append(self.dataset['sizeDataset'][0])
 
-                # this loop will write information of the same molecule with
-                # different datasetmetries
-                self.dataset['numbers'] = []
-                self.dataset['symbols'] = []
+            # this loop will write information of the same molecule with
+            # different datasetmetries
+            self.dataset['numbers'] = []
+            self.dataset['symbols'] = []
 
-                # get atom number of each atom
-                [self.dataset['numbers'].append(ATOMNUM[spe]) for spe in data['species']]
+            # get atom number of each atom
+            [self.dataset['numbers'].append(ATOMNUM[spe]) for spe in data['species']]
 
-                # number of molecule in current molecule species
-                imol = len(data['coordinates'])
+            # number of molecule in current molecule species
+            imol = len(data['coordinates'])
 
-                # the code will write molecule from range(0, end)
-                _isize = self.dataset['sizeDataset'][idata]
-                _isize = imol if _isize == 'all' else int(_isize)
-                self.nend = min(_isize, imol)
+            # the code will write molecule from range(0, end)
+            _isize = self.dataset['sizeDataset'][idata]
+            _isize = imol if _isize == 'all' else int(_isize)
+            self.nend = min(_isize, imol)
 
-                # number of atom in molecule
-                self.natom = len(data['coordinates'][0])
+            # number of atom in molecule
+            self.natom = len(data['coordinates'][0])
 
-                # write all coordinates to list "corrall" and first column is
-                # atom number
-                self.dataset['positions'] = []
-                self.dataset['positions'].extend(
-                    [coor for coor in np.asarray(data['coordinates'][:self.nend], dtype=float)])
+            # write all coordinates to list "corrall" and first column is
+            # atom number
+            self.dataset['positions'] = []
+            self.dataset['positions'].extend(
+                [coor for coor in np.asarray(data['coordinates'][:self.nend], dtype=float)])
 
-                # write the current atom species in molecule to list "symbols"
-                # use metadata instead
-                self.ispecie = ''.join(data['species'])
-                self.dataset['symbols'].extend([data['species']] * self.nend)
+            # write the current atom species in molecule to list "symbols"
+            # use metadata instead
+            self.ispecie = ''.join(data['species'])
+            self.dataset['symbols'].extend([data['species']] * self.nend)
 
-                # write global atom species
-                for ispe in data['species']:
-                    if ispe not in self.dataset['specieGlobal']:
-                        self.dataset['specieGlobal'].append(ispe)
+            # write global atom species
+            for ispe in data['species']:
+                if ispe not in self.dataset['specieGlobal']:
+                    self.dataset['specieGlobal'].append(ispe)
 
+            # write aims input (do not save) and run FHI-aims calculation
+            if self.dataset['datasetType'] == 'runani':
                 self.write_hdf()
-        self.write_hdf_global()
+            # write aims input (and save)
+            elif self.dataset['datasetType'] == 'writeinput':
+                self.write_aims_input()
+
+        if self.dataset['datasetType'] == 'runani':
+            self.write_hdf_global()
 
     def write_hdf(self):
         """Write metadata."""
@@ -238,10 +245,8 @@ class LoadData:
                 AseAims(self.para, self.dataset, self.ml,
                         setenv=True).run_aims(self.nend, hdf=self.f, group=self.g)
 
-            # run FHI-aims with ase interface
-            elif self.ml['reference'] == 'aims':
-                AseAims(self.para, self.dataset, self.ml,
-                        setenv=True).run_aims(self.nend, hdf=self.f, group=self.g)
+    def write_aims_input(self):
+        write.FHIaims(self.dataset).geo_nonpe_hdf_batch(self.nend)
 
     def write_hdf_global(self):
         # save rest to global attrs
@@ -379,7 +384,7 @@ class LoadData:
 
 
 class LoadReferenceData:
-    """"""
+    """Load reference data from hdf5 type."""
 
     def __init__(self, para, dataset, skf, ml):
         self.para = para
@@ -392,7 +397,7 @@ class LoadReferenceData:
     def get_hdf_data(self):
         """Read data from hdf for reference or the following ML."""
         # join the path and hdf data
-        hdffile = self.ml['referenceDataset']
+        hdffile = self.para['referenceDataset']
         if not os.path.isfile(hdffile):
             raise FileExistsError('reference dataset do not exist')
         self.dataset['positions'] = []
@@ -407,6 +412,11 @@ class LoadReferenceData:
         self.dataset['refMBDAlpha'] = []
         self.dataset['refDipole'] = []
         self.dataset['numberatom'] = []
+        if type(self.dataset['sizeDataset']) is list:
+            # all molecule size is same for ML
+            size_dataset = int(self.dataset['sizeDataset'][0])
+        else:
+            size_dataset = self.dataset['sizeDataset']
 
         # read global parameters
         with h5py.File(hdffile, 'r') as f:
@@ -429,7 +439,7 @@ class LoadReferenceData:
         if self.dataset['LdatasetMixture']:
 
             # loop for molecules in each molecule specie
-            for ibatch in range(int(self.dataset['sizeDataset'][0])):
+            for ibatch in range(size_dataset):
 
                 # each molecule specie
                 for igroup in molecule2:
@@ -499,7 +509,7 @@ class LoadReferenceData:
         # read single molecule specie
         elif not self.para['hdf_mixture']:
             # loop for molecules in each molecule specie
-            for ibatch in range(int(self.para['n_dataset'][0])):
+            for ibatch in range(size_dataset):
 
                 # each molecule specie
                 iatomspecie = int(self.para['hdf_num'][0])

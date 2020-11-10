@@ -6,14 +6,14 @@ import dftbtorch.initparams as initpara
 from IO.dataloader import LoadData
 
 
-def plot_ml_compr(para, ml):
+def plot_ml(para, ml):
     """Plot for DFTB-ML optimization."""
-    read_nstep(para)  # read how many steps have been saved each molecule
+    # read_nstep(para)  # read how many steps have been saved each molecule
     # plot_humolumo(para)
 
     # plot dipole
-    if para['Ldipole']:
-        plot_dip(para, ml)
+    '''if para['Ldipole']:
+        plot_dip(para, ml)'''
 
     # plot polarizability
     if para['LMBD_DFTB']:
@@ -24,17 +24,9 @@ def plot_ml_compr(para, ml):
     plot_loss(para, ml)
 
     # plot integral
-    if ml['mlType'] == 'integral':
-        plot_spl(para, ml)
-
-    # plot compression radius
-    '''if para['Lml_skf']:
-        plot_compr(para)'''
-
-    # plot PDOS
-    '''if para['Lpdos']:
-        plot_pdos(para)'''
-
+    if para['task'] == 'mlIntegral':
+        pass
+        # plot_spl(para, ml)
 
 
 def plot_ml_feature(para, ml):
@@ -498,24 +490,10 @@ def plot_loss2(para, ml):
 
 def plot_loss(para, ml):
     """Plot energy [nfile, nsteps] in .data."""
-    dire = para['dire_data']
-    nfile = para['nfile']
-    fploss = open(dire + '/lossbp.dat', 'r')
-    nstep = para['nsteps']
-    nstepmax = int(nstep.max())
-    dataloss = np.zeros((nfile, nstepmax), dtype=float)
-
     print('plot loss values')
-    for ifile in range(nfile):
-        nstep_ = int(nstep[ifile])
-        dataloss[ifile, :nstep_] = np.fromfile(
-            fploss, dtype=float, count=nstep_, sep=' ')
-    icount = 1
-    for ifile in range(nfile):
-        nstep_ = int(nstep[ifile])
-        count = np.linspace(icount, icount + nstep_ - 1, nstep_)
-        plt.plot(count, dataloss[ifile, :nstep_])
-        icount += nstep_
+    loss = np.fromfile('loss.dat', dtype=float, sep=' ')
+    print('loss', loss, np.arange(1, len(loss) + 1))
+    plt.plot(np.arange(1, len(loss) + 1), loss)
     plt.xlabel('steps * molecules')
     plt.ylabel('loss: abs(y_ref - y_pred) / natom')
     plt.legend()

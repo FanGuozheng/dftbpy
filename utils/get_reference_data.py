@@ -153,12 +153,15 @@ class RefAims:
         self.ml = {}
         self.dataset = {}
         self.ml['reference'] = 'aimsase'
+
+        # runani: read dataset and run FHI-aims calculations
+        # writeinput: read dataset and write FHI-aims input without calculation
         self.dataset['datasetType'] = 'runani'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = ['2']
+        self.dataset['sizeDataset'] = ['200']
         self.dataset['LdatasetMixture'] = False
-        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s01.h5']
+        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s02.h5']
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
