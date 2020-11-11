@@ -5,7 +5,7 @@
   "referenceDataset": "../data/dataset/testfile.hdf5"},
 
 "dataset": {
-  "sizeDataset": 100
+  "sizeDataset": 50
   },
 
 "ml": {

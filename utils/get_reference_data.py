@@ -24,7 +24,6 @@ class RefDFTB:
     """Physical properties are from DFTB-ASE calculations.
 
     Note:
-    -----
     set para['reference'] = 'dftbase'
     """
 
@@ -156,12 +155,16 @@ class RefAims:
 
         # runani: read dataset and run FHI-aims calculations
         # writeinput: read dataset and write FHI-aims input without calculation
-        self.dataset['datasetType'] = 'runani'
+        self.dataset['datasetType'] = 'writeinput'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = ['200']
+        self.dataset['sizeDataset'] = ['all']
+
+        # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
-        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s02.h5']
+
+        # define dataset as input
+        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s04.h5']
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
@@ -182,10 +185,15 @@ class RefAims:
         """Run FHI-aims calculations."""
         pass
 
+
 if __name__ == '__main__':
-    para = {}
-    para['task'] = 'get_aims_hdf'
+    """Main function."""
+    para = {'task': 'get_aims_hdf'}
+
+    # get_dftb_hdf means get reference data from DFTB+ calculations
     if para['task'] == 'get_dftb_hdf':
         RefDFTB(para)
+
+    # get_dftb_hdf means get reference data from FHI-aims calculations
     elif para['task'] == 'get_aims_hdf':
         RefAims(para)
