@@ -224,7 +224,6 @@ class GetSKTable:
         lmf = lambda x: list(map(float, x.split()))
 
         # In_grid_pointstial IO & Setup
-        # ------------------
         if not os.path.exists(path):  # Check that the path specified exists
             raise FileNotFoundError('Target path does not exist')
 
@@ -808,7 +807,7 @@ class SKTran:
         if self.para['Lml']:
 
             # use ACSF to generate compression radius, then SK transformation
-            if self.para['task'] in ('mlCompressionR', 'ACSF'):
+            if self.para['task'] in ('mlCompressionR', 'testCompressionR'):
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSSymmetry'] == 'all':
@@ -819,7 +818,7 @@ class SKTran:
                     self.sk_tran_half(self.ibatch)
 
             # directly get integrals with spline, or some other method
-            elif self.para['task'] == 'mlIntegral':
+            elif self.para['task'] in ('mlIntegral', 'testIntegral'):
                 self.get_hs_spline(self.ibatch)
                 self.sk_tran_symall(self.ibatch)
 
@@ -858,12 +857,10 @@ class SKTran:
         natom = self.dataset['natomAll'][self.ibatch]
 
         # build H0 or S
-        self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
+        self.skf['hs_all'] = t.zeros(natom, natom, 20)
 
         for iat in range(natom):
-
             for jat in range(natom):
-
                 # get the name of i, j atom pair
                 namei = self.dataset['symbols'][ibatch][iat]
                 namej = self.dataset['symbols'][ibatch][jat]
@@ -872,17 +869,10 @@ class SKTran:
                 # the distance is from cal_coor
                 dd = self.dataset['distances'][ibatch][iat, jat]
 
-                # if distance larger than cutoff, return zero
-                # if dd > cutoff:
-                #    print('{} - {} distance out of range'.format(iat, jat))
-
-                if dd < 1E-1:
-
-                    # two atom are too close, exit
-                    if iat != jat:
-                        sys.exit()
+                # two atom are too close, exit
+                if dd < 1E-1 and iat != jat:
+                    sys.exit()
                 else:
-
                     # get the integral by interpolation from integral table
                     self.skf['hsdata'] = self.math.sk_interp(dd, nameij)
 

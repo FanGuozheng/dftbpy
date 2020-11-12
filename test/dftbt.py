@@ -19,8 +19,16 @@ def main(parameter=None, dataset=None):
     # parameter['LReadInput'] = True  # default is False
     # parameter['inputName'] = 'dftb_in.dftb'
 
-    #  example 2: if use this code directly to optimize compression radii
+    # example 2.1: if use this code directly to optimize compression radii
     # parameter['task'] = 'mlCompressionR'
+    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+
+    # example 2.2: test compression radii
+    parameter['CompressionRData'] = 'compr.dat'
+    dataset['sizeDataset'] = ['20']  # this should be consistent with compr.dat
+    ml['mlSteps'] = 60  # this should be consistent with compr.dat
+    parameter['task'] = 'testCompressionR'
+    ml['referenceDataset'] = '../data/dataset/ani01_500.hdf5'
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3: if use this code directly to optimize compression radii
@@ -45,7 +53,7 @@ def main(parameter=None, dataset=None):
     elif parameter['task'] in ('mlCompressionR', 'mlIntegral'):
         DFTBMLTrain(parameter, dataset, ml=ml)
 
-    elif parameter['task'] == 'test':
+    elif parameter['task'] == 'testCompressionR':
         DFTBMLTest(parameter, dataset, ml=ml)
 
 

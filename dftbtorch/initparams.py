@@ -31,9 +31,6 @@ def dftb_parameter(parameter_=None):
         # dataset of skf
         'datasetSK': '../slko/hdf/skf.hdf5',
 
-        # path to dataset data
-        'referenceDataset': '../data/dataset/testfile.hdf5',
-
         # task: dftb, mlCompressionR, mlIntegral
         'task': 'dftb',
 
@@ -117,7 +114,8 @@ def dftb_parameter(parameter_=None):
     parameter.update(parameter_)
 
     # is machine learning is on, it means that the task is machine learning
-    parameter['Lml'] = True if parameter['task'] in ('mlCompressionR', 'mlIntegral') else False
+    parameter['Lml'] = True if parameter['task'] in (
+        'mlCompressionR', 'mlIntegral', 'testCompressionR', 'testIntegral') else False
 
     # batch calculation, usually True for machine learning
     parameter['Lbatch'] = True if parameter['Lml'] is True else False
@@ -161,25 +159,16 @@ def init_dataset(dataset_=None):
         'pathFeature': '.',
 
         # how many molecules for each molecule specie !!
-        'sizeDataset': ['2'],
+        'sizeDataset': ['6'],
 
         # used to test (optimize ML algorithm parameters) !!
-        'sizeTest': ['2'],
+        'sizeTest': ['6'],
 
         # mix different molecule specie type
         'LdatasetMixture': True}
 
     # update temporal dataset_ with input dataset
     dataset.update(dataset_)
-
-    # read ANI dataset
-    '''if 'ani' in dataset['datasetType']:
-        # add hdf data: ani_gdb_s01.h5 ... ani_gdb_s08.h5
-        hdffilelist = os.path.join(dataset['directoryDataset'], 'an1/ani_gdb_s01.h5')
-
-        # transfer to list
-        if 'dataset' not in dataset.keys():
-            dataset['dataset'] = [hdffilelist]'''
 
     return dataset
 
@@ -204,6 +193,9 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
     ml = {
         # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
         'target': 'dipole',
+
+        # path to dataset data
+        'referenceDataset': '../data/dataset/ani01_10.hdf5',
 
         # define weight in loss function
         'LossRatio': [1],
@@ -247,17 +239,32 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         # skgen compression radius parameters: all, wavefunction, density
         'typeSKinterpR': 'all',
 
-        # number of grid points, should be equal to atom_compr_grid
-        'nCompressionR': 10,
-
         # if any compR < 2.2, break DFTB-ML loop
-        'compressionRMin': 2.2,
+        'compressionRMin': 1.2,
 
         # if any compR > 9, break DFTB-ML loop
         'compressionRMax': 9,
 
         # multi interpolation method
-        'interpolationType': 'BiCubVec'
+        'interpolationType': 'BiCubVec',
+
+        # set initial compression radius
+        'H_init_compr': 3.5,
+        'C_init_compr': 3.5,
+        'N_init_compr': 3.5,
+        'O_init_compr': 3.5,
+
+        # compression radius of H
+        'H_compr_grid': t.tensor([1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.]),
+
+        # compression radius of C
+        'C_compr_grid': t.tensor([1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.]),
+
+        # compression radius of N
+        'N_compr_grid': t.tensor([1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.]),
+
+        # compression radius of O
+        'O_compr_grid': t.tensor([1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.])
         }
 
     # update ml with input ml_
@@ -320,44 +327,17 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         para['LMBD_DFTB'] = True
 
     # optimize integral directly
-    if para['task'] == 'mlIntegral':
+    if para['task'] == ('mlIntegral', 'testIntegral'):
         # spline type to generate integral
         if 'interpolationType' not in ml.keys():
             ml['interpolationType'] = 'Polyspline'
 
     # optimize compression radius: by interpolation or by ML prediction
-    if para['task'] in ('mlCompressionR', 'ACSF'):
+    if para['task'] in ('mlCompressionR', 'testCompressionR'):
         # interpolation of compression radius: BiCub, BiCubVec
         if 'interpolationType' not in ml.keys():
             ml['interpolationType'] = 'BiCubVec'
 
-    # compression radius of H
-    ml['H_compr_grid'] = t.tensor((
-        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # compression radius of C
-    ml['C_compr_grid'] = t.tensor((
-        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # compression radius of N
-    ml['N_compr_grid'] = t.tensor((
-        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # compression radius of O
-    ml['O_compr_grid'] = t.tensor((
-        [2., 2.5, 3., 3.5, 4., 4.5, 5., 6., 8., 10.]), dtype=t.float64)
-
-    # test the grid points length
-    assert len(ml['H_compr_grid']) == ml['nCompressionR']
-    assert len(ml['C_compr_grid']) == ml['nCompressionR']
-    assert len(ml['N_compr_grid']) == ml['nCompressionR']
-    assert len(ml['O_compr_grid']) == ml['nCompressionR']
-
-    # set initial compression radius
-    ml['H_init_compr'] = 3.5
-    ml['C_init_compr'] = 3.5
-    ml['N_init_compr'] = 3.5
-    ml['O_init_compr'] = 3.5
     return para, dataset, skf, ml
 
 
@@ -394,54 +374,36 @@ def skf_parameter(para, skf_=None):
         'LOrbitalResolve': False,
 
         # if optimize (True) or fix (False) onsite in DFTB-ML
-        'Lonsite': False}
+        'Lonsite': False,
+
+        # define onsite
+        'onsiteHH': t.tensor([0.0E+0, 0.0E+0, -2.386005440483E-01]),
+        'onsiteCC': t.tensor([0.0E+0, -1.943551799182E-01, -5.048917654803E-01]),
+        'onsiteNN': t.tensor([0.0E+0, -2.607280834222E-01, -6.400000000000E-01]),
+        'onsiteOO': t.tensor([0.0E+00, -3.321317735288E-01, -8.788325840767E-01])
+        }
 
     # the parameters from skf will overwrite skf_ default parameters
     skf.update(skf_)
 
-    # define onsite if not orbital resolved
     if not skf['LOrbitalResolve']:
-        skf['onsiteHH'] = t.tensor((
-            [0.0E+00, 0.0E+00, -2.386005440483E-01]), dtype=t.float64)
-        skf['onsiteCC'] = t.tensor((
-            [0.0E+00, -1.943551799182E-01, -5.048917654803E-01]),
-            dtype=t.float64)
-        skf['onsiteNN'] = t.tensor((
-            [0.0E+00, -2.607280834222E-01, -6.400000000000E-01]),
-            dtype=t.float64)
-        skf['onsiteOO'] = t.tensor((
-            [0.0E+00, -3.321317735288E-01, -8.788325840767E-01]),
-            dtype=t.float64)
-
         # Hubbert is not orbital resolved, value from skgen
-        skf['uhubbHH'] = t.tensor(([4.196174261214E-01,
-                                    4.196174261214E-01,
-                                    4.196174261214E-01]), dtype=t.float64)
-        skf['uhubbCC'] = t.tensor(([3.646664973641E-01,
-                                    3.646664973641E-01,
-                                    3.646664973641E-01]), dtype=t.float64)
-        skf['uhubbNN'] = t.tensor(([4.308879578818E-01,
-                                    4.308879578818E-01,
-                                    4.308879578818E-01]), dtype=t.float64)
-        skf['uhubbOO'] = t.tensor(([4.954041702122E-01,
-                                    4.954041702122E-01,
-                                    4.954041702122E-01]), dtype=t.float64)
+        skf['uhubbHH'] = t.tensor([4.196174261214E-01, 4.196174261214E-01, 4.196174261214E-01])
+        skf['uhubbCC'] = t.tensor([3.646664973641E-01, 3.646664973641E-01, 3.646664973641E-01])
+        skf['uhubbNN'] = t.tensor([4.308879578818E-01, 4.308879578818E-01, 4.308879578818E-01])
+        skf['uhubbOO'] = t.tensor([4.954041702122E-01, 4.954041702122E-01, 4.954041702122E-01])
 
     # Hubbert is orbital resolved
     # if use different parametrization method, remember revise value here
     elif skf['LOrbitalResolve']:
-        skf['uhubbHH'] = t.tensor((
-            [0.0E+00, 0.0E+00, 4.196174261214E-01]), dtype=t.float64)
-        skf['uhubbCC'] = t.tensor((
-            [0.0E+00, 3.646664973641E-01, 3.646664973641E-01]), dtype=t.float64)
-        skf['uhubbNN'] = t.tensor((
-            [0.0E+00, 4.308879578818E-01, 4.308879578818E-01]), dtype=t.float64)
-        skf['uhubbOO'] = t.tensor((
-            [0.0E+00, 4.954041702122E-01, 4.954041702122E-01]), dtype=t.float64)
+        skf['uhubbHH'] = t.tensor([0.0E+00, 0.0E+00, 4.196174261214E-01])
+        skf['uhubbCC'] = t.tensor([0.0E+00, 3.646664973641E-01, 3.646664973641E-01])
+        skf['uhubbNN'] = t.tensor([0.0E+00, 4.308879578818E-01, 4.308879578818E-01])
+        skf['uhubbOO'] = t.tensor([0.0E+00, 4.954041702122E-01, 4.954041702122E-01])
 
-    if para['task'] == 'mlCompressionR':
+    if para['task'] in ('mlCompressionR', 'testCompressionR'):
         skf['ReadSKType'] = 'compressionRadii'
-    elif para['task'] == 'mlIntegral':
+    elif para['task'] in ('mlIntegral', 'testIntegral'):
         skf['ReadSKType'] = 'mlIntegral'
 
     # return skf

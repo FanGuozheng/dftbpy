@@ -21,7 +21,7 @@ AIMS_ENERGY = {"H": -0.45891649, "C": -37.77330663, "N": -54.46973501,
 class DFTB:
     """"""
 
-    def __init__(self, para, dataset, ml, setenv=False):
+    def __init__(self, para, dataset, ml, setenv=True):
         self.para = para
         self.dataset = dataset
         self.ml = ml
@@ -29,12 +29,15 @@ class DFTB:
         # path to dftb+
         self.dftb = self.ml['dftbplus']
 
+        # check if skf dataset exists
+        if not os.path.isfile(self.dftb):
+            raise FileNotFoundError('%s not found' % self.dftb)
+
         # SKF path
         self.slko_path = self.para['directorySK']
 
         # set environment before calculations
-        self.setenv = setenv
-        if self.setenv:
+        if setenv:
             self.set_env()
 
         # transfer all eV to H
@@ -52,11 +55,8 @@ class DFTB:
         os.environ['ASE_DFTB_COMMAND'] = path_bin + ' > PREFIX.out'
         os.environ['DFTB_PREFIX'] = self.slko_path
 
-    def run_dftb(self, nbatch, coorall, begin=None, hdf=None, group=None):
+    def run_dftb(self, nbatch, coorall, begin=0, hdf=None, group=None):
         """Run batch systems with ASE-DFTB."""
-        if begin is None:
-            begin = 0
-
         # if calculate, deal with pdos or not
         if self.para['Lpdos']:
             self.dataset['pdosdftbplus'] = []
@@ -67,18 +67,18 @@ class DFTB:
 
         # create reference list for following ML
         self.dataset['refFormEnergy'], self.dataset['refCharge'] = [], []
-        self.dataset['refDipole'] = []
+        self.dataset['refDipole'], self.dataset['refHomoLumo'] = [], []
 
         for ibatch in range(begin, nbatch):
-            # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CH4'
+            # transfer specie style, e.g., ['C', 'H', 'H', 'H', 'H'] to 'CHHHH'
             # so that satisfy ase.Atoms style
-            print('ibatch', ibatch)
             if group is None:
                 self.dataset['natom'] = self.dataset['natomAll'][ibatch]
                 ispecie = ''.join(self.dataset['symbols'][ibatch])
             else:
                 ispecie = group.attrs['specie']
                 self.dataset['natom'] = group.attrs['natom']
+            print('ibatch', ispecie, ibatch)
 
             # get coordinates of a single molecule
             self.coor = coorall[ibatch]
@@ -93,38 +93,10 @@ class DFTB:
             if self.para['task'] == 'get_dftb_hdf':
                 self.write_hdf5(hdf, ibatch, ispecie, begin, group=group)
 
-            # save dftb results as reference .txt
-            elif self.para['task'] == 'opt':
-                if 'eigval' in self.para['target']:
-                    self.dataset['refEigval'].append(self.para['eigenvalue'])
-
-                # calculate PDOS or not
-                if self.para['Lpdos']:
-
-                    # calculate PDOS
-                    dftbcalculator.Analysis(self.para).pdos()
-                    self.para['pdosdftbplus'].append(self.para['pdos'])
-
-                    # save PDOS
-                    Save2D(self.para['pdos'].numpy(),
-                           name='refpdos.dat', dire='.data', ty='a')
-
-                    # save charge
-                    Save1D(self.para['refqatom'][ibatch].numpy(),
-                           name='refqatom.dat', dire='.data', ty='a')
-
-                    # save eigenvalue
-                    Save1D(self.para['eigenvalue'],
-                           name='HLdftbplus.dat', dire='.data', ty='a')
-
-                # save energy
-                Save1D(np.asarray(self.para['refenergy']),
-                       name='energydftbplus.dat', dire='.data', ty='a')
-
         # deal with DFTB data
         self.process_results()
 
-        # remove DFTB files
+        # remove DFTB files after DFTB calculations
         self.remove()
 
     def ase_idftb(self, moleculespecie, coor):
@@ -168,7 +140,7 @@ class DFTB:
         self.dataset['eigenvec'] = get_eigenvec('eigenvec.out')
 
         # read final eigenvalue
-        self.dataset['eigenvalue'], occ = get_eigenvalue('band.out', self.ev_hat)
+        self.dataset['eigenvalue'], occ, self.hl = get_eigenvalue('band.out', self.ev_hat)
 
         # read detailed.out and return energy, charge
         self.E_tot, self.Q_, self.dip = read_detailed_out(self.dataset['natom'])
@@ -180,6 +152,7 @@ class DFTB:
         self.dataset['refFormEnergy'].append(self.E_f)
         self.dataset['refCharge'].append(self.Q_)
         self.dataset['refDipole'].append(self.dip)
+        self.dataset['refHomoLumo'].append(self.hl)
 
     def write_hdf5(self, hdf, ibatch, ispecie, begin, group=None):
         """Write each molecule DFTB calculation results to hdf type data."""
@@ -187,10 +160,10 @@ class DFTB:
         num = ibatch - begin
         # coordinate name
         if group is None:
-            coor_name = ispecie + str(num) + 'coordinate'
+            coor_name = ispecie + str(num) + 'positions'
             hdf.create_dataset(coor_name, data=self.coor)
         else:
-            coor_name = str(num) + 'coordinate'
+            coor_name = str(num) + 'positions'
             group.create_dataset(coor_name, data=self.coor)
 
         # eigenvalue
@@ -200,7 +173,17 @@ class DFTB:
             hdf.create_dataset(eigval_name, data=eigval)
         else:
             eigval_name = str(num) + 'eigenvalue'
-            eigval = self.para['eigenvalue']
+            eigval = self.dataset['eigenvalue']
+            group.create_dataset(eigval_name, data=eigval)
+
+        # HOMO LUMO
+        if group is None:
+            eigval_name = ispecie + str(num) + 'humolumo'
+            eigval = self.para['refHomoLumo']
+            hdf.create_dataset(eigval_name, data=eigval)
+        else:
+            eigval_name = str(num) + 'humolumo'
+            eigval = self.dataset['refHomoLumo']
             group.create_dataset(eigval_name, data=eigval)
 
         # dipole name
@@ -246,11 +229,6 @@ class DFTB:
 
     def cal_optfor_energy(self, energy, ibatch):
         natom = self.dataset['natom']
-        '''for iat in range(0, natom):
-            idx = int(self.coor[iat, 0])
-            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-            energy = energy - DFTB_ENERGY[iname]
-        return energy'''
         return energy - sum([DFTB_ENERGY[self.dataset['symbols'][ibatch][iat]]
                              for iat in range(natom)])
 
@@ -416,10 +394,10 @@ class AseAims:
         num = ibatch - begin
         # coordinate name
         if group is None:
-            coor_name = ispecie + str(num) + 'coordinate'
+            coor_name = ispecie + str(num) + 'positions'
             hdf.create_dataset(coor_name, data=self.coor)
         else:
-            coor_name = str(num) + 'coordinate'
+            coor_name = str(num) + 'positions'
             group.create_dataset(coor_name, data=self.coor)
 
         # eigenvalue
@@ -517,20 +495,21 @@ def get_eigenvec(filename):
 
 def get_eigenvalue(filename, eV_Hat):
     """Read DFTB+ band.out."""
-    eigenval_, occ_ = [], []
     text = ''.join(open(filename, 'r').readlines())
 
     # only read float
     string = re.findall(r"[-+]?\d*\.\d+", text)
 
     # delete even column
-    [eigenval_.append(float(ii)) for ii in string[1::2]]
-    [occ_.append(float(ii)) for ii in string[0::2]]
+    eigenval_ = [float(ii) for ii in string[1::2]]
+    occ_ = [float(ii) for ii in string[0::2]][1:]  # remove the first value
 
     # transfer list to ==> numpy(float64) ==> torch
     eigenval = t.from_numpy(np.asarray(eigenval_)) / eV_Hat
     occ = t.from_numpy(np.asarray(occ_))
-    return eigenval, occ
+    humolumo = np.asarray([eigenval[np.where(occ != 0)[0]][-1],
+                           eigenval[np.where(occ == 0)[0]][0]])
+    return eigenval, occ, humolumo
 
 
 def read_detailed_out(natom):

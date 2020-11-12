@@ -133,6 +133,7 @@ class Initialization:
         # get geometric, systematic information
         if type(self.dataset['numbers'][0]) is list:
             self.dataset['numbers'] = pad1d([t.tensor(ii) for ii in self.dataset['numbers']])
+
         self.sys = System(self.dataset['numbers'], self.dataset['positions'])
         self.dataset['positions'] = self.sys.positions
         self.dataset['positions_vec'] = self.sys.get_positions_vec()

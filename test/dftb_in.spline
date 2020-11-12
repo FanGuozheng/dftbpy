@@ -1,14 +1,15 @@
 {
 "general": {
   "task": "mlIntegral",
-  "datasetSK": "../slko/hdf/skfmio.hdf5",
-  "referenceDataset": "../data/dataset/testfile.hdf5"},
+  "datasetSK": "../slko/hdf/skfmio.hdf5"
+  },
 
 "dataset": {
   "sizeDataset": 10
   },
 
 "ml": {
+  "referenceDataset": "../data/dataset/ani01_10.hdf5",
+  "lr": 1E-3,
   "mlSteps": 4}
-
 }

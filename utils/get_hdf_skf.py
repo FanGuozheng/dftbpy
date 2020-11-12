@@ -127,7 +127,7 @@ class WriteSKNormal:
 
         # write the above to hdf
         with h5py.File('skfsingle.hdf5', 'a') as f:
-            print(nameij)
+            print('specie pair', nameij)
             g = f.create_group(nameij)
 
             # if onsite is fixed (False) or tunable (True)
@@ -160,20 +160,21 @@ class WriteSKComprR:
         """Read skf, smooth the tail, write to hdf."""
         self.para = para
         self.ml = {}
-        self.para['directorySK'] = '../slko/uniform/'
+
+        # define parameters, reference dataset (get global specie), skf path
+        self.para['referenceDataset'] = './testfile.hdf5'
+        self.para['directorySK'] = '../slko/uniform'
 
         # load initial parameters
         self.para = initpara.dftb_parameter(self.para)
-        self.skf = initpara.skf_parameter()
+        self.para = initpara.dftb_parameter(self.para)
+        self.skf = initpara.skf_parameter(self.para)
         self.dataset = initpara.init_dataset()
         self.para, self.dataset, self.skf, self.ml = \
             initpara.init_ml(self.para, self.dataset, self.skf, self.ml)
 
-        # path
-        path = os.getcwd()
-        self.hdf_ = os.path.join(path, 'testfile.hdf5')
         # load constant parameters
-        constpara.constant_parameter(self.para)
+        self.para = constpara.constant_parameter(self.para)
 
         # read the dataset and then read the corresponding skf files
         self.readdataset()
@@ -188,8 +189,8 @@ class WriteSKComprR:
             define para['dataType'] == 'hdf'
         """
         # read the hdf data, get the global atom specie
-        with h5py.File(self.hdf_, 'r') as f:
-            self.specie_global = f['globalgroup'].attrs['specieGlobal']
+        with h5py.File(self.para['referenceDataset'], 'r') as f:
+            self.specie_global = f['globalGroup'].attrs['specieGlobal']
 
     def interpskf(self):
         """Read .skf data from skgen with various compR."""
@@ -211,7 +212,7 @@ class WriteSKComprR:
             for namej in self.specie_global:
 
                 # get atom number and read corresponding directory
-                if self.para['atomno_' + namei] < self.para['atomno_' + namej]:
+                if self.para['atomNumber_' + namei] < self.para['atomNumber_' + namej]:
 
                     # generate folder name
                     dire = self.para['directorySK'] + '/' + namei + \
@@ -277,19 +278,9 @@ class WriteSKComprR:
         namecompr = 'ncompr'
         compr = int(np.sqrt(self.skf['nfile_rall' + nameij]))
 
+        # the repulsive parameters are dictionary parameters now
         if self.para['Lrepulsive']:
-
-            namenint = 'nint_rep'
-            nint_ = self.skf['nint_rep' + nameij]
-
-            namenInt_cutoff = 'cutoff_rep'
-            nInt_cutoff = self.skf['cutoff_rep' + nameij]
-
-            a1 = self.skf['a1_rep' + nameij]
-            a2 = self.skf['a2_rep' + nameij]
-            a3 = self.skf['a3_rep' + nameij]
-            rep = self.skf['rep' + nameij]
-            repend = self.skf['repend' + nameij]
+            pass
 
         # write the above to hdf
         with h5py.File('skf.hdf5', 'a') as f:
@@ -319,9 +310,13 @@ class WriteSKComprR:
 
 
 if __name__ == '__main__':
-    para = {}
-    para['task'] = 'get_hdf_compr'
+    """Main function."""
+    para = {'task': 'get_hdf_compr'}
+
+    # generate hdf5 binary dataset of skf with various compression radii
     if para['task'] == 'get_hdf_compr':
         WriteSKComprR(para)
+
+    # generate hdf5 binary dataset of normal skf
     elif para['task'] == 'get_hdf_normal':
         WriteSKNormal(para)

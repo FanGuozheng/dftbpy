@@ -223,6 +223,7 @@ class LoadData:
             elif self.dataset['datasetType'] == 'writeinput':
                 self.write_aims_input()
 
+        self.NmoleculeSpecie = idata + 1
         if self.dataset['datasetType'] == 'runani':
             self.write_hdf_global()
 
@@ -249,11 +250,11 @@ class LoadData:
         write.FHIaims(self.dataset).geo_nonpe_hdf_batch(self.nend)
 
     def write_hdf_global(self):
-        # save rest to global attrs
+        """Save rest to global attrs."""
         with h5py.File(self.path_file, 'a') as f:
-            g = f.create_group('globalgroup')
+            g = f.create_group('globalGroup')
             g.attrs['specieGlobal'] = self.dataset['specieGlobal']
-            # g.attrs['totalmolecule'] = nmoldftbase
+            g.attrs['NmoleculeSpecie'] = self.NmoleculeSpecie
 
     def load_json_data(self):
         """Load the data from json type input files."""
@@ -397,9 +398,9 @@ class LoadReferenceData:
     def get_hdf_data(self):
         """Read data from hdf for reference or the following ML."""
         # join the path and hdf data
-        hdffile = self.para['referenceDataset']
+        hdffile = self.ml['referenceDataset']
         if not os.path.isfile(hdffile):
-            raise FileExistsError('reference dataset do not exist')
+            raise FileExistsError('dataset {} do not exist'.format(hdffile))
         self.dataset['positions'] = []
         self.dataset['natomAll'] = []
         self.dataset['symbols'] = []
@@ -414,15 +415,23 @@ class LoadReferenceData:
         self.dataset['numberatom'] = []
         if type(self.dataset['sizeDataset']) is list:
             # all molecule size is same for ML
-            size_dataset = int(self.dataset['sizeDataset'][0])
+            if self.para['task'] == 'testCompressionR':
+                size_dataset = max(int(self.dataset['sizeDataset'][0]),
+                                   int(self.dataset['sizeTest'][0]))
+            else:
+                size_dataset = int(self.dataset['sizeDataset'][0])
         else:
-            size_dataset = self.dataset['sizeDataset']
+            if self.para['task'] == 'testCompressionR':
+                size_dataset = max(self.dataset['sizeDataset'],
+                                   self.dataset['sizeTest'])
+            else:
+                size_dataset = self.dataset['sizeDataset']
 
         # read global parameters
         with h5py.File(hdffile, 'r') as f:
 
             # get all the molecule species
-            self.dataset['specieGlobal'] = f['globalgroup'].attrs['specie_all']
+            self.dataset['specieGlobal'] = f['globalGroup'].attrs['specieGlobal']
 
             # get the molecule species
             molecule = [ikey.encode() for ikey in f.keys()]
@@ -431,7 +440,7 @@ class LoadReferenceData:
             molecule2 = [istr.decode('utf-8') for istr in molecule]
 
             # delete group which is not related to atom species
-            ind = molecule2.index('globalgroup')
+            ind = molecule2.index('globalGroup')
             del molecule2[ind]
 
         # read and mix different molecules
@@ -451,7 +460,7 @@ class LoadReferenceData:
                     with h5py.File(hdffile, 'r') as f:
 
                         # coordinates: not tensor now !!!
-                        namecoor = str(ibatch) + 'coordinate'
+                        namecoor = str(ibatch) + 'positions'
                         self.dataset['positions'].append(
                             t.from_numpy(f[igroup][namecoor][()]))
                         self.dataset['numbers'].append(
@@ -484,25 +493,21 @@ class LoadReferenceData:
                         nameEf = str(ibatch) + 'totalenergy'
                         self.dataset['refTotEenergy'].append(f[igroup][nameEf][()])
 
-                        # get refhirshfeld volume ratios
+                        # get refhirshfeld volume ratios, optional
                         namehv = str(ibatch) + 'hirshfeldvolume'
-                        volume = f[igroup][namehv][()]
-                        volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
-                        self.dataset['refHirshfeldVolume'].append(volume)
+                        if namehv in f[igroup].keys():
+                            volume = f[igroup][namehv][()]
+                            volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
+                            self.dataset['refHirshfeldVolume'].append(volume)
 
                         # polarizability
                         namepol = str(ibatch) + 'alpha_mbd'
-                        self.dataset['refMBDAlpha'].append(
-                            f[igroup][namepol][()])
+                        if namepol in f[igroup].keys():
+                            self.dataset['refMBDAlpha'].append(
+                                f[igroup][namepol][()])
 
                     # total molecule number
                     self.nbatch += 1
-                    '''self.save_ref_idata('hdf', ibatch,
-                                        LWHL=self.para['LHomoLumo'],
-                                        LWeigenval=self.para['Leigval'],
-                                        LWenergy=self.para['Lenergy'],
-                                        LWdipole=self.para['Ldipole'],
-                                        LWpol=self.para['LMBD_DFTB'])'''
             self.dataset['nfile'] = self.nbatch
             self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
 

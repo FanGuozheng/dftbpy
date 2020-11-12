@@ -26,10 +26,10 @@ def constant_parameter(parameter_=None):
         "val_Ti": 4,
 
         # number of atom
-        'atomno_H': 1,
-        'atomno_C': 6,
-        'atomno_N': 7,
-        'atomno_O': 8,
+        'atomNumber_H': 1,
+        'atomNumber_C': 6,
+        'atomNumber_N': 7,
+        'atomNumber_O': 8,
 
         # number of temporary orbital dimension with different l
         'nls': 1,

@@ -4,6 +4,7 @@ from dftbmalt.data.elements import symbol
 from ml.padding import pad1d, pad2d
 from dftbmalt.utils.exceptions import MutualExclusivityError
 from dftbmalt.utils.batch import pack
+from ml.padding import pad2d
 _bohr = 0.529177249
 _atom_name = ["H", "He",
               "Li", "Be", "B", "C", "N", "O", "F", "Ne",
@@ -243,8 +244,8 @@ class System:
             raise ValueError("numbers should be LongTensor or sequences")
 
         # tensor
-        if type(positions) is list:
-            self.positions = t.tensor(positions)
+        if type(positions) is list and type(positions[0]) is t.Tensor:
+            self.positions = pad2d(positions)
         elif type(positions) is t.Tensor:
             self.positions = positions
         else:
