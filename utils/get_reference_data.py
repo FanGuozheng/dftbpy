@@ -7,25 +7,15 @@ The data will include:
 define para['dataType'] as original dataset, e.g 'ani'
 
 """
-# !/usr/bin/env python3
-# -*- coding: utf-8 -*-
-import os
-import numpy as np
-import h5py
 import dftbtorch.initparams as initpara
-import IO.pyanitools as pya
 from utils.aset import DFTB, AseAims
 from IO.dataloader import LoadData
 import dftbtorch.parameters as constpara
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
-class RefDFTB:
-    """Physical properties are from DFTB-ASE calculations.
-
-    Note:
-    set para['reference'] = 'dftbase'
-    """
+class RefDFTBPlus:
+    """Physical properties are from DFTB-ASE calculations."""
 
     def __init__(self, para):
         """Load original dataset and then write into hdf type."""
@@ -45,13 +35,13 @@ class RefDFTB:
         self.para['directorySK'] = '../slko/mio/'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = ['20']
+        self.dataset['sizeDataset'] = [5, 5, 5]
 
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
 
         # define dataset as input
-        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s01.h5']
+        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
@@ -84,7 +74,6 @@ class RefAims:
     """Run FHI-aims calculations and save results as reference data for ML.
 
     Note:
-    -----
     set para['reference'] = 'aimsase'
     """
 
@@ -98,18 +87,18 @@ class RefAims:
         # how to run FHI-aims
         self.ml['reference'] = 'aimsase'
 
-        # runani: read dataset and run FHI-aims calculations
-        # writeinput: read dataset and write FHI-aims input without calculation
-        self.dataset['datasetType'] = 'runani'
+        # runaims: read dataset and run FHI-aims calculations
+        # writeinput: read dataset and only generate geometry.in
+        self.dataset['datasetType'] = 'runaims'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = ['500']
+        self.dataset['sizeDataset'] = [100, 100, 100]
 
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
 
         # define dataset as input
-        self.dataset['dataset'] = ['../data/dataset/an1/ani_gdb_s01.h5']
+        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
@@ -136,8 +125,8 @@ if __name__ == '__main__':
     para = {'task': 'get_aims_hdf'}
 
     # get_dftb_hdf means get reference data from DFTB+ calculations
-    if para['task'] == 'get_dftb_hdf':
-        RefDFTB(para)
+    if para['task'] == 'get_dftbplus_hdf':
+        RefDFTBPlus(para)
 
     # get_dftb_hdf means get reference data from FHI-aims calculations
     elif para['task'] == 'get_aims_hdf':

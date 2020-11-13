@@ -25,10 +25,11 @@ def main(parameter=None, dataset=None):
 
     # example 2.2: test compression radii
     parameter['CompressionRData'] = 'compr.dat'
-    dataset['sizeDataset'] = ['20']  # this should be consistent with compr.dat
+    dataset['sizeDataset'] = [20, 20, 20]  # this should be consistent with compr.dat
+    dataset['sizeDataset'] = [20, 20, 20]
     ml['mlSteps'] = 60  # this should be consistent with compr.dat
     parameter['task'] = 'testCompressionR'
-    ml['referenceDataset'] = '../data/dataset/ani01_500.hdf5'
+    ml['referenceDataset'] = '../data/dataset/ani01_100.hdf5'
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3: if use this code directly to optimize compression radii

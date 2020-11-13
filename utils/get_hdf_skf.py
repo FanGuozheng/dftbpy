@@ -32,7 +32,7 @@ class WriteSKNormal:
 
         # get default general parameters
         self.para = initpara.dftb_parameter(self.para)
-        self.skf = initpara.skf_parameter()
+        self.skf = initpara.skf_parameter(self.para)
         self.dataset = initpara.init_dataset(self.dataset)
         self.para, self.dataset, self.skf, self.ml = \
             initpara.init_ml(self.para, self.dataset, self.skf, self.ml)
@@ -51,11 +51,11 @@ class WriteSKNormal:
             define para['dataType'] == 'hdf'
         """
         # join the path and hdf data
-        hdf_ = self.dataset['Dataset']
+        hdf_ = '../data/dataset/ani01_500.hdf5'
 
         # read the hdf data, get the global atom specie
         with h5py.File(hdf_, 'r') as f:
-            self.specie_global = f['globalgroup'].attrs['specie_all']
+            self.specie_global = f['globalGroup'].attrs['specieGlobal']
             self.dataset['specieGlobal'] = [self.specie_global]
 
     def interpskf(self):
@@ -311,7 +311,7 @@ class WriteSKComprR:
 
 if __name__ == '__main__':
     """Main function."""
-    para = {'task': 'get_hdf_compr'}
+    para = {'task': 'get_hdf_normal'}
 
     # generate hdf5 binary dataset of skf with various compression radii
     if para['task'] == 'get_hdf_compr':

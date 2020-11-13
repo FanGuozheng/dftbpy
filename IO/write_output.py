@@ -174,38 +174,33 @@ class Dftbplus:
 class FHIaims:
     """Interface to FHI-aims."""
 
-    def __init__(self, dataset):
+    def __init__(self, positions, symbols, batch=True):
         """Initialize parameters."""
-        self.dataset = dataset
+        self.positions = positions
+        self.symbols = symbols
 
-    def geo_nonpe_hdf(self, ibatch, coor):
-        """Input is from hdf data, output is FHI-aims input: geo.in."""
-        specie = self.dataset['specie'][ibatch]
-        speciedict = self.dataset['speciedict'][ibatch]
-        symbols = self.dataset['symbols'][ibatch]
-        with open('geometry.in.{}'.format(ibatch), 'w') as fp:
-            ispecie = 0
-            iatom = 0
-            for atom in specie:
-                ispecie += 1
-                for natom in range(speciedict[atom]):
-                    fp.write('atom ')
-                    iatom += 1
-                    np.savetxt(fp, coor[iatom - 1], fmt='%s', newline=' ')
-                    fp.write(symbols[iatom - 1])
-                    fp.write('\n')
+        # select positions type, single or multi
+        if batch:
+            self.geo_nonpe_hdf_batch()
 
-    def geo_nonpe_hdf_batch(self, nbatch):
+    def geo_nonpe_hdf(self):
         """Input is from hdf data, output is FHI-aims input: geo.in."""
-        symbols = self.dataset['symbols']
-        coorall = self.dataset['positions']
-        ispecie = ''.join(self.dataset['symbols'][0])
-        for ibatch in range(nbatch):
+        with open('geometry.in', 'w') as fp:
+            for iat, icoor in enumerate(self.positions):
+                fp.write('atom ')
+                np.savetxt(fp, icoor, fmt='%s', newline=' ')
+                fp.write(self.symbols[iat])
+                fp.write('\n')
+
+    def geo_nonpe_hdf_batch(self):
+        """Input is from hdf data, output is FHI-aims input: geo.in."""
+        ispecie = ''.join(self.symbols[0])
+        for ibatch, iposition in enumerate(self.positions):
             with open('geometry.in.{}.{}'.format(ispecie, ibatch + 1), 'w') as fp:
-                for iat, icoor in enumerate(coorall[ibatch]):
+                for iat, icoor in enumerate(iposition):
                     fp.write('atom ')
                     np.savetxt(fp, icoor, fmt='%s', newline=' ')
-                    fp.write(symbols[ibatch][iat])
+                    fp.write(self.symbols[ibatch][iat])
                     fp.write('\n')
 
     def geo_pe():

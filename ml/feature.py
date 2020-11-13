@@ -26,14 +26,14 @@ class Dscribe:
         """Process data for Dscribe."""
         nfile = max(ntest, ndataset)
         nmax = int(max(self.dataset['natomAll']))
-        print("ntest, ndataset", ntest, ndataset)
+
         if self.ml['featureType'] == 'cm':  # flatten=True for all!!!!!
             features = t.zeros(nfile * nmax, nmax)
         elif self.ml['featureType'] == 'acsf':
             self.get_acsf_dim()
             col = self.para['acsf_dim']  # get ACSF feature dimension
             features = t.zeros(nfile * nmax, col)
-
+        print("self.dataset['positions']", len(self.dataset['positions']), nfile)
         for ibatch in range(nfile):
             if type(self.dataset['positions'][ibatch]) is np.array:
                 self.para['coor'] = t.from_numpy(self.dataset['positions'][ibatch])

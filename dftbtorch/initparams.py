@@ -159,10 +159,10 @@ def init_dataset(dataset_=None):
         'pathFeature': '.',
 
         # how many molecules for each molecule specie !!
-        'sizeDataset': ['6'],
+        'sizeDataset': [6, 6, 6],
 
         # used to test (optimize ML algorithm parameters) !!
-        'sizeTest': ['6'],
+        'sizeTest': [6, 6, 6],
 
         # mix different molecule specie type
         'LdatasetMixture': True}

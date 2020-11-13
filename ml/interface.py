@@ -44,18 +44,9 @@ class MLPara:
             traing target (Y, e.g, compression radius)
 
         """
-        nn1 = self.dataset['sizeDataset']  # training number
-        nn2 = self.dataset['sizeTest']  # number for prediction
-        nn1 = int(nn1[0]) if type(nn1) is list else nn1
-        nn2 = int(nn2[0]) if type(nn2) is list else nn2
-
-        if nn1 >= nn2:
-            nfile = self.dataset['nfile']
-            ntest = int(nn2 / nn1 * nfile)
-        elif nn1 < nn2:
-            ntest = self.dataset['nfile']
-            nfile = int(nn1 / nn2 * ntest)
-        self.dscribe.pro_(nfile, ntest)
+        ntrain = self.dataset['nbatch']  # training number
+        ntest = self.dataset['ntest']  # number for prediction
+        self.dscribe.pro_(ntrain, ntest)
         self.para['feature_target'] = t.flatten(self.ml['optCompressionR'])
 
     def dataprocess_atom(self):
