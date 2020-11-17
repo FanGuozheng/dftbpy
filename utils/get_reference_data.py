@@ -29,13 +29,13 @@ class RefDFTBPlus:
 
         # runani: read dataset and run FHI-aims calculations
         # writeinput: read dataset and write FHI-aims input without calculation
-        self.dataset['datasetType'] = 'runani'
+        self.dataset['datasetType'] = 'rundftbplus'
 
         # SKF path
         self.para['directorySK'] = '../slko/mio/'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = [5, 5, 5]
+        self.dataset['sizeDataset'] = [200, 200, 200]
 
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
@@ -92,13 +92,15 @@ class RefAims:
         self.dataset['datasetType'] = 'runaims'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = [100, 100, 100]
+        # self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
+        # self.dataset['sizeDataset'] = [200, 200, 200]
 
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
 
         # define dataset as input
-        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
+        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s02.h5'
+        self.dataset['sizeDataset'] = [2000] * 15
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)

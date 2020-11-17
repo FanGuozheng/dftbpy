@@ -233,33 +233,7 @@ class System:
     """
 
     def __init__(self, numbers, positions, lattice=None, unit='angstrom', **kwargs):
-        # sequences of tensor
-        if type(numbers) is list and type(numbers[0]) is t.Tensor:
-            self.numbers = pad1d(numbers)
-
-        # tensor
-        elif type(numbers) is t.Tensor:
-            self.numbers = numbers
-        else:
-            raise ValueError("numbers should be LongTensor or sequences")
-
-        # tensor
-        if type(positions) is list and type(positions[0]) is t.Tensor:
-            self.positions = pad2d(positions)
-        elif type(positions) is t.Tensor:
-            self.positions = positions
-        else:
-            raise ValueError("positions should be torch.Tensor or list")
-
-        # transfer positions from angstrom to bohr
-        self.positions = self.positions / _bohr if unit == 'angstrom' else self.positions
-
-        # add one dimension for single system to satisfy batch calculations
-        if self.numbers.dim() == 1:
-            self.numbers.unsqueeze_(0)
-        if self.positions.dim() == 2:
-            self.positions.unsqueeze_(0)
-
+        self.positions, self.numbers = self._check(numbers, positions, unit)
         # get distance
         self.distances = self.get_distances()
 
@@ -287,6 +261,36 @@ class System:
         # Get pbc value from **kwargs if present; otherwise set pbc to True if
         # the lattice parameter was passed & False if not.
         self.pbc = kwargs['pbc'] if 'pbc' in kwargs else lattice is not None
+
+    def _check(self, numbers, positions, unit):
+        # sequences of tensor
+        if type(numbers) is list and type(numbers[0]) is t.Tensor:
+            self.numbers = pad1d(numbers)
+        # tensor
+        elif type(numbers) is t.Tensor:
+            self.numbers = numbers
+        else:
+            raise ValueError("numbers should be LongTensor or sequences")
+
+        # positions type check
+        if type(positions) is list and type(positions[0]) is t.Tensor:
+            self.positions = pad2d(positions)
+        elif type(positions) is list and type(positions[0]) is list:
+            self.positions = pad2d([t.tensor(ipos) for ipos in positions])
+        elif type(positions) is t.Tensor:
+            self.positions = positions
+        else:
+            raise ValueError("positions should be torch.Tensor or list")
+
+        # transfer positions from angstrom to bohr
+        self.positions = self.positions / _bohr if unit == 'angstrom' else self.positions
+
+        # add one dimension for single system to satisfy batch calculations
+        if self.numbers.dim() == 1:
+            self.numbers.unsqueeze_(0)
+        if self.positions.dim() == 2:
+            self.positions.unsqueeze_(0)
+        return self.positions, self.numbers
 
     @property
     def z(self):
@@ -347,7 +351,7 @@ class System:
         1]], this function will return [[0, 4, 5, 6, 7, 8]], max_orbital is 8.
         """
         atom_index = self.get_atom_orbital_numbers()
-        index_cumsum = [t.cat((t.zeros(1), t.cumsum(iind, -1)))
+        index_cumsum = [t.cat((t.tensor([1]), t.cumsum(iind, 0)))
                         for iind in atom_index]
         number_orbital = [int(ind[-1]) for ind in index_cumsum]
         return atom_index, index_cumsum, number_orbital

@@ -17,24 +17,31 @@ def main(parameter=None, dataset=None):
     # example 1: if use this code directly to run DFTB
     # parameter['task'] = 'dftb'
     # parameter['LReadInput'] = True  # default is False
+    # parameter['LCPA'], parameter['LMBD'] = True, True
     # parameter['inputName'] = 'dftb_in.dftb'
 
     # example 2.1: if use this code directly to optimize compression radii
-    # parameter['task'] = 'mlCompressionR'
-    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+    parameter['task'] = 'mlCompressionR'
+    # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
+    ml['target'] = 'polarizability'
+    ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
+    dataset['sizeDataset'] = [1, 1, 1]
+    ml['mlSteps'] = 5
+    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
-    parameter['CompressionRData'] = 'compr.dat'
-    dataset['sizeDataset'] = [20, 20, 20]  # this should be consistent with compr.dat
-    dataset['sizeDataset'] = [20, 20, 20]
-    ml['mlSteps'] = 60  # this should be consistent with compr.dat
-    parameter['task'] = 'testCompressionR'
-    ml['referenceDataset'] = '../data/dataset/ani01_100.hdf5'
+    # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_50mol_50step_dipole.dat'
+    # dataset['sizeDataset'] = [50, 50, 50]  # this should be consistent with compr.dat
+    # dataset['sizeTest'] = [200, 200, 200]
+    # ml['target'] = 'dipole'
+    # ml['mlSteps'] = 50  # this should be consistent with compr.dat
+    # parameter['task'] = 'testCompressionR'
+    # ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3: if use this code directly to optimize compression radii
     # parameter['task'] = 'mlIntegral'
-    # dataset['sizeDataset'] = 2
+    # dataset['sizeDataset'] = [2, 2, 2]
     # parameter['datasetSK'] = '../slko/hdf/skfmio.hdf5'
 
     # get command line parameters, add t in parsert to avoid naming conflicts
@@ -54,7 +61,7 @@ def main(parameter=None, dataset=None):
     elif parameter['task'] in ('mlCompressionR', 'mlIntegral'):
         DFTBMLTrain(parameter, dataset, ml=ml)
 
-    elif parameter['task'] == 'testCompressionR':
+    elif parameter['task'] in ('testCompressionR', 'testIntegral'):
         DFTBMLTest(parameter, dataset, ml=ml)
 
 

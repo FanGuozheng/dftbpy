@@ -61,6 +61,7 @@ class DFTBMLTrain:
         self.load_skf()
 
         # run machine learning optimization
+        print("self.dataset['LdatasetMixture']", self.dataset['LdatasetMixture'])
         self.run_ml()
 
         # plot ML results
@@ -252,7 +253,7 @@ class MLCompressionR:
 
     def process_dataset(self):
         """Get all parameters for compression radii machine learning."""
-        os.system('rm compr.dat')
+        os.system('rm compr.dat charge.dat')
         # deal with coordinates type
         get_coor(self.dataset)
 
@@ -313,8 +314,35 @@ class MLCompressionR:
                 self.dataset['symbols'], ibatch)
 
             # get loss function
+            loss = 0.
             if 'dipole' in self.ml['target']:
-                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refDipole']))
+                loss += self.criterion(self.para['dipole'],
+                                       pad1d(self.dataset['refDipole']))
+                Save2D(self.para['dipole'].detach().numpy(),
+                       name='dipole.dat', dire='.', ty='a')
+            elif 'HOMOLUMO' in self.ml['target']:
+                loss += self.criterion(self.para['homo_lumo'],
+                                       pad1d(self.dataset['refHOMOLUMO']))
+            elif 'gap' in self.ml['target']:
+                homolumo = self.para['homo_lumo']
+                refhl = pad1d(self.dataset['refHOMOLUMO'])
+                gap = homolumo[:, 1] - homolumo[:, 0]
+                refgap = refhl[:, 1] - refhl[:, 0]
+                loss += self.criterion(gap, refgap)
+            elif 'polarizability' in self.ml['target']:
+                loss += self.criterion(self.para['alpha_mbd'],
+                                       pad1d(self.dataset['refMBDAlpha']))
+            elif 'charge' in self.ml['target']:
+                loss += self.criterion(self.para['fullCharge'],
+                                       pad1d(self.dataset['refCharge']))
+                Save2D(self.para['fullCharge'].detach().numpy(),
+                       name='charge.dat', dire='.', ty='a')
+            elif 'cpa' in self.ml['target']:
+                loss += self.criterion(
+                    self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
+            elif 'pdos' in self.ml['target']:
+                loss += self.criterion(
+                    self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
             print("istep:", istep, '\n loss', loss)
             print("compression radius:", self.para['compr_ml'])
             print('gradient', self.para['compr_ml'].grad)
@@ -369,7 +397,8 @@ class MLCompressionR:
                 elif 'offsetenergy' in self.ml['target']:
                     initenergy.append(self.para['electronic_energy'])
                 elif 'cpa' in self.ml['target']:
-                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch])
+                    loss += self.criterion(self.para['cpa'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch])
+                    print('cpa', self.criterion(self.para['cpa'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch]))
 
                 print("*" * 50, "\n istep:", istep + 1, "\n ibatch", ibatch + 1)
                 print("loss:", loss, self.para['compr_ml'].grad)

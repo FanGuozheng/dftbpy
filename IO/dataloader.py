@@ -14,8 +14,7 @@ import IO.pyanitools as pya
 import IO.write_output as write
 from utils.aset import DFTB, AseAims
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
-HIRSH_VOL = {"H": 10.31539447, "C": 38.37861207, "N": 29.90025370,
-             "O": 23.60491416}
+HIRSH_VOL = [10.31539447, 0., 0., 0., 0., 38.37861207, 29.90025370, 23.60491416]
 
 
 class LoadData:
@@ -43,7 +42,7 @@ class LoadData:
             self.load_ani()
 
         # load dataset and directly run DFTB+ or aims calculations
-        elif self.dataset['datasetType'] in ('runaims', 'writeinput'):
+        elif self.dataset['datasetType'] in ('runaims', 'rundftbplus', 'writeinput'):
             self.load_run_ani()
 
         # load QM7 dataset
@@ -168,7 +167,7 @@ class LoadData:
         os.system('rm ' + self.path_file)
 
         # the global atom species in dataset (training data)
-        self.specieGlobal = []
+        self.specieGlobal, self.groupName = [], []
 
         # number of molecules in dataset
         adl = pya.anidataloader(self.dataset['dataset'])
@@ -195,6 +194,7 @@ class LoadData:
             # write the current atom species in molecule to list "symbols"
             # use metadata instead
             self.ispecie = ''.join(data['species'])
+            self.groupName.append(self.ispecie)
             self.dataset['symbols'] = [data['species']] * self.nend
 
             # write global atom species
@@ -219,14 +219,15 @@ class LoadData:
 
         Returns:
             specie: joint atom species of molecule (for CH4, CHHHH)
-            natom: number of atom in molecule
+            numberAtom: number of atom in molecule
             atomNumber: each atom number in molecule
         """
         with h5py.File(self.path_file, 'a') as self.f:
             self.g = self.f.create_group(self.ispecie)
             self.g.attrs['specie'] = self.ispecie
-            self.g.attrs['natom'] = self.natom
+            self.g.attrs['numberAtom'] = self.natom
             self.g.attrs['atomNumber'] = self._number
+            self.g.attrs['numberMolecule'] = self.nend
 
             # run dftb with ase interface
             if self.ml['reference'] == 'dftbase':
@@ -247,6 +248,7 @@ class LoadData:
             g = f.create_group('globalGroup')
             g.attrs['specieGlobal'] = self.specieGlobal
             g.attrs['NmoleculeSpecie'] = self.NmoleculeSpecie
+            g.attrs['groupName'] = self.groupName
 
     def load_json_data(self):
         """Load the data from json type input files."""
@@ -438,9 +440,8 @@ class LoadReferenceData:
         # read and mix different molecules
         self.nbatch = 0
         if self.dataset['LdatasetMixture']:
-            print("size_dataset", size_dataset)
             # loop for molecules in each molecule specie
-            for ibatch in size_dataset:
+            for ibatch in range(max(size_dataset)):
                 # each molecule specie
                 for igroup in molecule2:
                     with h5py.File(hdffile, 'r') as f:
@@ -483,7 +484,7 @@ class LoadReferenceData:
                         self.dataset['refTotEenergy'].append(f[igroup][nameEf][()])
 
                         # get refhirshfeld volume ratios, optional
-                        namehv = str(ibatch) + 'hirshfeldvolume'
+                        namehv = str(ibatch) + 'hirshfeldVolume'
                         if namehv in f[igroup].keys():
                             volume = f[igroup][namehv][()]
                             volume = self.get_hirsh_vol_ratio(volume, self.nbatch)
@@ -501,7 +502,7 @@ class LoadReferenceData:
             self.dataset['refFormEnergy'] = t.tensor(self.dataset['refFormEnergy'])
 
         # read single molecule specie
-        elif not self.para['hdf_mixture']:
+        elif not self.dataset['LdatasetMixture']:
             # loop for molecules in each molecule specie
             for ibatch in size_dataset:
 
@@ -548,12 +549,9 @@ class LoadReferenceData:
     def get_hirsh_vol_ratio(self, volume, ibatch=0):
         """Get Hirshfeld volume ratio."""
         natom = self.dataset["natomAll"][ibatch]
-        print('volume', volume, natom,self.dataset["natomAll"], ibatch)
-        for iat in range(natom):
-            idx = int(self.dataset['numbers'][ibatch][iat])
-            iname = list(ATOMNUM.keys())[list(ATOMNUM.values()).index(idx)]
-            volume[iat] = volume[iat] / HIRSH_VOL[iname]
-        return volume
+        idx = self.dataset['numbers'][ibatch]
+        volume = t.from_numpy(volume) if type(volume) is np.ndarray else volume
+        return volume / t.tensor([HIRSH_VOL[num - 1] for num in idx])
 
 
 class Split:

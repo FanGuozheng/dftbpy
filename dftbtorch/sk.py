@@ -743,26 +743,26 @@ class GetSK_:
             mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
-        elif self.ml['interp_compr_type'] == 'BiCub':
-            icount = 0
-            bicubic = BicubInterp()
-            hs_ij = t.zeros(natom, natom, 20)
-            for iatom in range(natom):
-                iname = atomname[iatom]
-                icompr = self.para['compr_ml'][ibatch][iatom]
-                xmesh = self.ml[iname + '_compr_grid']
-                for jatom in range(natom):
-                    jname = atomname[jatom]
-                    ymesh = self.ml[jname + '_compr_grid']
-                    jcompr = self.para['compr_ml'][ibatch][jatom]
-                    zmeshall = self.skf['hs_compr_all'][iatom, jatom]
-                    if iatom != jatom:
-                        for icol in range(0, 20):
-                            hs_ij[iatom, jatom, icol] = \
-                                bicubic.bicubic_2d(
-                                        xmesh, ymesh, zmeshall[:, :, icol],
-                                        icompr, jcompr)
-                    icount += 1
+        # elif self.ml['interp_compr_type'] == 'BiCub':
+        #     icount = 0
+        #     bicubic = BicubInterp()
+        #     hs_ij = t.zeros(natom, natom, 20)
+        #     for iatom in range(natom):
+        #         iname = atomname[iatom]
+        #         icompr = self.para['compr_ml'][ibatch][iatom]
+        #         xmesh = self.ml[iname + '_compr_grid']
+        #         for jatom in range(natom):
+        #             jname = atomname[jatom]
+        #             ymesh = self.ml[jname + '_compr_grid']
+        #             jcompr = self.para['compr_ml'][ibatch][jatom]
+        #             zmeshall = self.skf['hs_compr_all'][iatom, jatom]
+        #             if iatom != jatom:
+        #                 for icol in range(0, 20):
+        #                     hs_ij[iatom, jatom, icol] = \
+        #                         bicubic.bicubic_2d(
+        #                                 xmesh, ymesh, zmeshall[:, :, icol],
+        #                                 icompr, jcompr)
+        #             icount += 1
 
         self.skf['hs_all'] = hs_ij
         timeend = time.time()
@@ -872,21 +872,9 @@ class SKTran:
                 # two atom are too close, exit
                 if dd < 1E-1 and iat != jat:
                     sys.exit()
-                else:
+                elif iat != jat:
                     # get the integral by interpolation from integral table
-                    self.skf['hsdata'] = self.math.sk_interp(dd, nameij)
-
-                    # make sure type is tensor
-                    self.skf['hs_all'][iat, jat, :] = \
-                        self.data_type(self.skf['hsdata'])
-
-    def data_type(self, in_):
-        """Make sure the output is tensor type."""
-        if type(self.skf['hsdata']) is t.Tensor:
-            out_ = in_
-        else:
-            out_ = t.from_numpy(in_)
-        return out_
+                    self.skf['hs_all'][iat, jat, :] = self.math.sk_interp(dd, nameij)
 
     def sk_tran_half(self):
         """Transfer H and S according to slater-koster rules."""

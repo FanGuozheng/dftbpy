@@ -91,7 +91,8 @@ class CompressionR:
     def __init__(self, para, dataset, skf, ml):
         self.para, self.dataset, self.skf, self.ml = para, dataset, skf, ml
 
-        self.nbatch = self.dataset['nbatch'] = self.dataset['nfile']
+        self.nbatch = self.dataset['nbatch']
+        self.ntest = self.dataset['ntest']
 
         # load data, get optimized compression radii
         self.load_data()
@@ -110,7 +111,7 @@ class CompressionR:
         self.steps = self.ml['mlSteps']
 
         # get the total system size of compression radii
-        nsys = int(self.steps * self.nbatch)
+        nsys = int(self.steps * self.dataset['nbatch'])
         compr_dat = np.fromfile(self.para['CompressionRData'], sep=' ')
         self.max_molecule_size = int(len(compr_dat) / nsys)
 
@@ -140,14 +141,14 @@ class CompressionR:
         self.skf['hs_compr_all_'] = []
         self.ml['CompressionRInit'] = []
         maxorb = max(self.dataset['norbital'])
-        ham = t.zeros(self.nbatch, maxorb, maxorb)
-        over = t.zeros(self.nbatch, maxorb, maxorb)
+        ham = t.zeros(self.ntest, maxorb, maxorb)
+        over = t.zeros(self.ntest, maxorb, maxorb)
 
         # get all the integral
-        for ibatch in range(self.nbatch):
+        for ibatch in range(self.ntest):
             if self.ml['reference'] == 'hdf':
                 natom = self.dataset['natomAll'][ibatch]
-                print("self.nbatch", self.nbatch)
+
                 # Get integral at certain distance, read integrals from hdf5
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
@@ -163,19 +164,26 @@ class CompressionR:
             over[ibatch, :iorb, :iorb] = self.skf['overmat']
         self.skf['hammat_'] = ham
         self.skf['overmat_'] = over
-        dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
+        dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.ntest)
 
     def process_test_data(self):
-        import matplotlib.pyplot as plt
         """Compare predicted results."""
-        ref = pad1d(self.dataset['refDipole'])
-        self.ml['referenceDataset'] = '../data/dataset/ani01_all_dftbplus.hdf5'
-        LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
-        dftb = self.para['dipole']
-        print('ref', ref.flatten())
-        dftbplus = pad1d(self.dataset['refDipole'])
+        import matplotlib.pyplot as plt
+        if 'dipole' in self.ml['target']:
+            ref = pad1d(self.dataset['refDipole'])
+            self.ml['referenceDataset'] = '../data/dataset/ani01_200_dftbplus.hdf5'
+            dftb = self.para['dipole']
+            LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
+            dftbplus = pad1d(self.dataset['refDipole'])
+        elif 'charge' in self.ml['target']:
+            ref = pad1d(self.dataset['refCharge'])
+            print('refCharge:', ref, '\n charge:', self.para['charge'])
+            self.ml['referenceDataset'] = '../data/dataset/ani01_200_dftbplus.hdf5'
+            dftb = self.para['fullCharge']
+            LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
+            dftbplus = pad1d(self.dataset['refCharge']) + self.para['fullCharge'] - self.para['charge']
         plt.plot(ref, ref, 'k')
         plt.plot(ref, dftb, 'rx')
         plt.plot(ref, dftbplus, 'bv')
+        print('difference ratio', t.abs(ref - dftb).sum() / t.abs(ref - dftbplus).sum())
         plt.show()
-

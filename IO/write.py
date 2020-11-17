@@ -189,7 +189,7 @@ class Print:
             print('\n total energy (Hartree): ', self.para['energy'])
 
         # print MBD-DFTB information
-        if self.para['LMBD_DFTB']:
+        if self.para['LMBD']:
 
             # print charge population analysis
             print('\n CPA: ', self.para['cpa'])

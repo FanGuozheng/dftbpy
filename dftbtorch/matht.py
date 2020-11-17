@@ -45,35 +45,36 @@ class DFTBmath:
         ninterp = self.skf['sizeInterpolationPoints']
         delta_r = self.skf['deltaSK']
 
-        xa = t.zeros((ninterp), dtype=t.float64)
-        yb = t.zeros((ninterp, 20), dtype=t.float64)
-        dd = t.zeros((20), dtype=t.float64)
-
         if type(datalist) is np.ndarray:
             datalist = t.from_numpy(np.asarray(datalist))
 
-        # cutoff = self.para['cutoffsk' + nameij]
         tail = 5 * incr
         rmax = (ngridpoint - 1) * incr + tail
         ind = int(rr / incr)
         leng = ngridpoint
+
+        # thye input SKF must have more than 8 grid points
         if leng < ninterp + 1:
-            print("Warning: not enough points for interpolation!")
+            raise ValueError("Warning: not enough points for interpolation!")
+
+        # distance beyond grid points in SKF
         if rr >= rmax:
-            dd[:] = 0.0
-        elif ind < leng:  # => polynomial fit
+            dd = t.zeros(20)
+        # => polynomial fit
+        elif ind < leng:
             ilast = min(leng, int(ind + ninterp / 2 + 1))
             ilast = max(ninterp, ilast)
-            for ii in range(ninterp):
-                xa[ii] = (ilast - ninterp + ii) * incr
-            yb[:, :] = datalist[ilast - ninterp - 1: ilast - 1]
+            xa = (ilast - ninterp) * incr + t.arange(ninterp) * incr
+            yb = datalist[ilast - ninterp - 1: ilast - 1]
+
+            # two interpolation methods
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.poly_interp_2d(xa, yb, rr)  # method 2
-        else:  # Beyond the grid => extrapolation with polynomial of 5th order
+        # Beyond the grid => extrapolation with polynomial of 5th order
+        else:
             dr = rr - rmax
             ilast = leng
-            for ii in range(0, ninterp):
-                xa[ii] = (ilast - ninterp + ii) * incr
+            xa = (ilast - ninterp) * incr + t.arange(ninterp) * incr
             yb = datalist[ilast - ninterp - 1: ilast - 1]
             y0 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] - delta_r)
             y2 = self.poly_interp_2d(xa, yb, xa[ninterp - 1] + delta_r)

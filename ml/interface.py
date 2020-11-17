@@ -8,8 +8,6 @@ from sklearn import linear_model, svm
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from ml.feature import Dscribe
-from IO.readt import ReadInput
-from IO.dataloader import LoadData
 from IO.save import Save1D, Save2D
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
@@ -97,12 +95,14 @@ class MLPara:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
+
         X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.5)
-
         reg.fit(X_train, y_train)
         y_pred = reg.predict(X_pred)
-        self.para['compr_pred'] = self.get_target_to2d(y_pred)
+        self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
+                                          self.ml['compressionRMin'],
+                                          self.ml['compressionRMax'])
 
         # plot predict result
         if self.para['Lplot']:

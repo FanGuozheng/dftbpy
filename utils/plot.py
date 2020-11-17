@@ -16,17 +16,13 @@ def plot_ml(para, ml):
         plot_dip(para, ml)'''
 
     # plot polarizability
-    if para['LMBD_DFTB']:
+    if para['LMBD']:
         plot_pol(para, ml)
 
     # plot_energy(para)
     # plot_charge(para)
-    plot_loss(para, ml)
-
-    # plot integral
-    if para['task'] == 'mlIntegral':
-        pass
-        # plot_spl(para, ml)
+    if para['task'] in ('mlCompressionR', 'mlIntegral'):
+        plot_loss(para, ml)
 
 
 def plot_ml_feature(para, ml):

@@ -19,6 +19,7 @@ from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
 from ml.padding import pad1d, pad2d
 import dftbtorch.initparams as initpara
+_CORE = {"H": 0., "C": 2., "N": 2., "O": 2.}
 
 
 class DFTBCalculator:
@@ -141,7 +142,7 @@ class Initialization:
         self.dataset['symbols'] = self.sys.symbols
         self.dataset['natomAll'] = self.sys.size_system
         self.dataset['lmaxall'] = self.sys.get_l_numbers()
-        self.dataset['atomind'], _, self.dataset['norbital'] = \
+        self.dataset['atomind'], self.dataset['atomindcumsum'], self.dataset['norbital'] = \
             self.sys.get_accumulated_orbital_numbers()
         self.dataset['globalSpecies'] = self.sys.get_global_species()
         self.specie_res, self.l_res = self.sys.get_resolved_orbital()
@@ -330,7 +331,11 @@ class SCF:
         self.batch = self.para['Lbatch']
 
         # batch size
-        self.nb = self.dataset['nbatch']
+        if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb'):
+            self.nb = self.dataset['nbatch']
+        elif self.para['task'] in ('testCompressionR', 'testIntegral'):
+            self.nb = self.dataset['ntest']
+
         self.mask = [[True] * self.nb]  # mask for convergence in batch
 
         # batch calculations for multi systems
@@ -427,6 +432,8 @@ class SCF:
         # calculate mulliken charges
         self.para['charge'] = pad1d([self.elect.mulliken(i, j, m, n)
             for i, j, m, n in zip(self.over, self.para['denmat'], self.atind, self.nat)])
+        self.para['fullCharge'] = self.analysis.to_full_electron_charge(
+            self.atomname, self.para['charge'], ibatch)
 
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
@@ -469,7 +476,7 @@ class SCF:
             gmat = self.elect._gamma_gaussian(self.para['this_U'],
                                               self.para['positions'])
 
-        qatom = self.analysis.get_qatom(self.atomname, ibatch, self.batch)
+        qatom = self.analysis.get_qatom(self.atomname, ibatch)
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
@@ -488,7 +495,7 @@ class SCF:
             # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
             # t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat) is much faster,
             # but unstable: RuntimeError: Function 'BmmBackward' returned ...
-            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])  # ibatch
+            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])
 
             # repeat shift according to number of orbitals
             # for convinience, we will keep the size of shiftorb_ unchanged
@@ -568,6 +575,8 @@ class SCF:
 
         # return eigenvalue and charge
         self.para['charge'] = q_mixed
+        self.para['fullCharge'] = self.analysis.to_full_electron_charge(
+            self.atomname, self.para['charge'], ibatch)
 
         # return the final shift
         self.para['shift'] = t.stack([(iqm - iqz) @ igm for iqm, iqz, igm
@@ -753,7 +762,7 @@ class Repulsive():
         self.para = para
         self.dataset = dataset
         self.skf = skf
-        self.nat = self.dataset['natomall']
+        self.nat = self.dataset['natomAll']
         self.get_rep_para()
         self.cal_rep_energy()
 
@@ -1054,20 +1063,28 @@ class Analysis:
              for iqz, iqa, i in zip(qzero, qatom, ibatch)])
 
         # calculate MBD-DFTB
-        if self.para['LMBD_DFTB']:
+        if self.para['LCPA']:
             MBD(self.para, self.dataset)
 
         # calculate PDOS or not
         if self.para['Lpdos']:
             self.pdos()
 
-    def get_qatom(self, atomname, ibatch=[0], Lbatch=False):
+    def get_qatom(self, atomname, ibatch=[0]):
         """Get the basic electronic information of each atom."""
         # get each intial atom charge
         qat = [[self.para['val_' + atomname[ib][iat]]
                 for iat in range(self.nat[ib])] for ib in ibatch]
         # return charge information
         return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])
+
+    def to_full_electron_charge(self, atomname, charge, ibatch=[0]):
+        """Get the basic electronic information of each atom."""
+        # add core electrons
+        qat = [[_CORE[atomname[ib][iat]]
+                for iat in range(self.nat[ib])] for ib in ibatch]
+        # return charge information
+        return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat]) + charge
 
     def get_dipole(self, qzero, qatom, coor, natom):
         """Read and process dipole data."""

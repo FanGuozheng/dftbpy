@@ -33,7 +33,7 @@ class Dscribe:
             self.get_acsf_dim()
             col = self.para['acsf_dim']  # get ACSF feature dimension
             features = t.zeros(nfile * nmax, col)
-        print("self.dataset['positions']", len(self.dataset['positions']), nfile)
+
         for ibatch in range(nfile):
             if type(self.dataset['positions'][ibatch]) is np.array:
                 self.para['coor'] = t.from_numpy(self.dataset['positions'][ibatch])

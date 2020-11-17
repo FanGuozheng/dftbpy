@@ -26,10 +26,12 @@ class MBD:
         self.nb = self.dataset['nbatch']
         self.nat = self.dataset['natomAll']
         self.natommax = max(self.nat)
+        self.numbers = self.dataset['numbers']
         self.mbd_init()
         self.onsite_population()
         self.get_cpa()
-        self.get_mbdenergy()
+        if self.para['LMBD']:
+            self.get_mbdenergy()
 
     def mbd_init(self):
         """Initialize parameters for MBD-DFTB.
@@ -39,11 +41,11 @@ class MBD:
         parameters.mbd_parameter(self.para)
         self.para['num_pairs'] = [int((iat ** 2 - iat) / 2 + iat) for iat in self.nat]
         self.para['alpha_tsall'] = []
-        self.para['R_TS_VdW'] = t.zeros((self.nb, self.natommax), dtype=t.float64)
-        self.para['sigma'] = t.zeros((self.nb, self.natommax), dtype=t.float64)
+        self.para['R_TS_VdW'] = t.zeros(self.nb, self.natommax)
+        self.para['sigma'] = t.zeros(self.nb, self.natommax)
 
         if not self.para['Lperiodic']:
-            latvec = t.ones((3), dtype=t.float64) * 1000000000
+            latvec = t.ones(3) * 1000000000
             self.para['latvec'] = latvec.diag()
 
         # get the return values of alpha_free, C6 and R
@@ -67,16 +69,15 @@ class MBD:
 
         sum density matrix diagnal value for each atom
         """
-        self.para['OnsitePopulation'] = t.zeros((self.nat), dtype=t.float64)
-        atomind = self.dataset['atomind']
+        acum = self.dataset['atomindcumsum']
 
         # get the diagnal of density matrice
         denmat = [idensity.diag() for idensity in self.para['denmat']]
 
         # get onsite population
         self.para['OnsitePopulation'] = \
-            [[denmat[ib][atomind[ib][iat]: atomind[ib][iat + 1]].sum()
-              for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
+            pad1d([t.stack([t.sum(denmat[ib][acum[ib][iat]: acum[ib][iat + 1]])
+                            for iat in range(self.nat[ib])]) for ib in range(self.nb)])
 
     def get_cpa(self):
         """Get onsite population for CPA DFTB.
@@ -85,12 +86,12 @@ class MBD:
         """
         onsite = self.para['OnsitePopulation']
         qzero = self.para['qzero']
-        atomnumber = self.dataset['atomNumber']
-        self.para['cpa'] = \
-            [[1.0 + (onsite[ib][iat] - qzero[ib][iat]) / atomnumber[ib][iat]
-              for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
+
+        self.para['cpa'] = pad1d([1.0 + (onsite[ib] - qzero[ib])[:self.nat[ib]] / \
+                                  self.numbers[ib][:self.nat[ib]]
+                                  for ib in range(self.dataset['nbatch'])])
         self.para['vefftsvdw'] = \
-            [[atomnumber[ib][iat] + onsite[ib][iat] - qzero[ib][iat]
+            [[self.numbers[ib][iat] + onsite[ib][iat] - qzero[ib][iat]
               for iat in range(self.nat[ib])] for ib in range(self.dataset['nbatch'])]
 
     def get_mbdenergy(self):
@@ -128,14 +129,13 @@ class MBD:
         alpha_free = self.para['alpha_free']
         C6_free = self.para['C6_free']
         R_vdw_free = self.para['R_vdw_free']
-        vfree = self.dataset['atomNumber']
         VefftsvdW = self.para['vefftsvdw']
-        alpha_ts_ = t.zeros((self.nb, self.natommax), dtype=t.float64)
+        alpha_ts_ = t.zeros(self.nb, self.natommax)
         if self.para['vdwConsistent']:
-            dsigmadV = t.zeros((self.nat, self.nat), dtype=t.float64)
-            dR_TS_VdWdV = t.zeros((self.nat, self.nat), dtype=t.float64)
-            dalpha_tsdV = t.zeros((self.nat, self.nat), dtype=t.float64)
-        for ib in range(self.dataset['nbatch']):
+            dsigmadV = t.zeros(self.nat, self.nat)
+            dR_TS_VdWdV = t.zeros(self.nat, self.nat)
+            dalpha_tsdV = t.zeros(self.nat, self.nat)
+        for ib in range(self.nb):
             for iat in range(self.nat[ib]):
                 omega_free = ((4.0 / 3.0) * C6_free[ib][iat] / (alpha_free[ib][iat] ** 2))
 
@@ -144,17 +144,16 @@ class MBD:
 
                 # Computes sigma
                 gamma = (1.0 / 3.0) * np.sqrt(2.0 / np.pi) * pade_approx * \
-                    (alpha_free[ib][iat] / vfree[ib][iat])
+                    (alpha_free[ib][iat] / self.numbers[ib][iat])
                 gamma = gamma ** (1.0 / 3.0)
                 self.para['sigma'][ib, iat] = gamma * VefftsvdW[ib][iat] ** (1.0 / 3.0)
 
                 # Computes R_TS: equation 11 in [PRL 102, 073005 (2009)]
-                xi = R_vdw_free[ib][iat] / (vfree[ib][iat]) ** (1.0 / 3.0)
+                xi = R_vdw_free[ib][iat] / (self.numbers[ib][iat]) ** (1.0 / 3.0)
                 self.para['R_TS_VdW'][ib, iat] = xi * VefftsvdW[ib][iat] ** (1.0 / 3.0)
 
                 # Computes alpha_ts: equation 1 in [PRL 108 236402 (2012)]
-                lambda_ = pade_approx * alpha_free[ib][iat] / vfree[ib][iat]
-                # self.para['alpha_tsall'][ieff, iat] = lambda_ * VefftsvdW[iat]
+                lambda_ = pade_approx * alpha_free[ib][iat] / self.numbers[ib][iat]
                 alpha_ts_[ib, iat] = lambda_ * VefftsvdW[ib][iat]
 
                 if self.para['vdwConsistent']:
@@ -177,18 +176,14 @@ class MBD:
         pairs_q = self.para['pairs_q']
         alpha_ts = self.para['alpha_tsall'][ieff]
         mytsr = t.zeros((self.nb, max(num_pairs), 3, 3), dtype=t.float64)
-        collected_tsr = t.zeros((self.nb, max(num_pairs), 3, 3), dtype=t.float64)
-        A_matrix = t.zeros((self.nb, 3 * self.natommax, 3 * self.natommax), dtype=t.float64)
+        A_matrix = t.zeros(self.nb, 3 * self.natommax, 3 * self.natommax)
 
         for ib in range(self.nb):
             for ii in range(num_pairs[ib]):
                 p, q = int(pairs_p[ib, ii]), int(pairs_q[ib, ii])
-
-                sl_mult = 1.0
                 h_, ainv_ = self.para['latvec'], self.para['ainv_']
                 tsr = self.mbdvdw_TGG(p, q, self.nat[ib], h_, ainv_, ib)
                 mytsr[ib, ii, :, :] = tsr
-                # print('mytsr', tsr)
 
             # only loops over the upper triangle
             counter = 0
@@ -210,7 +205,7 @@ class MBD:
                             A_matrix[ib, jnd, ind] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, ind_T, jnd_T] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, jnd_T, ind_T] = A_matrix[ib, jnd, ind]
-
+        print("A_matrix", A_matrix.shape)
         A_LU, pivots = t.lu(A_matrix)
         self.para['A_matrix'] = A_matrix.inverse()
 
@@ -218,16 +213,10 @@ class MBD:
         """Calculate polarizability."""
         alpha_isotropic = t.zeros((self.nb, self.natommax), dtype=t.float64)
         A_matrix = self.para['A_matrix']
-        # vdw_self_consistent = False
-        # do_forces = False
-        # mbd_vdw_isolated = True
         for ib in range(self.nb):
             for pat in range(self.nat[ib]):
                 for qat in range(self.nat[ib]):
                     for i_idx in range(3):
-                        # cnt_v = 1
-                        # cnt_h = 1
-                        # cnt_f = 1
                         ind = 3 * pat
                         jnd = 3 * qat
                         for i_idx in range(3):
@@ -236,7 +225,6 @@ class MBD:
                             alpha_isotropic[ib, pat] = alpha_isotropic[ib, pat] + \
                                 A_matrix[ib, ind + i_idx, jnd + i_idx]
         alpha_isotropic = alpha_isotropic / 3.0 ** 2
-        # self.para['alpha_mbd'] = alpha_isotropic
         return alpha_isotropic
 
     def mbdvdw_TGG(self, p, q, n, h_in, ainv_in, ib):

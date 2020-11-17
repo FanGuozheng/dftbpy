@@ -407,7 +407,8 @@ def read_detailed_out(natom):
     # read dipole (Debye)
     text3 = re.search('(?<=Dipole moment:).+(?=\n)',
                       text, flags=re.DOTALL | re.MULTILINE).group(0)
-    dip_ = re.findall(r"[-+]?\d*\.\d+", text3)[-3::]
+    # if tail is [-3::], read Debye dipole, [:3] will read au dipole
+    dip_ = re.findall(r"[-+]?\d*\.\d+", text3)[:3]
     [dip.append(float(ii)) for ii in dip_]
 
     return float(E_tot), \

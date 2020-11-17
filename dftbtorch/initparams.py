@@ -91,8 +91,9 @@ def dftb_parameter(parameter_=None):
         # general eigenvalue method: cholesky, lowdinQR
         'eigenMethod': 'cholesky',
 
-        # MBD-DFTB
-        'LMBD_DFTB': False,
+        # MBD-DFTB'
+        'LCPA': False,
+        'LMBD': False,
 
         # omega grid
         'nOmegaGrid': 15,
@@ -191,11 +192,11 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
     skf = {} if skf is None else skf
 
     ml = {
-        # dipole, homo_lumo, gap, eigval, polarizability, cpa, pdos, charge
+        # dipole, HOMOLUMO, gap, eigval, polarizability, cpa, pdos, charge
         'target': 'dipole',
 
         # path to dataset data
-        'referenceDataset': '../data/dataset/ani01_10.hdf5',
+        'referenceDataset': '../data/dataset/ani01_100.hdf5',
 
         # define weight in loss function
         'LossRatio': [1],
@@ -324,7 +325,9 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         para['Lrepulsive'] = True
 
     if 'cpa' in ml['target']:
-        para['LMBD_DFTB'] = True
+        para['LCPA'] = True
+    if 'polarizability' in ml['target']:
+        para['LCPA'], para['LMBD'] = True, True
 
     # optimize integral directly
     if para['task'] == ('mlIntegral', 'testIntegral'):
