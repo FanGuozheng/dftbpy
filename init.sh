@@ -4,5 +4,5 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 export PYTHONPATH=$PWD/DFTBMaLT:$PYTHONPATH
 
 # CCS
-export PYTHONPATH=/home/gz_fan/Documents/ML/dftb/utils/CCS:$PYTHONPATH
-export PATH=/home/gz_fan/Documents/ML/dftb/utils/CCS/bin:$PATH
+export PYTHONPATH=$PWD/utils/CCS:$PYTHONPATH
+export PATH=$PWD/utils/CCS/bin:$PATH
