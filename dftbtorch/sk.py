@@ -552,10 +552,10 @@ class GetSK_:
             grid_dist = f['globalgroup'].attrs['grid_dist']
 
         # get the distance according to indices (upper triangle elements)
-        ind_ = distance.numpy() / grid_dist
+        ind_ = distance / grid_dist
 
         # index of distance in each skf
-        indd = (ind_ + ninterp / 2 + 1).astype(int)
+        indd = (ind_ + ninterp / 2 + 1).int()  #.astype(int)
 
         # get integrals with ninterp (normally 8) line for interpolation
         with h5py.File(hdfsk, 'r') as f:
@@ -568,9 +568,14 @@ class GetSK_:
                for j in range(len(distance))] for i in range(len(distance))]
         time2 = time.time()
 
-        self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
-            xx[i][j], t.from_numpy(yy[i][j]), distance[i, j], i==j)
-            for j in range(natom)]) for i in range(natom)])
+        if self.para['device'] == 'cuda':
+            self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
+                xx[i][j], t.from_numpy(yy[i][j]).to(self.para['device']), distance[i, j], i==j)
+                for j in range(natom)]) for i in range(natom)])
+        else:
+            self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
+                xx[i][j], t.from_numpy(yy[i][j]), distance[i, j], i==j)
+                for j in range(natom)]) for i in range(natom)])
 
         timeend = time.time()
         print('time of distance interpolation: ', timeend - time2)

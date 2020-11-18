@@ -386,6 +386,7 @@ class LoadReferenceData:
         self.dataset = dataset
         self.skf = skf
         self.ml = ml
+        self.device = self.para['device']
         if self.ml['reference'] == 'hdf':
             self.get_hdf_data()
 
@@ -550,7 +551,7 @@ class LoadReferenceData:
         """Get Hirshfeld volume ratio."""
         natom = self.dataset["natomAll"][ibatch]
         idx = self.dataset['numbers'][ibatch]
-        volume = t.from_numpy(volume) if type(volume) is np.ndarray else volume
+        volume = t.from_numpy(volume).to(self.device) if type(volume) is np.ndarray else volume
         return volume / t.tensor([HIRSH_VOL[num - 1] for num in idx])
 
 

@@ -103,10 +103,14 @@ class BicubInterpVec:
                            [0., 1., -2., 1.], [0., 0., -1., 1.]])
 
         # get the nearest grid points indices of xi and yi
-        self.nx0 = [bisect.bisect(xmesh[ii].detach().numpy(),
-                                  xi[ii].detach().numpy()) - 1
-                    for ii in range(len(xi))]
-
+        if self.para['device'] == 'cpu':
+            self.nx0 = [bisect.bisect(xmesh[ii].detach().numpy(),
+                                      xi[ii].detach().numpy()) - 1
+                        for ii in range(len(xi))]
+        elif self.para['device'] == 'cuda':
+            self.nx0 = [bisect.bisect(xmesh[ii].detach().cpu().numpy(),
+                                      xi[ii].detach().cpu().numpy()) - 1
+                        for ii in range(len(xi))]
         # build surrounding grid points indices, where _1 means -1, the
         # previous grid points, so is the 0, 1 ... along x, and y axes
         self.nx_1, self.nx2 = [], []

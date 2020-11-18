@@ -112,18 +112,24 @@ class Initialization:
         self.skf = [skf, {}][skf is None]
         self.ml = [ml, {}][ml is None]
 
-        if 'precision' in self.parameter.keys():
-            t.set_default_dtype(d=self.parameter['precision'])
-        else:
-            t.set_default_dtype(d=t.float64)
-
-        # self.initialize_parameter()
-        # self.initialize_dftb()
-
     def initialize_parameter(self):
         # get DFTB calculation parameters dictionary
         self.parameter = initpara.dftb_parameter(self.parameter)
 
+        # set the default tesnor dtype
+        if self.parameter['device'] == 'cpu':
+            if self.parameter['precision'] in (t.float64, t.float32):
+                t.set_default_dtype(self.parameter['precision'])  # cpu device
+            else:
+                raise ValueError('device is cpu, please select float64 or float32')
+        elif self.parameter['device'] == 'cuda':
+            if self.parameter['precision'] in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
+                t.set_default_tensor_type(self.parameter['precision'])  # gpu device
+            else:
+                raise ValueError('device is cuda, please select cuda.FloatTensor or cuda.DoubleTensor')
+        else:
+            raise ValueError('device only support cpu and cuda')
+ 
         # get SKF parameters dictionary
         self.skf = initpara.skf_parameter(self.parameter, self.skf)
 

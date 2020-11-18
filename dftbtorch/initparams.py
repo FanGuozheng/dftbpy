@@ -34,8 +34,11 @@ def dftb_parameter(parameter_=None):
         # task: dftb, mlCompressionR, mlIntegral
         'task': 'dftb',
 
-        # precision control: t.float64, t.float32
+        # precision control: t.float64, t.float32, cuda.DoubleTensor
         'precision': t.float64,
+
+        # device
+        'device': 'cpu',
 
         # if True, read parameters from input (default name: dftb_in)
         'LReadInput': False,
@@ -113,6 +116,22 @@ def dftb_parameter(parameter_=None):
 
     # update temporal parameter_ with input parameter
     parameter.update(parameter_)
+    if parameter['precision'] == 't.float64':
+        parameter['precision'] = t.float64
+    elif parameter['precision'] == 't.float32':
+        parameter['precision'] = t.float32
+    elif parameter['precision'] == 't.cuda.DoubleTensor':
+        parameter['precision'] = t.cuda.DoubleTensor
+    elif parameter['precision'] == 't.cuda.FloatTensor':
+        parameter['precision'] = t.cuda.FloatTensor
+    if parameter['device'] == 'cpu':
+        if parameter['precision'] not in(t.float64, t.float32):
+            parameter['precision'] = t.float64
+            print('redefine precision')
+    elif parameter['device'] == 'cuda':
+        if parameter['precision'] not in(t.cuda.DoubleTensor, t.cuda.FloatTensor):
+            parameter['precision'] = t.cuda.DoubleTensor
+            print('redefine precison')
 
     # is machine learning is on, it means that the task is machine learning
     parameter['Lml'] = True if parameter['task'] in (

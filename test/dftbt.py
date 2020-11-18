@@ -1,5 +1,7 @@
 """"""
 import torch as t
+import torchvision.models as models
+import torch.autograd.profiler as profiler
 from dftbtorch.dftbcalculator import DFTBCalculator, Initialization
 import dftbtorch.parser as parsert
 from ml.train import DFTBMLTrain
@@ -21,13 +23,14 @@ def main(parameter=None, dataset=None):
     # parameter['inputName'] = 'dftb_in.dftb'
 
     # example 2.1: if use this code directly to optimize compression radii
-    parameter['task'] = 'mlCompressionR'
+    # parameter['task'] = 'mlCompressionR'
+    # parameter['device'] = 'gpu'
     # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = 'polarizability'
-    ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
-    dataset['sizeDataset'] = [1, 1, 1]
-    ml['mlSteps'] = 5
-    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+    # ml['target'] = 'polarizability'
+    # ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
+    # dataset['sizeDataset'] = [1, 1, 1]
+    # ml['mlSteps'] = 5
+    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
     # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_50mol_50step_dipole.dat'
@@ -59,7 +62,17 @@ def main(parameter=None, dataset=None):
         DFTBCalculator(parameter, dataset)
 
     elif parameter['task'] in ('mlCompressionR', 'mlIntegral'):
-        DFTBMLTrain(parameter, dataset, ml=ml)
+        # with profiler.profile(record_shapes=True) as prof:
+        #     with profiler.record_function("model_inference"):
+        #         DFTBMLTrain(parameter, dataset, ml=ml)
+        #        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+        # with t.autograd.profiler.profile(use_cuda=True) as prof:
+        if parameter['device'] == 'cuda':
+            with t.cuda.device(0):
+                DFTBMLTrain(parameter, dataset, ml=ml)
+            # print(prof) 
+        elif parameter['device'] == 'cpu':
+            DFTBMLTrain(parameter, dataset, ml=ml)
 
     elif parameter['task'] in ('testCompressionR', 'testIntegral'):
         DFTBMLTest(parameter, dataset, ml=ml)

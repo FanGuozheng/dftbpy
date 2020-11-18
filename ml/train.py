@@ -45,10 +45,18 @@ class DFTBMLTrain:
         t.set_printoptions(precision=14)
 
         # set the precision control
-        if self.parameter['precision'] in (t.float64, t.float32):
-            t.set_default_dtype(d=self.parameter['precision'])
+        if self.parameter['device'] == 'cpu':
+            if self.parameter['precision'] in (t.float64, t.float32):
+                t.set_default_dtype(self.parameter['precision'])  # cpu device
+            else:
+                raise ValueError('device is cpu, please select float64 or float32')
+        elif self.parameter['device'] == 'cuda':
+            if self.parameter['precision'] in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
+                t.set_default_tensor_type(self.parameter['precision'])  # gpu device
+            else:
+                raise ValueError('device is cuda, please select cuda.FloatTensor or cuda.DoubleTensor')
         else:
-            raise ValueError('please select either t.float64 or t.float32')
+            raise ValueError('device only support cpu and cuda')
 
         # initialize machine learning parameters
         self.initialization_ml()
@@ -65,7 +73,7 @@ class DFTBMLTrain:
         self.run_ml()
 
         # plot ML results
-        plot.plot_ml(self.parameter, self.ml)
+        # plot.plot_ml(self.parameter, self.ml)
         time_end = time.time()
         print('Total time:', time_end - time_begin)
 
@@ -318,8 +326,12 @@ class MLCompressionR:
             if 'dipole' in self.ml['target']:
                 loss += self.criterion(self.para['dipole'],
                                        pad1d(self.dataset['refDipole']))
-                Save2D(self.para['dipole'].detach().numpy(),
-                       name='dipole.dat', dire='.', ty='a')
+                if self.para['dipole'].device.type == 'cuda': 
+                    Save2D(self.para['dipole'].detach().cpu().numpy(),
+                           name='dipole.dat', dire='.', ty='a')
+                elif self.para['dipole'].device.type == 'cpu': 
+                    Save2D(self.para['dipole'].detach().numpy(),
+                           name='dipole.dat', dire='.', ty='a')
             elif 'HOMOLUMO' in self.ml['target']:
                 loss += self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
@@ -335,22 +347,31 @@ class MLCompressionR:
             elif 'charge' in self.ml['target']:
                 loss += self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
-                Save2D(self.para['fullCharge'].detach().numpy(),
-                       name='charge.dat', dire='.', ty='a')
+                if self.para['fullCharge'].device.type == 'cuda': 
+                    Save2D(self.para['fullCharge'].detach().cpu().numpy(),
+                        name='charge.dat', dire='.', ty='a')
+                elif self.para['fullCharge'].device.type == 'cpu': 
+                    Save2D(self.para['fullCharge'].detach().numpy(),
+                        name='charge.dat', dire='.', ty='a')
             elif 'cpa' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
             elif 'pdos' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
-            print("istep:", istep, '\n loss', loss)
-            print("compression radius:", self.para['compr_ml'])
-            print('gradient', self.para['compr_ml'].grad)
+            print("istep:", istep, '\n loss', loss, 'loss device', loss.device.type)
+            # print("compression radius:", self.para['compr_ml'])
+            # print('gradient', self.para['compr_ml'].grad)
 
             # save data
-            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
-            Save2D(self.para['compr_ml'].detach().numpy(),
-                   name='compr.dat', dire='.', ty='a')
+            if loss.device.type == 'cuda': 
+                Save1D(np.array([loss.cpu()]), name='loss.dat', dire='.', ty='a')
+                Save2D(self.para['compr_ml'].detach().cpu().numpy(),
+                       name='compr.dat', dire='.', ty='a')
+            elif loss.device.type == 'cpu': 
+                Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
+                Save2D(self.para['compr_ml'].detach().numpy(),
+                       name='compr.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()

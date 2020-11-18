@@ -240,8 +240,8 @@ class DFTBmath:
 
         nn1, nn2, row, col = yp.shape[0], yp.shape[1], yp.shape[2], yp.shape[3]
         assert row == nn
-        cc = t.zeros((nn1, nn2, row, col), dtype=t.float64)
-        dd = t.zeros((nn1, nn2, row, col), dtype=t.float64)
+        cc = t.zeros(nn1, nn2, row, col)
+        dd = t.zeros(nn1, nn2, row, col)
 
         # if y_m-y_n is small enough, rTmp1 tends to be inf
         cc[:, :, :, :] = yp[:, :, :, :]
@@ -280,8 +280,8 @@ class DFTBmath:
         nn = xp.shape[0]
         row, col = yp.shape[0], yp.shape[1]
         assert row == nn
-        cc = t.zeros((row, col), dtype=t.float64)
-        dd = t.zeros((row, col), dtype=t.float64)
+        cc = t.zeros(row, col)
+        dd = t.zeros(row, col)
 
         # if y_m-y_n is small enough, rTmp1 tends to be inf
         cc[:, :] = yp[:, :]
@@ -947,7 +947,7 @@ class LinAl:
 
     def inv33_mat(self, in_):
         """Return inverse of 3 * 3 matrix, out_ = 1 / det(in_) adj(in_)."""
-        out_ = t.zeros((3, 3), dtype=t.float64)
+        out_ = t.zeros(3, 3)
         det = self.det33_mat(in_)
 
         out_[0, 0] = (in_[1, 1] * in_[2, 2] - in_[1, 2] * in_[2, 1]) / det
