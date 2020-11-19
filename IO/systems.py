@@ -107,13 +107,13 @@ class System_:
             latomname = True
 
         # distance matrix
-        self.dataset['distance'] = t.zeros((nfile, nmax, nmax), dtype=t.float64)
+        self.dataset['distance'] = t.zeros(nfile, nmax, nmax)
 
         # normalized distance matrix
-        self.dataset['dnorm'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+        self.dataset['dnorm'] = t.zeros(nfile, nmax, nmax, 3)
 
         # coordinate vector
-        self.dataset['dvec'] = t.zeros((nfile, nmax, nmax, 3), dtype=t.float64)
+        self.dataset['dvec'] = t.zeros(nfile, nmax, nmax, 3)
 
         self.dataset['natomtype'], self.dataset['norbital'] = [], []
         self.dataset['atomind2'] = []
@@ -153,8 +153,8 @@ class System_:
                     if dd > 1E-1:
 
                         # get normalized distance, coordinate vector matrices
-                        self.dataset['dnorm'][ib, iat, jat, :] = t.tensor([xx, yy, zz], dtype=t.float64) / dd
-                        self.dataset['dvec'][ib, iat, jat, :] = t.tensor([xx, yy, zz], dtype=t.float64)
+                        self.dataset['dnorm'][ib, iat, jat, :] = t.tensor([xx, yy, zz]) / dd
+                        self.dataset['dvec'][ib, iat, jat, :] = t.tensor([xx, yy, zz])
 
             dictat = dict(zip(dict(enumerate(set(atomnamelist))).values(),
                               dict(enumerate(set(atomnamelist))).keys()))

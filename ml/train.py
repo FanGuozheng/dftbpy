@@ -121,7 +121,7 @@ class MLIntegral:
         self.ml = ml
 
         # get the ith coordinates
-        get_coor(self.dataset)
+        get_coor(self.dataset, self.para['precision'])
 
         # initialize DFTB calculations with datasetmetry and input parameters
         # read skf according to global atom species
@@ -189,8 +189,8 @@ class MLIntegral:
         maxorb = max(self.dataset['norbital'])
         # calculate one by one to optimize para
         for istep in range(self.ml['mlSteps']):
-            ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
-            over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
+            ham = t.zeros(self.nbatch, maxorb, maxorb)
+            over = t.zeros(self.nbatch, maxorb, maxorb)
             for ibatch in range(self.nbatch):
                 print("step:", istep + 1, "ibatch:", ibatch + 1)
                 # get integral at certain distance, read raw integral from binary hdf
@@ -263,7 +263,7 @@ class MLCompressionR:
         """Get all parameters for compression radii machine learning."""
         os.system('rm compr.dat charge.dat')
         # deal with coordinates type
-        get_coor(self.dataset)
+        get_coor(self.dataset, self.para['precision'])
 
         # get DFTB system information
         dftbcalculator.Initialization(
@@ -299,8 +299,8 @@ class MLCompressionR:
         maxorb = max(self.dataset['norbital'])
 
         for istep in range(self.ml['mlSteps']):
-            ham = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
-            over = t.zeros((self.nbatch, maxorb, maxorb), dtype=t.float64)
+            ham = t.zeros(self.nbatch, maxorb, maxorb)
+            over = t.zeros(self.nbatch, maxorb, maxorb)
 
             for ibatch in range(self.nbatch):
 
@@ -458,14 +458,14 @@ class MLCompressionR:
                                              self.ml['compressionRMax'])
 
 
-def get_coor(dataset, ibatch=None):
+def get_coor(dataset, dtype, ibatch=None):
     """get the ith coor according to data type"""
     # for batch system
     if ibatch is None:
         if type(dataset['positions']) is t.Tensor:
             coordinate = dataset['positions']
         elif type(dataset['positions']) is np.ndarray:
-            coordinate = t.from_numpy(dataset['positions'])
+            coordinate = t.from_numpy(dataset['positions']).type(dtype)
         elif type(dataset['positions']) is list:
             coordinate = dataset['positions']
         dataset['positions'] = pad2d(coordinate)
@@ -475,7 +475,7 @@ def get_coor(dataset, ibatch=None):
             dataset['positions'] = dataset['positions'][ibatch][:, :]
         elif type(dataset['positions'][ibatch]) is np.ndarray:
             dataset['positions'] = \
-                t.from_numpy(dataset['positions'][ibatch][:, :])
+                t.from_numpy(dataset['positions'][ibatch][:, :]).type(dtype)
 
 
 def get_formation_energy(energy, atomname, ibatch):
@@ -485,8 +485,7 @@ def get_formation_energy(energy, atomname, ibatch):
 
 def genml_init_compr(ml, atomname):
     """Get initial compression radius for each atom in system."""
-    return t.tensor([ml[ia + '_init_compr']
-                     for ia in atomname], dtype=t.float64)
+    return t.tensor([ml[ia + '_init_compr'] for ia in atomname])
 
 
 def cal_offset_energy(self, energy, refenergy):

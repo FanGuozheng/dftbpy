@@ -66,13 +66,16 @@ def main(parameter=None, dataset=None):
         #     with profiler.record_function("model_inference"):
         #         DFTBMLTrain(parameter, dataset, ml=ml)
         #        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
-        # with t.autograd.profiler.profile(use_cuda=True) as prof:
         if parameter['device'] == 'cuda':
             with t.cuda.device(0):
-                DFTBMLTrain(parameter, dataset, ml=ml)
-            # print(prof) 
+                with t.autograd.profiler.profile(use_cuda=True) as prof:
+                    DFTBMLTrain(parameter, dataset, ml=ml)
+            print(prof)
+            print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total"))
         elif parameter['device'] == 'cpu':
-            DFTBMLTrain(parameter, dataset, ml=ml)
+            with t.autograd.profiler.profile() as prof:
+                DFTBMLTrain(parameter, dataset, ml=ml)
+            print(prof)
 
     elif parameter['task'] in ('testCompressionR', 'testIntegral'):
         DFTBMLTest(parameter, dataset, ml=ml)

@@ -35,7 +35,7 @@ def dftb_parameter(parameter_=None):
         'task': 'dftb',
 
         # precision control: t.float64, t.float32, cuda.DoubleTensor
-        'precision': t.float64,
+        'precision': t.cuda.FloatTensor,
 
         # device
         'device': 'cpu',

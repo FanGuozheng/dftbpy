@@ -209,11 +209,11 @@ class ReadSlaKo:
                         self.skf['uhubb' + nameij][:] = fp_line_[6]
 
                     # read third line: mass...
-                    data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                    data = np.fromfile(fp, count=20, sep=' ')
                     self.skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
-                    hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                    hs_all = np.fromfile(fp, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
                     self.skf['hs_all' + nameij] = hs_all
 
@@ -221,11 +221,11 @@ class ReadSlaKo:
                 else:
 
                     # read the second line: mass...
-                    data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                    data = np.fromfile(fp, count=20, sep=' ')
                     self.skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
-                    hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                    hs_all = np.fromfile(fp, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
                     self.skf['hs_all' + nameij] = hs_all
 
@@ -246,14 +246,12 @@ class ReadSlaKo:
                     self.skf['a3_rep' + nameij] = float(a123[2])
 
                     # read the rest of spline but not the last
-                    datarep = np.fromfile(fp, dtype=float,
-                                          count=(nint_ - 1) * 6, sep=' ')
+                    datarep = np.fromfile(fp, count=(nint_ - 1) * 6, sep=' ')
                     datarep.shape = (nint_ - 1, 6)
                     self.para['rep' + nameij] = t.from_numpy(datarep)
 
                     # raed the end line: start end c0 c1 c2 c3 c4 c5
-                    datarepend = np.fromfile(fp, dtype=float,
-                                             count=8, sep=' ')
+                    datarepend = np.fromfile(fp, count=8, sep=' ')
                     self.para['repend' + nameij] = t.from_numpy(datarepend)
         self.get_cutoff_all()
 
@@ -279,10 +277,10 @@ class ReadSlaKo:
     def read_sk_atom(self):
         """Read SKF table atom by atom, ATTENTION!!! not maintained."""
         atomname, natom = self.para['atomnameall'], self.para['natom']
-        self.skf['onsite'] = t.zeros((natom, 3), dtype=t.float64)
-        self.skf['spe'] = t.zeros((natom), dtype=t.float64)
-        self.skf['uhubb'] = t.zeros((natom, 3), dtype=t.float64)
-        self.skf['occ_atom'] = t.zeros((natom, 3), dtype=t.float64)
+        self.skf['onsite'] = t.zeros(natom, 3)
+        self.skf['spe'] = t.zeros(natom)
+        self.skf['uhubb'] = t.zeros(natom, 3)
+        self.skf['occ_atom'] = t.zeros(natom, 3)
 
         icount = 0
         for namei in atomname:
@@ -418,13 +416,13 @@ class SkInterpolator:
         grid_dist = t.empty((nfile), dtype=t.float64)
 
         # build onsite, spe... matrices for all skf files, second line in skf
-        onsite = t.empty((nfile, 3), dtype=t.float64)
-        spe = t.empty((nfile), dtype=t.float64)
-        uhubb = t.empty((nfile, 3), dtype=t.float64)
-        occ_skf = t.empty((nfile, 3), dtype=t.float64)
+        onsite = t.empty(nfile, 3)
+        spe = t.empty(nfile)
+        uhubb = t.empty(nfile, 3)
+        occ_skf = t.empty(nfile, 3)
 
         # build matrices for third line in skf file
-        mass_rcut = t.empty((nfile, 20), dtype=t.float64)
+        mass_rcut = t.empty(nfile, 20)
         integrals, atomname_filename, self.skf['rest'] = [], [], []
 
         # number for skf files
@@ -444,11 +442,11 @@ class SkInterpolator:
             atomname_filename.append((filename.split('.')[0]).split("-"))
 
             # read third line
-            data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+            data = np.fromfile(fp, count=20, sep=' ')
             mass_rcut[icount, :] = t.from_numpy(data)
 
             # read all the integrals, float64 precision
-            data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+            data = np.fromfile(fp, count=nitem, sep=' ')
             data.shape = (int(ngridpoint[icount]), 20)
             integrals.append(data)
 
@@ -470,11 +468,10 @@ class SkInterpolator:
             self.skf['a1_rep' + nameij] = float(a123[0])
             self.skf['a2_rep' + nameij] = float(a123[1])
             self.skf['a3_rep' + nameij] = float(a123[2])
-            datarep = np.fromfile(fp, dtype=float,
-                                  count=(nint_-1)*6, sep=' ')
+            datarep = np.fromfile(fp, count=(nint_-1)*6, sep=' ')
             datarep.shape = (nint_ - 1, 6)
             self.skf['rep' + nameij] = t.from_numpy(datarep)
-            datarepend = np.fromfile(fp, dtype=float, count=8, sep=' ')
+            datarepend = np.fromfile(fp, count=8, sep=' ')
             self.skf['repend' + nameij] = t.from_numpy(datarepend)
 
         # 5 more lines to smooth the tail, 4 more lines for interpolation
@@ -482,18 +479,16 @@ class SkInterpolator:
 
         # read onsite parameters
         if self.skf['Lonsite']:
-            mass_rcut_ = t.zeros((ncompr, ncompr, 20), dtype=t.float64)
-            onsite_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
-            spe_ = t.zeros((ncompr, ncompr), dtype=t.float64)
-            uhubb_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
-            occ_skf_ = t.zeros((ncompr, ncompr, 3), dtype=t.float64)
-        ngridpoint_ = t.zeros((ncompr, ncompr), dtype=t.float64)
-        grid_dist_ = t.zeros((ncompr, ncompr), dtype=t.float64)
+            mass_rcut_ = t.zeros(ncompr, ncompr, 20)
+            onsite_ = t.zeros(ncompr, ncompr, 3)
+            spe_ = t.zeros(ncompr, ncompr)
+            uhubb_ = t.zeros(ncompr, ncompr, 3)
+            occ_skf_ = t.zeros(ncompr, ncompr, 3)
+        ngridpoint_ = t.zeros(ncompr, ncompr)
+        grid_dist_ = t.zeros(ncompr, ncompr)
 
         # build integrals with various compression radius
-        superskf = t.zeros((ncompr, ncompr,
-                            self.skf['skf_line_tail' + nameij], 20),
-                           dtype=t.float64)
+        superskf = t.zeros(ncompr, ncompr, self.skf['skf_line_tail' + nameij], 20)
 
         # transfer 1D [nfile, n] to 2D [ncompr, ncompr, n]
         for skfi in range(nfile):
@@ -614,7 +609,7 @@ class SkInterpolator:
         ytailp = (hs_skf[rowi, colj, ni - 1, :] - hs_skf[rowi, colj, ni - 2, :]) / griddist[rowi, colj]
         ytailp2 = (hs_skf[rowi, colj, ni - 2, :]-hs_skf[rowi, colj, ni - 3, :]) / griddist[rowi, colj]
         ytailpp = (ytailp - ytailp2) / griddist[rowi, colj]
-        xx = t.tensor([4, 3, 2, 1, 0.0], dtype=t.float64) * griddist[rowi, colj]
+        xx = t.tensor([4, 3, 2, 1, 0.0]) * griddist[rowi, colj]
         for xxi in xx:
             dx1 = ytailp * dx
             dx2 = ytailpp * dx * dx

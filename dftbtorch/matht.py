@@ -459,6 +459,7 @@ class EigenSolver:
             linvt = t.stack([il.T for il in linv])
 
             # (L^{-1} @ A) @ L^{-T}
+            print("dtype", linv.dtype, A.dtype, linvt.dtype)
             linv_a_linvt = linv @ A @ linvt
 
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}

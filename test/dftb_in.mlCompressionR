@@ -5,13 +5,13 @@
   "datasetSK": "../slko/hdf/skf.hdf5"},
 
 "dataset": {
-  "sizeDataset": [500, 500, 500]
+  "sizeDataset": [2, 2, 2]
   },
 
 "ml": {
   "target": "dipole",
   "referenceDataset": "../data/dataset/ani01_200.hdf5",
-  "mlSteps": 2,
+  "mlSteps": 1,
   "lr": 1E-1,
   "compressionRMin": 1.5}
 

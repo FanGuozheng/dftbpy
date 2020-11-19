@@ -189,7 +189,7 @@ class LoadData:
             # write all coordinates to list "corrall" and first column is
             # atom number
             self.positions = [coor for coor in np.asarray(
-                data['coordinates'][:self.nend], dtype=float)]
+                data['coordinates'][:self.nend])]
 
             # write the current atom species in molecule to list "symbols"
             # use metadata instead
@@ -283,24 +283,19 @@ class LoadData:
         """Load the data from DFT calculations."""
         if ref == 'aims':
             newdire = os.path.join(Directory, dire)
-            if os.path.exists(os.path.join(newdire,
-                                           'bandenergy.dat')):
-                refenergy = Variable(t.zeros((nfile, 2), dtype=t.float64),
-                                     requires_grad=False)
+            if os.path.exists(os.path.join(newdire, 'bandenergy.dat')):
+                refenergy = t.zeros(nfile, 2)
                 fpenergy = open(os.path.join(newdire, 'bandenergy.dat'), 'r')
                 for ifile in range(0, nfile):
-                    energy = np.fromfile(fpenergy, dtype=float,
-                                         count=3, sep=' ')
+                    energy = np.fromfile(fpenergy, count=3, sep=' ')
                     refenergy[ifile, :] = t.from_numpy(energy[1:])
         elif ref == 'dftbrand':
             newdire = os.path.join(Directory, dire)
             if os.path.exists(os.path.join(newdire, 'bandenergy.dat')):
-                refenergy = Variable(t.zeros((nfile, 2), dtype=t.float64),
-                                     requires_grad=False)
+                refenergy = t.zeros(nfile, 2)
                 fpenergy = open(os.path.join(newdire, 'bandenergy.dat'), 'r')
                 for ifile in range(0, nfile):
-                    energy = np.fromfile(fpenergy, dtype=float,
-                                         count=3, sep=' ')
+                    energy = np.fromfile(fpenergy, count=3, sep=' ')
                     refenergy[ifile, :] = t.from_numpy(energy[1:])
         elif ref == 'VASP':
             pass
@@ -312,13 +307,13 @@ class LoadData:
             rad = np.zeros((nfile, natom))
             fprad = open(os.path.join(DireSK, 'rad_para.dat'), 'r')
             for ifile in range(0, nfile):
-                irad = np.fromfile(fprad, dtype=float, count=natom, sep=' ')
+                irad = np.fromfile(fprad, count=natom, sep=' ')
                 rad[ifile, :] = irad[:]
         if os.path.exists(os.path.join(DireSK, 'ang_para.dat')):
             ang = np.zeros((nfile, natom))
             fpang = open(os.path.join(DireSK, 'ang_para.dat'), 'r')
             for ifile in range(0, nfile):
-                iang = np.fromfile(fpang, dtype=float, count=natom, sep=' ')
+                iang = np.fromfile(fpang, count=natom, sep=' ')
                 ang[ifile, :] = iang[:]
         return rad, ang
 
@@ -356,7 +351,7 @@ class LoadData:
             if train_ == 'yes':
                 n_dataset += 1
                 row, col = natom_, 4
-                coor = t.zeros((row, col), dtype=t.float64)
+                coor = t.zeros(row, col)
                 coor[:, 0] = t.from_numpy(qatom_[idata][:natom_])
                 coor[:, 1:] = t.from_numpy(icoor[:natom_, :])
                 self.para['natomAll'].append(coor.shape[0])
@@ -459,7 +454,7 @@ class LoadReferenceData:
 
                         self.dataset['numberatom'].append(t.tensor(
                             [np.count_nonzero(f[igroup].attrs['atomNumber'] == i)
-                             for i in [1, 6, 7, 8]], dtype=t.float64))
+                             for i in [1, 6, 7, 8]]))
 
                         # HOMO LUMO
                         namehl = str(ibatch) + 'HOMOLUMO'

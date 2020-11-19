@@ -217,7 +217,7 @@ class Initialization:
              for iname in self.parameter['atomNameAll']]
 
         # transfer to tensor
-        self.parameter['this_U'] = t.tensor(this_U, dtype=t.float64)
+        self.parameter['this_U'] = t.tensor(this_U)
 
 
 class Rundftbpy:
@@ -444,7 +444,7 @@ class SCF:
     def half_to_sym(self, in_mat, dim_out):
         """Transfer 1D half H0, S to full, symmetric H0, S."""
         # build 2D full, symmetric H0 or S
-        out_mat = t.zeros((dim_out, dim_out), dtype=t.float64)
+        out_mat = t.zeros(dim_out, dim_out)
 
         # transfer 1D to 2D
         icount = 0
@@ -488,11 +488,7 @@ class SCF:
         nelectron = qatom.sum(axis=1)
         self.para['qzero'] = qzero = qatom
 
-        # for single calculations, we calcualte only one system, such as qatom,
-        # the dimension is [1, natom], therefore we get temporal ibatch as 0
-        # ibatch_ = [0] if self.batch is False else ibatch
         q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
-        # q_new = qzero.clone()
         for iiter in range(maxiter):
             # get index of mask where is True
             ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
@@ -522,6 +518,7 @@ class SCF:
                 0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
+            print("dtype", fock.dtype, self.over.dtype, self.ham.dtype, shift_mat.dtype)
             epsilon, C = self.eigen.eigen(
                 fock, self.over[self.mask[-1]][:, :dim_, :dim_], self.batch,
                 self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]])
@@ -630,7 +627,7 @@ class SCF:
 
         icount = 0
         if self.para['HSSymmetry'] == 'all':
-            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            eigm_ = t.zeros(ind_nat, ind_nat)
             for iind in range(0, ind_nat):
                 for j_i in range(0, ind_nat):
                     eigm_[iind, j_i] = self.hmat[iind, j_i] + 0.5 * \
@@ -640,8 +637,8 @@ class SCF:
             oldsmat_ = self.hmat
         elif self.para['HSSymmetry'] == 'half':
             fockmat_ = t.zeros(self.atind2)
-            eigm_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
-            oldsmat_ = t.zeros((ind_nat, ind_nat), dtype=t.float64)
+            eigm_ = t.zeros(ind_nat, ind_nat)
+            oldsmat_ = t.zeros(ind_nat, ind_nat)
             for iind in range(0, int(self.atind[self.nat])):
                 for j_i in range(0, iind + 1):
                     fockmat_[icount] = self.hmat[icount] + 0.5 * \
@@ -778,7 +775,7 @@ class Repulsive():
 
     def cal_rep_energy(self):
         """Calculate repulsive energy."""
-        self.rep_energy = t.zeros((self.nat), dtype=t.float64)
+        self.rep_energy = t.zeros(self.nat)
         atomnameall = self.para['atomNameAll']
 
         # repulsive cutoff not atom specie resolved
@@ -804,7 +801,7 @@ class Repulsive():
     def cal_rep_atomij(self, distanceij, nameij):
         """Calculate repulsive polynomials for atom pair."""
         nint = self.para['nint_rep' + nameij]
-        alldist = t.zeros((nint + 1), dtype=t.float64)
+        alldist = t.zeros(nint + 1)
         a1 = self.para['a1_rep' + nameij]
         a2 = self.para['a2_rep' + nameij]
         a3 = self.para['a3_rep' + nameij]
@@ -851,24 +848,24 @@ class Mixing:
             self.uu = []
 
             # weight parameter in broyden method
-            self.ww = t.zeros((self.nit), dtype=t.float64)
+            self.ww = t.zeros(self.nit)
 
             # global a parameter for broyden method
-            self.aa = t.zeros((self.nit, self.nit), dtype=t.float64)
+            self.aa = t.zeros(self.nit, self.nit)
 
             # global c parameter for broyden method
-            self.cc = t.zeros((self.nit, self.nit), dtype=t.float64)
+            self.cc = t.zeros(self.nit, self.nit)
 
             # global beta parameter for broyden method
-            self.beta = t.zeros((self.nit, self.nit), dtype=t.float64)
+            self.beta = t.zeros(self.nit, self.nit)
 
     def mix(self, iiter, qzero, qatom, qmix, qdiff):
         """Deal with the first iteration."""
         if iiter == 0:
             qmix.append(qzero)
             if self.para['mixMethod'] == 'broyden':
-                self.df.append(t.zeros((self.para['natom']), dtype=t.float64))
-                self.uu.append(t.zeros((self.para['natom']), dtype=t.float64))
+                self.df.append(t.zeros((self.para['natom'])))
+                self.uu.append(t.zeros((self.para['natom'])))
             qmix_ = self.simple_mix(qzero, qatom[-1], qdiff)
             qmix.append(qmix_)
         else:
@@ -908,8 +905,6 @@ class Mixing:
             D. D. Johnson, PRB, 38 (18), 1988.
 
         """
-        # cc = t.zeros((iiter, iiter), dtype=t.float64)
-
         # temporal a parameter for current interation
         aa_ = []
 
@@ -957,20 +952,18 @@ class Mixing:
 
         if iiter >= 2:
             # build loop from first loop to last loop
-            [aa_.append(t.tensor(idf, dtype=t.float64) @ ndf) for idf in
-             self.df[:-1]]
+            [aa_.append(idf @ ndf) for idf in  self.df[:-1]]
 
             # build loop from first loop to last loop
-            [cc_.append(t.tensor(idf, dtype=t.float64) @ t.tensor(qdiff[-1],
-             dtype=t.float64)) for idf in self.df[:-1]]
+            [cc_.append(idf @ qdiff[-1]) for idf in self.df[:-1]]
 
             # update last a parameter
-            self.aa[: iiter - 1, iiter] = t.tensor(aa_, dtype=t.float64)
-            self.aa[iiter, : iiter - 1] = t.tensor(aa_, dtype=t.float64)
+            self.aa[: iiter - 1, iiter] = aa_
+            self.aa[iiter, : iiter - 1] = aa_
 
             # update last c parameter
-            self.cc[: iiter - 1, iiter] = t.tensor(cc_, dtype=t.float64)
-            self.cc[iiter, : iiter - 1] = t.tensor(cc_, dtype=t.float64)
+            self.cc[: iiter - 1, iiter] = cc_
+            self.cc[iiter, : iiter - 1] = cc_
 
         self.aa[iiter - 1, iiter - 1] = 1.0
 
@@ -1081,8 +1074,7 @@ class Analysis:
         # get each intial atom charge
         qat = [[self.para['val_' + atomname[ib][iat]]
                 for iat in range(self.nat[ib])] for ib in ibatch]
-        # return charge information
-        return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat])
+        return pad1d([t.tensor(iq).type(self.para['precision']) for iq in qat])
 
     def to_full_electron_charge(self, atomname, charge, ibatch=[0]):
         """Get the basic electronic information of each atom."""
@@ -1090,7 +1082,7 @@ class Analysis:
         qat = [[_CORE[atomname[ib][iat]]
                 for iat in range(self.nat[ib])] for ib in ibatch]
         # return charge information
-        return pad1d([t.tensor(iq, dtype=t.float64) for iq in qat]) + charge
+        return pad1d([t.tensor(iq) for iq in qat]) + charge
 
     def get_dipole(self, qzero, qatom, coor, natom):
         """Read and process dipole data."""
@@ -1100,7 +1092,7 @@ class Analysis:
     def pdos(self):
         """Calculate PDOS."""
         # calculate pdos
-        self.para['pdos_E'] = t.linspace(5, 10, 1000, dtype=t.float64)
+        self.para['pdos_E'] = t.linspace(5, 10, 1000)
 
         self.para['pdos'] = dos.PDoS(
             # C eigen vector, the 1st dimension is batch dimension

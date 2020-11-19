@@ -568,14 +568,9 @@ class GetSK_:
                for j in range(len(distance))] for i in range(len(distance))]
         time2 = time.time()
 
-        if self.para['device'] == 'cuda':
-            self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
-                xx[i][j], t.from_numpy(yy[i][j]).to(self.para['device']), distance[i, j], i==j)
-                for j in range(natom)]) for i in range(natom)])
-        else:
-            self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
-                xx[i][j], t.from_numpy(yy[i][j]), distance[i, j], i==j)
-                for j in range(natom)]) for i in range(natom)])
+        self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
+            xx[i][j], t.from_numpy(yy[i][j]).type(self.para['precision']), distance[i, j], i==j)
+            for j in range(natom)]) for i in range(natom)])
 
         timeend = time.time()
         print('time of distance interpolation: ', timeend - time2)
@@ -630,8 +625,8 @@ class GetSK_:
         for iat in atomspecie:
 
             # onsite is the same, therefore read [0, 0] instead
-            onsite = t.zeros((3), dtype=t.float64)
-            uhubb = t.zeros((3), dtype=t.float64)
+            onsite = t.zeros(3)
+            uhubb = t.zeros(3)
             onsite[:] = self.para['onsite' + iat + iat]
             uhubb[:] = self.para['uhubb' + iat + iat]
             self.skf['onsite' + iat + iat] = onsite
@@ -746,6 +741,7 @@ class GetSK_:
             else:
                 compr = self.para['compr_ml']
             mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
+            print('dtype', mesh.dtype, zmesh.dtype, compr.dtype)
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
         # elif self.ml['interp_compr_type'] == 'BiCub':
@@ -833,7 +829,7 @@ class SKTran:
         natom = self.dataset['natomAll'][self.ibatch]
 
         # build H0 or S
-        self.skf['hs_all'] = t.zeros((natom, natom, 20), dtype=t.float64)
+        self.skf['hs_all'] = t.zeros(natom, natom, 20)
 
         for iat in range(natom):
             for jat in range(natom):
@@ -899,11 +895,11 @@ class SKTran:
         atomind2 = self.para['atomind2']
 
         # build 1D, half H0, S matrices
-        self.skf['hammat'] = t.zeros((atomind2), dtype=t.float64)
-        self.skf['overmat'] = t.zeros((atomind2), dtype=t.float64)
+        self.skf['hammat'] = t.zeros(atomind2)
+        self.skf['overmat'] = t.zeros(atomind2)
 
         # temporary distance matrix
-        rr = t.zeros((3), dtype=t.float64)
+        rr = t.zeros(3)
 
         for iat in range(natom):
 
@@ -916,8 +912,8 @@ class SKTran:
                 lmax = max(lmaxi, lmaxj)
 
                 # temporary H, S with dimension 9 (s, p, d orbitals)
-                self.para['hams'] = t.zeros((9, 9), dtype=t.float64)
-                self.para['ovrs'] = t.zeros((9, 9), dtype=t.float64)
+                self.para['hams'] = t.zeros(9, 9)
+                self.para['ovrs'] = t.zeros(9, 9)
 
                 # atom name of i and j
                 self.para['nameij'] = atomname[iat] + atomname[jat]
@@ -944,8 +940,8 @@ class SKTran:
                             self.skf['overmat'][idx] = self.skf['ovrs'][m, n]
 
             # build temporary on-site
-            self.para['h_o'] = t.zeros((9), dtype=t.float64)
-            self.para['s_o'] = t.zeros((9), dtype=t.float64)
+            self.para['h_o'] = t.zeros(9)
+            self.para['s_o'] = t.zeros(9)
 
             # get the name between atoms
             self.para['nameij'] = atomname[iat] + atomname[iat]
@@ -982,8 +978,8 @@ class SKTran:
         # dvec = self.dataset['dvec']
 
         # build H0, S
-        self.skf['hammat'] = t.zeros((norb, norb), dtype=t.float64)
-        self.skf['overmat'] = t.zeros((norb, norb), dtype=t.float64)
+        self.skf['hammat'] = t.zeros(norb, norb)
+        self.skf['overmat'] = t.zeros(norb, norb)
 
         for iat in range(natom):
 
@@ -996,12 +992,12 @@ class SKTran:
                 lmaxj = self.dataset['lmaxall'][ibatch][jat]
 
                 # temporary H, S between i and j atom
-                self.skf['hams'] = t.zeros((9, 9), dtype=t.float64)
-                self.skf['ovrs'] = t.zeros((9, 9), dtype=t.float64)
+                self.skf['hams'] = t.zeros(9, 9)
+                self.skf['ovrs'] = t.zeros(9, 9)
 
                 # temporary on-site
-                self.skf['h_o'] = t.zeros((9), dtype=t.float64)
-                self.skf['s_o'] = t.zeros((9), dtype=t.float64)
+                self.skf['h_o'] = t.zeros(9)
+                self.skf['s_o'] = t.zeros(9)
 
                 # name of i and j atom pair
                 self.para['nameij'] = atomname[iat] + atomname[jat]
@@ -1231,7 +1227,7 @@ class SKTran:
 
         # get the maximum and minimum of l
         lmax, lmin = max(li, lj), min(li, lj)
-        skselfnew = t.zeros((3), dtype=t.float64)
+        skselfnew = t.zeros(3)
 
         # distance between atoms is zero
         if dd < 1E-4:

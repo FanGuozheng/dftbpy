@@ -71,7 +71,7 @@ class DFTBelect:
         Returns:
             Gamma matrix in second order
         """
-        gmat = t.zeros((natom, natom), dtype=t.float64)
+        gmat = t.zeros(natom, natom)
         for iatom in range(natom):
             namei = atomname[iatom] + atomname[iatom]
             for jatom in range(natom):
@@ -116,9 +116,9 @@ class DFTBelect:
         """Construct the gamma matrix via the gaussian method.
         Parameters
         ----------
-        U : `torch.tensor` [`float`]
+        U : `torch.tensor`
             Vector specifying, in order, the Hubbard U values for each atom/orbital.
-        position : `torch.tensor` [`float`], `np.array` [`float`]
+        position : `torch.tensor`, `np.array`
             Position of each atom/orbital.
         **kwargs
             Additional keyword arguments:

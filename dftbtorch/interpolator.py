@@ -103,14 +103,11 @@ class BicubInterpVec:
                            [0., 1., -2., 1.], [0., 0., -1., 1.]])
 
         # get the nearest grid points indices of xi and yi
-        if self.para['device'] == 'cpu':
-            self.nx0 = [bisect.bisect(xmesh[ii].detach().numpy(),
-                                      xi[ii].detach().numpy()) - 1
-                        for ii in range(len(xi))]
-        elif self.para['device'] == 'cuda':
-            self.nx0 = [bisect.bisect(xmesh[ii].detach().cpu().numpy(),
-                                      xi[ii].detach().cpu().numpy()) - 1
-                        for ii in range(len(xi))]
+        xmesh_ = xmesh.cpu() if xmesh.device.type == 'cuda' else xmesh
+        xi_ = xi.cpu() if xi.device.type == 'cuda' else xi
+        self.nx0 = [bisect.bisect(xmesh_[ii].detach().numpy(),
+                                    xi_[ii].detach().numpy()) - 1
+                    for ii in range(len(xi))]
         # build surrounding grid points indices, where _1 means -1, the
         # previous grid points, so is the 0, 1 ... along x, and y axes
         self.nx_1, self.nx2 = [], []
@@ -482,7 +479,7 @@ class Spline1:
 
     def get_B(self):
         # natural boundary condition, the first and last are zero
-        B = t.zeros(self.nx, dtype=t.float64)
+        B = t.zeros(self.nx)
         for i in range(self.nx - 2):
             B[i + 1] = 6.0 * ((self.diffy[i + 1]) / self.h[i + 1] -
                               (self.diffy[i]) / self.h[i]) / \
@@ -491,7 +488,7 @@ class Spline1:
 
     def get_A(self):
         """Calculate a para in spline interpolation."""
-        A = t.zeros((self.nx, self.nx), dtype=t.float64)
+        A = t.zeros(self.nx, self.nx)
         A[0, 0] = 1.
         # A[0, 1] = 1.
         for i in range(self.nx - 2):
