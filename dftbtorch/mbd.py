@@ -101,7 +101,7 @@ class MBD:
         Phys. Rev. Lett. 108, 236402 (2012)
         """
         omega = self.para['omega']
-        '''orig_idx = t.zeros((self.nat), dtype=t.float64)
+        '''orig_idx = t.zeros(self.nat)
         orig_idx =
         for ip in range(self.nat):
             orig_idx[ip] = self.para['pairs_p'][ip]'''
@@ -175,7 +175,7 @@ class MBD:
         pairs_p = self.para['pairs_p']
         pairs_q = self.para['pairs_q']
         alpha_ts = self.para['alpha_tsall'][ieff]
-        mytsr = t.zeros((self.nb, max(num_pairs), 3, 3), dtype=t.float64)
+        mytsr = t.zeros(self.nb, max(num_pairs), 3, 3)
         A_matrix = t.zeros(self.nb, 3 * self.natommax, 3 * self.natommax)
 
         for ib in range(self.nb):
@@ -211,7 +211,7 @@ class MBD:
 
     def mbdvdw_screened_pol(self):
         """Calculate polarizability."""
-        alpha_isotropic = t.zeros((self.nb, self.natommax), dtype=t.float64)
+        alpha_isotropic = t.zeros(self.nb, self.natommax)
         A_matrix = self.para['A_matrix']
         for ib in range(self.nb):
             for pat in range(self.nat[ib]):
@@ -234,10 +234,10 @@ class MBD:
         ainv_in: inverse matrix of of 3*3 h_in
         """
         coor = self.dataset['positions']
-        spq = t.zeros((3), dtype=t.float64)
-        spq_lat = t.zeros((3), dtype=t.float64)
-        rpq_lat = t.zeros((3), dtype=t.float64)
-        tsr = t.zeros((3, 3), dtype=t.float64)
+        spq = t.zeros(3)
+        spq_lat = t.zeros(3)
+        rpq_lat = t.zeros(3)
+        tsr = t.zeros(3, 3)
         Rc = 20.0
 
         rpq = coor[ib, p, :] - coor[ib, q, :]
@@ -256,8 +256,8 @@ class MBD:
 
     def mbdvdw_circumscribe(self, uc, radius):
         nn = len(uc)
-        layer_sep = t.zeros((nn), dtype=t.float64)
-        sc = t.zeros((nn), dtype=t.float64)
+        layer_sep = t.zeros(nn)
+        sc = t.zeros(nn)
         ruc = 2 * np.pi * LinAl(self.para).inv33_mat(uc).t()
         for inn in range(nn):
             layer_sep[inn] = sum(uc[inn, :] * ruc[inn, :] /
@@ -279,8 +279,8 @@ class MBD:
         sigma = self.para['sigma']
         R_TS_VdW = self.para['R_TS_VdW']
         beta = self.para['beta']
-        Rmat = t.zeros((3, 3), dtype=t.float64)
-        Tdip = t.zeros((3, 3), dtype=t.float64)
+        Rmat = t.zeros(3, 3)
+        Tdip = t.zeros(3, 3)
         sqrtpi = np.pi ** 0.5
         rpq_norm = (rpq[:] ** 2.0).sum().sqrt()
         # Computes the effective correlation length of the interaction potential

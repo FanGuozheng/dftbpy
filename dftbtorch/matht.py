@@ -349,7 +349,7 @@ class DFTBmath:
         return yy
 
 
-class EigenSolver:
+class EigenSolver(t.autograd.Function):
     """Eigenvalue solver for (general) eigenvalue problem.
 
     Notes
@@ -374,35 +374,146 @@ class EigenSolver:
         """
         self.eigenmethod = eigenmethod
 
+    # Note that 'none' is included only for testing purposes
+    KNOWN_METHODS = ['cond', 'lorn', 'none']
+
+    @staticmethod
+    def forward(ctx, a, method='cond', factor=1E-12):
+        """Calculate the eigenvalues and eigenvectors of a symmetric matrix.
+        Finds the eigenvalues and eigenvectors of a real symmetric
+        matrix using the torch.symeig function.
+        Arguments:
+            a: A real symmetric matrix whose eigenvalues & eigenvectors will
+                be computed.
+            method: Broadening method to used, available options are:
+                    - "cond" for conditional broadening.
+                    - "lorn" for Lorentzian broadening.
+                See class doc-string for more info on these methods.
+                [DEFAULT='cond']
+            factor: Degree of broadening (broadening factor). [Default=1E-12]
+        Returns:
+            w: The eigenvalues, in ascending order.
+            v: The eigenvectors.
+        Notes:
+            The ctx argument is auto-parsed by PyTorch & is used to pass data
+            from the .forward() method to the .backward() method. This is not
+            normally described in the docstring but has been done here to act
+            as an example.
+        Warnings:
+            Under no circumstances should `factor` be a torch.tensor entity.
+            The `method` and `factor` parameters MUST be passed as positional
+            arguments and NOT keyword arguments.
+        """
+        # Check that the method is of a known type
+        if method not in EigenSolver.KNOWN_METHODS:
+            raise ValueError('Unknown broadening method selected.')
+
+        # Compute eigen-values & vectors using torch.symeig.
+        w, v = t.symeig(a, eigenvectors=True)
+
+        # Save tensors that will be needed in the backward pass
+        ctx.save_for_backward(w, v)
+
+        # Save the broadening factor and the selecte broadening method.
+        ctx.bf, ctx.bm = factor, method
+
+        # Store dtype to prevent dtype mixing (don't mix dtypes)
+        ctx.dtype = a.dtype
+
+        # Return the eigenvalues and eigenvectors
+        return (w, v)
+
+    @staticmethod
+    def backward(ctx, w_bar, v_bar):
+        """Evaluates gradients of the eigen decomposition operation.
+        Evaluates gradients of the matrix from which the eigenvalues
+        and eigenvectors were taken.
+        Arguments:
+            w_bar: Gradients associated with the the eigenvalues.
+            v_bar: Gradients associated with the eigenvectors.
+        Returns:
+            a_bar: Gradients associated with the `a` tensor.
+        Notes:
+            See class doc-string for a more detailed description of this
+            method.
+        """
+        # Equation to variable legend
+        #   w <- λ
+        #   v <- U
+
+        # __Preamble__
+        # Retrieve eigenvalues (w) and eigenvectors (v) from ctx
+        w, v = ctx.saved_tensors
+
+        # Retrieve, the broadening factor and convert to a tensor entity
+        bf = t.tensor(ctx.bf, dtype=ctx.dtype)
+
+        # Retrieve the broadening method
+        bm = ctx.bm
+
+        # Form the eigenvalue gradients into diagonal matrix
+        lambda_bar = w_bar.diag_embed()
+
+        # Identify the indices of the upper triangle of the F matrix
+        tri_u = t.triu_indices(*v.shape[-2:], 1)
+
+        # Construct the deltas
+        deltas = w[..., tri_u[1]] - w[..., tri_u[0]]
+
+        # Apply broadening
+        if ctx.bm == 'cond':  # <- Conditional broadening
+            deltas = 1 / t.where(t.abs(deltas) > bf,
+                                 deltas, bf) * t.sign(deltas)
+        elif ctx.bm == 'lorn':  # <- Lorentzian broadening
+            deltas = deltas / (deltas**2 + bf)
+        elif ctx.bm == 'none':  # <- Debugging only
+            deltas = 1 / deltas
+        else:  # <- Should be impossible to get here
+            raise ValueError(f'Unknown broadening method {ctx.bm}')
+
+        # Construct F matrix where F_ij = v_bar_j - v_bar_i; construction is
+        # done in this manner to avoid 1/0 which can cause intermittent and
+        # hard-to-diagnose issues.
+        F = t.zeros(*w.shape, w.shape[-1], dtype=ctx.dtype)
+        F[..., tri_u[0], tri_u[1]] = deltas  # <- Upper triangle
+        F[..., tri_u[1], tri_u[0]] -= F[..., tri_u[0], tri_u[1]]  # <- lower triangle
+
+        # Construct the gradient following the equation in the doc-string.
+        a_bar = v @ (lambda_bar + sym(F * (v.transpose(-2, -1) @ v_bar))) @ v.transpose(-2, -1)
+
+        # Return the gradient. PyTorch expects a gradient for each parameter
+        # (method, bf) hence two extra Nones are returned
+        return a_bar, None, None
+
+
     def eigen(self, A, B=None, Lbatch=False, norbital=None, ibatch=None, **kwargs):
         """Choose different mothod for (general) eigenvalue problem.
 
         Parameters
         ----------
-        A : `torch.tensor` [`float`]
+        A :
             Real symmetric matrix for which the eigenvalues & eigenvectors
             are to be computed. This is typically the Fock matrix.
-        B : `torch.tensor` [`float`], optional
+        B :
             Complementary positive definite real symmetric matrix for the
             generalised eigenvalue problem. Typically the overlap matrix.
         """
-        # simple eigenvalue problem
+        self.inverse = kwargs['inverse'] if 'inverse' in kwargs else False
         self.norb = [sum(iorb) for iorb in norbital]
+
+        # simple eigenvalue problem
         if B is None:
             eigval, eigvec = t.symeig(A, eigenvectors=True)
-
-        # general eigenvalue problem
         else:
             # test the shape size
             assert A.shape == B.shape
 
             # select decomposition method cholesky
             if self.eigenmethod == 'cholesky':
-                eigval, eigvec = self.cholesky(A, B, Lbatch, ibatch)
-
+                eigval, eigvec = self.cholesky(A, B, Lbatch, ibatch, self.inverse)
             # select decomposition method lowdin
             elif self.eigenmethod == 'lowdin':
-                eigval, eigvec = self.lowdin_qr(A, B, Lbatch)
+                eigval, eigvec = self.lowdin_qr(A, B, Lbatch, self.inverse)
 
         # return eigenvalue and eigenvector
         return eigval, eigvec
@@ -448,9 +559,10 @@ class EigenSolver:
 
             # L^{-1}
             linv = t.inverse(chol_l)
+            linvt = t.transpose(linv, -1, -2)
 
             # (L^{-1} @ A) @ L^{-T}
-            linv_a_linvt = linv @ A @ linv.T
+            linv_a_linvt = linv @ A @ linvt
 
         else:
 
@@ -479,14 +591,72 @@ class EigenSolver:
         # eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         # eigvec_ = pad2d([ieigv[1] for ieigv in eigval_eigvec])
         
-        print('linv_a_linvt', linv_a_linvt)
-        eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+        # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
+        eigval, eigvec_ = EigenSolver.apply(linv_a_linvt)
 
         # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
         eigvec = linvt @ eigvec_
-
+        eigval, eigvec = self._eig_sort_out(eigval, eigvec, False)
         # return eigenvalue and eigen vector
         return eigval, eigvec
+
+    def _eig_sort_out(self, w, v, ghost=True):
+        """Move ghost eigen values/vectors to the end of the array.
+        Discuss the difference between ghosts (w=0) and auxiliaries (w=1)
+        Performing and eigen-decomposition operation on a zero-padded packed
+        tensor results in the emergence of ghost eigen-values/vectors. This can
+        cause issues downstream, thus they are moved to the end here which means
+        they can be easily clipped off should the user wish to do so.
+        Arguments:
+            w: The eigen-values.
+            v: The eigen-vectors.
+            ghost: Ghost-eigen-vlaues are assumed to be 0 if True, else assumed to
+                be 1. If zero padded then this should be True, if zero padding is
+                turned into identity padding then False should be used. This will
+                also change the ghost eigenvalues from 1 to zero when appropriate.
+                [DEFAULT=True]
+        Returns:
+            w: The eigen-values, with ghosts moved to the end.
+            v: The eigen-vectors, with ghosts moved to the end.
+        """
+        eval = 0 if ghost else 1
+
+        # Create a mask that is True when an eigen value is zero
+        mask = w == eval
+        # and its associated eigen vector is a column of a identity matrix:
+        # i.e. all values are 1 or 0 and there is only a single 1.
+        _is_one = t.eq(v, 1)  # <- precompute
+        mask &= t.all(t.eq(v, 0) | _is_one, dim=1)
+        mask &= t.sum(_is_one, dim=1) == 1  # <- Only a single "1"
+
+        # Convert any auxiliary eigenvalues into ghosts
+        if not ghost:
+            w = w - mask.type(w.dtype)
+
+        # Pull out the indices of the true & ghost entries and cat them together
+        # so that the ghost entries are at the end.
+        # noinspection PyTypeChecker
+        indices = t.cat((t.stack(t.where(~mask)), t.stack(t.where(mask))), dim=-1)
+
+        # argsort fixes the batch order and stops eigen-values accidentally being
+        # mixed between different systems. As PyTorch's argsort is not stable, i.e.
+        # it dose not respect any order already present in the data, numpy's argsort
+        # must be used for now.
+        if indices.device.type == 'cuda':
+            sorter = np.argsort(indices.cpu()[0], kind='stable')
+        else:
+            sorter = np.argsort(indices[0], kind='stable')
+
+        # Apply sorter to indices; use a tuple to make 1D & 2D cases compatible
+        sorted_indices = tuple(indices[..., sorter])
+
+        # Fix the order of the eigen values and eigen vectors.
+        w = w[sorted_indices].reshape(w.shape)
+        # Reshaping is needed to allow sorted_indices to be used for 2D & 3D
+        v = v.transpose(-1, -2)[sorted_indices].reshape(v.shape).transpose(-1, -2)
+
+        # Return the eigenvalues and eigenvectors
+        return w, v
 
     def lowdin_symeig(self, A, B):
         """Löwdin orthonormalization.
@@ -734,7 +904,16 @@ class EigenSolver:
         print(eigvec_, 'ss \n', eigvec, 'val \n', eigval)'''
         return eigenval, eigvec
 
-
+def sym(x, dim0=-1, dim1=-2):
+    """Symmetries the specified tensor.
+    Arguments:
+        x: The tensor to be symmetrised.
+        dim0: First dimension to be transposed. [DEFAULT=-1]
+        dim1: Second dimension to be transposed [DEFAULT=-2]
+    Returns:
+        x_sym: The symmetrised tensor.
+    """
+    return (x + x.transpose(dim0, dim1)) / 2
 
 class BicubInterp:
     """Bicubic interpolation method for DFTB.

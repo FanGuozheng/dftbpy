@@ -356,11 +356,11 @@ class GetSKTable:
                         skf['uhubb' + nameij][:] = fp_line_[6]
 
                     # read third line: mass...
-                    data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                    data = np.fromfile(fp, count=20, sep=' ')
                     skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
-                    hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                    hs_all = np.fromfile(fp, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
                     skf['hs_all' + nameij] = hs_all
 
@@ -368,11 +368,11 @@ class GetSKTable:
                 else:
 
                     # read the second line: mass...
-                    data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                    data = np.fromfile(fp, count=20, sep=' ')
                     skf['mass_cd' + nameij] = t.from_numpy(data)
 
                     # read all the integral and reshape
-                    hs_all = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                    hs_all = np.fromfile(fp, count=nitem, sep=' ')
                     hs_all.shape = (int(words[1]), 20)
                     skf['hs_all' + nameij] = hs_all
 
@@ -741,7 +741,6 @@ class GetSK_:
             else:
                 compr = self.para['compr_ml']
             mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
-            print('dtype', mesh.dtype, zmesh.dtype, compr.dtype)
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
         # elif self.ml['interp_compr_type'] == 'BiCub':

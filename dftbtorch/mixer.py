@@ -690,13 +690,13 @@ class Broyden(Mixer):
         self.ww = t.zeros((self.generations), dtype=dtype)
 
         # global a parameter for broyden method
-        self.aa = t.zeros((self.generations, self.generations), dtype=t.float64)
+        self.aa = t.zeros(self.generations, self.generations)
 
         # global c parameter for broyden method
-        self.cc = t.zeros((self.generations, self.generations), dtype=t.float64)
+        self.cc = t.zeros(self.generations, self.generations)
 
         # global beta parameter for broyden method
-        self.beta = t.zeros((self.generations, self.generations), dtype=t.float64)
+        self.beta = t.zeros(self.generations, self.generations)
 
         # global diufference of charge difference
         # self.df = []
@@ -724,7 +724,7 @@ class Broyden(Mixer):
         # Calculate dQ_new - dQ_old delta & assign to the delta history _F
         self._F[0] = dQ_new - dQ_old
 
-        # cc = t.zeros((self._step_number, self._step_number), dtype=t.float64)
+        # cc = t.zeros(self._step_number, self._step_number)
 
         # temporal a parameter for current interation
         # aa_ = []
@@ -771,8 +771,8 @@ class Broyden(Mixer):
 
         if self._step_number == 1:
             dQ_mixed = self._dQs[0] + (self._F[0] * self.init_mix_param)
-            idf = t.zeros((dQ_mixed.shape), dtype=t.float64)
-            ndf = t.zeros((dQ_mixed.shape), dtype=t.float64)
+            idf = t.zeros(dQ_mixed.shape)
+            ndf = t.zeros(dQ_mixed.shape)
 
         if self._step_number >= 2:
             x = self.aa.clone()

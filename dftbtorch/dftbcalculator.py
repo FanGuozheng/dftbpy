@@ -418,7 +418,6 @@ class SCF:
 
         # get eigenvector and eigenvalue (and cholesky decomposition)
         epsilon, C = self.eigen.eigen(self.ham, self.over, self.batch, self.atind, ibatch)
-
         # batch calculation of the occupation of electrons
         occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
 
@@ -520,8 +519,7 @@ class SCF:
             # Calculate the eigen-values & vectors via a Cholesky decomposition
             epsilon, C = self.eigen.eigen(
                 fock, self.over[self.mask[-1]][:, :dim_, :dim_], self.batch,
-                self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]])
-
+                self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]], inverse=self.para['inverse'])
             # Calculate the occupation of electrons via the fermi method
             occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
                                          self.para['tElec'])

@@ -35,7 +35,7 @@ def dftb_parameter(parameter_=None):
         'task': 'dftb',
 
         # precision control: t.float64, t.float32, cuda.DoubleTensor
-        'precision': t.cuda.FloatTensor,
+        'precision': t.cuda.DoubleTensor,
 
         # device
         'device': 'cpu',
@@ -54,6 +54,9 @@ def dftb_parameter(parameter_=None):
 
         # plot results during or after calculations
         'Lplot': False,
+
+        # get inverse of tensor directly or from torch.solve or np.solve
+        'inverse': True,
 
         # input (dftb_in) directory
         'directory': path,

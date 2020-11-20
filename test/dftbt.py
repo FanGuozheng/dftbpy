@@ -23,14 +23,14 @@ def main(parameter=None, dataset=None):
     # parameter['inputName'] = 'dftb_in.dftb'
 
     # example 2.1: if use this code directly to optimize compression radii
-    parameter['task'] = 'mlCompressionR'
-    parameter['device'] = 'cpu'
+    # parameter['task'] = 'mlCompressionR'
+    # parameter['device'] = 'cpu'
     # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = 'dipole'
-    ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
-    dataset['sizeDataset'] = [1, 1, 1]
-    ml['mlSteps'] = 5
-    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+    # ml['target'] = 'dipole'
+    # ml['referenceDataset'] = '../data/dataset/ani01_200.hdf5'
+    # dataset['sizeDataset'] = [1, 1, 1]
+    # ml['mlSteps'] = 5
+    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
     # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_50mol_50step_dipole.dat'

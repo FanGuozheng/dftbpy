@@ -74,10 +74,10 @@ class MLPara:
         fpw = open(os.path.join(dire, 'weight.dat'))
         fpb = open(os.path.join(dire, 'bias.dat'))
         dim = self.para['acsf_dim']
-        bias = t.from_numpy(np.fromfile(fpb, dtype=float, count=-1, sep=' '))
+        bias = t.from_numpy(np.fromfile(fpb, count=-1, sep=' '))
         nbatch_step = bias.shape[0]
         weight = t.from_numpy(np.fromfile(
-            fpw, dtype=float, count=-1, sep=' ').reshape(nbatch_step, dim))
+            fpw, count=-1, sep=' ').reshape(nbatch_step, dim))
         num = int(ratio * (nbatch_step - 1))
         self.para['test_weight'] = weight[num]
         self.para['test_bias'] = bias[num]
@@ -188,7 +188,7 @@ class Read:
     def read1d(self, dire, name, number, outtype='torch'):
         """Read one dimentional data."""
         fp = open(os.path.join(dire, name), 'r')
-        data = np.zeros((number), dtype=float)
+        data = np.zeros(number)
         data[:] = np.fromfile(fp, dtype=int, count=number, sep=' ')
         if outtype == 'torch':
             return t.from_numpy(data)
@@ -197,10 +197,10 @@ class Read:
 
     def read2d(self, dire, name, num1, num2, outtype='torch'):
         """Read two dimentional data."""
-        data = np.zeros((num1, num2), dtype=float)
+        data = np.zeros(num1, num2)
         fp = open(os.path.join(dire, name), 'r')
         for inum1 in range(0, num1):
-            idata_ = np.fromfile(fp, dtype=float, count=num2, sep=' ')
+            idata_ = np.fromfile(fp, count=num2, sep=' ')
             data[inum1, :] = idata_
         if outtype == 'torch':
             return t.from_numpy(data)
@@ -210,11 +210,11 @@ class Read:
     def read2d_rand(self, dire, name, nall, num1, outtype='torch'):
         """Read two dimentional data, which may not be all filled."""
         nmax = int((nall).max())
-        data = np.zeros((num1, nmax), dtype=float)
+        data = np.zeros(num1, nmax)
         fp = open(os.path.join(dire, name), 'r')
         for inum1 in range(num1):
             num_ = int(nall[inum1])
-            idata_ = np.fromfile(fp, dtype=float, count=num_, sep=' ')
+            idata_ = np.fromfile(fp, count=num_, sep=' ')
             data[inum1, :num_] = idata_
         if outtype == 'torch':
             return t.from_numpy(data)
@@ -234,17 +234,17 @@ class Read:
         ntrain = self.para['ntrain']
         if self.para['Lopt_step']:
             nstepmax = int(max(ntemp))
-            data = np.zeros((ntrain, nstepmax, nmax), dtype=float)
+            data = np.zeros(ntrain, nstepmax, nmax)
         else:
             ntemp_ = ntemp
-            data = np.zeros((ntrain, ntemp, nmax), dtype=float)
+            data = np.zeros(ntrain, ntemp, nmax)
 
         # read data
         fp = open(os.path.join(dire, name), 'r')
         for inum1 in range(ntrain):
             num_ = int(nall[inum1])
             ntemp_ = int(ntemp[inum1])
-            idata_ = np.fromfile(fp, dtype=float, count=num_*ntemp_, sep=' ')
+            idata_ = np.fromfile(fp, count=num_*ntemp_, sep=' ')
             idata_.shape = (ntemp_, num_)
             data[inum1, :ntemp_, :num_] = idata_
 

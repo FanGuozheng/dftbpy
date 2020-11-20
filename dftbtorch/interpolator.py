@@ -108,29 +108,11 @@ class BicubInterpVec:
         self.nx0 = [bisect.bisect(xmesh_[ii].detach().numpy(),
                                     xi_[ii].detach().numpy()) - 1
                     for ii in range(len(xi))]
-        # build surrounding grid points indices, where _1 means -1, the
-        # previous grid points, so is the 0, 1 ... along x, and y axes
-        self.nx_1, self.nx2 = [], []
-        self.nind = [i for i in range(len(xi))]
-        self.nx1 = [i + 1 for i in self.nx0]
-
-        # get the grid indices of the surrounding two points
-        # xmesh, and ymesh is the same, we can write index togetehr
-        for i in self.nx0:
-            if i >= self.nind[1]:
-                self.nx_1.append(i - 1)
-
-            # if x, y is in the first grid mesh, self.nx_1 and self.nx0 will be
-            # the same, there will be no gradient (the derivative is zero then)
-            else:
-                self.nx_1.append(i)
-            if i <= self.nind[-3]:
-                self.nx2.append(i + 2)
-
-            # if x, y is in the last grid mesh, self.nx2 and self.nx1 will be
-            # the same, there will be no gradient (the derivative is zero then)
-            else:
-                self.nx2.append(i + 1)
+        # get all surrounding 4 grid points indices, _1 means previous grid point index
+        self.nind = [ii for ii in range(len(xi))]
+        self.nx1 = [ii + 1 for ii in self.nx0]
+        self.nx_1 = [ii - 1 if ii >= 1 else ii for ii in self.nx0]
+        self.nx2 = [ii + 2 if ii <= len(xmesh) - 3 else ii + 1 for ii in self.nx0]
 
         # this is to transfer x or y to fraction, with natom element
         x_ = (xi - xmesh.T[self.nx0, self.nind]) / (xmesh.T[
@@ -150,10 +132,9 @@ class BicubInterpVec:
                         t.stack([f20, f21, f22, f23]),
                         t.stack([f30, f31, f32, f33])])
 
-        # way 1 to calculate a_mat
+        # method 1 to calculate a_mat, not stable
         # a_mat = t.einsum('ii,ijlmn,jj->ijlmn', coeff, fmat, coeff_)
         # return t.einsum('ij,iijkn,ik->jkn', xmat, a_mat, xmat)
-        # way 2 to calculate a_mat
         a_mat = t.matmul(t.matmul(coeff, fmat.permute(2, 3, 4, 0, 1)), coeff_)
         return t.stack([t.stack(
             [t.matmul(t.matmul(xmat[:, i], a_mat[i, j]), xmat[:, j])

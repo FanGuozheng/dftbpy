@@ -565,16 +565,16 @@ class SkInterpolator:
                 spe[icount] = fp_line2_[3]
                 uhubb[icount, :] = fp_line2_[4:7]
                 occ_skf[icount, :] = fp_line2_[7:10]
-                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                data = np.fromfile(fp, count=20, sep=' ')
                 mass_rcut[icount, :] = t.from_numpy(data)
-                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                data = np.fromfile(fp, count=nitem, sep=' ')
                 data.shape = (int(ngridpoint[icount]), 20)
                 integrals.append(data)
                 self.para['rest'].append(fp.read())
             else:
-                data = np.fromfile(fp, dtype=float, count=20, sep=' ')
+                data = np.fromfile(fp, count=20, sep=' ')
                 mass_rcut[icount, :] = t.from_numpy(data)
-                data = np.fromfile(fp, dtype=float, count=nitem, sep=' ')
+                data = np.fromfile(fp, count=nitem, sep=' ')
                 data.shape = (int(ngridpoint[icount]), 20)
                 integrals.append(data)
                 self.para['rest'].append(fp.read())
