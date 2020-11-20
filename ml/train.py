@@ -69,7 +69,6 @@ class DFTBMLTrain:
         self.load_skf()
 
         # run machine learning optimization
-        print("self.dataset['LdatasetMixture']", self.dataset['LdatasetMixture'])
         self.run_ml()
 
         # plot ML results
@@ -326,10 +325,10 @@ class MLCompressionR:
             if 'dipole' in self.ml['target']:
                 loss += self.criterion(self.para['dipole'],
                                        pad1d(self.dataset['refDipole']))
-                if self.para['dipole'].device.type == 'cuda': 
+                if self.para['dipole'].device.type == 'cuda':
                     Save2D(self.para['dipole'].detach().cpu().numpy(),
                            name='dipole.dat', dire='.', ty='a')
-                elif self.para['dipole'].device.type == 'cpu': 
+                elif self.para['dipole'].device.type == 'cpu':
                     Save2D(self.para['dipole'].detach().numpy(),
                            name='dipole.dat', dire='.', ty='a')
             elif 'HOMOLUMO' in self.ml['target']:
@@ -347,10 +346,10 @@ class MLCompressionR:
             elif 'charge' in self.ml['target']:
                 loss += self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
-                if self.para['fullCharge'].device.type == 'cuda': 
+                if self.para['fullCharge'].device.type == 'cuda':
                     Save2D(self.para['fullCharge'].detach().cpu().numpy(),
                         name='charge.dat', dire='.', ty='a')
-                elif self.para['fullCharge'].device.type == 'cpu': 
+                elif self.para['fullCharge'].device.type == 'cpu':
                     Save2D(self.para['fullCharge'].detach().numpy(),
                         name='charge.dat', dire='.', ty='a')
             elif 'cpa' in self.ml['target']:
@@ -364,11 +363,11 @@ class MLCompressionR:
             # print('gradient', self.para['compr_ml'].grad)
 
             # save data
-            if loss.device.type == 'cuda': 
+            if loss.device.type == 'cuda':
                 Save1D(np.array([loss.cpu()]), name='loss.dat', dire='.', ty='a')
                 Save2D(self.para['compr_ml'].detach().cpu().numpy(),
                        name='compr.dat', dire='.', ty='a')
-            elif loss.device.type == 'cpu': 
+            elif loss.device.type == 'cpu':
                 Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
                 Save2D(self.para['compr_ml'].detach().numpy(),
                        name='compr.dat', dire='.', ty='a')

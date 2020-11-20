@@ -223,21 +223,23 @@ class LoadData:
             atomNumber: each atom number in molecule
         """
         with h5py.File(self.path_file, 'a') as self.f:
-            self.g = self.f.create_group(self.ispecie)
-            self.g.attrs['specie'] = self.ispecie
-            self.g.attrs['numberAtom'] = self.natom
-            self.g.attrs['atomNumber'] = self._number
-            self.g.attrs['numberMolecule'] = self.nend
+            print('self.ispecie', self.ispecie)
+            if self.ispecie not in self.f.keys():
+                self.g = self.f.create_group(self.ispecie)
+                self.g.attrs['specie'] = self.ispecie
+                self.g.attrs['numberAtom'] = self.natom
+                self.g.attrs['atomNumber'] = self._number
+                self.g.attrs['numberMolecule'] = self.nend
 
-            # run dftb with ase interface
-            if self.ml['reference'] == 'dftbase':
-                DFTB(self.ml['dftbplus'], self.para['directorySK']).run_dftb(
-                    self.nend, self.positions, self.g, self.dataset['symbols'])
+                # run dftb with ase interface
+                if self.ml['reference'] == 'dftbase':
+                    DFTB(self.ml['dftbplus'], self.para['directorySK']).run_dftb(
+                        self.nend, self.positions, self.g, self.dataset['symbols'])
 
-            # run FHI-aims with ase interface
-            elif self.ml['reference'] == 'aimsase':
-                AseAims(self.ml['aims'], self.ml['aimsSpecie']).run_aims(
-                    self.nend, self.positions, self.g, self.dataset['symbols'])
+                # run FHI-aims with ase interface
+                elif self.ml['reference'] == 'aimsase':
+                    AseAims(self.ml['aims'], self.ml['aimsSpecie']).run_aims(
+                        self.nend, self.positions, self.g, self.dataset['symbols'])
 
     def write_aims_input(self):
         write.FHIaims(self.positions, self.dataset['symbols'])
