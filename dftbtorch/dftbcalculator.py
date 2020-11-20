@@ -518,7 +518,6 @@ class SCF:
                 0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            print("dtype", fock.dtype, self.over.dtype, self.ham.dtype, shift_mat.dtype)
             epsilon, C = self.eigen.eigen(
                 fock, self.over[self.mask[-1]][:, :dim_, :dim_], self.batch,
                 self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]])

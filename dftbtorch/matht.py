@@ -426,14 +426,22 @@ class EigenSolver:
             AX = λBX ==> (L^{-1}AL^{-T})(L^{T}X) = λ(L^{T}X)
 
         """
-        # get how many systems in batch and the largest atom index
-        nbatch = A.shape[0]
-        maxind = max([ia.shape[-1] for ia in A])
-        chol_l = t.zeros(nbatch, maxind, maxind, dtype=A.dtype)
+        # get how many systems in batch and the largest atom index, old method
+        # nbatch = A.shape[0]
+        # maxind = max([ia.shape[-1] for ia in A])
+        # chol_l = t.zeros(nbatch, maxind, maxind, dtype=A.dtype)
 
         # get the decomposition L, B = LL^{T} and padding zero
-        chol_l = pad2d([t.cholesky(
-            iB[:self.norb[ii], :self.norb[ii]]) for ii, iB in enumerate(B)])
+        # chol_l = pad2d([t.cholesky(
+        #     iB[:self.norb[ii], :self.norb[ii]]) for ii, iB in enumerate(B)])
+
+        # Create a mask which is True wherever a column/row pair is 0-valued
+        _is_zero = t.eq(B, 0)
+        mask = t.all(_is_zero, dim=-1) & t.all(_is_zero, dim=-2)
+        # Set the diagonals at these locations to 1
+        B = B + t.diag_embed(mask.type(B.dtype))
+        A = A + t.diag_embed(mask.type(A.dtype))
+        chol_l = t.cholesky(B)
 
         # directly use inverse matrix
         if direct_inv:
@@ -447,29 +455,32 @@ class EigenSolver:
         else:
 
             # get the t.eye which share the last dimension of A
-            eye_ = t.eye(A.shape[-1], dtype=A.dtype)
+            # eye_ = t.eye(A.shape[-1], dtype=A.dtype)
 
             # get L^{-1}, the 1st method only work if all sizes are the same
             # linv, _ = t.solve(eye_.unsqueeze(0).expand(A.shape), chol_l)
-            linv = pad2d([t.solve(t.eye(
-                self.norb[ii]), il[:self.norb[ii], :self.norb[ii]])[0]
-                for ii, il in enumerate(chol_l)])
+            # linv = pad2d([t.solve(t.eye(
+            #     self.norb[ii]), il[:self.norb[ii], :self.norb[ii]])[0]
+            #     for ii, il in enumerate(chol_l)])
 
             # get L^{-T}
-            linvt = t.stack([il.T for il in linv])
+            # linvt = t.stack([il.T for il in linv])
+            linv = t.solve(t.eye(A.shape[-1], dtype=A.dtype), chol_l)[0]
+            linvt = t.transpose(linv, -1, -2)
 
             # (L^{-1} @ A) @ L^{-T}
-            print("dtype", linv.dtype, A.dtype, linvt.dtype)
             linv_a_linvt = linv @ A @ linvt
 
         # get eigenvalue of (L^{-1} @ A) @ L^{-T}
         # RuntimeError: Function 'SymeigBackward' returned nan values in its 0th output.
-        # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
-        eigval_eigvec = [
-            t.symeig(il[:self.norb[ii], :self.norb[ii]], eigenvectors=True)
-            for ii, il in enumerate(linv_a_linvt)]
-        eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
-        eigvec_ = pad2d([ieigv[1] for ieigv in eigval_eigvec])
+        # eigval_eigvec = [
+        #      t.symeig(il[:self.norb[ii], :self.norb[ii]], eigenvectors=True)
+        #      for ii, il in enumerate(linv_a_linvt)]
+        # eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
+        # eigvec_ = pad2d([ieigv[1] for ieigv in eigval_eigvec])
+        
+        print('linv_a_linvt', linv_a_linvt)
+        eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
 
         # transfer eigenvector from (L^{-1} @ A) @ L^{-T} to AX = λBX
         eigvec = linvt @ eigvec_
