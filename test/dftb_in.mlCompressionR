@@ -1,17 +1,17 @@
 {
 "general": {
-  "device": "cuda",
+  "device": "cpu",
   "task": "mlCompressionR",
   "datasetSK": "../slko/hdf/skf.hdf5"},
 
 "dataset": {
-  "sizeDataset": [200, 200, 200]
+  "sizeDataset": [2, 2, 2]
   },
 
 "ml": {
   "target": "dipole",
-  "referenceDataset": "../data/dataset/ani02_2000.hdf5",
-  "mlSteps": 100,
+  "referenceDataset": "../data/dataset/ani01_200.hdf5",
+  "mlSteps": 1,
   "lr": 5E-2,
   "compressionRMin": 1.5}
 
