@@ -100,7 +100,7 @@ class RefAims:
 
         # define dataset as input
         self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
-        self.dataset['sizeDataset'] = [2000] * 25
+        self.dataset['sizeDataset'] = [2] * 25
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)

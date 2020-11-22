@@ -40,6 +40,9 @@ def dftb_parameter(parameter_=None):
         # device
         'device': 'cpu',
 
+        # if open pytorch profiler
+        'profiler': False,
+
         # if True, read parameters from input (default name: dftb_in)
         'LReadInput': False,
 
@@ -128,13 +131,13 @@ def dftb_parameter(parameter_=None):
     elif parameter['precision'] == 't.cuda.FloatTensor':
         parameter['precision'] = t.cuda.FloatTensor
     if parameter['device'] == 'cpu':
-        if parameter['precision'] not in(t.float64, t.float32):
+        if parameter['precision'] not in (t.float64, t.float32):
             parameter['precision'] = t.float64
-            print('redefine precision')
+            print('convert precision to cpu type')
     elif parameter['device'] == 'cuda':
-        if parameter['precision'] not in(t.cuda.DoubleTensor, t.cuda.FloatTensor):
+        if parameter['precision'] not in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
             parameter['precision'] = t.cuda.DoubleTensor
-            print('redefine precison')
+            print('convert precison to cuda type')
 
     # is machine learning is on, it means that the task is machine learning
     parameter['Lml'] = True if parameter['task'] in (

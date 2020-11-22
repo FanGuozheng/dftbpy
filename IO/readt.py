@@ -130,7 +130,6 @@ class ReadInput:
                 # raise error if json file do not exist
                 if not os.path.isfile(self.inputfile):
                     raise FileExistsError('%s do not exist' % self.inputfile)
-
                 self.read_param()
 
     def read_param(self):

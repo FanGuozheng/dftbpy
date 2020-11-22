@@ -384,6 +384,7 @@ class LoadReferenceData:
         self.skf = skf
         self.ml = ml
         self.device = self.para['device']
+        self.dtype = self.para['precision']
         if self.ml['reference'] == 'hdf':
             self.get_hdf_data()
 
@@ -450,7 +451,7 @@ class LoadReferenceData:
                         # coordinates: not tensor now !!!
                         namecoor = str(ibatch) + 'positions'
                         self.dataset['positions'].append(
-                            t.from_numpy(f[igroup][namecoor][()]))
+                            t.from_numpy(f[igroup][namecoor][()]).type(self.dtype))
                         self.dataset['numbers'].append(
                             list(f[igroup].attrs['atomNumber']))
 
@@ -461,17 +462,17 @@ class LoadReferenceData:
                         # HOMO LUMO
                         namehl = str(ibatch) + 'HOMOLUMO'
                         self.dataset['refHOMOLUMO'].append(
-                            t.from_numpy(f[igroup][namehl][()]))
+                            t.from_numpy(f[igroup][namehl][()]).type(self.dtype))
 
                         # charge
                         namecharge = str(ibatch) + 'charge'
                         self.dataset['refCharge'].append(
-                            t.from_numpy(f[igroup][namecharge][()]))
+                            t.from_numpy(f[igroup][namecharge][()]).type(self.dtype))
 
                         # dipole
                         namedip = str(ibatch) + 'dipole'
                         self.dataset['refDipole'].append(
-                            t.from_numpy(f[igroup][namedip][()]))
+                            t.from_numpy(f[igroup][namedip][()]).type(self.dtype))
 
                         # formation energy
                         nameEf = str(ibatch) + 'formationEnergy'
@@ -518,22 +519,22 @@ class LoadReferenceData:
                     # coordinates: not tensor now !!!
                     namecoor = str(ibatch) + 'coordinate'
                     self.dataset['positions'].append(
-                        t.from_numpy(f[igroup][namecoor][()]))
+                        t.from_numpy(f[igroup][namecoor][()]).type(self.dtype))
 
                     # eigenvalue
                     nameeig = str(ibatch) + 'eigenvalue'
                     self.dataset['refEigval'].append(
-                        t.from_numpy(f[igroup][nameeig][()]))
+                        t.from_numpy(f[igroup][nameeig][()])).type(self.dtype)
 
                     # charge
                     namecharge = str(ibatch) + 'charge'
                     self.dataset['refEigval'].append(
-                        t.from_numpy(f[igroup][namecharge][()]))
+                        t.from_numpy(f[igroup][namecharge][()]).type(self.dtype))
 
                     # dipole
                     namedip = str(ibatch) + 'dipole'
                     self.dataset['refDipole'].append(
-                        t.from_numpy(f[igroup][namedip][()]))
+                        t.from_numpy(f[igroup][namedip][()]).type(self.dtype))
 
                     # formation energy
                     nameEf = str(ibatch) + 'formationenergy'
@@ -546,9 +547,8 @@ class LoadReferenceData:
 
     def get_hirsh_vol_ratio(self, volume, ibatch=0):
         """Get Hirshfeld volume ratio."""
-        natom = self.dataset["natomAll"][ibatch]
         idx = self.dataset['numbers'][ibatch]
-        volume = t.from_numpy(volume).to(self.device) if type(volume) is np.ndarray else volume
+        volume = t.from_numpy(volume).type(self.dtype) if type(volume) is np.ndarray else volume
         return volume / t.tensor([HIRSH_VOL[num - 1] for num in idx])
 
 

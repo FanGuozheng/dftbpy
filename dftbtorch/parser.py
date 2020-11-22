@@ -39,6 +39,10 @@ def parser_cmd_args(para=None):
     msg = 'Read input from dftb_in'
     parser.add_argument('-Lread', '--LReadInput', help=msg)
 
+    # if use pytorch profiler
+    msg = 'PyTirch profiler'
+    parser.add_argument('-pro', '--profiler', default=False, help=msg)
+
     args, unkown = parser.parse_known_args()
 
     # get current path
@@ -66,5 +70,9 @@ def parser_cmd_args(para=None):
 
         # if you define input file, it suggests the code will read the input
         para['LReadInput'] = True
+
+    if args.profiler is not None:
+        para['profiler'] = args.profiler
+
 
     return para

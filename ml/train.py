@@ -72,7 +72,7 @@ class DFTBMLTrain:
         self.run_ml()
 
         # plot ML results
-        # plot.plot_ml(self.parameter, self.ml)
+        plot.plot_ml(self.parameter, self.ml)
         time_end = time.time()
         print('Total time:', time_end - time_begin)
 
@@ -374,6 +374,12 @@ class MLCompressionR:
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
+            print('dipole', pad1d(self.dataset['refDipole']).dtype,
+                  pad1d(self.dataset['refDipole']).device.type,
+                  self.dataset['refDipole'][0].dtype,
+                  self.dataset['refDipole'][0].device.type,
+                  self.para['dipole'].dtype,
+                  self.para['dipole'].device.type)
             loss.backward(retain_graph=True)
             self.optimizer.step()
 
