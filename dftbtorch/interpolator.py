@@ -382,6 +382,11 @@ class PolySpline(_Interpolate):
         return bb
 
 
+class CCS:
+
+    def __init__(self):
+        pass
+
 class Bspline():
     """Bspline interpolation for DFTB.
 

@@ -79,7 +79,7 @@ class DFTBMLTrain:
     def initialization_ml(self):
         """Initialize machine learning parameters."""
         # remove some documents
-        os.system('rm loss.dat')
+        os.system('rm *.dat')
 
         self.parameter, self.dataset, self.skf, self.ml = \
             initpara.init_ml(self.parameter, self.dataset, self.skf, self.ml)
@@ -191,7 +191,6 @@ class MLIntegral:
             ham = t.zeros(self.nbatch, maxorb, maxorb)
             over = t.zeros(self.nbatch, maxorb, maxorb)
             for ibatch in range(self.nbatch):
-                print("step:", istep + 1, "ibatch:", ibatch + 1)
                 # get integral at certain distance, read raw integral from binary hdf
                 # SK transformations
                 SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
@@ -204,10 +203,29 @@ class MLIntegral:
             # run each DFTB calculation separatedly
             dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
 
-            # define loss function
-            # get loss function
+            loss = 0.
             if 'dipole' in self.ml['target']:
-                loss = self.criterion(self.para['dipole'], pad1d(self.dataset['refDipole']))
+                loss += self.criterion(self.para['dipole'],
+                                       pad1d(self.dataset['refDipole']))
+                if self.para['dipole'].device.type == 'cuda':
+                    Save2D(self.para['dipole'].detach().cpu().numpy(),
+                           name='dipole.dat', dire='.', ty='a')
+                elif self.para['dipole'].device.type == 'cpu':
+                    Save2D(self.para['dipole'].detach().numpy(),
+                           name='dipole.dat', dire='.', ty='a')
+            elif 'HOMOLUMO' in self.ml['target']:
+                loss += self.criterion(self.para['homo_lumo'],
+                                       pad1d(self.dataset['refHOMOLUMO']))
+            elif 'gap' in self.ml['target']:
+                homolumo = self.para['homo_lumo']
+                refhl = pad1d(self.dataset['refHOMOLUMO'])
+                gap = homolumo[:, 1] - homolumo[:, 0]
+                refgap = refhl[:, 1] - refhl[:, 0]
+                loss += self.criterion(gap, refgap)
+            elif 'polarizability' in self.ml['target']:
+                loss += self.criterion(self.para['alpha_mbd'],
+                                       pad1d(self.dataset['refMBDAlpha']))
+            print("step:", istep + 1, "loss:", loss, loss.device.type)
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -260,7 +278,6 @@ class MLCompressionR:
 
     def process_dataset(self):
         """Get all parameters for compression radii machine learning."""
-        os.system('rm compr.dat charge.dat')
         # deal with coordinates type
         get_coor(self.dataset, self.para['precision'])
 

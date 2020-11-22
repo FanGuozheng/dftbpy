@@ -5,11 +5,10 @@ import sys
 import numpy as np
 import torch as t
 import h5py
-import IO.readt as readt
-from scipy import interpolate
+from IO.save import Save1D, Save2D
 from dftbtorch.matht import DFTBmath, BicubInterp
-from dftbtorch.interpolator import Bspline, PolySpline, BicubInterpVec
-from dftbmalt.utils.utilities import split_by_size # from IO.dataloader import Split
+from dftbtorch.interpolator import PolySpline, BicubInterpVec
+from dftbmalt.utils.utilities import split_by_size
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 _SQR3 = np.sqrt(3.)
 _HSQR3 = 0.5 * np.sqrt(3.)
@@ -846,6 +845,24 @@ class SKTran:
                             self.skf['polySplinec' + nameij],
                             self.skf['polySplined' + nameij]]
 
+                    if abcd[0].device.type == 'cuda':
+                        Save1D(abcd[0].detach().cpu().numpy(),
+                               name=nameij+'spl_a.dat', dire='.', ty='a')
+                        Save1D(abcd[1].detach().cpu().numpy(),
+                               name=nameij+'spl_b.dat', dire='.', ty='a')
+                        Save1D(abcd[2].detach().cpu().numpy(),
+                               name=nameij+'spl_c.dat', dire='.', ty='a')
+                        Save1D(abcd[3].detach().cpu().numpy(),
+                               name=nameij+'spl_d.dat', dire='.', ty='a')
+                    elif abcd[0].device.type == 'cpu':
+                        Save1D(abcd[0].detach().numpy(),
+                               name=nameij+'spl_a.dat', dire='.', ty='a')
+                        Save1D(abcd[1].detach().numpy(),
+                               name=nameij+'spl_b.dat', dire='.', ty='a')
+                        Save1D(abcd[2].detach().numpy(),
+                               name=nameij+'spl_c.dat', dire='.', ty='a')
+                        Save1D(abcd[3].detach().numpy(),
+                               name=nameij+'spl_d.dat', dire='.', ty='a')
                     # the distance is from cal_coor
                     dd = self.dataset['distances'][ibatch][iat, jat]
                     poly = PolySpline(x=xx, abcd=abcd)
