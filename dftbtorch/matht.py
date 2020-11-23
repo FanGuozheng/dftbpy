@@ -66,7 +66,6 @@ class DFTBmath:
             ilast = max(ninterp, ilast)
             xa = (ilast - ninterp) * incr + t.arange(ninterp) * incr
             yb = datalist[ilast - ninterp - 1: ilast - 1]
-
             # two interpolation methods
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
             dd = self.poly_interp_2d(xa, yb, rr)  # method 2
@@ -590,7 +589,7 @@ class EigenSolver(t.autograd.Function):
         #      for ii, il in enumerate(linv_a_linvt)]
         # eigval = pad_sequence([i[0] for i in eigval_eigvec]).T
         # eigvec_ = pad2d([ieigv[1] for ieigv in eigval_eigvec])
-        
+
         # eigval, eigvec_ = t.symeig(linv_a_linvt, eigenvectors=True)
         eigval, eigvec_ = EigenSolver.apply(linv_a_linvt)
 

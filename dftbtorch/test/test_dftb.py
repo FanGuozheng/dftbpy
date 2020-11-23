@@ -131,6 +131,19 @@ class DFTBPrecision(unittest.TestCase):
         [self.assertAlmostEqual(i, j, delta=1E-7)
          for i, j in zip(result.parameter['charge'].squeeze(), refq)]
 
+    def test_scc_CH4_nonsym2(self):
+        """Test non-symmetric CH4 with scc DFTB."""
+        dataset = {}
+        dataset['positions'] = t.tensor(
+            [[-0.0034502, 0.01017081, 0.01938033],
+             [-0.7954868, 0.5766599, -0.5472012],
+             [-0.39378393, -0.97992676, 0.2722862],
+             [0.6344988, 0.4473651, 0.93568736],
+             [0.59581804, -0.16517928, -0.8915708]])
+        dataset['numbers'] = [[6, 1, 1, 1, 1]]
+        parameter = self.template_scc()
+        result = DFTBCalculator(parameter, dataset)
+
     def test_nonscc_H2(self):
         """Test eigen values, charges of H2  by using Non-SCC DFTB."""
         dataset = {}

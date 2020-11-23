@@ -488,7 +488,6 @@ class GetSK_:
         self.skf = skf
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
-        # get integral from directly reading normal skf file
 
     def integral_spline_parameter(self):
         """Get integral from hdf binary according to atom species."""
@@ -550,30 +549,25 @@ class GetSK_:
             # get the grid sidtance, which should be the same
             grid_dist = f['globalgroup'].attrs['grid_dist']
 
-        # get the distance according to indices (upper triangle elements)
-        ind_ = distance / grid_dist
-
-        # index of distance in each skf
-        indd = (ind_ + ninterp / 2 + 1).int()  #.astype(int)
+        # get the distance according to indices (upper triangle elements
+        ind_ = (distance / grid_dist).int()
+        indd = (ind_ + ninterp / 2 + 1).int()
 
         # get integrals with ninterp (normally 8) line for interpolation
         with h5py.File(hdfsk, 'r') as f:
             yy = [[f[ATOMNAME[int(atomnumber[i])] + ATOMNAME[int(atomnumber[j])] +
-                     '/hs_all_rall'][:][:, :, indd[i, j]- ninterp - 1: indd[i, j] - 1, :]
+                     '/hs_all_rall'][:, :, indd[i, j] - ninterp - 1: indd[i, j] - 1, :]
                    for j in range(natom)] for i in range(natom)]
 
         # get the distances corresponding to the integrals
-        xx = [[t.linspace(indd[i, j] - ninterp, indd[i, j], ninterp) * grid_dist
+        xx = [[(t.arange(ninterp) + indd[i, j] - ninterp) * grid_dist
                for j in range(len(distance))] for i in range(len(distance))]
-        time2 = time.time()
 
         self.skf['hs_compr_all'] = t.stack([t.stack([self.math.poly_check(
             xx[i][j], t.from_numpy(yy[i][j]).type(self.para['precision']), distance[i, j], i==j)
             for j in range(natom)]) for i in range(natom)])
 
-        timeend = time.time()
-        print('time of distance interpolation: ', timeend - time2)
-        print('total time of distance interpolation in skf: ', timeend - time0)
+        print('distance interpolation of skf time:', time.time() - time0)
 
     def genskf_interp_dist(self):
         """Generate sk integral with various compression radius along distance.
