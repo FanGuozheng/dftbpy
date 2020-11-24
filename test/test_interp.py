@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 import os
-import re
-import sys
+import h5py
 import torch as t
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
-import IO.pyanitools as pya
+from dftbtorch.interpolator import PolySpline, BicubInterpVec
 from dftbtorch.geninterpskf import SkInterpolator
-from dftbtorch.matht import(BicubInterp)
+from dftbtorch.sk import SKTran, GetSKTable, GetSK_
+from dftbtorch.matht import BicubInterp
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
+ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 
 def test_bicub_interp():
@@ -85,23 +84,100 @@ def test_bicub_interp_ml():
         print('loss', loss)
 
 
-def interpskf(para):
-    '''
-    read .skf data from skgen with various compR
-    '''
-    print('** read skf file with all compR **')
-    for namei in para['atomspecie']:
-        for namej in para['atomspecie']:
-            SkInterpolator(para, gridmesh=0.2).readskffile(
-                    namei, namej, para['dire_interpSK'])
+def read_skf_hdf5(para, skf, dataset, ml):
+    t.set_default_dtype(t.float64)
+    para['datasetSK'] = '../slko/hdf/skf.hdf5'
+    skf['ReadSKType'] = 'compressionRadii'
+    dataset['LSKFinterpolation'] = True
 
+    # ninterp = skf['sizeInterpolationPoints']
+    skf['hs_compr_all'] = []
+    # index of row, column of distance matrix, no digonal
+    # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
+    # dist_1d = distance[ind[0], ind[1]]
+    # get the skf with hdf type
+    hdfsk = para['datasetSK']
+    if not os.path.isfile(hdfsk):
+        raise FileExistsError('dataset %s do not exist' % hdfsk)
+    # read all skf according to atom number (species) and indices and add
+    # these skf to a list, attention: hdf only store numpy type data
+    # with h5py.File(hdfsk, 'r') as f:
+    #     # get the grid sidtance, which should be the same
+    #     grid_dist = f['globalgroup'].attrs['grid_dist']
+
+    # get integrals with ninterp (normally 8) line for interpolation
+    with h5py.File(hdfsk, 'r') as f:
+        yyhh = f['HH' + '/hs_all_rall'][:, :, 10, :]
+        yyhc = f['HC' + '/hs_all_rall'][:, :, 10, :]
+        yych = f['CH' + '/hs_all_rall'][:, :, 10, :]
+        yycc = f['CC' + '/hs_all_rall'][:, :, 10, :]
+    # get the distances corresponding to the integrals
+    # xx = [[(t.arange(ninterp) + indd[i, j] - ninterp) * grid_dist
+    #        for j in range(len(distance))] for i in range(len(distance))]
+    # skf['hs_compr_all'] = t.stack([t.stack([math.poly_check(
+    #     xx[i][j], t.from_numpy(yy[i][j]).type(para['precision']), distance[i, j], i==j)
+    #     for j in range(natom)]) for i in range(natom)])
+    bicubic = BicubInterpVec(para, ml)
+    zmesh = t.from_numpy(np.stack([np.stack([yyhh, yyhc]), np.stack([yych, yycc])]))
+    mesh = t.tensor([[1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.],
+                     [1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.]])
+    for ii, compr in enumerate([t.tensor([2.2, 2.2]), t.tensor([2.5, 2.5])]):
+        hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
+        H_H_22_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, -1.719871352161E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 2.739327486239E-01])
+        C_H_22_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, -2.145555344059E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 3.090342767881E-01])
+        C_C_22_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 1.553059957276E-01, -1.254378770489E-01, 0.000000000000E+00,
+                              2.141868282553E-01, -2.520364268543E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, -3.911118200884E-01,
+                              1.981899126309E-01, 0.000000000000E+00, -3.810361403951E-01, 3.410149885712E-01])
+        H_H_25_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, -1.834360638907E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 3.182141942151E-01])
+        H_C_25_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              2.071400043802E-01, -2.368709160456E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, -4.002627595767E-01, 3.494647060923E-01])
+        C_C_25_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 1.790965185832E-01, -1.409264246697E-01, 0.000000000000E+00,
+                              2.470704176958E-01, -2.870447990848E-01, 0.000000000000E+00, 0.000000000000E+00,
+                              0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, -3.821901376240E-01,
+                              2.341676047591E-01, 0.000000000000E+00, -4.081171181630E-01, 3.770452369543E-01])
+
+        if ii == 0:
+            print(hs_ij[0, 0] - H_H_22_10, '\n', hs_ij[1, 0] - C_H_22_10, '\n', hs_ij[1, 1] - C_C_22_10, '\n')
+        elif ii == 1:
+            print(hs_ij[0, 0] - H_H_25_10, '\n', hs_ij[0, 1] - H_C_25_10, '\n', hs_ij[1, 1] - C_C_25_10, '\n')
+            # print(zmesh[1, 1, 2:4, 2:4])
+
+
+read_skf_hdf5({}, {}, {}, {})
+
+
+def test_bicubvec_interp():
+    interp = BicubInterpVec({}, {})
+    xmesh = t.tensor([[1, 2, 3], [2, 3, 4]])
+    zmesh = t.randn(2, 2, 3, 3, 20)
+    xi = t.tensor([1.4, 2.5])
+    result = interp.bicubic_2d(xmesh, zmesh, xi, xi)
+    print('result', result, result.shape)
 
 if __name__ == '__main__':
     para = {}
-    para['task'] = 'bicub_interp_ml'
+    para['task'] = 'bicubic_vec'
     if para['task'] == 'bicub_interp':
         test_bicub_interp()
     elif para['task'] == 'bicub_interp_ml':
         test_bicub_interp_ml()
-    else:
-        pass
+    elif para['task'] == 'bicubic_vec':
+        pass # test_bicubvec_interp()

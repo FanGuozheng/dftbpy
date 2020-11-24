@@ -723,8 +723,7 @@ class GetSK_:
         natom = self.dataset['natomAll'][ibatch]
         atomname = self.dataset['symbols'][ibatch]
         time0 = time.time()
-        print('Getting HS table according to compression R and build matrix:',
-              '[N_atom1, N_atom2, 20], also for onsite and uhubb')
+        print('Get HS table according to compression R: [N_atom1, N_atom2, 20]')
 
         if self.ml['interpolationType'] == 'BiCubVec':
             bicubic = BicubInterpVec(self.para, self.ml)
