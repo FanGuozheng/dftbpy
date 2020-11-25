@@ -25,6 +25,7 @@ def main(parameter=None, dataset=None):
     # example 2.1: if use this code directly to optimize compression radii
     # parameter['task'] = 'mlCompressionR'
     # parameter['device'] = 'cpu'
+    # parameter['profiler'] = False
     # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
     # ml['target'] = 'dipole'
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
@@ -43,15 +44,15 @@ def main(parameter=None, dataset=None):
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3: if use this code directly to optimize compression radii
-    parameter['task'] = 'mlIntegral'
-    parameter['device'] = 'cpu'
-    dataset['sizeDataset'] = [2, 2, 2]
-    parameter['datasetSK'] = '../slko/hdf/skfmio.hdf5'
-    # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = 'dipole'
-    ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    ml['mlSteps'] = 50
-    ml['lr'] = 1E-3
+    # parameter['task'] = 'mlIntegral'
+    # parameter['device'] = 'cpu'
+    # dataset['sizeDataset'] = [2, 2, 2]
+    # parameter['datasetSK'] = '../slko/hdf/skfmio.hdf5'
+    # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
+    # ml['target'] = 'dipole'
+    # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
+    # ml['mlSteps'] = 50
+    # ml['lr'] = 1E-3
 
     # get command line parameters, add t in parsert to avoid naming conflicts
     parameter = parsert.parser_cmd_args(parameter)

@@ -72,7 +72,7 @@ class DFTBMLTrain:
         self.run_ml()
 
         # plot ML results
-        plot.plot_ml(self.parameter, self.ml)
+        # plot.plot_ml(self.parameter, self.ml)
         time_end = time.time()
         print('Total time:', time_end - time_begin)
 
@@ -377,17 +377,21 @@ class MLCompressionR:
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
             print("istep:", istep, '\n loss', loss, 'loss device', loss.device.type)
             # print("compression radius:", self.para['compr_ml'])
-            # print('gradient', self.para['compr_ml'].grad)
+            print('gradient', self.para['compr_ml'].grad)
 
             # save data
             if loss.device.type == 'cuda':
                 Save1D(np.array([loss.cpu()]), name='loss.dat', dire='.', ty='a')
                 Save2D(self.para['compr_ml'].detach().cpu().numpy(),
                        name='compr.dat', dire='.', ty='a')
+                # Save2D(self.para['compr_ml'].grad.cpu().numpy(),
+                #       name='comprgrad.dat', dire='.', ty='a')
             elif loss.device.type == 'cpu':
                 Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
                 Save2D(self.para['compr_ml'].detach().numpy(),
                        name='compr.dat', dire='.', ty='a')
+                # Save2D(self.para['compr_ml'].grad.numpy(),
+                #       name='comprgrad.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
