@@ -155,7 +155,9 @@ def read_skf_hdf5(para, skf, dataset, ml):
                               2.341676047591E-01, 0.000000000000E+00, -4.081171181630E-01, 3.770452369543E-01])
 
         if ii == 0:
-            print(hs_ij[0, 0] - H_H_22_10, '\n', hs_ij[1, 0] - C_H_22_10, '\n', hs_ij[1, 1] - C_C_22_10, '\n')
+            print('H-H.skf, 10th line', hs_ij[0, 0] - H_H_22_10)
+            print('C-H.skf, 10th line', hs_ij[1, 0] - C_H_22_10)
+            print('C-C.skf, 10th line', hs_ij[1, 1] - C_C_22_10)
         elif ii == 1:
             print(hs_ij[0, 0] - H_H_25_10, '\n', hs_ij[0, 1] - H_C_25_10, '\n', hs_ij[1, 1] - C_C_25_10, '\n')
             # print(zmesh[1, 1, 2:4, 2:4])
