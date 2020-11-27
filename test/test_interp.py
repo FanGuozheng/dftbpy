@@ -2,6 +2,7 @@ import os
 import h5py
 import torch as t
 import numpy as np
+from scipy import interpolate
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from dftbtorch.interpolator import PolySpline, BicubInterpVec
@@ -14,47 +15,70 @@ ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 
 def test_bicub_interp():
     """Test Bicubic interpolation."""
+    nx = 20
+    new = t.linspace(1.51, 4.49, nx)
+    xnew, ynew = np.meshgrid(new, new)
+    zmesh = t.Tensor([
+        [.4, .45, .51, .57, .64, .72, .73], [.45, .51, .58, .64, .73, .83, .85],
+        [.51, .58, .64, .73, .83, .94, .96], [.57, .64, .73, .84, .97, 1.12, 1.14],
+        [.64, .72, .83, .97, 1.16, 1.38, 1.41], [.72, .83, .94, 1.12, 1.38, 1.68, 1.71],
+        [.73, .85, .96, 1.14, 1.41, 1.71, 1.74]])
+
     bicinterp = BicubInterp()
-    xmesh = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
-    ymesh = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
-    xmesh_ = t.Tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
-    ymesh_ = t.Tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
-    zmesh = t.Tensor([[.4, .45, .51, .57, .64, .72, .73],
-                      [.45, .51, .58, .64, .73, .83, .85],
-                      [.51, .58, .64, .73, .83, .94, .96],
-                      [.57, .64, .73, .84, .97, 1.12, 1.14],
-                      [.64, .72, .83, .97, 1.16, 1.38, 1.41],
-                      [.72, .83, .94, 1.12, 1.38, 1.68, 1.71],
-                      [.73, .85, .96, 1.14, 1.41, 1.71, 1.74]])
-    xuniform = t.linspace(1.5, 4.49, 31)
-    yuniform = t.linspace(1.5, 4.49, 31)
-    x, y = np.meshgrid(xmesh, ymesh)
-    xnew, ynew = np.meshgrid(xuniform, yuniform)
-    x_, y_ = np.meshgrid(xmesh_, ymesh_)
-    nx = len(xuniform)
-    znew = t.empty(nx, nx)
-    znew_ = t.empty(nx, nx)
+    # non-uniformed grid
+    x_non = y_non = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
+    
+    # uniformed grid
+    x_uni = y_uni= t.Tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
+    znon = t.empty(nx, nx)
+    zuni = t.empty(nx, nx)
+    bicubic = BicubInterpVec({}, {})
+    hs_ij = bicubic.bicubic_2d(x_uni, zmesh, new, new)
+
     for ix in range(0, nx):
         for jy in range(0, nx):
-            znew[ix, jy] = bicinterp.bicubic_2d(xmesh, ymesh, zmesh,
-                                           xuniform[ix], yuniform[jy])
-            znew_[ix, jy] = bicinterp.bicubic_2d(xmesh_, ymesh_, zmesh,
-                                            xuniform[ix], yuniform[jy])
+            znon[ix, jy] = bicinterp.bicubic_2d(x_non, y_non, zmesh,
+                                           new[ix], new[jy])
+            zuni[ix, jy] = bicinterp.bicubic_2d(x_uni, y_uni, zmesh,
+                                            new[ix], new[jy])
+            
+    f_non = interpolate.interp2d(x_non, y_non, zmesh, kind='cubic')
+    znew_scipy_non = f_non(new, new)
+    f_uni = interpolate.interp2d(x_uni, y_uni, zmesh, kind='cubic')
+    znew_scipy_uni = f_uni(new, new)
+
     plt.figure()
-    plt.subplot(1, 2, 1)
-    plt.pcolormesh(x, y, zmesh)
-    plt.title('original data', fontsize=15)
-    plt.subplot(1, 2, 2)
-    plt.pcolormesh(xnew, ynew, znew)
-    plt.title('grid difference not same', fontsize=15)
+    fig, axs = plt.subplots(2, 2)  # sharex=True, sharey=True
+    pc1 = axs[0, 0].pcolormesh(x_non, y_non, zmesh)
+    axs[0, 0].set_title('original data')
+    fig.colorbar(pc1, ax=axs[0, 0], shrink=0.6)
+    pc2 = axs[0, 1].pcolormesh(xnew, ynew, znon)
+    axs[0, 1].set_title('bicubic interpolation')
+    fig.colorbar(pc2, ax=axs[0, 1], shrink=0.6)
+    pc3 = axs[1, 0].pcolormesh(xnew, ynew, znew_scipy_non)
+    fig.colorbar(pc3, ax=axs[1, 0], shrink=0.6)
+    axs[1, 0].set_title('numpy interpolation')
+    pc4 = axs[1, 1].pcolormesh(xnew, ynew, t.from_numpy(znew_scipy_non) - znon)
+    axs[1, 1].set_title('interpolation difference')
+    fig.colorbar(pc4, ax=axs[1, 1], shrink=0.6)
     plt.show()
-    plt.subplot(1, 2, 1)
-    plt.pcolormesh(x_, y_, zmesh)
-    plt.title('original data', fontsize=15)
-    plt.subplot(1, 2, 2)
-    plt.pcolormesh(xnew, ynew, znew_)
-    plt.title('grid difference same', fontsize=15)
+
+    plt.figure()
+    fig, axs = plt.subplots(2, 2)  # sharex=True, sharey=True
+    pc1 = axs[0, 0].pcolormesh(x_uni, y_uni, zmesh)
+    axs[0, 0].set_title('original data')
+    fig.colorbar(pc1, ax=axs[0, 0], shrink=0.6)
+    pc2 = axs[0, 1].pcolormesh(xnew, ynew, hs_ij)
+    axs[0, 1].set_title('bicubic interpolation')
+    fig.colorbar(pc2, ax=axs[0, 1], shrink=0.6)
+    pc3 = axs[1, 0].pcolormesh(xnew, ynew, znew_scipy_uni)
+    fig.colorbar(pc3, ax=axs[1, 0], shrink=0.6)
+    axs[1, 0].set_title('numpy interpolation')
+    pc4 = axs[1, 1].pcolormesh(xnew, ynew, t.from_numpy(znew_scipy_uni) - zuni)
+    axs[1, 1].set_title('interpolation difference')
+    fig.colorbar(pc4, ax=axs[1, 1], shrink=0.6)
     plt.show()
+    print(t.from_numpy(znew_scipy_uni) - zuni, [t.from_numpy(znew_scipy_uni) - zuni > 0.1])
 
 def test_bicub_interp_ml():
     """Test gradients of bicubic method."""
@@ -163,8 +187,6 @@ def read_skf_hdf5(para, skf, dataset, ml):
             # print(zmesh[1, 1, 2:4, 2:4])
 
 
-read_skf_hdf5({}, {}, {}, {})
-
 
 def test_bicubvec_interp():
     interp = BicubInterpVec({}, {})
@@ -176,10 +198,10 @@ def test_bicubvec_interp():
 
 if __name__ == '__main__':
     para = {}
-    para['task'] = 'bicubic_vec'
+    para['task'] = 'bicub_interp'
     if para['task'] == 'bicub_interp':
         test_bicub_interp()
     elif para['task'] == 'bicub_interp_ml':
         test_bicub_interp_ml()
     elif para['task'] == 'bicubic_vec':
-        pass # test_bicubvec_interp()
+        read_skf_hdf5({}, {}, {}, {})
