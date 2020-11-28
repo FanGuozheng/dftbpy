@@ -205,7 +205,6 @@ class MBD:
                             A_matrix[ib, jnd, ind] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, ind_T, jnd_T] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, jnd_T, ind_T] = A_matrix[ib, jnd, ind]
-        print("A_matrix", A_matrix.shape)
         A_LU, pivots = t.lu(A_matrix)
         self.para['A_matrix'] = A_matrix.inverse()
 

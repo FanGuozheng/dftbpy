@@ -4,43 +4,46 @@ import torch as t
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
-from torch.autograd import Variable
 from dftbtorch.interpolator import PolySpline, BicubInterpVec
 from dftbtorch.geninterpskf import SkInterpolator
 from dftbtorch.sk import SKTran, GetSKTable, GetSK_
 from dftbtorch.matht import BicubInterp
+from dftbtorch.dftbcalculator import DFTBCalculator
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
-
+t.set_default_dtype(t.float64)
 
 def test_bicub_interp():
     """Test Bicubic interpolation."""
-    nx = 20
+    nx = 50
     new = t.linspace(1.51, 4.49, nx)
     xnew, ynew = np.meshgrid(new, new)
-    zmesh = t.Tensor([
+    zmesh = t.tensor([
         [.4, .45, .51, .57, .64, .72, .73], [.45, .51, .58, .64, .73, .83, .85],
         [.51, .58, .64, .73, .83, .94, .96], [.57, .64, .73, .84, .97, 1.12, 1.14],
-        [.64, .72, .83, .97, 1.16, 1.38, 1.41], [.72, .83, .94, 1.12, 1.38, 1.68, 1.71],
-        [.73, .85, .96, 1.14, 1.41, 1.71, 1.74]])
+        [.64, .72, .83, .97, 1.16, 1.28, 1.31], [.72, .83, .94, 1.12, 1.38, 1.48, 1.51],
+        [.73, .85, .96, 1.14, 1.41, 1.51, 1.57]])
+    zmesh_ = t.unsqueeze(t.stack([t.stack([zmesh, zmesh]), t.stack([zmesh, zmesh])]), -1)
 
     bicinterp = BicubInterp()
     # non-uniformed grid
-    x_non = y_non = t.Tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
+    x_non = y_non = t.tensor([1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5])
+    x_non_ = t.tensor([[1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5],
+                       [1.5, 1.6, 1.9, 2.4, 3.0, 3.7, 4.5]])
     
     # uniformed grid
-    x_uni = y_uni= t.Tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
-    znon = t.empty(nx, nx)
-    zuni = t.empty(nx, nx)
+    x_uni = y_uni= t.tensor([1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5])
+    x_uni_ = t.tensor([[1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5],
+                       [1.5, 2., 2.5, 3.0, 3.5, 4.0, 4.5]])
+    znon, zuni = t.zeros(nx, nx), t.zeros(nx, nx)
     bicubic = BicubInterpVec({}, {})
-    hs_ij = bicubic.bicubic_2d(x_uni, zmesh, new, new)
+    bicubic.bicubic_2d(x_non_, zmesh_, t.tensor([2., 3.,]), t.tensor([2., 3.,]))
 
-    for ix in range(0, nx):
-        for jy in range(0, nx):
-            znon[ix, jy] = bicinterp.bicubic_2d(x_non, y_non, zmesh,
-                                           new[ix], new[jy])
-            zuni[ix, jy] = bicinterp.bicubic_2d(x_uni, y_uni, zmesh,
-                                            new[ix], new[jy])
+    for ii, ix in enumerate(t.unsqueeze(new, -1)):
+        for jj, jy in enumerate(t.unsqueeze(new, -1)):
+            compr = t.tensor([ix, jy])
+            znon[ii, jj] = bicubic.bicubic_2d(x_non_, zmesh_, compr, compr).squeeze()[0, 1]
+            zuni[ii, jj] = bicubic.bicubic_2d(x_uni_, zmesh_, compr, compr).squeeze()[0, 1]
             
     f_non = interpolate.interp2d(x_non, y_non, zmesh, kind='cubic')
     znew_scipy_non = f_non(new, new)
@@ -68,7 +71,7 @@ def test_bicub_interp():
     pc1 = axs[0, 0].pcolormesh(x_uni, y_uni, zmesh)
     axs[0, 0].set_title('original data')
     fig.colorbar(pc1, ax=axs[0, 0], shrink=0.6)
-    pc2 = axs[0, 1].pcolormesh(xnew, ynew, hs_ij)
+    pc2 = axs[0, 1].pcolormesh(xnew, ynew, zuni)
     axs[0, 1].set_title('bicubic interpolation')
     fig.colorbar(pc2, ax=axs[0, 1], shrink=0.6)
     pc3 = axs[1, 0].pcolormesh(xnew, ynew, znew_scipy_uni)
@@ -78,74 +81,26 @@ def test_bicub_interp():
     axs[1, 1].set_title('interpolation difference')
     fig.colorbar(pc4, ax=axs[1, 1], shrink=0.6)
     plt.show()
-    print(t.from_numpy(znew_scipy_uni) - zuni, [t.from_numpy(znew_scipy_uni) - zuni > 0.1])
-
-def test_bicub_interp_ml():
-    """Test gradients of bicubic method."""
-    bicinterp = BicubInterp()
-    xmesh = t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1])
-    ymesh = t.Tensor([1.9, 2., 2.3, 2.7, 3.3, 4.0, 4.1])
-    # xin = t.Tensor([2, 3]).clone().detach().requires_grad_()
-    t.enable_grad()
-    xin = Variable(t.Tensor([4.05, 3]), requires_grad=True)
-    zmesh = t.Tensor([[.4, .45, .51, .57, .64, .72, .73],
-                      [.45, .51, .58, .64, .73, .83, .85],
-                      [.51, .58, .64, .73, .83, .94, .96],
-                      [.57, .64, .73, .84, .97, 1.12, 1.14],
-                      [.64, .72, .83, .97, 1.16, 1.38, 1.41],
-                      [.72, .83, .94, 1.12, 1.38, 1.68, 1.71],
-                      [.73, .85, .96, 1.14, 1.41, 1.71, 1.74]])
-    yref = t.Tensor([1.1])
-    for istep in range(0, 10):
-        optimizer = t.optim.SGD([xin, xmesh, ymesh], lr=1e-1)
-        ypred = bicinterp.bicubic_2d(xmesh, ymesh, zmesh, xin[0], xin[1])
-        criterion = t.nn.MSELoss(reduction='sum')
-        loss = criterion(ypred, yref)
-        optimizer.zero_grad()
-        print('ypred',  ypred, 'xin', xin)
-        loss.backward(retain_graph=True)
-        optimizer.step()
-        print('loss', loss)
 
 
-def read_skf_hdf5(para, skf, dataset, ml):
-    t.set_default_dtype(t.float64)
+def test_skf(para, skf, dataset, ml):
     para['datasetSK'] = '../slko/hdf/skf.hdf5'
     skf['ReadSKType'] = 'compressionRadii'
     dataset['LSKFinterpolation'] = True
-
     # ninterp = skf['sizeInterpolationPoints']
-    skf['hs_compr_all'] = []
-    # index of row, column of distance matrix, no digonal
-    # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
-    # dist_1d = distance[ind[0], ind[1]]
-    # get the skf with hdf type
     hdfsk = para['datasetSK']
     if not os.path.isfile(hdfsk):
         raise FileExistsError('dataset %s do not exist' % hdfsk)
-    # read all skf according to atom number (species) and indices and add
-    # these skf to a list, attention: hdf only store numpy type data
-    # with h5py.File(hdfsk, 'r') as f:
-    #     # get the grid sidtance, which should be the same
-    #     grid_dist = f['globalgroup'].attrs['grid_dist']
-
-    # get integrals with ninterp (normally 8) line for interpolation
     with h5py.File(hdfsk, 'r') as f:
         yyhh = f['HH' + '/hs_all_rall'][:, :, 10, :]
         yyhc = f['HC' + '/hs_all_rall'][:, :, 10, :]
         yych = f['CH' + '/hs_all_rall'][:, :, 10, :]
         yycc = f['CC' + '/hs_all_rall'][:, :, 10, :]
-    # get the distances corresponding to the integrals
-    # xx = [[(t.arange(ninterp) + indd[i, j] - ninterp) * grid_dist
-    #        for j in range(len(distance))] for i in range(len(distance))]
-    # skf['hs_compr_all'] = t.stack([t.stack([math.poly_check(
-    #     xx[i][j], t.from_numpy(yy[i][j]).type(para['precision']), distance[i, j], i==j)
-    #     for j in range(natom)]) for i in range(natom)])
     bicubic = BicubInterpVec(para, ml)
     zmesh = t.from_numpy(np.stack([np.stack([yyhh, yyhc]), np.stack([yych, yycc])]))
     mesh = t.tensor([[1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.],
                      [1., 1.5, 2., 2.5, 3., 3.5, 4., 5., 6., 8., 10.]])
-    for ii, compr in enumerate([t.tensor([2.2, 2.2]), t.tensor([2.5, 2.5])]):
+    for ii, compr in enumerate([t.tensor([2.25, 2.25]), t.tensor([2.75, 2.75])]):
         hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
         H_H_22_10 = t.tensor([0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
                               0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00, 0.000000000000E+00,
@@ -186,8 +141,118 @@ def read_skf_hdf5(para, skf, dataset, ml):
             print(hs_ij[0, 0] - H_H_25_10, '\n', hs_ij[0, 1] - H_C_25_10, '\n', hs_ij[1, 1] - C_C_25_10, '\n')
             # print(zmesh[1, 1, 2:4, 2:4])
 
+# Hamiltonian data
+# H means Hamiltonian table, s, p is orbital, 12 means 1.2 angstrom
+Hpp1_12 = t.tensor(
+    [-3.742602360128E-01, -4.449762775791E-01, -4.932742066579E-01,
+     -5.264237972467E-01, -5.493518120981E-01, -5.656074700325E-01])
+Hsp0_12 = t.tensor(
+    [1.422770383839E-01, 2.220799798588E-01, 2.726999859220E-01,
+     3.062901605651E-01, 3.294371779521E-01, 3.459327480438E-01])
+Hss0_12 = t.tensor(
+    [-3.231289233209E-01, -4.438323410893E-01, -5.239208519073E-01,
+     -5.790245117931E-01, -6.181518110397E-01, -6.466135144784E-01])
+Hpp1_24 = t.tensor(
+    [-1.040054565948E-01, -1.245271180944E-01, -1.431125379623E-01,
+     -1.585562821064E-01, -1.708458454207E-01, -1.805029788286E-01])
+Hsp0_24 = t.tensor(
+    [2.054470817742E-01, 2.493214414940E-01, 2.863199372436E-01,
+     3.154242499608E-01, 3.377491571099E-01, 3.548049683591E-01])
+Hss0_24 = t.tensor(
+    [-2.283267780320E-01, -2.745945775683E-01, -3.128174377176E-01,
+     -3.426404671777E-01, -3.654339344317E-01, -3.827261393906E-01])
+
+def test_interp_compr(para, skf, dataset, ml):
+    skf['ReadSKType'] = 'compressionRadii'
+    dataset['LSKFinterpolation'] = True
+    ngrid = 2  # choose gird distance, 0==>0.02, 1==>0.05, 2==>0.1, 3==>0.2
+    nline1 = [59, 23, 11, 5, 3, 1]
+    nline2 = [119, 47, 23, 11, 7, 3]
+    compr_all = t.tensor([[2.25, 2.25], [2.75, 2.75], [3.25, 3.25],
+                          [3.75, 3.75], [4.25, 4.25], [4.75, 4.75]])
+    datasetskf = ['../slko/hdf/skf_002.hdf5', '../slko/hdf/skf_005.hdf5',
+                  '../slko/hdf/skf_01.hdf5', '../slko/hdf/skf_02.hdf5',
+                  '../slko/hdf/skf_03.hdf5', '../slko/hdf/skf_06.hdf5']
+    mesh = t.tensor([[1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5., 5.5, 6.],
+                     [1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5., 5.5, 6.]])
+    
+    # dim1: compr point, dim2: ss, sp, pp, dim3, 2 distance, dim4, method
+    diff = t.zeros(6, 3, 2, 2)
+    with h5py.File(datasetskf[ngrid], 'r') as f:
+        yycc1 = t.from_numpy(f['CC' + '/hs_all_rall'][:, :, nline1[ngrid], :])
+        yycc2 = t.from_numpy(f['CC' + '/hs_all_rall'][:, :, nline2[ngrid], :])
+    bicubic = BicubInterpVec(para, ml)
+    zmesh1 = t.stack([t.stack([yycc1, yycc1]), t.stack([yycc1, yycc1])])
+    zmesh2 = t.stack([t.stack([yycc2, yycc2]), t.stack([yycc2, yycc2])])
+    for jj, icompr in enumerate(compr_all):
+        hs_ij1 = bicubic.bicubic_2d(mesh, zmesh1, icompr, icompr)[0, 0]
+        hs_ij2 = bicubic.bicubic_2d(mesh, zmesh2, icompr, icompr)[0, 0]
+        # numpy interpolation
+        print(mesh.shape, zmesh1.shape)
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh1[0, 0, :, :, 6], kind='cubic')
+        H_pp1 = f_HH(icompr[0], icompr[1])
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh1[0, 0, :, :, 8], kind='cubic')
+        H_sp1 = f_HH(icompr[0], icompr[1])
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh1[0, 0, :, :, 9], kind='cubic')
+        H_ss1 = f_HH(icompr[0], icompr[1])
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh2[0, 0, :, :, 6], kind='cubic')
+        H_pp2 = f_HH(icompr[0], icompr[1])
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh2[0, 0, :, :, 8], kind='cubic')
+        H_sp2 = f_HH(icompr[0], icompr[1])
+        f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh2[0, 0, :, :, 9], kind='cubic')
+        H_ss2 = f_HH(icompr[0], icompr[1])
+        diff[jj, :, 0, 0] = t.tensor([hs_ij1[9] - Hss0_12[jj],
+                                      hs_ij1[8] - Hsp0_12[jj], hs_ij1[6] - Hpp1_12[jj]])
+        diff[jj, :, 0, 1] = t.tensor([t.from_numpy(H_ss1) - Hss0_12[jj],
+                                      t.from_numpy(H_sp1) - Hsp0_12[jj], t.from_numpy(H_pp1) - Hpp1_12[jj]])
+        diff[jj, :, 1, 0] = t.tensor([hs_ij2[9] - Hss0_24[jj],
+                                      hs_ij2[8] - Hsp0_24[jj], hs_ij2[6] - Hpp1_24[jj]])
+        diff[jj, :, 1, 1] = t.tensor([t.from_numpy(H_ss2) - Hss0_24[jj],
+                                      t.from_numpy(H_sp2) - Hsp0_24[jj], t.from_numpy(H_pp2) - Hpp1_24[jj]])
+        print(diff[jj, :, 1, 0], hs_ij2[9], Hss0_24[jj],
+              hs_ij2[8], Hsp0_24[jj], hs_ij2[6], Hpp1_24[jj])
+    lab0 = ['ss0, distance: 1.2', 'sp0, distance: 1.2', 'pp1, distance: 1.2']
+    lab1 = ['ss0, distance: 2.4', 'sp0, distance: 2.4', 'pp1, distance: 2.4']
+    compr = [2.25, 2.75, 3.25, 3.75, 4.5, 5.5]
+    for i in range(len(lab0)):
+        plt.plot(compr, diff[:, i, 0, 0], label=lab0[i])
+        plt.plot(compr, diff[:, i, 1, 0], label=lab1[i], linestyle=':')
+        plt.legend()
+    plt.ylabel('Hamiltonian Error')
+    plt.xlabel('Compression Radii (Bohr)')
+    plt.show()
 
 
+def test_interp_grid(para, skf, dataset, ml):
+    grid = t.tensor([0.02, 0.05, 0.1, 0.2, 0.3])
+    distance = [t.tensor([[0., 0., 0.], [0.5, 0.5, 0.5]]),
+                t.tensor([[0., 0., 0.], [0.7, 0.7, 0.7]]),
+                t.tensor([[0., 0., 0.], [0.9, 0.9, 0.9]])]
+    para['scc'] = 'nonscc'  # nonscc, scc, xlbomd
+    pathsk = ['../slko/test/grid0.02', '../slko/test/grid0.05',
+              '../slko/test/grid0.1', '../slko/test/grid0.2',
+              '../slko/test/grid0.3']
+    # dim0: grid, dim1: distance, dim2, ss0, sp0, pp1
+    h = t.zeros(5, 5, 2)
+    for ii, _ in enumerate(pathsk):
+        para['directorySK'] = pathsk[ii]
+        for jj, jdist in enumerate(distance):
+            dataset = {'positions': distance[jj], 'numbers': [[6, 6]]}
+            print(ii, jj)
+            result = DFTBCalculator(para, dataset, skf)
+            skf = result.skf
+            h[ii, jj, 0], h[ii, jj, 1] = skf['hammat'][0, 4], skf['hammat'][0, 5]
+
+    # dist = np.sqrt(np.array([0.5, 0.6, 0.7, 0.8, 0.9]) ** 2 * 3) / .529177249
+    dist = [1.64, 2.29, 2.95]
+    for jj, jdist in enumerate(distance):
+        plt.plot(grid[1:], h[1:, jj, 0] - h[0, jj, 0], label='distance:'+str(dist[jj])+' ss0')
+        plt.plot(grid[1:], h[1:, jj, 1] - h[0, jj, 1], label='distance:'+str(dist[jj])+' sp0')
+        plt.legend(loc='upper left')
+    plt.xlabel('grid distance (Bohr)')
+    plt.ylabel('Hamiltonian Error')
+    plt.show()
+    
 def test_bicubvec_interp():
     interp = BicubInterpVec({}, {})
     xmesh = t.tensor([[1, 2, 3], [2, 3, 4]])
@@ -197,11 +262,14 @@ def test_bicubvec_interp():
     print('result', result, result.shape)
 
 if __name__ == '__main__':
-    para = {}
-    para['task'] = 'bicub_interp'
-    if para['task'] == 'bicub_interp':
+    t.set_default_dtype(t.float64)
+    t.set_printoptions(15)
+    task = 'grid'
+    if task == 'bicub_interp':
         test_bicub_interp()
-    elif para['task'] == 'bicub_interp_ml':
-        test_bicub_interp_ml()
-    elif para['task'] == 'bicubic_vec':
-        read_skf_hdf5({}, {}, {}, {})
+    elif task == 'bicubic_vec':
+        test_skf({}, {}, {}, {})
+    elif task == 'compr':
+        test_interp_compr({}, {}, {}, {})
+    elif task == 'grid':
+        test_interp_grid({}, {}, {}, {})

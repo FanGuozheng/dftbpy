@@ -144,7 +144,8 @@ def dftb_parameter(parameter_=None):
         'mlCompressionR', 'mlIntegral', 'testCompressionR', 'testIntegral') else False
 
     # batch calculation, usually True for machine learning
-    parameter['Lbatch'] = True if parameter['Lml'] is True else False
+    if 'Lbatch' not in parameter:
+        parameter['Lbatch'] = True if parameter['Lml'] is True else False
 
     # return DFTB calculation parameters
     return parameter

@@ -51,7 +51,7 @@ class WriteSKNormal:
             define para['dataType'] == 'hdf'
         """
         # join the path and hdf data
-        hdf_ = '../data/dataset/ani01_500.hdf5'
+        hdf_ = '../data/dataset/ani01_2000.hdf5'
 
         # read the hdf data, get the global atom specie
         with h5py.File(hdf_, 'r') as f:
@@ -163,7 +163,7 @@ class WriteSKComprR:
 
         # define parameters, reference dataset (get global specie), skf path
         self.para['referenceDataset'] = './testfile.hdf5'
-        self.para['directorySK'] = '../slko/uniform'
+        self.para['directorySK'] = '/home/gz_fan/Documents/ML/dftb/slko/test/grid0.1'  # '../slko/uniform'
 
         # load initial parameters
         self.para = initpara.dftb_parameter(self.para)
@@ -177,7 +177,8 @@ class WriteSKComprR:
         self.para = constpara.constant_parameter(self.para)
 
         # read the dataset and then read the corresponding skf files
-        self.readdataset()
+        # self.readdataset()
+        self.specie_global = ['C']
 
         # interpolate integrals
         self.interpskf()
@@ -189,8 +190,8 @@ class WriteSKComprR:
             define para['dataType'] == 'hdf'
         """
         # read the hdf data, get the global atom specie
-        with h5py.File(self.para['referenceDataset'], 'r') as f:
-            self.specie_global = f['globalGroup'].attrs['specieGlobal']
+        # with h5py.File(self.para['referenceDataset'], 'r') as f:
+        #     self.specie_global = f['globalGroup'].attrs['specieGlobal']
 
     def interpskf(self):
         """Read .skf data from skgen with various compR."""
@@ -311,7 +312,7 @@ class WriteSKComprR:
 
 if __name__ == '__main__':
     """Main function."""
-    para = {'task': 'get_hdf_normal'}
+    para = {'task': 'get_hdf_compr'}
 
     # generate hdf5 binary dataset of skf with various compression radii
     if para['task'] == 'get_hdf_compr':
