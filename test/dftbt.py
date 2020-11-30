@@ -31,17 +31,20 @@ def main(parameter=None, dataset=None):
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
     # dataset['sizeDataset'] = [1, 1, 1]
     # ml['mlSteps'] = 2
-    # parameter['Lbatch'] = False
+    # # parameter['Lbatch'] = False
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
-    # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_50mol_50step_dipole.dat'
-    # dataset['sizeDataset'] = [50, 50, 50]  # this should be consistent with compr.dat
-    # dataset['sizeTest'] = [200, 200, 200]
+    # parameter['CompressionRData'] = '../data/results/ani_result/ani2/compr_50mol_100step_lr_005_comprmin15.dat'
+    # ml['referenceDataset'] = '../data/dataset/ani02_2000.hdf5'
+    # dataset['sizeDataset'] = [50] * 13 # this should be consistent with compr.dat
+    # dataset['sizeTest'] = [100] * 13
+    # ml['referenceMioDataset'] = '../data/dataset/ani02_2000_mio.hdf5'
     # ml['target'] = 'dipole'
-    # ml['mlSteps'] = 50  # this should be consistent with compr.dat
+    # ml['mlSteps'] = 100  # this should be consistent with compr.dat
+    # ml['MLmodel'] = 'linear'
+    # # ml['featureType'] = 'cm'
     # parameter['task'] = 'testCompressionR'
-    # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3: if use this code directly to optimize compression radii

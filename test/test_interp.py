@@ -220,6 +220,7 @@ def test_interp_compr(para, skf, dataset, ml):
         plt.legend()
     plt.ylabel('Hamiltonian Error')
     plt.xlabel('Compression Radii (Bohr)')
+    plt.savefig('Hamiltonian_compr.png', dpi=300)
     plt.show()
 
 
@@ -246,12 +247,14 @@ def test_interp_grid(para, skf, dataset, ml):
     # dist = np.sqrt(np.array([0.5, 0.6, 0.7, 0.8, 0.9]) ** 2 * 3) / .529177249
     dist = [1.64, 2.29, 2.95]
     for jj, jdist in enumerate(distance):
-        plt.plot(grid[1:], h[1:, jj, 0] - h[0, jj, 0], label='distance:'+str(dist[jj])+' ss0')
-        plt.plot(grid[1:], h[1:, jj, 1] - h[0, jj, 1], label='distance:'+str(dist[jj])+' sp0')
+        plt.plot(grid[1:], h[1:, jj, 0] - h[0, jj, 0], label='distance: '+str(dist[jj])+', ss0')
+        plt.plot(grid[1:], h[1:, jj, 1] - h[0, jj, 1], label='distance: '+str(dist[jj])+', sp0')
         plt.legend(loc='upper left')
     plt.xlabel('grid distance (Bohr)')
     plt.ylabel('Hamiltonian Error')
+    plt.savefig('Hamiltonian_grid.png', dpi=300)
     plt.show()
+    
     
 def test_bicubvec_interp():
     interp = BicubInterpVec({}, {})

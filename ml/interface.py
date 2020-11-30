@@ -5,8 +5,8 @@ import os
 import numpy as np
 import torch as t
 from sklearn import linear_model, svm
+from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 from ml.feature import Dscribe
 from IO.save import Save1D, Save2D
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
@@ -29,6 +29,7 @@ class MLPara:
         self.dataset = dataset
         self.ml = ml
         self.read = Read(para)
+        # get fearure data according to geometry
         self.dscribe = Dscribe(self.para, self.dataset, self.ml)
         self.dataprocess()
         if self.para['task'] == 'testCompressionR':
@@ -56,10 +57,10 @@ class MLPara:
         """ML process for compression radius."""
         if self.ml['MLmodel'] == 'linear':
             self.linearmodel()
-        elif self.ml['MLmodel'] == 'schnet':
-            self.schnet()
         elif self.ml['MLmodel'] == 'svm':
             self.svm_model()
+        elif self.ml['MLmodel'] == 'nn':
+            self.nn_model()
 
     def ml_acsf(self):
         """Generate opreeR with optimized ML parameters and fingerprint."""
@@ -95,32 +96,12 @@ class MLPara:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
-
-        X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.5)
-        reg.fit(X_train, y_train)
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
+        reg.fit(X, y)
         y_pred = reg.predict(X_pred)
         self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
                                           self.ml['compressionRMin'],
                                           self.ml['compressionRMax'])
-
-        # plot predict result
-        if self.para['Lplot']:
-            plt.scatter(X_train, X_train,  color='black')
-            plt.plot(X_train, y_train, 'ob')
-            plt.xlabel('feature of training dataset')
-            plt.ylabel('traning compression radius')
-            plt.show()
-            # plt.scatter(X_pred, y_pred,  color='black')
-            if self.para['featureType'] == 'rad':
-                plt.plot(X_pred, y_pred, 'ob')
-            elif self.para['featureType'] == 'acsf':
-                plt.plot(X_pred[:, 0], y_pred, 'ob')
-            elif self.para['featureType'] == 'cm':
-                plt.plot(X_pred[:, 0], y_pred, 'ob')
-            plt.xlabel('feature of prediction (tesing)')
-            plt.ylabel('testing compression radius')
-            plt.show()
 
     def svm_model(self):
         """ML process with support vector machine method."""
@@ -128,32 +109,24 @@ class MLPara:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
-        X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.5)
-
-        reg.fit(X_train, y_train)
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #         X, y, test_size=0.5)
+        reg.fit(X, y)
         y_pred = reg.predict(X_pred)
-        if self.para['featureType'] == 'rad':
-            self.para['compr_pred'] = t.from_numpy(y_pred)
-        elif self.para['featureType'] in ('acsf', 'cm'):
-            self.para['compr_pred'] = self.get_target_to2d(y_pred)
-
-        if self.para['Lplot']:
-            plt.scatter(X_train, X_train,  color='black')
-            plt.plot(X_train, y_train, 'ob')
-            plt.xlabel('feature of training dataset')
-            plt.ylabel('traning compression radius')
-            plt.show()
-            # plt.scatter(X_pred, y_pred,  color='black')
-            if self.para['featureType'] == 'rad':
-                plt.plot(X_pred, y_pred, 'ob')
-            elif self.para['featureType'] == 'acsf':
-                plt.plot(X_pred[:, 0], y_pred, 'ob')
-            elif self.para['featureType'] == 'cm':
-                plt.plot(X_pred[:, 0], y_pred, 'ob')
-            plt.xlabel('feature of prediction (tesing)')
-            plt.ylabel('testing compression radius')
-            plt.show()
+        self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
+                                          self.ml['compressionRMin'],
+                                          self.ml['compressionRMax'])
+    def nn_model(self):
+        """ML process with support vector machine method."""
+        clf = MLPRegressor(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1)
+        X = self.para['feature_data']
+        X_pred = self.para['feature_test']
+        y = self.para['feature_target']
+        clf.fit(X.numpy(), y.numpy())
+        y_pred = t.from_numpy(clf.predict(X_pred.numpy()))
+        self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
+                                          self.ml['compressionRMin'],
+                                          self.ml['compressionRMax'])
 
     def schnet(self):
         """ML process with schnetpack."""

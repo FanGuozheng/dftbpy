@@ -2,7 +2,6 @@
 "general": 
   {
   "scc": "scc",
-  "periodic": false,
   "mixMethod": "anderson",
   "mixFactor": 0.2,
   "tElec": 0,

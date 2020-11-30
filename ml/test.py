@@ -123,8 +123,6 @@ class CompressionR:
     def fit_compression_r(self):
         """Fit compression radii and predict for new geometry."""
         interface.MLPara(self.para, self.dataset, self.ml)
-        dscribe(self.para, self.dataset, self.ml)
-
         # the predicted compression radii
         self.para['compr_ml'] = self.para['compr_pred']
 
@@ -171,14 +169,13 @@ class CompressionR:
         import matplotlib.pyplot as plt
         if 'dipole' in self.ml['target']:
             ref = pad1d(self.dataset['refDipole'])
-            self.ml['referenceDataset'] = '../data/dataset/ani01_200_dftbplus.hdf5'
+            self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             dftb = self.para['dipole']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             dftbplus = pad1d(self.dataset['refDipole'])
         elif 'charge' in self.ml['target']:
             ref = pad1d(self.dataset['refCharge'])
-            print('refCharge:', ref, '\n charge:', self.para['charge'])
-            self.ml['referenceDataset'] = '../data/dataset/ani01_200_dftbplus.hdf5'
+            self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             dftb = self.para['fullCharge']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             dftbplus = pad1d(self.dataset['refCharge']) + self.para['fullCharge'] - self.para['charge']

@@ -35,13 +35,13 @@ class RefDFTBPlus:
         self.para['directorySK'] = '../slko/mio/'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = [200, 200, 200]
-
+        self.dataset['sizeDataset'] = [2000] * 500
+ 
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
 
         # define dataset as input
-        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
+        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s02.h5'
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
@@ -124,7 +124,7 @@ class RefAims:
 
 if __name__ == '__main__':
     """Main function."""
-    para = {'task': 'get_aims_hdf'}
+    para = {'task': 'get_dftbplus_hdf'}
 
     # get_dftb_hdf means get reference data from DFTB+ calculations
     if para['task'] == 'get_dftbplus_hdf':
