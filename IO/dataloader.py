@@ -215,7 +215,7 @@ class LoadData:
                 self.write_input(self.dataset['datasetType'])
 
         self.NmoleculeSpecie = idata + 1
-        if self.dataset['datasetType'] in ('runaims', 'rundftbplus'):
+        if self.dataset['datasetType'] not in ('writeaimsinput', 'writedftbinput'):
             self.write_hdf_global()
 
     def write_hdf_group(self):
@@ -460,6 +460,7 @@ class LoadReferenceData:
         self.dataset['refHirshfeldVolume'] = []
         self.dataset['refMBDAlpha'] = []
         self.dataset['refDipole'] = []
+        self.dataset['refCPA'] = []
         self.dataset['numberatom'] = []
 
         # read global parameters
@@ -547,12 +548,14 @@ class LoadReferenceData:
                         # polarizability
                         namepol = str(ibatch) + 'alphaMBD'
                         if namepol in f[igroup].keys():
-                            self.dataset['refMBDAlpha'].append(f[igroup][namepol][()])
+                            self.dataset['refMBDAlpha'].append(t.from_numpy(
+                                f[igroup][namepol][()]))
 
                         # CPA
                         namecpa = str(ibatch) + 'CPA'
                         if namecpa in f[igroup].keys():
-                            self.dataset['refCPA'].append(f[igroup][namecpa][()])
+                            self.dataset['refCPA'].append(t.from_numpy(
+                                f[igroup][namecpa][()]))
 
                     # total molecule number
                     self.nbatch += 1

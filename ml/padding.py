@@ -59,6 +59,9 @@ def pad1d(in_tensor, size=None):
 
     # max size in batch
     if size is None:
+        if in_tensor[0].dim() == 2:
+            if in_tensor[0].squeeze().dim() == 1:
+                in_tensor = [iten.squeeze() for iten in in_tensor]
         size = max(ibatch.shape[0] for ibatch in in_tensor)
 
     # define output tensor

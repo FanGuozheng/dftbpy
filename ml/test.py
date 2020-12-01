@@ -178,7 +178,7 @@ class CompressionR:
             Save2D(pred.detach().numpy(), name='preddip.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miodip.dat', dire='.', ty='w')
             print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
-        elif 'charge' in self.ml['target']:
+        if 'charge' in self.ml['target']:
             ref = pad1d(self.dataset['refCharge'])
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['fullCharge']
@@ -188,21 +188,21 @@ class CompressionR:
             Save2D(pred.detach().numpy(), name='predcha.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miocha.dat', dire='.', ty='w')
             print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
-        elif 'gap' in self.ml['target']:
+        if 'gap' in self.ml['target']:
             refhl = pad1d(self.dataset['refHOMOLUMO'])
             hl = self.para['homo_lumo']
             ref = refhl[:, 1] - refhl[:, 0]
             pred = hl[:, 1] - hl[:, 0]
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
+            print("self.dataset['refHOMOLUMO']", self.dataset['refHOMOLUMO'])
             miohl = pad1d(self.dataset['refHOMOLUMO'])
-            print('miohl', miohl)
             mio = miohl[:, 1] - miohl[:, 0]
             Save1D(ref.detach().numpy(), name='refgap.dat', dire='.', ty='w')
             Save1D(pred.detach().numpy(), name='predgap.dat', dire='.', ty='w')
             Save1D(mio.detach().numpy(), name='miogap.dat', dire='.', ty='w')
             print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
-        elif 'HOMOLUMO' in self.ml['target']:
+        if 'HOMOLUMO' in self.ml['target']:
             ref = pad1d(self.dataset['refHOMOLUMO'])
             pred = self.para['homo_lumo']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
@@ -212,12 +212,12 @@ class CompressionR:
             Save2D(pred.detach().numpy(), name='predhl.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miohl.dat', dire='.', ty='w')
             print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
-        elif 'cpa' in self.ml['target']:
+        if 'cpa' in self.ml['target']:
             ref = pad1d(self.dataset['refHirshfeldVolume'])
             pred = self.para['cpa']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
-            mio = pad1d(self.dataset['refHOMOLUMO'])
+            mio = pad1d(self.dataset['refCPA'])
             Save2D(ref.detach().numpy(), name='refcpa.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcpa.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miocpa.dat', dire='.', ty='w')

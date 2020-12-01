@@ -340,60 +340,78 @@ class MLCompressionR:
             # get loss function
             loss = 0.
             if 'dipole' in self.ml['target']:
-                loss += self.criterion(self.para['dipole'],
-                                       pad1d(self.dataset['refDipole']))
+                lossdip = self.criterion(self.para['dipole'],
+                                         pad1d(self.dataset['refDipole']))
+                loss = loss + lossdip
                 if self.para['dipole'].device.type == 'cuda':
                     Save2D(self.para['dipole'].detach().cpu().numpy(),
                            name='dipole.dat', dire='.', ty='a')
+                    Save1D(np.array([lossdip.cpu()]), name='lossdip.dat', dire='.', ty='a')
                 elif self.para['dipole'].device.type == 'cpu':
                     Save2D(self.para['dipole'].detach().numpy(),
                            name='dipole.dat', dire='.', ty='a')
+                    Save1D(np.array([lossdip]), name='lossdip.dat', dire='.', ty='a')
             if 'HOMOLUMO' in self.ml['target']:
-                loss += self.criterion(self.para['homo_lumo'],
+                losshl = self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
+                loss = loss + losshl
                 if self.para['homo_lumo'].device.type == 'cuda':
                     Save2D(self.para['homo_lumo'].detach().cpu().numpy(),
                            name='homolumo.dat', dire='.', ty='a')
+                    Save1D(np.array([losshl.cpu()]), name='losshl.dat', dire='.', ty='a')
                 elif self.para['homo_lumo'].device.type == 'cpu':
                     Save2D(self.para['homo_lumo'].detach().numpy(),
                            name='homolumo.dat', dire='.', ty='a')
+                    Save1D(np.array([losshl]), name='losshl.dat', dire='.', ty='a')
             if 'gap' in self.ml['target']:
                 homolumo = self.para['homo_lumo']
                 refhl = pad1d(self.dataset['refHOMOLUMO'])
                 gap = homolumo[:, 1] - homolumo[:, 0]
                 refgap = refhl[:, 1] - refhl[:, 0]
-                loss += self.criterion(gap, refgap)
+                lossgap = 0.001 * self.criterion(gap, refgap)
+                loss = loss + lossgap
                 if gap.device.type == 'cuda':
                     Save1D(gap.detach().cpu().numpy(), name='gap.dat', dire='.', ty='a')
+                    Save1D(np.array([lossgap.cpu()]), name='lossgap.dat', dire='.', ty='a')
                 elif gap.device.type == 'cpu':
                     Save1D(gap.detach().numpy(), name='gap.dat', dire='.', ty='a')
+                    Save1D(np.array([lossgap]), name='lossgap.dat', dire='.', ty='a')
             if 'polarizability' in self.ml['target']:
-                loss += self.criterion(self.para['alpha_mbd'],
+                losspol = self.criterion(self.para['alpha_mbd'],
                                        pad2d(self.dataset['refMBDAlpha']))
+                loss = loss + losspol
                 if self.para['alpha_mbd'].device.type == 'cuda':
                     Save2D(self.para['alpha_mbd'].detach().cpu().numpy(),
                            name='pol.dat', dire='.', ty='a')
+                    Save1D(np.array([losspol.cpu()]), name='losspol.dat', dire='.', ty='a')
                 elif self.para['alpha_mbd'].device.type == 'cpu':
                     Save2D(self.para['alpha_mbd'].detach().numpy(),
                            name='pol.dat', dire='.', ty='a')
+                    Save1D(np.array([losspol]), name='losspol.dat', dire='.', ty='a')
             if 'charge' in self.ml['target']:
-                loss += self.criterion(self.para['fullCharge'],
+                lossq = self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
+                loss = loss + lossq
                 if self.para['fullCharge'].device.type == 'cuda':
                     Save2D(self.para['fullCharge'].detach().cpu().numpy(),
                         name='charge.dat', dire='.', ty='a')
+                    Save1D(np.array([lossq.cpu()]), name='lossq.dat', dire='.', ty='a')
                 elif self.para['fullCharge'].device.type == 'cpu':
                     Save2D(self.para['fullCharge'].detach().numpy(),
                         name='charge.dat', dire='.', ty='a')
+                    Save1D(np.array([lossq]), name='lossq.dat', dire='.', ty='a')
             if 'cpa' in self.ml['target']:
-                loss += self.criterion(
+                losscpa = 0.5 * self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
+                loss = loss + losscpa
                 if self.para['cpa'].device.type == 'cuda':
                     Save2D(self.para['cpa'].detach().cpu().numpy(),
                            name='cpa.dat', dire='.', ty='a')
+                    Save1D(np.array([losscpa.cpu()]), name='losscpa.dat', dire='.', ty='a')
                 elif self.para['cpa'].device.type == 'cpu':
                     Save2D(self.para['cpa'].detach().numpy(),
                            name='cpa.dat', dire='.', ty='a')
+                    Save1D(np.array([losscpa]), name='losscpa.dat', dire='.', ty='a')
             if 'pdos' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))

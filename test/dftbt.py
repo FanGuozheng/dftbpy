@@ -27,20 +27,20 @@ def main(parameter=None, dataset=None):
     parameter['device'] = 'cpu'
     parameter['profiler'] = False
     # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = ['cpa', 'dipole']
+    ml['target'] = ['charge', 'dipole']
     ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    dataset['sizeDataset'] = [1, 1, 1]
-    ml['mlSteps'] = 1
+    dataset['sizeDataset'] = [2, 2, 2]
+    ml['mlSteps'] = 2
     # parameter['Lbatch'] = False
     parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
-    # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_20mol_100step_lr_005_comprmin15_dipole.dat'
+    # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_20mol_100step_lr_005_comprmin15_cpa.dat'
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
     # dataset['sizeDataset'] = [20] * 3 # this should be consistent with compr.dat
-    # dataset['sizeTest'] = [100] * 3
-    # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_mio.hdf5'
-    # ml['target'] = 'gap'
+    # dataset['sizeTest'] = [20] * 3
+    # ml['referenceMioDataset'] = '../data/dataset/ani01_50_dftb_mio.hdf5'  # '../data/dataset/ani01_2000_mio.hdf5'
+    # ml['target'] = 'cpa'
     # ml['mlSteps'] = 100  # this should be consistent with compr.dat
     # ml['MLmodel'] = 'linear'
     # # ml['featureType'] = 'cm'
