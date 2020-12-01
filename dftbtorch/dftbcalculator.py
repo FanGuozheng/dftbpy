@@ -337,7 +337,7 @@ class SCF:
         self.batch = self.para['Lbatch']
 
         # batch size
-        if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb'):
+        if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb', 'get_dftbplus_hdf'):
             self.nb = self.dataset['nbatch']
         elif self.para['task'] in ('testCompressionR', 'testIntegral'):
             self.nb = self.dataset['ntest']

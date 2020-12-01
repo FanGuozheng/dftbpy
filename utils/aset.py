@@ -93,6 +93,9 @@ class DFTB:
                    Hamiltonian_MaxAngularMomentum_C='p',
                    Hamiltonian_MaxAngularMomentum_N='p',
                    Hamiltonian_MaxAngularMomentum_O='p',
+                   # Hamiltonian_Dispersion_ReferenceSet='ts',
+                   # Hamiltonian_Dispersion_NOmegaGrid=15,
+                   # Hamiltonian_Dispersion_Beta=1.05,
                    Options_='',
                    Options_WriteHS='Yes',
                    Analysis_='',
@@ -383,7 +386,7 @@ def get_eigenvalue(filename):
     occ_ = [float(ii) for ii in string[0::2]][1:]  # remove the first value
 
     # transfer list to ==> numpy(float64) ==> torch
-    eigenval = t.from_numpy(np.asarray(eigenval_)) / _AUEV
+    eigenval = t.from_numpy(np.asarray(eigenval_))
     occ = t.from_numpy(np.asarray(occ_))
     humolumo = np.asarray([eigenval[np.where(occ != 0)[0]][-1],
                            eigenval[np.where(occ == 0)[0]][0]])

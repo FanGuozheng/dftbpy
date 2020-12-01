@@ -13,6 +13,7 @@ from collections import Counter
 import IO.pyanitools as pya
 import IO.write_output as write
 from utils.aset import DFTB, AseAims
+from dftbtorch.dftbcalculator import DFTBCalculator
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 HIRSH_VOL = [10.31539447, 0., 0., 0., 0., 38.37861207, 29.90025370, 23.60491416]
 
@@ -42,7 +43,9 @@ class LoadData:
             self.load_ani()
 
         # load dataset and directly run DFTB+ or aims calculations
-        elif self.dataset['datasetType'] in ('runaims', 'rundftbplus', 'writeinput'):
+        elif self.dataset['datasetType'] in ('runaims', 'rundftbase', 'dftbplus'
+                                             'writedftbinput',
+                                             'writeaimsinput'):
             self.load_run_ani()
 
         # load QM7 dataset
@@ -193,7 +196,8 @@ class LoadData:
 
             # write the current atom species in molecule to list "symbols"
             # use metadata instead
-            self.ispecie = ''.join(data['species'])
+            self.species = data['species']
+            self.ispecie = ''.join(self.species)
             self.groupName.append(self.ispecie)
             self.dataset['symbols'] = [data['species']] * self.nend
 
@@ -203,12 +207,12 @@ class LoadData:
                     self.specieGlobal.append(ispe)
 
             # write aims input (do not save) and run FHI-aims calculation
-            if self.dataset['datasetType'] in ('runaims', 'rundftbplus'):
+            if self.dataset['datasetType'] in ('runaims', 'rundftbase'):
                 self.write_hdf_group()
 
             # write aims input (and save)
-            elif self.dataset['datasetType'] == 'writeinput':
-                self.write_aims_input()
+            elif self.dataset['datasetType'] in ('writeaimsinput', 'writedftbinput', 'dftbplus'):
+                self.write_input(self.dataset['datasetType'])
 
         self.NmoleculeSpecie = idata + 1
         if self.dataset['datasetType'] in ('runaims', 'rundftbplus'):
@@ -240,9 +244,60 @@ class LoadData:
                 elif self.ml['reference'] == 'aimsase':
                     AseAims(self.ml['aims'], self.ml['aimsSpecie']).run_aims(
                         self.nend, self.positions, self.g, self.dataset['symbols'])
+                # write aims input (and save)
+                elif self.ml['reference'] == 'dftbplus':
+                    dftb = write.Dftbplus(self.para)
+                    spe = []
+                    for isp in self.species:
+                        if isp not in spe:
+                            spe.append(isp)
+                    for ii in range(self.nend):
+                        dftb.write_dftbin('.', self.para['scc'], spe)
+                        dftb.geo_nonpe('.', self.positions[ii], self.species, spe)
+                        os.system('bash run.sh')
+                elif self.ml['reference'] == 'dftb':
+                    self.dataset['numbers'] = t.tensor(self._number)
+                    for ii in range(self.nend):
+                        self.dataset['positions'] = t.from_numpy(self.positions[ii])
+                        result = DFTBCalculator(self.para, self.dataset)
+                        coor_name = str(ii) + 'positions'
+                        self.g.create_dataset(coor_name, data=self.positions[ii])
 
-    def write_aims_input(self):
-        write.FHIaims(self.positions, self.dataset['symbols'])
+                        # eigenvalue
+                        eigval_name = str(ii) + 'eigenValue'
+                        self.g.create_dataset(eigval_name, data=result.parameter['eigenvalue'])
+
+                        # HOMO LUMO
+                        eigval_name = str(ii) + 'HOMOLUMO'
+                        self.g.create_dataset(eigval_name, data=result.parameter['homo_lumo'])
+
+                        # dipole name
+                        dip_name = str(ii) + 'dipole'
+                        self.g.create_dataset(dip_name, data=result.parameter['dipole'])
+                        
+                        # formation energy
+                        ener_name = str(ii) + 'formationEnergy'
+                        self.g.create_dataset(ener_name, data=result.parameter['energy'])  # revise!!!
+                        
+                        # total energy
+                        ener_name = str(ii) + 'totalEnergy'
+                        self.g.create_dataset(ener_name, data=result.parameter['energy'])
+
+                        # total charge
+                        q_name = str(ii) + 'charge'
+                        self.g.create_dataset(q_name, data=result.parameter['charge'])
+
+                        cpa_name = str(ii) + 'CPA'
+                        self.g.create_dataset(cpa_name, data=result.parameter['cpa'])
+
+                        pol_name = str(ii) + 'alphaMBD'
+                        self.g.create_dataset(pol_name, data=result.parameter['alpha_mbd'])
+
+    def write_input(self, ty):
+        if ty in ('writeaimsinput', 'aims'):
+            write.FHIaims(self.positions, self.dataset['symbols'])
+        elif ty in ('writedftbinput', 'dftbplus', 'rundftbase'):
+            write.Dftbplus(self.positions, self.dataset['symbols'])
 
     def write_hdf_global(self):
         """Save rest to global attrs."""
@@ -490,10 +545,14 @@ class LoadReferenceData:
                             self.dataset['refHirshfeldVolume'].append(volume)
 
                         # polarizability
-                        namepol = str(ibatch) + 'alpha_mbd'
+                        namepol = str(ibatch) + 'alphaMBD'
                         if namepol in f[igroup].keys():
-                            self.dataset['refMBDAlpha'].append(
-                                f[igroup][namepol][()])
+                            self.dataset['refMBDAlpha'].append(f[igroup][namepol][()])
+
+                        # CPA
+                        namecpa = str(ibatch) + 'CPA'
+                        if namecpa in f[igroup].keys():
+                            self.dataset['refCPA'].append(f[igroup][namecpa][()])
 
                     # total molecule number
                     self.nbatch += 1

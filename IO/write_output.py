@@ -66,7 +66,7 @@ class Dftbplus:
         """Write geo.gen in a dataset for periodic condition."""
         pass
 
-    def write_dftbin(self, dire, scc, atomname, specie):
+    def write_dftbin(self, dire, scc, specie):
         """Write dftb_in.hsd."""
         with open(os.path.join(dire, 'dftb_in.hsd'), 'w') as fp:
             fp.write('Geometry = GenFormat { \n')
@@ -95,7 +95,7 @@ class Dftbplus:
             fp.write('Temperature [Kelvin] = 0.0 \n } \n')
             fp.write('SlaterKosterFiles = Type2FileNames { \n')
             fp.write('Separator = "-" \n Suffix = ".skf" \n } \n')
-            if self.para['LMBD_DFTB']:
+            if self.para['LMBD']:
                 fp.write('Dispersion = Mbd { \n')
                 fp.write('ReferenceSet = "ts" \n')
                 fp.write('NOmegaGrid = 15 \n')

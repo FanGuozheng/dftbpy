@@ -348,7 +348,7 @@ class MLCompressionR:
                 elif self.para['dipole'].device.type == 'cpu':
                     Save2D(self.para['dipole'].detach().numpy(),
                            name='dipole.dat', dire='.', ty='a')
-            elif 'HOMOLUMO' in self.ml['target']:
+            if 'HOMOLUMO' in self.ml['target']:
                 loss += self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
                 if self.para['homo_lumo'].device.type == 'cuda':
@@ -357,7 +357,7 @@ class MLCompressionR:
                 elif self.para['homo_lumo'].device.type == 'cpu':
                     Save2D(self.para['homo_lumo'].detach().numpy(),
                            name='homolumo.dat', dire='.', ty='a')
-            elif 'gap' in self.ml['target']:
+            if 'gap' in self.ml['target']:
                 homolumo = self.para['homo_lumo']
                 refhl = pad1d(self.dataset['refHOMOLUMO'])
                 gap = homolumo[:, 1] - homolumo[:, 0]
@@ -367,16 +367,16 @@ class MLCompressionR:
                     Save1D(gap.detach().cpu().numpy(), name='gap.dat', dire='.', ty='a')
                 elif gap.device.type == 'cpu':
                     Save1D(gap.detach().numpy(), name='gap.dat', dire='.', ty='a')
-            elif 'polarizability' in self.ml['target']:
+            if 'polarizability' in self.ml['target']:
                 loss += self.criterion(self.para['alpha_mbd'],
-                                       pad1d(self.dataset['refMBDAlpha']))
+                                       pad2d(self.dataset['refMBDAlpha']))
                 if self.para['alpha_mbd'].device.type == 'cuda':
                     Save2D(self.para['alpha_mbd'].detach().cpu().numpy(),
                            name='pol.dat', dire='.', ty='a')
                 elif self.para['alpha_mbd'].device.type == 'cpu':
                     Save2D(self.para['alpha_mbd'].detach().numpy(),
                            name='pol.dat', dire='.', ty='a')
-            elif 'charge' in self.ml['target']:
+            if 'charge' in self.ml['target']:
                 loss += self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
                 if self.para['fullCharge'].device.type == 'cuda':
@@ -385,7 +385,7 @@ class MLCompressionR:
                 elif self.para['fullCharge'].device.type == 'cpu':
                     Save2D(self.para['fullCharge'].detach().numpy(),
                         name='charge.dat', dire='.', ty='a')
-            elif 'cpa' in self.ml['target']:
+            if 'cpa' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
                 if self.para['cpa'].device.type == 'cuda':
@@ -394,7 +394,7 @@ class MLCompressionR:
                 elif self.para['cpa'].device.type == 'cpu':
                     Save2D(self.para['cpa'].detach().numpy(),
                            name='cpa.dat', dire='.', ty='a')
-            elif 'pdos' in self.ml['target']:
+            if 'pdos' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
             print("istep:", istep, '\n loss', loss, 'loss device', loss.device.type)

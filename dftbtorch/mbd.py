@@ -205,8 +205,9 @@ class MBD:
                             A_matrix[ib, jnd, ind] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, ind_T, jnd_T] = A_matrix[ib, ind, jnd]
                             A_matrix[ib, jnd_T, ind_T] = A_matrix[ib, jnd, ind]
-        A_LU, pivots = t.lu(A_matrix)
-        self.para['A_matrix'] = A_matrix.inverse()
+        # A_LU, pivots = t.lu(A_matrix)
+        # self.para['A_matrix'] = A_matrix.inverse()
+        self.para['A_matrix'] = pad2d([iA[:3 * iat, :3 * iat].inverse() for iA, iat in zip(A_matrix, self.nat)])
 
     def mbdvdw_screened_pol(self):
         """Calculate polarizability."""
