@@ -60,6 +60,9 @@ def dftb_parameter(parameter_=None):
 
         # get inverse of tensor directly or from torch.solve or np.solve
         'inverse': True,
+        
+        # dynamic convergence in batch calculations
+        'dynamicSCC': True,
 
         # input (dftb_in) directory
         'directory': path,

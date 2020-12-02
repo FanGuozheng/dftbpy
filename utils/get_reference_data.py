@@ -40,7 +40,7 @@ class RefDFTBPlus:
             self.para['directorySK'] = '../slko/mio/'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = [50] * 500
+        self.dataset['sizeDataset'] = [2000] * 500
  
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False

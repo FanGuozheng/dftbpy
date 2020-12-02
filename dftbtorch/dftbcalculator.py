@@ -462,6 +462,8 @@ class SCF:
         # todo: using __slots__ to help with speed and memory instead of dict
         # max iteration
         maxiter = self.para['maxIteration']
+        
+        self.Lmask = self.para['dynamicSCC']
 
         # set initial reachConvergence as False
         self.para['reachConvergence'] = False
@@ -556,7 +558,7 @@ class SCF:
 
                 # return energy difference and print energy information
                 dif = self.print_.print_energy(iiter, convergencelist,
-                                               self.batch, self.nb, self.mask)
+                                               self.batch, self.nb, self.mask, self.Lmask)
 
             # use charge as convergence condition
             elif self.para['convergenceType'] == 'charge':
@@ -565,7 +567,7 @@ class SCF:
 
             # if reached convergence, and append mask
             conver_, self.mask = self.convergence(
-                iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask)
+                iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask, self.Lmask)
             if conver_:
                 self.para['reachConvergence'] = True
                 break
@@ -681,7 +683,7 @@ class SCF:
         self.para['eigenvalue'], self.para['charge'] = eigval_, qatom_
         self.para['denmat'] = denmat_
 
-    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6, mask=None, ind=None):
+    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6, mask=None, ind=None, Lmask=True):
         """Convergence for SCC loops."""
         # for multi system, the max of difference will be chosen instead
         difmax = dif.max() if batch else None
@@ -702,7 +704,7 @@ class SCF:
                     return False, mask
 
             # batch calculations
-            elif batch:
+            elif batch and Lmask:
                 # if mask.append(mask[-1]), all columns will change
                 mask.append([True if ii is True else False for ii in mask[-1]])
                 for ii, iind in enumerate(ind):
@@ -720,6 +722,22 @@ class SCF:
                 # do not reach convergence and iiter < maxiter
                 else:
                     return False, mask
+
+            elif batch and not Lmask:
+                # if mask.append(mask[-1]), all columns will change
+                if abs(difmax) < tolerance:
+                    print('All systems reached convergence')
+                    return True, mask
+
+                # read max iterations, end DFTB calculation
+                elif iiter + 1 >= maxiter:
+                    if abs(difmax) > tolerance:
+                        print('Warning: SCF donot reach required convergence')
+                        return False, mask
+                # do not reach convergence and iiter < maxiter
+                else:
+                    return False, mask
+
 
         # use charge as convergence condition
         elif self.para['convergenceType'] == 'charge':

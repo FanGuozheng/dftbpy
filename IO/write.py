@@ -40,7 +40,7 @@ class Print:
             print(' ' * 30, 'periodic SCC-DFTB')
             print('*' * 80)
 
-    def print_energy(self, iiter, energy, batch, nbatch=None, mask=None, Lprint=False):
+    def print_energy(self, iiter, energy, batch, nbatch=None, mask=None, Lmask=True, Lprint=False):
         """Print energy in each SCC loops."""
         # for the 0th loop, dE == energy
         if iiter == 0:
@@ -85,7 +85,7 @@ class Print:
                 return dE
 
             # batch system
-            elif batch:
+            elif batch and Lmask:
                 # return bool value where the second last loop did't converge
                 mask_1 = list(np.array(mask[-1])[mask[-2]])
                 dE = energy[-1].detach() - energy[-2][mask_1].detach()
@@ -96,6 +96,8 @@ class Print:
                         print(f'{iiter:5} step: {isys + 1:5}',
                               ' system reached convergence')
                 return dE
+            elif batch and not Lmask:
+                return energy[-1].detach() - energy[-2].detach()
 
     def print_charge(self, iiter, charge, batch, nbatch=None, Lprint=False):
         """Print charge in each SCC loops."""

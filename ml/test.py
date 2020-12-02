@@ -168,28 +168,29 @@ class CompressionR:
     def process_test_data(self):
         """Compare predicted results."""
         import matplotlib.pyplot as plt
+        refdip = pad1d(self.dataset['refDipole'])
+        refhl = pad1d(self.dataset['refHOMOLUMO'])
+        refcha = pad1d(self.dataset['refCharge'])
+        refcpa = pad1d(self.dataset['refHirshfeldVolume'])
         if 'dipole' in self.ml['target']:
-            ref = pad1d(self.dataset['refDipole'])
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['dipole']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             mio = pad1d(self.dataset['refDipole'])
-            Save2D(ref.detach().numpy(), name='refdip.dat', dire='.', ty='w')
+            Save2D(refdip.detach().numpy(), name='refdip.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='preddip.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miodip.dat', dire='.', ty='w')
-            print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
+            print('difference ratio', t.abs(refdip - pred).sum() / t.abs(refdip - mio).sum())
         if 'charge' in self.ml['target']:
-            ref = pad1d(self.dataset['refCharge'])
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['fullCharge']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             mio = pad1d(self.dataset['refCharge']) + self.para['fullCharge'] - self.para['charge']
-            Save2D(ref.detach().numpy(), name='refcha.dat', dire='.', ty='w')
+            Save2D(refcha.detach().numpy(), name='refcha.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcha.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miocha.dat', dire='.', ty='w')
-            print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
+            print('difference ratio', t.abs(refcha - pred).sum() / t.abs(refcha - mio).sum())
         if 'gap' in self.ml['target']:
-            refhl = pad1d(self.dataset['refHOMOLUMO'])
             hl = self.para['homo_lumo']
             ref = refhl[:, 1] - refhl[:, 0]
             pred = hl[:, 1] - hl[:, 0]
@@ -203,25 +204,23 @@ class CompressionR:
             Save1D(mio.detach().numpy(), name='miogap.dat', dire='.', ty='w')
             print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
         if 'HOMOLUMO' in self.ml['target']:
-            ref = pad1d(self.dataset['refHOMOLUMO'])
             pred = self.para['homo_lumo']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             mio = pad1d(self.dataset['refHOMOLUMO'])
-            Save2D(ref.detach().numpy(), name='refhl.dat', dire='.', ty='w')
+            Save2D(refhl.detach().numpy(), name='refhl.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predhl.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miohl.dat', dire='.', ty='w')
-            print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
+            print('difference ratio', t.abs(refhl - pred).sum() / t.abs(refhl - mio).sum())
         if 'cpa' in self.ml['target']:
-            ref = pad1d(self.dataset['refHirshfeldVolume'])
             pred = self.para['cpa']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             LoadReferenceData(self.para, self.dataset, self.skf, self.ml)
             mio = pad1d(self.dataset['refCPA'])
-            Save2D(ref.detach().numpy(), name='refcpa.dat', dire='.', ty='w')
+            Save2D(refcpa.detach().numpy(), name='refcpa.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcpa.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miocpa.dat', dire='.', ty='w')
-            print('difference ratio', t.abs(ref - pred).sum() / t.abs(ref - mio).sum())
+            print('difference ratio', t.abs(refcpa - pred).sum() / t.abs(refcpa - mio).sum())
         plt.plot(ref, ref, 'k')
         plt.plot(ref, pred, 'rx')
         plt.plot(ref, mio, 'bv')
