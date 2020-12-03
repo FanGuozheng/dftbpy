@@ -167,7 +167,6 @@ class CompressionR:
 
     def process_test_data(self):
         """Compare predicted results."""
-        import matplotlib.pyplot as plt
         refdip = pad1d(self.dataset['refDipole'])
         refhl = pad1d(self.dataset['refHOMOLUMO'])
         refcha = pad1d(self.dataset['refCharge'])
@@ -221,7 +220,3 @@ class CompressionR:
             Save2D(pred.detach().numpy(), name='predcpa.dat', dire='.', ty='w')
             Save2D(mio.detach().numpy(), name='miocpa.dat', dire='.', ty='w')
             print('difference ratio', t.abs(refcpa - pred).sum() / t.abs(refcpa - mio).sum())
-        plt.plot(ref, ref, 'k')
-        plt.plot(ref, pred, 'rx')
-        plt.plot(ref, mio, 'bv')
-        plt.show()

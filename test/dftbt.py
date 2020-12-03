@@ -23,26 +23,27 @@ def main(parameter=None, dataset=None):
     # parameter['inputName'] = 'dftb_in.dftb'
 
     # example 2.1: if use this code directly to optimize compression radii
-    parameter['task'] = 'mlCompressionR'
-    parameter['device'] = 'cpu'
-    parameter['dynamicSCC'] = False
-    parameter['profiler'] = False
-    # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = ['charge', 'dipole']
-    ml['referenceDataset'] = '../data/dataset/ani02_2000.hdf5'
-    dataset['sizeDataset'] = [2, 2, 2]
-    ml['mlSteps'] = 2
-    # parameter['Lbatch'] = False
-    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+    # parameter['task'] = 'mlCompressionR'
+    # parameter['device'] = 'cpu'
+    # parameter['dynamicSCC'] = False
+    # parameter['profiler'] = False
+    # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
+    # ml['target'] = ['charge', 'dipole']
+    # ml['referenceDataset'] = '../data/dataset/ani02_2000.hdf5'
+    # dataset['sizeDataset'] = [2, 2, 2]
+    # ml['mlSteps'] = 2
+    # # parameter['Lbatch'] = False
+    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
     # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_20mol_100step_lr_005_comprmin15_cpa.dat'
-    # parameter['CompressionRData'] = '../data/results/ani_result/ani_mul/dip_cpa/compr_20mol_ani01_100step_total_scale1_1.dat'
+    # # parameter['CompressionRData'] = '../data/results/ani_result/ani_mul/dip_cpa/compr_20mol_ani01_100step_total_scale1_1.dat'
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
     # dataset['sizeDataset'] = [20] * 3 # this should be consistent with compr.dat
     # dataset['sizeTest'] = [100] * 3
-    # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_dftb_mio.hdf5'  # '../data/dataset/ani01_2000_mio.hdf5'
-    # ml['target'] = ['dipole', 'cpa']
+    # # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_dftb_mio.hdf5'
+    # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_mio.hdf5'
+    # ml['target'] = 'dipole'
     # ml['mlSteps'] = 100  # this should be consistent with compr.dat
     # ml['MLmodel'] = 'linear'
     # # ml['featureType'] = 'cm'
