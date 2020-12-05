@@ -9,6 +9,7 @@ from IO.save import Save1D, Save2D
 from dftbtorch.matht import DFTBmath, BicubInterp
 from dftbtorch.interpolator import PolySpline, BicubInterpVec
 from dftbmalt.utils.utilities import split_by_size
+from ml.padding import pad1d, pad2d
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 _SQR3 = np.sqrt(3.)
 _HSQR3 = 0.5 * np.sqrt(3.)
@@ -70,6 +71,7 @@ class GetSKTable:
             Identifies the file version number upon read, and controls the
             format used during writing. [DEFAULT = 1.0]
         homo : `bool`
+
             Indicates if this is the HOMO-nuclear case.
 
     Notes:
@@ -725,13 +727,21 @@ class GetSK_:
         time0 = time.time()
         print('Get HS table according to compression R: [N_atom1, N_atom2, 20]')
 
-        if self.ml['interpolationType'] == 'BiCubVec':
+        if self.ml['interpolationType'] == 'BiCubVec' and not self.ml['globalCompR']:
             bicubic = BicubInterpVec(self.para, self.ml)
             zmesh = self.skf['hs_compr_all']
             if self.para['compr_ml'].dim() == 2:
                 compr = self.para['compr_ml'][ibatch][:natom]
             else:
                 compr = self.para['compr_ml']
+            mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
+            hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
+        if self.ml['interpolationType'] == 'BiCubVec' and self.ml['globalCompR']:
+            bicubic = BicubInterpVec(self.para, self.ml)
+            zmesh = self.skf['hs_compr_all']
+            name_ = self.dataset['specieGlobal']
+            name_ = list(name_) if type(name_) is not list else name_
+            compr = pad1d([self.para['compr_ml'][name_.index(iname)] for iname in atomname]).squeeze()
             mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
             hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
@@ -764,7 +774,7 @@ class GetSK_:
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para, dataset, skf, ml, ibatch):
+    def __init__(self, para, dataset, skf, ml):
         """Initialize parameters.
 
         Args:
@@ -778,8 +788,10 @@ class SKTran:
         self.dataset = dataset
         self.ml = ml
         self.math = DFTBmath(self.para, self.skf)
-        self.ibatch = ibatch
+        # self.ibatch = ibatch
 
+    def __call__(self, ibatch):
+        self.ibatch = ibatch
         # if machine learning or not
         if not self.para['Lml']:
 
@@ -789,7 +801,7 @@ class SKTran:
 
             # build H0 and S with full, symmetric matrices
             if self.para['HSSymmetry'] == 'all':
-                self.sk_tran_symall(self.ibatch)
+                return self.sk_tran_symall(self.ibatch) 
 
             # build H0 and S with only half matrices
             elif self.para['HSSymmetry'] == 'half':
@@ -803,7 +815,7 @@ class SKTran:
 
                 # build H0 and S with full, symmetric matrices
                 if self.para['HSSymmetry'] == 'all':
-                    self.sk_tran_symall(self.ibatch)
+                    return self.sk_tran_symall(self.ibatch) 
 
                 # build H0, S with half matrices
                 elif self.para['HSSymmetry'] == 'half':
@@ -812,7 +824,7 @@ class SKTran:
             # directly get integrals with spline, or some other method
             elif self.para['task'] in ('mlIntegral', 'testIntegral'):
                 self.get_hs_spline(self.ibatch)
-                self.sk_tran_symall(self.ibatch)
+                return self.sk_tran_symall(self.ibatch) 
 
     def get_hs_spline(self, ibatch):
         """Get integrals from .skf data with given distance."""
@@ -824,42 +836,55 @@ class SKTran:
 
         for iat in range(natom):
             for jat in range(natom):
-                if iat != jat:
+                # if iat != jat:
 
-                    # get the name of i, j atom pair
-                    namei = self.dataset['symbols'][ibatch][iat]
-                    namej = self.dataset['symbols'][ibatch][jat]
-                    nameij = namei + namej
+                # get the name of i, j atom pair
+                namei = self.dataset['symbols'][ibatch][iat]
+                namej = self.dataset['symbols'][ibatch][jat]
+                nameij = namei + namej
 
-                    # get spline parameters
-                    xx = self.skf['polySplinex' + nameij]
-                    abcd = [self.skf['polySplinea' + nameij],
-                            self.skf['polySplineb' + nameij],
-                            self.skf['polySplinec' + nameij],
-                            self.skf['polySplined' + nameij]]
+                # get spline parameters
+                xx = self.skf['polySplinex' + nameij]
+                abcd = [self.skf['polySplinea' + nameij],
+                        self.skf['polySplineb' + nameij],
+                        self.skf['polySplinec' + nameij],
+                        self.skf['polySplined' + nameij]]
+                # the distance is from cal_coor
+                dd = self.dataset['distances'][ibatch][iat, jat]
+                poly = PolySpline(x=xx, abcd=abcd)
+                self.skf['hs_all'][iat, jat] = poly(dd)
+        return self.skf['hs_all']
+                
+    def save_spl_param(self):
+        for ispe in self.dataset['specieGlobal']:
+            for jspe in self.dataset['specieGlobal']:
+                nameij = ispe + jspe
 
-                    if abcd[0].device.type == 'cuda':
-                        Save1D(abcd[0].detach().cpu().numpy(),
-                               name=nameij+'spl_a.dat', dire='.', ty='a')
-                        Save1D(abcd[1].detach().cpu().numpy(),
-                               name=nameij+'spl_b.dat', dire='.', ty='a')
-                        Save1D(abcd[2].detach().cpu().numpy(),
-                               name=nameij+'spl_c.dat', dire='.', ty='a')
-                        Save1D(abcd[3].detach().cpu().numpy(),
-                               name=nameij+'spl_d.dat', dire='.', ty='a')
-                    elif abcd[0].device.type == 'cpu':
-                        Save1D(abcd[0].detach().numpy(),
-                               name=nameij+'spl_a.dat', dire='.', ty='a')
-                        Save1D(abcd[1].detach().numpy(),
-                               name=nameij+'spl_b.dat', dire='.', ty='a')
-                        Save1D(abcd[2].detach().numpy(),
-                               name=nameij+'spl_c.dat', dire='.', ty='a')
-                        Save1D(abcd[3].detach().numpy(),
-                               name=nameij+'spl_d.dat', dire='.', ty='a')
-                    # the distance is from cal_coor
-                    dd = self.dataset['distances'][ibatch][iat, jat]
-                    poly = PolySpline(x=xx, abcd=abcd)
-                    self.skf['hs_all'][iat, jat] = poly(dd)
+                # get spline parameters
+                xx = self.skf['polySplinex' + nameij]
+                abcd = [self.skf['polySplinea' + nameij],
+                        self.skf['polySplineb' + nameij],
+                        self.skf['polySplinec' + nameij],
+                        self.skf['polySplined' + nameij]]
+                if abcd[0].device.type == 'cuda':
+                    Save1D(abcd[0].detach().cpu().numpy(),
+                           name=nameij+'spl_a.dat', dire='.', ty='a')
+                    Save1D(abcd[1].detach().cpu().numpy(),
+                           name=nameij+'spl_b.dat', dire='.', ty='a')
+                    Save1D(abcd[2].detach().cpu().numpy(),
+                           name=nameij+'spl_c.dat', dire='.', ty='a')
+                    Save1D(abcd[3].detach().cpu().numpy(),
+                           name=nameij+'spl_d.dat', dire='.', ty='a')
+                elif abcd[0].device.type == 'cpu':
+                    Save1D(abcd[0].detach().numpy(),
+                           name=nameij+'spl_a.dat', dire='.', ty='a')
+                    Save1D(abcd[1].detach().numpy(),
+                           name=nameij+'spl_b.dat', dire='.', ty='a')
+                    Save1D(abcd[2].detach().numpy(),
+                           name=nameij+'spl_c.dat', dire='.', ty='a')
+                    Save1D(abcd[3].detach().numpy(),
+                           name=nameij+'spl_d.dat', dire='.', ty='a')
+
 
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
@@ -1044,6 +1069,8 @@ class SKTran:
                             mm = sum(atomind[:iat]) + m
                             self.skf['hammat'][mm, nn] = self.skf['hams'][m, n]
                             self.skf['overmat'][mm, nn] = self.skf['ovrs'][m, n]
+        return self.skf['hammat'], self.skf['overmat']
+
 
     def slkode_onsite(self, rr, iat, lmax):
         """Transfer i from ith atom to ith spiece."""

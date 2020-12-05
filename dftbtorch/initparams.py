@@ -270,7 +270,7 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         'typeSKinterpR': 'all',
 
         # if any compR < 2.2, break DFTB-ML loop
-        'compressionRMin': 1.2,
+        'compressionRMin': 1.5,
 
         # if any compR > 9, break DFTB-ML loop
         'compressionRMax': 9,

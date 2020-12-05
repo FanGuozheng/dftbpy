@@ -482,7 +482,7 @@ class LoadReferenceData:
 
         if type(self.dataset['sizeDataset']) is list:
             # all molecule size is same for ML
-            if self.para['task'] == 'testCompressionR':
+            if self.para['task'] in ('testCompressionR', 'testIntegral'):
                 self.dataset['ntest'] = sum(self.dataset['sizeTest'])
                 self.dataset['nbatch'] = sum(self.dataset['sizeDataset'])
                 size_dataset = [max(ii, jj) for ii, jj in zip(

@@ -167,10 +167,12 @@ class Initialization:
                                        self.dataset['globalSpecies'],
                                        orbresolve=self.skf['LOrbitalResolve'],
                                        skf=self.skf)
+            self.sktran = SKTran(self.parameter, self.dataset, self.skf, self.ml)
             # deal with SK transformation
             for ib in range(self.dataset['nbatch']):
                 # SK transformations
-                SKTran(self.parameter, self.dataset, self.skf, self.ml, ib)
+                self.sktran(ib)
+                # SKTran(self.parameter, self.dataset, self.skf, self.ml, ib)
 
         elif self.skf['ReadSKType'] == 'mask':
             from IO.system import Basis, Bases
@@ -461,6 +463,8 @@ class SCF:
         """
         # todo: using __slots__ to help with speed and memory instead of dict
         # max iteration
+        self.atind = pad1d([self.atind[ii] for ii in ibatch])
+        self.nat_ = [self.nat[ii] for ii in ibatch]
         maxiter = self.para['maxIteration']
         
         self.Lmask = self.para['dynamicSCC']
@@ -503,9 +507,14 @@ class SCF:
             # repeat shift according to number of orbitals
             # for convinience, we will keep the size of shiftorb_ unchanged
             # during the dynamic SCC-DFTB batch calculations
-            shiftorb_ = pad1d([
-                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                    self.atind[self.mask[-1]], shift_)])
+            if not self.batch:
+                shiftorb_ = pad1d([
+                    ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
+                        self.atind[self.mask[-1]], shift_)])
+            else:
+                shiftorb_ = pad1d([
+                    ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                        self.atind[self.mask[-1]], shift_)])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
@@ -537,7 +546,7 @@ class SCF:
             q_new = pad1d([
                 self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
                     self.over[self.mask[-1]][:, :dim_, :dim_], rho, self.atind[self.mask[-1]],
-                    t.tensor(self.nat)[self.mask[-1]])])
+                    t.tensor(self.nat_)[self.mask[-1]])])
 
             # Last mixed charge is the current step now
             if not self.batch:
@@ -583,9 +592,14 @@ class SCF:
         # return the final shift
         self.para['shift'] = t.stack([(iqm - iqz) @ igm for iqm, iqz, igm
                                       in zip(q_mixed, qzero, gmat)])
-        shiftorb = pad1d([
-                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                    self.atind, self.para['shift'])])
+        if not self.batch:
+            shiftorb = pad1d([
+                    ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
+                        self.atind, self.para['shift'])])
+        else:
+            shiftorb = pad1d([
+                    ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                        self.atind, self.para['shift'])])
         shift_mat = t.stack([t.unsqueeze(ish, 1) + ish for ish in shiftorb])
         fock = self.ham + 0.5 * self.over * shift_mat
         self.para['eigenvalue'], self.para['eigenvec'] = \

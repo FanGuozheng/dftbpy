@@ -187,16 +187,19 @@ class MLIntegral:
         '''DFTB optimization for given dataset'''
         maxorb = max(self.dataset['norbital'])
         # calculate one by one to optimize para
+        self.sktran = SKTran(self.para, self.dataset, self.skf, self.ml)
         for istep in range(self.ml['mlSteps']):
             ham = t.zeros(self.nbatch, maxorb, maxorb)
             over = t.zeros(self.nbatch, maxorb, maxorb)
             for ibatch in range(self.nbatch):
                 # get integral at certain distance, read raw integral from binary hdf
                 # SK transformations
-                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                # SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                iham, iover = self.sktran(ibatch)
                 iorb = self.dataset['norbital'][ibatch]
-                ham[ibatch, :iorb, :iorb] = self.skf['hammat']
-                over[ibatch, :iorb, :iorb] = self.skf['overmat']
+                ham[ibatch, :iorb, :iorb] = iham  # self.skf['hammat']
+                over[ibatch, :iorb, :iorb] = iover  # self.skf['overmat']
+            self.sktran.save_spl_param()
             self.skf['hammat_'] = ham
             self.skf['overmat_'] = over
 
@@ -226,6 +229,8 @@ class MLIntegral:
                 loss += self.criterion(self.para['alpha_mbd'],
                                        pad1d(self.dataset['refMBDAlpha']))
             print("step:", istep + 1, "loss:", loss, loss.device.type)
+            # for ii, ivar in enumerate(self.ml_variable):
+            #     Save2D(ivar.detach().numpy(), name=str(ii)+'var.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -293,8 +298,8 @@ class MLCompressionR:
         self.ml['CompressionRInit'] = []
 
         # loop in batch
-        for ibatch in range(self.nbatch):
-            if self.ml['reference'] == 'hdf':
+        if self.ml['reference'] == 'hdf':
+            for ibatch in range(self.nbatch):
                 natom = self.dataset['natomAll'][ibatch]
                 atomname = self.dataset['symbols'][ibatch]
 
@@ -302,13 +307,18 @@ class MLCompressionR:
                 self.slako.genskf_interp_dist_hdf(ibatch, natom)
                 self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
 
-                # get initial compression radius
-                self.ml['CompressionRInit'].append(
-                    genml_init_compr(self.ml, atomname))
+        if not self.ml['globalCompR']:
+            # get initial compression radius
+            self.ml['CompressionRInit'].append(
+                genml_init_compr(atomname, self.ml))
 
-        self.para['compr_ml'] = \
-            Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
-        # pad1d(self.para['compr_init_']).requires_grad_(True)
+            self.para['compr_ml'] = \
+                Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
+        elif self.ml['globalCompR']:
+            self.ml['CompressionRInit'] = [genml_init_compr(
+                ispe, self.ml, self.ml['globalCompR']) for ispe in self.dataset['specieGlobal']]
+            self.para['compr_ml'] = \
+                Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""
@@ -317,17 +327,18 @@ class MLCompressionR:
         for istep in range(self.ml['mlSteps']):
             ham = t.zeros(self.nbatch, maxorb, maxorb)
             over = t.zeros(self.nbatch, maxorb, maxorb)
+            self.sktran = SKTran(self.para, self.dataset, self.skf, self.ml)
 
             for ibatch in range(self.nbatch):
-
                 self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
                 self.slako.genskf_interp_compr(ibatch)
 
                 # SK transformations
-                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                # SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
+                iham, iover = self.sktran(ibatch)
                 iorb = self.dataset['norbital'][ibatch]
-                ham[ibatch, :iorb, :iorb] = self.skf['hammat']
-                over[ibatch, :iorb, :iorb] = self.skf['overmat']
+                ham[ibatch, :iorb, :iorb] = iham  # self.skf['hammat']
+                over[ibatch, :iorb, :iorb] = iover  # self.skf['overmat']
             self.skf['hammat_'] = ham
             self.skf['overmat_'] = over
             dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, self.nbatch)
@@ -422,16 +433,20 @@ class MLCompressionR:
             # save data
             if loss.device.type == 'cuda':
                 Save1D(np.array([loss.cpu()]), name='loss.dat', dire='.', ty='a')
-                Save2D(self.para['compr_ml'].detach().cpu().numpy(),
-                       name='compr.dat', dire='.', ty='a')
-                # Save2D(self.para['compr_ml'].grad.cpu().numpy(),
-                #       name='comprgrad.dat', dire='.', ty='a')
+                if not self.ml['globalCompR']:
+                    Save2D(self.para['compr_ml'].detach().cpu().numpy(),
+                           name='compr.dat', dire='.', ty='a')
+                else:
+                    Save1D(self.para['compr_ml'].detach().cpu().squeeze().numpy(),
+                           name='compr.dat', dire='.', ty='a')
             elif loss.device.type == 'cpu':
                 Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
-                Save2D(self.para['compr_ml'].detach().numpy(),
-                       name='compr.dat', dire='.', ty='a')
-                # Save2D(self.para['compr_ml'].grad.numpy(),
-                #       name='comprgrad.dat', dire='.', ty='a')
+                if not self.ml['globalCompR']:
+                    Save2D(self.para['compr_ml'].detach().numpy(),
+                           name='compr.dat', dire='.', ty='a')
+                else:
+                    Save1D(self.para['compr_ml'].detach().cpu().squeeze().numpy(),
+                           name='compr.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -445,6 +460,8 @@ class MLCompressionR:
         """DFTB optimization of compression radius for given dataset."""
         # do not perform batch calculation
         self.para['Lbatch'] = False
+        self.sktran = SKTran(self.para, self.dataset, self.skf, self.ml)
+
         for istep in range(self.ml['mlSteps']):
 
             # set compr_ml every several steps, to avoid memory problem
@@ -459,8 +476,8 @@ class MLCompressionR:
                     self.slako.genskf_interp_compr(ibatch)
 
                 # SK transformations
-                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-
+                self.skf['hammat'], self.skf['overmat'] = self.sktran(ibatch)
+                
                 # run each DFTB calculation separatedly
                 dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
@@ -492,9 +509,8 @@ class MLCompressionR:
                 loss = self.criterion(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
 
             # save data
-            self.save.save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
-            self.save.save2D(self.para['compr_ml'].detach().numpy(),
-                             name='compr.dat', dire='.', ty='a')
+            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
+            Save2D(self.para['compr_ml'].detach().numpy(), name='compr.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -543,9 +559,12 @@ def get_formation_energy(energy, atomname, ibatch):
     return energy - sum([DFTB_ENERGY[ina] for ina in atomname[ibatch]])
 
 
-def genml_init_compr(ml, atomname):
+def genml_init_compr(atomname, ml=None, global_R=False):
     """Get initial compression radius for each atom in system."""
-    return t.tensor([ml[ia + '_init_compr'] for ia in atomname])
+    if not global_R:
+        return t.tensor([ml[ia + '_init_compr'] for ia in atomname])
+    elif global_R:
+        return t.tensor([ml[ia + '_init_compr'] for ia in atomname])
 
 
 def cal_offset_energy(self, energy, refenergy):
