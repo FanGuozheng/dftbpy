@@ -27,14 +27,14 @@ def main(parameter=None, dataset=None):
     parameter['device'] = 'cpu'
     # parameter['Lbatch'], parameter['dynamicSCC'] = False, False
     parameter['dynamicSCC'] = False
-    parameter['profiler'] = False
-    ml['globalCompR'] = True
-    # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    ml['target'] = 'dipole'
-    ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    dataset['sizeDataset'] = [2, 2, 2]
-    ml['mlSteps'] = 2
-    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
+    # parameter['profiler'] = False
+    ml['globalCompR'] = False
+    # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
+    # ml['target'] = 'dipole'
+    # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
+    # dataset['sizeDataset'] = [2, 2, 2]
+    # ml['mlSteps'] = 2
+    # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
     # parameter['task'] = 'testCompressionR'
@@ -82,7 +82,7 @@ def main(parameter=None, dataset=None):
     # return/update DFTB, geometric, skf parameters from input file
     if 'LReadInput' in parameter.keys():
         if parameter['LReadInput']:
-            _para_read = readt.ReadInput(parameter, dataset)
+            _para_read = readt.ReadInput(parameter, dataset, ml=ml)
             parameter, dataset = _para_read.parameter, _para_read.dataset
             ml = _para_read.ml
 
