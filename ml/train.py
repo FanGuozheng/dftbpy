@@ -298,27 +298,26 @@ class MLCompressionR:
         self.ml['CompressionRInit'] = []
 
         # loop in batch
-        if self.ml['reference'] == 'hdf':
-            for ibatch in range(self.nbatch):
-                natom = self.dataset['natomAll'][ibatch]
-                atomname = self.dataset['symbols'][ibatch]
+        for ibatch in range(self.nbatch):
+        # if self.ml['reference'] == 'hdf':
+            natom = self.dataset['natomAll'][ibatch]
+            atomname = self.dataset['symbols'][ibatch]
 
-                # Get integral at certain distance, read integrals from hdf5
-                self.slako.genskf_interp_dist_hdf(ibatch, natom)
-                self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
+            # Get integral at certain distance, read integrals from hdf5
+            self.slako.genskf_interp_dist_hdf(ibatch, natom)
+            self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
 
-        if not self.ml['globalCompR']:
-            # get initial compression radius
-            self.ml['CompressionRInit'].append(
-                genml_init_compr(atomname, self.ml))
+            if not self.ml['globalCompR']:
+                # get initial compression radius
+                self.ml['CompressionRInit'].append(
+                    genml_init_compr(atomname, self.ml))
 
-            self.para['compr_ml'] = \
-                Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
-        elif self.ml['globalCompR']:
+        if self.ml['globalCompR']:
             self.ml['CompressionRInit'] = [genml_init_compr(
                 ispe, self.ml, self.ml['globalCompR']) for ispe in self.dataset['specieGlobal']]
-            self.para['compr_ml'] = \
-                Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
+
+        self.para['compr_ml'] = \
+            Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""

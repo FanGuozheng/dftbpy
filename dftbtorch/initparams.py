@@ -260,6 +260,9 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         # do not run DFTB or DFT to get reference data
         'runReference': False,
 
+        # optimize compression radius globally
+        'globalCompR': False,
+
         # optional reference: aims, dftbplus, dftb, dftbase, aimsase !!
         'reference': 'hdf',
 

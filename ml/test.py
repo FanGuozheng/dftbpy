@@ -252,12 +252,19 @@ class CompressionR:
         # get the total system size of compression radii
         nsys = int(self.steps * self.dataset['nbatch'])
         compr_dat = np.fromfile(self.para['CompressionRData'], sep=' ')
-        self.max_molecule_size = int(len(compr_dat) / nsys)
 
         # get optimized compression radii
-        self.ml['optCompressionR'] = t.from_numpy(
-            compr_dat[-int(self.max_molecule_size * self.nbatch):].reshape(
-                self.nbatch, self.max_molecule_size))
+        if not self.ml['globalCompR']:
+            self.max_molecule_size = int(len(compr_dat) / nsys)
+            self.ml['optCompressionR'] = t.from_numpy(
+                compr_dat[-int(self.max_molecule_size * self.nbatch):].reshape(
+                    self.nbatch, self.max_molecule_size))
+        elif self.ml['globalCompR']:
+            self.max_molecule_size = int(len(compr_dat) / self.steps)
+            optr = t.from_numpy(compr_dat[-self.max_molecule_size:])
+            sglo =  list(self.dataset['specieGlobal'])
+            self.ml['optCompressionR'] = pad1d([t.tensor([optr[sglo.index(ii)] for ii in isym])
+                                                for isym in self.dataset['symbols'][:self.nbatch]])
 
     def fit_compression_r(self):
         """Fit compression radii and predict for new geometry."""

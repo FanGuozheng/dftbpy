@@ -167,7 +167,10 @@ class ReadSlaKo:
     def read_sk_specie(self):
         """Read the SKF table raw data according to atom specie."""
         # the atom specie in the system
-        atomspecie = self.dataset['specieGlobal']
+        if type(self.dataset['specieGlobal'][0]) == str: 
+            atomspecie = self.dataset['specieGlobal']
+        elif type(self.dataset['specieGlobal'][0]) in (list, np.ndarray): 
+            atomspecie = list(self.dataset['specieGlobal'][0])
 
         # number of specie
         nspecie = len(atomspecie)
@@ -252,7 +255,7 @@ class ReadSlaKo:
                     # raed the end line: start end c0 c1 c2 c3 c4 c5
                     datarepend = np.fromfile(fp, count=8, sep=' ')
                     self.para['repend' + nameij] = t.from_numpy(datarepend)
-        self.get_cutoff_all()
+        # self.get_cutoff_all()
 
     def readhs_ij_line(self, iline, skdataij, skdataji, iat, jat, hsij, hsji):
         """Deal with the integrals each line in .skf."""

@@ -727,23 +727,24 @@ class GetSK_:
         time0 = time.time()
         print('Get HS table according to compression R: [N_atom1, N_atom2, 20]')
 
-        if self.ml['interpolationType'] == 'BiCubVec' and not self.ml['globalCompR']:
-            bicubic = BicubInterpVec(self.para, self.ml)
-            zmesh = self.skf['hs_compr_all']
-            if self.para['compr_ml'].dim() == 2:
-                compr = self.para['compr_ml'][ibatch][:natom]
+        if self.ml['interpolationType'] == 'BiCubVec':
+            if self.ml['globalCompR'] and self.para['task'] == 'mlCompressionR':
+                bicubic = BicubInterpVec(self.para, self.ml)
+                zmesh = self.skf['hs_compr_all']
+                name_ = self.dataset['specieGlobal']
+                name_ = list(name_) if type(name_) is not list else name_
+                compr = pad1d([self.para['compr_ml'][name_.index(iname)] for iname in atomname]).squeeze()
+                mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
+                hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
             else:
-                compr = self.para['compr_ml']
-            mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
-            hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
-        if self.ml['interpolationType'] == 'BiCubVec' and self.ml['globalCompR']:
-            bicubic = BicubInterpVec(self.para, self.ml)
-            zmesh = self.skf['hs_compr_all']
-            name_ = self.dataset['specieGlobal']
-            name_ = list(name_) if type(name_) is not list else name_
-            compr = pad1d([self.para['compr_ml'][name_.index(iname)] for iname in atomname]).squeeze()
-            mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
-            hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
+                bicubic = BicubInterpVec(self.para, self.ml)
+                zmesh = self.skf['hs_compr_all']
+                if self.para['compr_ml'].dim() == 2:
+                    compr = self.para['compr_ml'][ibatch][:natom]
+                else:
+                    compr = self.para['compr_ml']
+                mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
+                hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
         # elif self.ml['interp_compr_type'] == 'BiCub':
         #     icount = 0

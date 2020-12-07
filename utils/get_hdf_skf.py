@@ -23,7 +23,7 @@ class WriteSKNormal:
         """Read skf, smooth the tail, write to hdf."""
         self.para = para
         self.ml = {}
-        self.para['directorySK'] = '../slko/test/'
+        self.para['directorySK'] = '../slko/test/compr35/'
         self.dataset = {}
         self.dataset['Dataset'] = '../data/dataset/testfile.hdf5'
 
@@ -312,7 +312,7 @@ class WriteSKComprR:
 
 if __name__ == '__main__':
     """Main function."""
-    para = {'task': 'get_hdf_compr'}
+    para = {'task': 'get_hdf_normal'}
 
     # generate hdf5 binary dataset of skf with various compression radii
     if para['task'] == 'get_hdf_compr':
