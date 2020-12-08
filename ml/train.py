@@ -216,16 +216,25 @@ class MLIntegral:
                 elif self.para['dipole'].device.type == 'cpu':
                     Save2D(self.para['dipole'].detach().numpy(),
                            name='dipole.dat', dire='.', ty='a')
-            elif 'HOMOLUMO' in self.ml['target']:
+            if 'charge' in self.ml['target']:
+                loss += self.criterion(self.para['fullCharge'],
+                                       pad1d(self.dataset['refCharge']))
+                if self.para['fullCharge'].device.type == 'cuda':
+                    Save2D(self.para['fullCharge'].detach().cpu().numpy(),
+                           name='charge.dat', dire='.', ty='a')
+                elif self.para['fullCharge'].device.type == 'cpu':
+                    Save2D(self.para['fullCharge'].detach().numpy(),
+                           name='charge.dat', dire='.', ty='a')
+            if 'HOMOLUMO' in self.ml['target']:
                 loss += self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
-            elif 'gap' in self.ml['target']:
+            if 'gap' in self.ml['target']:
                 homolumo = self.para['homo_lumo']
                 refhl = pad1d(self.dataset['refHOMOLUMO'])
                 gap = homolumo[:, 1] - homolumo[:, 0]
                 refgap = refhl[:, 1] - refhl[:, 0]
                 loss += self.criterion(gap, refgap)
-            elif 'polarizability' in self.ml['target']:
+            if 'polarizability' in self.ml['target']:
                 loss += self.criterion(self.para['alpha_mbd'],
                                        pad1d(self.dataset['refMBDAlpha']))
             print("step:", istep + 1, "loss:", loss, loss.device.type)
@@ -484,7 +493,7 @@ class MLCompressionR:
                 if 'dipole' in self.ml['target']:
                     loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refDipole'][ibatch])
                 elif 'charge' in self.ml['target']:
-                    loss += self.criterion(self.para['charge'].squeeze(), self.dataset['refCharge'][ibatch])
+                    loss += self.criterion(self.para['fullCharge'].squeeze(), self.dataset['refCharge'][ibatch])
                 elif 'homo_lumo' in self.ml['target']:
                     loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refHomoLumo'][ibatch])
                 elif 'formationenergy' in self.ml['target']:

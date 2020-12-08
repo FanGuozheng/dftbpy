@@ -135,11 +135,11 @@ class MLPara:
     def get_target_to2d(self, compression_r):
         """Transfer target from [nbatch, natom] to [nbatch * natom] type."""
         nmax = self.para['natommax']
-        nbatch = int(compression_r.shape[0] / nmax)
+        # nbatch = int(compression_r.shape[0] / nmax)
+        ntest = self.dataset['ntest']
         if type(compression_r) is np.ndarray:
             compression_r = t.from_numpy(compression_r)
-
-        return compression_r.resize(nbatch, nmax)
+        return compression_r.resize(ntest, nmax)
 
 
 class Schnetpack:

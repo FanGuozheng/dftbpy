@@ -38,7 +38,7 @@ class LoadData:
         self.dataset = [dataset, {}][dataset is None]
         self.para = [para, {}][para is None]
         self.ml = [ml, {}][ml is None]
-
+        print("self.dataset['datasetType']", self.dataset['datasetType'])
         if self.dataset['datasetType'] == 'ani':
             self.load_ani()
 
@@ -433,10 +433,10 @@ class LoadData:
 class LoadReferenceData:
     """Load reference data from hdf5 type."""
 
-    def __init__(self, para, dataset, skf, ml):
+    def __init__(self, para, dataset, ml):
         self.para = para
         self.dataset = dataset
-        self.skf = skf
+        # self.skf = skf
         self.ml = ml
         self.device = self.para['device']
         self.dtype = self.para['precision']
@@ -485,9 +485,10 @@ class LoadReferenceData:
             if self.para['task'] in ('testCompressionR', 'testIntegral'):
                 self.dataset['ntest'] = sum(self.dataset['sizeTest'])
                 self.dataset['nbatch'] = sum(self.dataset['sizeDataset'])
-                size_dataset = [max(ii, jj) for ii, jj in zip(
-                    self.dataset['sizeTest'], self.dataset['sizeDataset'])]
-                self.dataset['nfile'] = self.dataset['ntest']
+                # size_dataset = [max(ii, jj) for ii, jj in zip(
+                #     self.dataset['sizeTest'], self.dataset['sizeDataset'])]
+                # self.dataset['nfile'] = self.dataset['ntest']
+                size_dataset = self.dataset['sizeTest']
             else:
                 size_dataset = self.dataset['sizeDataset']
                 self.dataset['nfile'] = sum(self.dataset['sizeDataset'])

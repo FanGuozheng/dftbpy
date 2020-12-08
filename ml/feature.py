@@ -5,6 +5,7 @@ import numpy as np
 import torch as t
 from ase import Atoms
 from dscribe.descriptors import CoulombMatrix, ACSF
+from IO.dataloader import LoadData, LoadReferenceData
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
@@ -28,13 +29,13 @@ class Dscribe:
         nmax = int(max(self.dataset['natomAll']))
 
         if self.ml['featureType'] == 'cm':  # flatten=True for all!!!!!
-            features = t.zeros(nfile * nmax, nmax)
+            features = t.zeros(ndataset * nmax, nmax)
         elif self.ml['featureType'] == 'acsf':
             self.get_acsf_dim()
             col = self.para['acsf_dim']  # get ACSF feature dimension
-            features = t.zeros(nfile * nmax, col)
+            features = t.zeros(ndataset * nmax, col)
 
-        for ibatch in range(nfile):
+        for ibatch in range(ndataset):
             if type(self.dataset['positions'][ibatch]) is np.array:
                 self.para['coor'] = t.from_numpy(self.dataset['positions'][ibatch])
             elif type(self.dataset['positions'][ibatch]) is t.Tensor:
@@ -50,6 +51,35 @@ class Dscribe:
         self.para['natommax'] = nmax
         self.para['feature_test'] = features[:ntest * nmax, :]
         self.para['feature_data'] = features[:ndataset * nmax, :]
+        
+        # replace if test is not the same dataset
+        # if self.ml['referenceDataset'] != self.ml['testDataset']:
+        self.ml['referenceDataset'] = self.ml['testDataset']
+        LoadReferenceData(self.para, self.dataset, self.ml)
+        nmax = int(max(self.dataset['natomAll']))
+        feature_test = t.zeros(ntest * nmax, nmax)
+        for ibatch in range(ntest):
+            if self.ml['featureType'] == 'cm':  # flatten=True for all!!!!!
+                feature_test = t.zeros(ntest * nmax, nmax)
+            elif self.ml['featureType'] == 'acsf':
+                # self.get_acsf_dim()
+                col = self.para['acsf_dim']  # get ACSF feature dimension
+                feature_test = t.zeros(ntest * nmax, col)
+
+        for ibatch in range(ntest):
+            if type(self.dataset['positions'][ibatch]) is np.array:
+                self.para['coor'] = t.from_numpy(self.dataset['positions'][ibatch])
+            elif type(self.dataset['positions'][ibatch]) is t.Tensor:
+                self.para['coor'] = self.dataset['positions'][ibatch]
+                nat_ = int(self.dataset['natomAll'][ibatch])
+            if self.ml['featureType'] == 'cm':
+                feature_test[ibatch * nmax: ibatch * nmax + nat_, :nat_] = \
+                    self.coulomb(n_atoms_max_=nmax)[:nat_, :nat_]
+            elif self.ml['featureType'] == 'acsf':
+                feature_test[ibatch * nmax: ibatch * nmax + nat_, :] = self.acsf(
+                    self.dataset['symbols'][ibatch])
+        self.para['feature_test'] = feature_test[:ntest * nmax, :]
+        self.para['natommax'] = nmax
 
     def pro_molecule(self):
         """Get atomic environment parameter only for single molecule."""

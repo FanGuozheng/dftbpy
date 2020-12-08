@@ -37,43 +37,44 @@ def main(parameter=None, dataset=None):
     # parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
-    # parameter['task'] = 'testCompressionR'
-    # parameter['CompressionRData'] = '../data/results/ani_result/ani1/compr_20mol_100step_lr_005_comprmin15_dipole_global.dat'
-    # # parameter['CompressionRData'] = '../data/results/ani_result/ani_mul/dip_cpa/compr_20mol_ani01_100step_total_scale1_1.dat'
-    # ml['globalCompR'] = True
-    # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    # dataset['sizeDataset'] = [20] * 3 # this should be consistent with compr.dat
-    # dataset['sizeTest'] = [100] * 3
-    # # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_dftb_mio.hdf5'
-    # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_mio.hdf5'
-    # ml['target'] = 'dipole'
-    # ml['mlSteps'] = 2  # this should be consistent with compr.dat
-    # ml['MLmodel'] = 'linear'
-    # # ml['featureType'] = 'cm'
-    # parameter['datasetSK'] = '../slko/hdf/skfsingle.hdf5'
+    parameter['task'] = 'testCompressionR'
+    parameter['CompressionRData'] = '../data/results/ani_result/ani3/compr_20mol_100step_lr_005_comprmin15_dipole.dat'
+    # parameter['CompressionRData'] = '../data/results/ani_result/ani_mul/dip_cpa/compr_20mol_ani01_100step_total_scale1_1.dat'
+    ml['globalCompR'] = False
+    ml['referenceDataset'] = '../data/dataset/ani03_1000.hdf5'
+    ml['testDataset'] = '../data/dataset/ani02_2000.hdf5'
+    ml['referenceMioDataset'] = '../data/dataset/ani02_2000_mio.hdf5'
+    dataset['sizeDataset'] = [20] * 18 # this should be consistent with compr.dat
+    dataset['sizeTest'] = [20] * 13
+    # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_dftb_mio.hdf5'
+    ml['target'] = 'dipole'
+    ml['mlSteps'] = 100  # this should be consistent with compr.dat
+    ml['MLmodel'] = 'linear'
+    # ml['featureType'] = 'cm'
+    parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     #  example 3.1: if use this code directly to optimize compression radii
-    parameter['task'] = 'mlIntegral'
-    parameter['device'] = 'cpu'
-    dataset['sizeDataset'] = [20, 20, 20]
-    parameter['datasetSK'] = '../slko/hdf/skfsingle.hdf5'
-    # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    parameter['dynamicSCC'] = True
-    ml['target'] = 'dipole'
-    ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    ml['mlSteps'] = 100
-    ml['lr'] = 1E-3
+    # parameter['task'] = 'mlIntegral'
+    # parameter['device'] = 'cpu'
+    # dataset['sizeDataset'] = [20, 20, 20]
+    # parameter['datasetSK'] = '../slko/hdf/skfsingle.hdf5'
+    # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
+    # parameter['dynamicSCC'] = True
+    # ml['target'] = 'charge'
+    # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
+    # ml['mlSteps'] = 100
+    # ml['lr'] = 2E-3
 
     #  example 3.2: if use this code directly to optimize compression radii
     # parameter['task'] = 'testIntegral'
-    # dataset['datasetSpline'] = '.'
+    # dataset['datasetSpline'] = '../data/results/ani_result/spline/dipole/'
     # parameter['device'] = 'cpu'
     # dataset['sizeDataset'] = [20] * 3
     # dataset['sizeTest'] = [100] * 3
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    # # parameter['datasetSK'] = '../slko/hdf/skfmio.hdf5'
+    # parameter['datasetSK'] = '../slko/hdf/skfsingle.hdf5'
     # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
-    # ml['target'] = 'dipole'
+    # ml['target'] = ['dipole', 'charge']
     # ml['mlSteps'] = 2
     # ml['lr'] = 1E-3
     # ml['referenceMioDataset'] = '../data/dataset/ani01_2000_mio.hdf5'

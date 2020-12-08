@@ -9,7 +9,7 @@
   },
 
 "ml": {
-  "target": "dipole",
+  "target": "charge",
   "referenceDataset": "../data/dataset/ani01_2000.hdf5",
   "mlSteps": 10,
   "lr": 5E-2,

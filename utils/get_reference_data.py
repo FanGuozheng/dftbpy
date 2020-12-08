@@ -27,7 +27,7 @@ class RefDFTBPlus:
         # how to run FHI-aims: dftbase
         self.para['LMBD'] = True
         self.para['LCPA'] = True
-        self.ml['reference'] = 'dftb'
+        self.ml['reference'] = 'dftbase'
 
         # rundftbase: read dataset and run DFTB+ ASE calculations
         # writedftbinput: read dataset and write DFTB input without calculation
@@ -40,13 +40,13 @@ class RefDFTBPlus:
             self.para['directorySK'] = '../slko/mio/'
 
         # read and run different molecule species dataset size
-        self.dataset['sizeDataset'] = [2000] * 500
+        self.dataset['sizeDataset'] = [100] * 500
  
         # do not mix different molecule specie in dataset
         self.dataset['LdatasetMixture'] = False
 
         # define dataset as input
-        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s01.h5'
+        self.dataset['dataset'] = '../data/dataset/an1/ani_gdb_s05.h5'
 
         # get parameters for generating reference data
         self.para = initpara.dftb_parameter(self.para)
