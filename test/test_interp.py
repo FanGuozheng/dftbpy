@@ -5,13 +5,14 @@ import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from dftbtorch.interpolator import PolySpline, BicubInterpVec
-from dftbtorch.geninterpskf import SkInterpolator
 from dftbtorch.sk import SKTran, GetSKTable, GetSK_
+from IO.save import Save1D, Save2D
 from dftbtorch.matht import BicubInterp
 from dftbtorch.dftbcalculator import DFTBCalculator
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 t.set_default_dtype(t.float64)
+
 
 def test_bicub_interp():
     """Test Bicubic interpolation."""
@@ -162,6 +163,7 @@ Hss0_24 = t.tensor(
     [-2.283267780320E-01, -2.745945775683E-01, -3.128174377176E-01,
      -3.426404671777E-01, -3.654339344317E-01, -3.827261393906E-01])
 
+
 def test_interp_compr(para, skf, dataset, ml):
     skf['ReadSKType'] = 'compressionRadii'
     dataset['LSKFinterpolation'] = True
@@ -175,7 +177,7 @@ def test_interp_compr(para, skf, dataset, ml):
                   '../slko/hdf/skf_03.hdf5', '../slko/hdf/skf_06.hdf5']
     mesh = t.tensor([[1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5., 5.5, 6.],
                      [1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5., 5.5, 6.]])
-    
+
     # dim1: compr point, dim2: ss, sp, pp, dim3, 2 distance, dim4, method
     diff = t.zeros(6, 3, 2, 2)
     with h5py.File(datasetskf[ngrid], 'r') as f:
@@ -184,11 +186,14 @@ def test_interp_compr(para, skf, dataset, ml):
     bicubic = BicubInterpVec(para, ml)
     zmesh1 = t.stack([t.stack([yycc1, yycc1]), t.stack([yycc1, yycc1])])
     zmesh2 = t.stack([t.stack([yycc2, yycc2]), t.stack([yycc2, yycc2])])
+    print("yycc2, yycc2", yycc2[1:-2, 1:-2, 6])
+    # Save2D(yycc2.detach().cpu().numpy(),
+    #        name='CC2_4.dat', dire='.', ty='a')
     for jj, icompr in enumerate(compr_all):
         hs_ij1 = bicubic.bicubic_2d(mesh, zmesh1, icompr, icompr)[0, 0]
         hs_ij2 = bicubic.bicubic_2d(mesh, zmesh2, icompr, icompr)[0, 0]
         # numpy interpolation
-        print(mesh.shape, zmesh1.shape)
+        # print(mesh.shape, zmesh1.shape)
         f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh1[0, 0, :, :, 6], kind='cubic')
         H_pp1 = f_HH(icompr[0], icompr[1])
         f_HH = interpolate.interp2d(mesh[0], mesh[1], zmesh1[0, 0, :, :, 8], kind='cubic')
@@ -209,8 +214,8 @@ def test_interp_compr(para, skf, dataset, ml):
                                       hs_ij2[8] - Hsp0_24[jj], hs_ij2[6] - Hpp1_24[jj]])
         diff[jj, :, 1, 1] = t.tensor([t.from_numpy(H_ss2) - Hss0_24[jj],
                                       t.from_numpy(H_sp2) - Hsp0_24[jj], t.from_numpy(H_pp2) - Hpp1_24[jj]])
-        print(diff[jj, :, 1, 0], hs_ij2[9], Hss0_24[jj],
-              hs_ij2[8], Hsp0_24[jj], hs_ij2[6], Hpp1_24[jj])
+        # print(diff[jj, :, 1, 0], hs_ij2[9], Hss0_24[jj],
+        #       hs_ij2[8], Hsp0_24[jj], hs_ij2[6], Hpp1_24[jj])
     lab0 = ['ss0, distance: 1.2', 'sp0, distance: 1.2', 'pp1, distance: 1.2']
     lab1 = ['ss0, distance: 2.4', 'sp0, distance: 2.4', 'pp1, distance: 2.4']
     compr = [2.25, 2.75, 3.25, 3.75, 4.5, 5.5]
@@ -240,6 +245,7 @@ def test_interp_grid(para, skf, dataset, ml):
         for jj, jdist in enumerate(distance):
             dataset = {'positions': distance[jj], 'numbers': [[6, 6]]}
             print(ii, jj)
+            dataset['nfile'] = 1
             result = DFTBCalculator(para, dataset, skf)
             skf = result.skf
             h[ii, jj, 0], h[ii, jj, 1] = skf['hammat'][0, 4], skf['hammat'][0, 5]
@@ -254,8 +260,7 @@ def test_interp_grid(para, skf, dataset, ml):
     plt.ylabel('Hamiltonian Error')
     plt.savefig('Hamiltonian_grid.png', dpi=300)
     plt.show()
-    
-    
+
 def test_bicubvec_interp():
     interp = BicubInterpVec({}, {})
     xmesh = t.tensor([[1, 2, 3], [2, 3, 4]])
@@ -264,10 +269,11 @@ def test_bicubvec_interp():
     result = interp.bicubic_2d(xmesh, zmesh, xi, xi)
     print('result', result, result.shape)
 
+
 if __name__ == '__main__':
     t.set_default_dtype(t.float64)
     t.set_printoptions(15)
-    task = 'grid'
+    task = 'compr'
     if task == 'bicub_interp':
         test_bicub_interp()
     elif task == 'bicubic_vec':

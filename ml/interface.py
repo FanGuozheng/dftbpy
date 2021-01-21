@@ -7,8 +7,10 @@ import torch as t
 from sklearn import linear_model, svm
 from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
 from ml.feature import Dscribe
 from IO.save import Save1D, Save2D
+from sklearn import preprocessing
 ATOMNUM = {'H': 1, 'C': 6, 'N': 7, 'O': 8}
 
 
@@ -43,8 +45,8 @@ class MLPara:
             traing target (Y, e.g, compression radius)
 
         """
-        ntrain = self.dataset['nbatch']  # training number
-        ntest = self.dataset['ntest']  # number for prediction
+        ntrain = sum(self.dataset['sizeDataset'])  # training number
+        ntest = sum(self.dataset['sizeTest'])  # number for prediction
         self.dscribe.pro_(ntrain, ntest)
         self.para['feature_target'] = t.flatten(self.ml['optCompressionR'])
 
@@ -61,6 +63,8 @@ class MLPara:
             self.svm_model()
         elif self.ml['MLmodel'] == 'nn':
             self.nn_model()
+        elif self.ml['MLmodel'] == 'forest':
+            self.randforest_model()
 
     def ml_acsf(self):
         """Generate opreeR with optimized ML parameters and fingerprint."""
@@ -96,6 +100,25 @@ class MLPara:
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
         y = self.para['feature_target']
+        self.ml['X_categories'] = []
+        self.ml['X_pred_categories'] = []
+        if self.ml['MLmodel'] in ('linear'):
+            assert X.shape[1] == X_pred.shape[1]
+            for ii in range(X.shape[1]):
+                if sum(X[:, ii]) < 1E-1:
+                    self.ml['X_categories'].append('T')
+                else:
+                    self.ml['X_categories'].append('F')
+                if sum(X_pred[:, ii]) < 1E-1:
+                    self.ml['X_pred_categories'].append('T')
+                else:
+                    self.ml['X_pred_categories'].append('F')
+            cat = [ii == jj for ii, jj in zip(self.ml['X_pred_categories'], self.ml['X_categories'])]
+            # if self.ml['X_pred_categories'][-1] != self.ml['X_categories'][-1]:
+            # X_pred = X_pred[:, np.arange(X_pred.shape[1])!=ii]
+            X[:, cat], X_pred[:, cat] = 0., 0.
+        Save2D(X.detach().numpy(), name='X.dat', dire='.', ty='w')
+        Save1D(y.detach().numpy(), name='y.dat', dire='.', ty='w')
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
         reg.fit(X, y)
         y_pred = reg.predict(X_pred)
@@ -108,6 +131,7 @@ class MLPara:
         reg = svm.SVR()
         X = self.para['feature_data']
         X_pred = self.para['feature_test']
+
         y = self.para['feature_target']
         # X_train, X_test, y_train, y_test = train_test_split(
         #         X, y, test_size=0.5)
@@ -116,6 +140,22 @@ class MLPara:
         self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
                                           self.ml['compressionRMin'],
                                           self.ml['compressionRMax'])
+
+    def randforest_model(self):
+        """ML process with support vector machine method."""
+        reg = RandomForestRegressor(n_estimators=25)
+        X = self.para['feature_data']
+        X_pred = self.para['feature_test']
+
+        y = self.para['feature_target']
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #         X, y, test_size=0.5)
+        reg.fit(X, y)
+        y_pred = reg.predict(X_pred)
+        self.para['compr_pred'] = t.clamp(self.get_target_to2d(y_pred),
+                                          self.ml['compressionRMin'],
+                                          self.ml['compressionRMax'])
+
     def nn_model(self):
         """ML process with support vector machine method."""
         clf = MLPRegressor(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1)
@@ -136,7 +176,7 @@ class MLPara:
         """Transfer target from [nbatch, natom] to [nbatch * natom] type."""
         nmax = self.para['natommax']
         # nbatch = int(compression_r.shape[0] / nmax)
-        ntest = self.dataset['ntest']
+        ntest = sum(self.dataset['sizeTest'])
         if type(compression_r) is np.ndarray:
             compression_r = t.from_numpy(compression_r)
         return compression_r.resize(ntest, nmax)

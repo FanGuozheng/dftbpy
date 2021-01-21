@@ -68,7 +68,8 @@ class DFTBmath:
             yb = datalist[ilast - ninterp - 1: ilast - 1]
             # two interpolation methods
             # dd = self.polysk3thsk(yb, xa, rr)  # method 1
-            dd = self.poly_interp_2d(xa, yb, rr)  # method 2
+            dd = self._poly_interp_2d(xa, yb, rr)  # method 2
+
         # Beyond the grid => extrapolation with polynomial of 5th order
         else:
             dr = rr - rmax
@@ -263,6 +264,46 @@ class DFTBmath:
                 dyy = cc[:, :, icl, :]
             else:
                 dyy = dd[:, :, icl - 1, :]
+                icl = icl - 1
+            yy = yy + dyy
+        return yy
+
+    def _poly_interp_2d(self, xp, yp, rr):
+        """Temporal interpolation from DFTB+ (lib_math) with uniform grid.
+
+        Args:
+            x array, y array
+            the interpolation point rr (x[0]< rr < x[-1])
+
+        """
+        icl = 0
+        nn = xp.shape[0]
+        # row, col = yp.shape[0], yp.shape[1]
+        # assert row == nn
+        cc = t.zeros(yp.shape)
+        dd = t.zeros(yp.shape)
+
+        # if y_m-y_n is small enough, rTmp1 tends to be inf
+        cc[:] = yp[:]
+        dd[:] = yp[:]
+        dxp = abs(rr - xp[icl])
+        # this loop is to find the most close point to rr
+        for ii in range(0, nn - 1):
+            dxNew = abs(rr - xp[ii])
+            if dxNew < dxp:
+                icl = ii
+                dxp = dxNew
+        yy = yp[icl]
+        for mm in range(0, nn - 1):
+            for ii in range(0, nn - mm - 1):
+                rtmp0 = xp[ii] - xp[ii + mm + 1]
+                rtmp1 = (cc[ii + 1] - dd[ii]) / rtmp0
+                cc[ii] = (xp[ii] - rr) * rtmp1
+                dd[ii] = (xp[ii + mm + 1] - rr) * rtmp1
+            if 2 * icl < nn - mm - 1:
+                dyy = cc[icl]
+            else:
+                dyy = dd[icl - 1]
                 icl = icl - 1
             yy = yy + dyy
         return yy
@@ -1162,3 +1203,40 @@ class LinAl:
             in_[0, 2] * in_[1, 1] * in_[2, 0]
 
         return det
+
+# def _test():
+#     para = {}
+#     skf = {}
+#     skf['hs_allCC'] = t.tensor([ 0.000000000000000e+00,  2.830153265300000e-01,  3.450913749608000e-01,
+#          3.675867140118000e-01,  3.649564293680000e-01,  3.483446535283000e-01,
+#          3.250431088544000e-01,  2.992874767347000e-01,  2.732549989357000e-01,
+#          2.479070546564000e-01,  2.235811955016000e-01,  2.003535371952000e-01,
+#          1.782309059599000e-01,  1.572346107256000e-01,  1.374236970887000e-01,
+#          1.188886415774000e-01,  1.017330481639000e-01,  8.605291544014000e-02,
+#          7.191869638469001e-02,  5.936293763154000e-02,  4.837468960626000e-02,
+#          3.890064309038000e-02,  3.085182884302000e-02,  2.411364869266000e-02,
+#          1.855641221877000e-02,  1.404405790269000e-02,  1.044023495150000e-02,
+#          7.612384838094000e-03,  5.434473350181000e-03,  3.791278678909000e-03,
+#          2.576320433289000e-03,  1.700672925784000e-03,  1.083909014158000e-03,
+#          6.623694821708000e-04,  3.837552576203000e-04,  2.078314865165000e-04,
+#          1.022951655773000e-04,  4.381591846164000e-05,  1.547581828181000e-05,
+#          5.086791352656000e-06,  4.474563845542000e-06,  8.295496580468000e-06,
+#          1.328072333238000e-05,  1.760806647729000e-05,  2.042552741968000e-05,
+#          2.149376642870000e-05,  2.094060658081000e-05,  1.907456627523000e-05,
+#          1.627927898104000e-05,  1.292959415162000e-05,  9.362703861772001e-06,
+#          5.848056389725000e-06,  2.585737209551000e-06, -2.859525964745000e-07,
+#         -2.692228497057000e-06, -4.598642365559000e-06])
+
+#     # rr = t.tensor([2.059167022042773, 2.059167022042773, 2.059167022042773,
+#     #                2.059167022042773])
+#     rr = 2.059167022042773
+#     skf['grid_distCC'] = 0.2
+#     skf['ngridpointCC'] = len(skf['hs_allCC'])
+#     skf['sizeInterpolationPoints'] = 8
+#     skf['deltaSK'] = 1E-5
+#     result = t.tensor([-0.313116241455639, -0.313116241455639, -0.313116241455639,
+#                        -0.313116241455639])
+#     math = DFTBmath(para, skf)
+#     math.sk_interp(rr, 'CC')
+
+# _test()

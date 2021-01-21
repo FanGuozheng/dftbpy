@@ -7,7 +7,6 @@ import torch as t
 import bisect
 from dftbtorch.sk import SKTran, GetSKTable, GetSK_, skt
 from dftbtorch.electront import DFTBelect
-import IO.readt as readt
 from dftbtorch.periodic import Periodic
 from dftbtorch.matht import EigenSolver
 import dftbtorch.parameters as parameters
@@ -129,7 +128,7 @@ class Initialization:
                 raise ValueError('device is cuda, please select cuda.FloatTensor or cuda.DoubleTensor')
         else:
             raise ValueError('device only support cpu and cuda')
- 
+
         # get SKF parameters dictionary
         self.skf = initpara.skf_parameter(self.parameter, self.skf)
 
@@ -140,7 +139,6 @@ class Initialization:
         # get geometric, systematic information
         if type(self.dataset['numbers'][0]) is list:
             self.dataset['numbers'] = pad1d([t.tensor(ii) for ii in self.dataset['numbers']])
-
         self.sys = System(self.dataset['numbers'], self.dataset['positions'])
         self.dataset['positions'] = self.sys.positions
         self.dataset['positions_vec'] = self.sys.get_positions_vec()
@@ -339,10 +337,11 @@ class SCF:
         self.batch = self.para['Lbatch']
 
         # batch size
-        if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb', 'get_dftbplus_hdf'):
-            self.nb = self.dataset['nbatch']
-        elif self.para['task'] in ('testCompressionR', 'testIntegral'):
-            self.nb = self.dataset['ntest']
+        # if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb', 'get_dftbplus_hdf'):
+        #     self.nb = self.dataset['nbatch']
+        # elif self.para['task'] in ('testCompressionR', 'testIntegral'):
+        #     self.nb = self.dataset['ntest']
+        self.nb = self.dataset['nfile']
 
         self.mask = [[True] * self.nb]  # mask for convergence in batch
 
@@ -466,7 +465,7 @@ class SCF:
         self.atind = pad1d([self.atind[ii] for ii in ibatch])
         self.nat_ = [self.nat[ii] for ii in ibatch]
         maxiter = self.para['maxIteration']
-        
+
         self.Lmask = self.para['dynamicSCC']
 
         # set initial reachConvergence as False
@@ -492,7 +491,6 @@ class SCF:
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
         self.para['qzero'] = qzero = qatom
-
         q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
         for iiter in range(maxiter):
             # get index of mask where is True
@@ -557,7 +555,6 @@ class SCF:
                 q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
             else:
                 q_mixed = self.mixer(q_new, q_mixed[self.mask[-1]], self.mask[-1])
-
             if self.para['convergenceType'] == 'energy':
                 # get energy: E0 + E_coul
                 convergencelist.append(
@@ -619,83 +616,80 @@ class SCF:
         """SCF for periodic."""
         pass
 
-    def scf_npe_xlbomd(self):
+    def scf_npe_xlbomd(self, ibatch=[0]):
         """SCF for non-periodic-ML system with scc."""
-        gmat = self.elect.gmatrix()
+        self.atind = pad1d([self.atind[ii] for ii in ibatch])
+        self.nat_ = [self.nat[ii] for ii in ibatch]
+        maxiter = self.para['maxIteration']
 
-        energy = 0
-        self.para['qzero'] = qzero = self.para['qatom']
+        self.Lmask = self.para['dynamicSCC']
+
+        # set initial reachConvergence as False
+        self.para['reachConvergence'] = False
+
+        # define convergence list, append charge or energy to convergencelist
+        convergencelist = []
+
+        if self.para['densityProfile'] == 'spherical':
+            gmat_ = [self.elect.gmatrix(
+                self.dataset['distances'][i], self.nat[i],
+                self.dataset['symbols'][i]) for i in ibatch]
+
+            # pad a list of 2D gmat with different size
+            gmat = pad2d(gmat_)
+
+        elif self.para['scc_den_basis'] == 'gaussian':
+            gmat = self.elect._gamma_gaussian(self.para['this_U'],
+                                              self.para['positions'])
+
+        qatom = self.analysis.get_qatom(self.atomname, ibatch)
+
+        # qatom here is 2D, add up the along the rows
+        nelectron = qatom.sum(axis=1)
+        self.para['qzero'] = qzero = qatom
+        q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
         qatom_xlbomd = self.para['qatom_xlbomd']
-        ind_nat = self.atind[self.nat]
 
-        # calculate the sum of gamma * delta_q, the 1st cycle is zero
-        denmat_, qatom_ = t.zeros(self.atind2), t.zeros(self.nat)
-        shift_, shiftorb_ = t.zeros(self.nat), t.zeros(ind_nat)
-        occ_, work_ = t.zeros(ind_nat), t.zeros(ind_nat)
+        ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
+        shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])
 
-        shift_ = self.elect.shifthamgam(self.para, qatom_xlbomd, qzero, gmat)
-        for iat in range(0, self.nat):
-            for jind in range(self.atind[iat], self.atind[iat + 1]):
-                shiftorb_[jind] = shift_[iat]
+        if not self.batch:
+            shiftorb_ = pad1d([
+                ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
+                    self.atind[self.mask[-1]], shift_)])
+        else:
+            shiftorb_ = pad1d([
+                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                    self.atind[self.mask[-1]], shift_)])
+        shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
+                             for ishift in shiftorb_])
+        # dim_ = shift_mat.shape[-1]   # the new dimension of max orbitals
+        fock = self.ham[self.mask[-1]] + 0.5 * self.over[self.mask[-1]] * shift_mat
 
-        icount = 0
-        if self.para['HSSymmetry'] == 'all':
-            eigm_ = t.zeros(ind_nat, ind_nat)
-            for iind in range(0, ind_nat):
-                for j_i in range(0, ind_nat):
-                    eigm_[iind, j_i] = self.hmat[iind, j_i] + 0.5 * \
-                        self.smat[iind, j_i] * \
-                        (shiftorb_[iind] + shiftorb_[j_i])
-                    icount += 1
-            oldsmat_ = self.hmat
-        elif self.para['HSSymmetry'] == 'half':
-            fockmat_ = t.zeros(self.atind2)
-            eigm_ = t.zeros(ind_nat, ind_nat)
-            oldsmat_ = t.zeros(ind_nat, ind_nat)
-            for iind in range(0, int(self.atind[self.nat])):
-                for j_i in range(0, iind + 1):
-                    fockmat_[icount] = self.hmat[icount] + 0.5 * \
-                        self.smat[icount] * (shiftorb_[iind] + shiftorb_[j_i])
-                    icount += 1
-            icount = 0
-            for iind in range(0, ind_nat):
-                for j_i in range(0, iind + 1):
-                    eigm_[j_i, iind] = fockmat_[icount]
-                    oldsmat_[j_i, iind] = self.smat[icount]
-                    eigm_[iind, j_i] = fockmat_[icount]
-                    oldsmat_[iind, j_i] = self.smat[icount]
-                    icount += 1
+        # Calculate the eigen-values & vectors via a Cholesky decomposition
+        epsilon, C = self.eigen.eigen(
+            fock, self.over[self.mask[-1]], self.batch,
+            self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]], inverse=self.para['inverse'])
+        # Calculate the occupation of electrons via the fermi method
+        occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
+                                         self.para['tElec'])
 
-        # get eigenvector and eigenvalue (and cholesky decomposition)
-        eigval_, eigm_ch = self.eigen.eigen(eigm_, oldsmat_)
+        # build density according to occ and eigenvector
+        # t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
+        C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
 
-        # calculate the occupation of electrons
-        occ_ = self.elect.fermi(eigval_)
-        for iind in range(0, int(self.atind[self.nat])):
-            if occ_[iind] > self.para['general_tol']:
-                energy = energy + occ_[iind] * eigval_[iind]
+        # batch calculation of density, normal code: C_scaled @ C_scaled.T
+        rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
-        # density matrix, work_ controls the unoccupied eigm as 0!!
-        work_ = t.sqrt(occ_)
-        for j in range(0, ind_nat):  # n = no. of occupied orbitals
-            for i in range(0, self.atind[self.nat]):
-                eigm_ch[i, j] = eigm_ch[i, j].clone() * work_[j]
-        denmat_2d_ = t.mm(eigm_ch, eigm_ch.t())
-        for iind in range(0, int(self.atind[self.nat])):
-            for j_i in range(0, iind + 1):
-                inum = int(iind * (iind + 1) / 2 + j_i)
-                denmat_[inum] = denmat_2d_[j_i, iind]
+        # calculate mulliken charges for each system in batch
+        q_new = pad1d([
+            self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
+                self.over[self.mask[-1]], rho, self.atind[self.mask[-1]],
+                t.tensor(self.nat_)[self.mask[-1]])])
 
-        # calculate mulliken charges
-        qatom_ = self.elect.mulliken(self.para['HSSymmetry'], self.smat, denmat_)
-        ecoul = 0.0
-        for i in range(0, self.nat):
-            ecoul = ecoul + shift_[i] * (qatom_[i] + qzero[i])
-        energy = energy - 0.5 * ecoul
 
-        # print and write non-SCC DFTB results
-        self.para['eigenvalue'], self.para['charge'] = eigval_, qatom_
-        self.para['denmat'] = denmat_
+
+
 
     def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6, mask=None, ind=None, Lmask=True):
         """Convergence for SCC loops."""

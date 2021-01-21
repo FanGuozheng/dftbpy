@@ -25,7 +25,7 @@ class Dscribe:
 
     def pro_(self, ndataset, ntest):
         """Process data for Dscribe."""
-        nfile = max(ntest, ndataset)
+        # nfile = max(ntest, ndataset)
         nmax = int(max(self.dataset['natomAll']))
 
         if self.ml['featureType'] == 'cm':  # flatten=True for all!!!!!
@@ -49,13 +49,13 @@ class Dscribe:
                 features[ibatch * nmax: ibatch * nmax + nat_, :] = self.acsf(
                     self.dataset['symbols'][ibatch])
         self.para['natommax'] = nmax
-        self.para['feature_test'] = features[:ntest * nmax, :]
+        # self.para['feature_test'] = features[:ntest * nmax, :]
         self.para['feature_data'] = features[:ndataset * nmax, :]
         
         # replace if test is not the same dataset
         # if self.ml['referenceDataset'] != self.ml['testDataset']:
         self.ml['referenceDataset'] = self.ml['testDataset']
-        LoadReferenceData(self.para, self.dataset, self.ml)
+        LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
         nmax = int(max(self.dataset['natomAll']))
         feature_test = t.zeros(ntest * nmax, nmax)
         for ibatch in range(ntest):
@@ -170,6 +170,7 @@ class Dscribe:
 
         test_module = Atoms(atomspecie, positions=coor)
         acsf_test = acsf.create(test_module)
+        # print('coor', specie_global, coor, atomspecie)
         return t.from_numpy(acsf_test)
 
     def soap(self):

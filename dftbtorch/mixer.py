@@ -548,7 +548,6 @@ class Anderson(Mixer):
             #   |x(l+1)> = |x_bar(l)> + beta(l)|F_bar(l)>
             # where "beta" is the mixing parameter
             dQ_mixed = dQ_bar + (self.mix_param * F_bar)
-            print("dQ_mixed", dQ_mixed, '\n', dQ_bar, '\n', F_bar)
 
         # If there is insufficient history for Anderson; use simple mixing
         else:
@@ -803,9 +802,6 @@ class Broyden(Mixer):
 
             for ii in range(self._step_number - 1):
                 dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self._U[ii])
-            '''print("dQ_mixed", dQ_mixed)
-            print
-            dQ_mixed.add_(- self.ww * gamma[0, :] @ self._U)'''
 
             dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * idf)
 

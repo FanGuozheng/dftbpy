@@ -164,7 +164,6 @@ class DFTBelect:
 
             # Construct index list for upper triangle gather operation
             ut = t.unbind(t.triu_indices(U.shape[-1], U.shape[-1], 1))
-            print("ut", ut)
 
             # Calculate "c" values using equation 27 [1]
             c = t.sqrt((4. * np.log(2.)) / (FWHM[s, ut[0]]**2 + FWHM[s, ut[1]]**2))

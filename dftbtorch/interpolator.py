@@ -104,7 +104,7 @@ class BicubInterpVec:
         xmesh_ = xmesh.cpu() if xmesh.device.type == 'cuda' else xmesh
         xi_ = xi.cpu() if xi.device.type == 'cuda' else xi
         self.nx0 = [bisect.bisect(xmesh_[ii].detach().numpy(),
-                                    xi_[ii].detach().numpy()) - 1
+                                  xi_[ii].detach().numpy()) - 1
                     for ii in range(len(xi))]
         # get all surrounding 4 grid points indices, _1 means previous grid point index
         self.nind = [ii for ii in range(len(xi))]

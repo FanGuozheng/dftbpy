@@ -65,11 +65,11 @@ class DFTBMLTest:
         # run DFT(B) to get reference data
         if self.ml['runReference']:
             LoadData(self.parameter, self.dataset, self.ml)
-            RunReference(self.parameter, self.dataset, self.skf, self.ml)
+            RunReference(self.parameter, self.dataset, self.skf, self.ml).get_
 
         # directly get reference data from dataset
         else:
-            LoadReferenceData(self.parameter, self.dataset, self.ml)
+            LoadReferenceData(self.parameter, self.dataset, self.ml).get_hdf_data(self.dataset['sizeDataset'])
 
 
     def run_dftb(self):
@@ -177,7 +177,7 @@ class Integral:
         if 'dipole' in self.ml['target']:
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['dipole']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refDipole'])
             Save2D(refdip.detach().numpy(), name='refdip.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='preddip.dat', dire='.', ty='w')
@@ -186,7 +186,7 @@ class Integral:
         if 'charge' in self.ml['target']:
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['fullCharge']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refCharge']) + self.para['fullCharge'] - self.para['charge']
             Save2D(refcha.detach().numpy(), name='refcha.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcha.dat', dire='.', ty='w')
@@ -197,7 +197,7 @@ class Integral:
             ref = refhl[:, 1] - refhl[:, 0]
             pred = hl[:, 1] - hl[:, 0]
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             miohl = pad1d(self.dataset['refHOMOLUMO'])
             mio = miohl[:, 1] - miohl[:, 0]
             Save1D(ref.detach().numpy(), name='refgap.dat', dire='.', ty='w')
@@ -207,7 +207,7 @@ class Integral:
         if 'HOMOLUMO' in self.ml['target']:
             pred = self.para['homo_lumo']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refHOMOLUMO'])
             Save2D(refhl.detach().numpy(), name='refhl.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predhl.dat', dire='.', ty='w')
@@ -216,7 +216,7 @@ class Integral:
         if 'cpa' in self.ml['target']:
             pred = self.para['cpa']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refCPA'])
             Save2D(refcpa.detach().numpy(), name='refcpa.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcpa.dat', dire='.', ty='w')
@@ -229,8 +229,8 @@ class CompressionR:
     def __init__(self, para, dataset, skf, ml):
         self.para, self.dataset, self.skf, self.ml = para, dataset, skf, ml
 
-        self.nbatch = self.dataset['nbatch']
-        self.ntest = self.dataset['ntest']
+        self.nbatch = sum(self.dataset['sizeDataset'])
+        self.ntest = sum(self.dataset['sizeTest'])
 
         # load data, get optimized compression radii
         self.load_data()
@@ -249,7 +249,7 @@ class CompressionR:
         self.steps = self.ml['mlSteps']
 
         # get the total system size of compression radii
-        nsys = int(self.steps * self.dataset['nbatch'])
+        nsys = int(self.steps * sum(self.dataset['sizeDataset']))
         compr_dat = np.fromfile(self.para['CompressionRData'], sep=' ')
 
         # get optimized compression radii
@@ -258,19 +258,24 @@ class CompressionR:
             self.ml['optCompressionR'] = t.from_numpy(
                 compr_dat[-int(self.max_molecule_size * self.nbatch):].reshape(
                     self.nbatch, self.max_molecule_size))
+
+            for ii, nat in enumerate(self.dataset['natomAll']):
+                self.ml['optCompressionR'][ii][nat:] = 0.
         elif self.ml['globalCompR']:
             self.max_molecule_size = int(len(compr_dat) / self.steps)
             optr = t.from_numpy(compr_dat[-self.max_molecule_size:])
             sglo =  list(self.dataset['specieGlobal'])
             self.ml['optCompressionR'] = pad1d([t.tensor([optr[sglo.index(ii)] for ii in isym])
                                                 for isym in self.dataset['symbols'][:self.nbatch]])
+        Save2D(self.ml['optCompressionR'].detach().numpy(), name='optcompr.dat', dire='.', ty='w')
 
     def fit_compression_r(self):
         """Fit compression radii and predict for new geometry."""
         interface.MLPara(self.para, self.dataset, self.ml)
         # the predicted compression radii
         self.para['compr_ml'] = self.para['compr_pred']
-        print([compr for compr in self.para['compr_ml']])
+        Save2D(self.para['compr_ml'].detach().numpy(), name='predcompr.dat', dire='.', ty='w')
+
     def run_dftb(self):
         """Run DFTB calculations."""
         # get DFTB system information
@@ -320,7 +325,7 @@ class CompressionR:
         if 'dipole' in self.ml['target']:
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['dipole']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refDipole'])
             Save2D(refdip.detach().numpy(), name='refdip.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='preddip.dat', dire='.', ty='w')
@@ -329,7 +334,7 @@ class CompressionR:
         if 'charge' in self.ml['target']:
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
             pred = self.para['fullCharge']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refCharge']) + self.para['fullCharge'] - self.para['charge']
             Save2D(refcha.detach().numpy(), name='refcha.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcha.dat', dire='.', ty='w')
@@ -340,7 +345,7 @@ class CompressionR:
             ref = refhl[:, 1] - refhl[:, 0]
             pred = hl[:, 1] - hl[:, 0]
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             print("self.dataset['refHOMOLUMO']", self.dataset['refHOMOLUMO'])
             miohl = pad1d(self.dataset['refHOMOLUMO'])
             mio = miohl[:, 1] - miohl[:, 0]
@@ -351,7 +356,7 @@ class CompressionR:
         if 'HOMOLUMO' in self.ml['target']:
             pred = self.para['homo_lumo']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refHOMOLUMO'])
             Save2D(refhl.detach().numpy(), name='refhl.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predhl.dat', dire='.', ty='w')
@@ -360,7 +365,7 @@ class CompressionR:
         if 'cpa' in self.ml['target']:
             pred = self.para['cpa']
             self.ml['referenceDataset'] = self.ml['referenceMioDataset']
-            LoadReferenceData(self.para, self.dataset, self.ml)
+            LoadReferenceData(self.para, self.dataset, self.ml).get_hdf_data(self.dataset['sizeTest'])
             mio = pad1d(self.dataset['refCPA'])
             Save2D(refcpa.detach().numpy(), name='refcpa.dat', dire='.', ty='w')
             Save2D(pred.detach().numpy(), name='predcpa.dat', dire='.', ty='w')

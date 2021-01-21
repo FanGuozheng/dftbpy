@@ -440,10 +440,10 @@ class LoadReferenceData:
         self.ml = ml
         self.device = self.para['device']
         self.dtype = self.para['precision']
-        if self.ml['reference'] == 'hdf':
-            self.get_hdf_data()
+        # if self.ml['reference'] == 'hdf':
+        #     self.get_hdf_data()
 
-    def get_hdf_data(self):
+    def get_hdf_data(self, size):
         """Read data from hdf for reference or the following ML."""
         # join the path and hdf data
         hdffile = self.ml['referenceDataset']
@@ -480,24 +480,24 @@ class LoadReferenceData:
             ind = molecule2.index('globalGroup')
             del molecule2[ind]
 
-        if type(self.dataset['sizeDataset']) is list:
-            # all molecule size is same for ML
-            if self.para['task'] in ('testCompressionR', 'testIntegral'):
-                self.dataset['ntest'] = sum(self.dataset['sizeTest'])
-                self.dataset['nbatch'] = sum(self.dataset['sizeDataset'])
-                # size_dataset = [max(ii, jj) for ii, jj in zip(
-                #     self.dataset['sizeTest'], self.dataset['sizeDataset'])]
-                # self.dataset['nfile'] = self.dataset['ntest']
-                size_dataset = self.dataset['sizeTest']
-            else:
-                size_dataset = self.dataset['sizeDataset']
-                self.dataset['nfile'] = sum(self.dataset['sizeDataset'])
+        # if type(self.dataset['sizeDataset']) is list:
+        #     # all molecule size is same for ML
+        #     if self.para['task'] in ('testCompressionR', 'testIntegral'):
+        #         self.dataset['ntest'] = sum(self.dataset['sizeTest'])
+        #         self.dataset['nbatch'] = sum(self.dataset['sizeDataset'])
+        #         # size_dataset = [max(ii, jj) for ii, jj in zip(
+        #         #     self.dataset['sizeTest'], self.dataset['sizeDataset'])]
+        #         # self.dataset['nfile'] = self.dataset['ntest']
+        #         size_dataset = self.dataset['sizeTest']
+        #     else:
+        #         size_dataset = self.dataset['sizeDataset']
+        #         self.dataset['nfile'] = sum(self.dataset['sizeDataset'])
 
         # read and mix different molecules
         self.nbatch = 0
         if self.dataset['LdatasetMixture']:
             # loop for molecules in each molecule specie
-            for ibatch in range(max(size_dataset)):
+            for ibatch in range(max(size)):
                 # each molecule specie
                 for igroup in molecule2:
                     with h5py.File(hdffile, 'r') as f:
@@ -566,7 +566,7 @@ class LoadReferenceData:
         # read single molecule specie
         elif not self.dataset['LdatasetMixture']:
             # loop for molecules in each molecule specie
-            for ibatch in size_dataset:
+            for ibatch in size:
 
                 # each molecule specie
                 iatomspecie = int(self.para['hdf_num'][0])

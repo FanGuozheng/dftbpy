@@ -93,8 +93,8 @@ class DFTBMLTrain:
 
         # directly get reference data from dataset
         else:
-            LoadReferenceData(self.parameter, self.dataset, self.skf, self.ml)
-
+            LoadReferenceData(self.parameter, self.dataset, self.ml).get_hdf_data(self.dataset['sizeDataset'])
+        print("self.dataset['natomAll']", self.dataset['natomAll'])
     def load_skf(self):
         pass
 
@@ -325,8 +325,12 @@ class MLCompressionR:
             self.ml['CompressionRInit'] = [genml_init_compr(
                 ispe, self.ml, self.ml['globalCompR']) for ispe in self.dataset['specieGlobal']]
 
+        # self.para['compr_ml'] = \
+        #     Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
+        # temperal test !!!!!!!!!!!!!!!!!!!
+        self.ml['CompressionRInit'] = t.from_numpy(np.loadtxt('../predcompr.dat'))
         self.para['compr_ml'] = \
-            Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
+            Variable(self.ml['CompressionRInit'], requires_grad=True)
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""
@@ -437,6 +441,7 @@ class MLCompressionR:
             print("istep:", istep, '\n loss', loss, 'loss device', loss.device.type)
             # print("compression radius:", self.para['compr_ml'])
             print('gradient', self.para['compr_ml'].grad)
+            print('compression radii', self.para['compr_ml'])
 
             # save data
             if loss.device.type == 'cuda':
@@ -485,7 +490,7 @@ class MLCompressionR:
 
                 # SK transformations
                 self.skf['hammat'], self.skf['overmat'] = self.sktran(ibatch)
-                
+
                 # run each DFTB calculation separatedly
                 dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
 
