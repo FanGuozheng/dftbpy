@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-02-08T16:59:22.756Z" agent="5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="F5Jeo1VhqbLcGo86I7xy" version="14.2.9" type="github">
+<mxfile host="app.diagrams.net" modified="2021-02-08T16:59:58.935Z" agent="5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="-59RRvXc5XADq46wvF-K" version="14.2.9" type="github">
   <diagram id="ps_Xkmwmxq0UH4aj3wPA" name="Page-1">
     <mxGraphModel dx="1515" dy="802" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
@@ -70,7 +70,7 @@
         <mxCell id="vMhzculdH-lzf_wDQgZb-28" value="interpolation" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;" vertex="1" parent="1">
           <mxGeometry x="368" y="525" width="80" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="vMhzculdH-lzf_wDQgZb-29" value="Slater-Koster&lt;br&gt;transformation" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;rotation=90;" vertex="1" parent="1">
+        <mxCell id="vMhzculdH-lzf_wDQgZb-29" value="Slater-Koster&lt;br&gt;transformation" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;rotation=0;" vertex="1" parent="1">
           <mxGeometry x="362" y="557" width="90" height="30" as="geometry" />
         </mxCell>
         <mxCell id="vMhzculdH-lzf_wDQgZb-31" value="" style="endArrow=classic;html=1;" edge="1" parent="1">
