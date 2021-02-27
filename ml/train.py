@@ -45,18 +45,10 @@ class DFTBMLTrain:
         t.set_printoptions(precision=14)
 
         # set the precision control
-        if self.parameter['device'] == 'cpu':
-            if self.parameter['precision'] in (t.float64, t.float32):
-                t.set_default_dtype(self.parameter['precision'])  # cpu device
-            else:
-                raise ValueError('device is cpu, please select float64 or float32')
-        elif self.parameter['device'] == 'cuda':
-            if self.parameter['precision'] in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
-                t.set_default_tensor_type(self.parameter['precision'])  # gpu device
-            else:
-                raise ValueError('device is cuda, please select cuda.FloatTensor or cuda.DoubleTensor')
+        if self.parameter['precision'] in (t.float64, t.float32):
+            t.set_default_dtype(self.parameter['precision'])  # cpu device
         else:
-            raise ValueError('device only support cpu and cuda')
+            raise ValueError('device is cpu, please select float64 or float32')
 
         # initialize machine learning parameters
         self.initialization_ml()
@@ -151,50 +143,18 @@ class MLIntegral:
         self.nbatch = self.dataset['nfile']
         if self.para['Lbatch']:
             self.ml_integral_batch()
-        else:
-            self.ml_integral()
 
-    def ml_integral(self):
-        '''DFTB optimization for given dataset'''
-        # calculate one by one to optimize para
-        for istep in range(self.ml['mlSteps']):
-            loss = 0.
-            for ibatch in range(self.nbatch):
-                print("step:", istep + 1, "ibatch:", ibatch + 1)
-
-                # do not perform batch calculation
-                self.para['Lbatch'] = False
-
-                # get integral at certain distance, read raw integral from binary hdf
-                # SK transformations
-                SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
-
-                # run each DFTB calculation separatedly
-                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
-
-                # define loss function
-                # get loss function
-                if 'dipole' in self.ml['target']:
-                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refDipole'][ibatch])
-
-                # clear gradients and define back propagation
-                self.optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-                self.optimizer.step()
-            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
 
     def ml_integral_batch(self):
         '''DFTB optimization for given dataset'''
         maxorb = max(self.dataset['norbital'])
         # calculate one by one to optimize para
         self.sktran = SKTran(self.para, self.dataset, self.skf, self.ml)
+        self.para['loss'] = []
         for istep in range(self.ml['mlSteps']):
             ham = t.zeros(self.nbatch, maxorb, maxorb)
             over = t.zeros(self.nbatch, maxorb, maxorb)
             for ibatch in range(self.nbatch):
-                # get integral at certain distance, read raw integral from binary hdf
-                # SK transformations
-                # SKTran(self.para, self.dataset, self.skf, self.ml, ibatch)
                 iham, iover = self.sktran(ibatch)
                 iorb = self.dataset['norbital'][ibatch]
                 ham[ibatch, :iorb, :iorb] = iham  # self.skf['hammat']
@@ -210,21 +170,11 @@ class MLIntegral:
             if 'dipole' in self.ml['target']:
                 loss += self.criterion(self.para['dipole'],
                                        pad1d(self.dataset['refDipole']))
-                if self.para['dipole'].device.type == 'cuda':
-                    Save2D(self.para['dipole'].detach().cpu().numpy(),
-                           name='dipole.dat', dire='.', ty='a')
-                elif self.para['dipole'].device.type == 'cpu':
-                    Save2D(self.para['dipole'].detach().numpy(),
-                           name='dipole.dat', dire='.', ty='a')
+                self.para['loss'].append(loss.detach())
+
             if 'charge' in self.ml['target']:
                 loss += self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
-                if self.para['fullCharge'].device.type == 'cuda':
-                    Save2D(self.para['fullCharge'].detach().cpu().numpy(),
-                           name='charge.dat', dire='.', ty='a')
-                elif self.para['fullCharge'].device.type == 'cpu':
-                    Save2D(self.para['fullCharge'].detach().numpy(),
-                           name='charge.dat', dire='.', ty='a')
             if 'HOMOLUMO' in self.ml['target']:
                 loss += self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
@@ -238,8 +188,6 @@ class MLIntegral:
                 loss += self.criterion(self.para['alpha_mbd'],
                                        pad1d(self.dataset['refMBDAlpha']))
             print("step:", istep + 1, "loss:", loss, loss.device.type)
-            # for ii, ivar in enumerate(self.ml_variable):
-            #     Save2D(ivar.detach().numpy(), name=str(ii)+'var.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -248,11 +196,16 @@ class MLIntegral:
 
             # check and save machine learning parameters
             self._check()
-            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
+            # Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
+        import matplotlib.pyplot as plt
+        steps = len(self.para['loss'])
+        plt.plot(np.linspace(1, steps, steps), self.para['loss'])
+        plt.show()
 
     def _check(self):
         """Check the machine learning variables each step."""
         pass
+
 
 class MLCompressionR:
     """Optimize compression radii."""
@@ -283,12 +236,7 @@ class MLCompressionR:
             self.criterion = t.nn.L1Loss(reduction='sum')
 
         # batch calculations, all systems in batch together
-        if self.para['Lbatch']:
-            self.ml_compr_batch()
-
-        # single calculations, run optimization system by system in batch
-        elif not self.para['Lbatch']:
-            self.ml_compr_single()
+        self.ml_compr_batch()
 
     def process_dataset(self):
         """Get all parameters for compression radii machine learning."""
@@ -308,33 +256,28 @@ class MLCompressionR:
 
         # loop in batch
         for ibatch in range(self.nbatch):
-        # if self.ml['reference'] == 'hdf':
             natom = self.dataset['natomAll'][ibatch]
-            atomname = self.dataset['symbols'][ibatch]
-
             # Get integral at certain distance, read integrals from hdf5
             self.slako.genskf_interp_dist_hdf(ibatch, natom)
             self.skf['hs_compr_all_'].append(self.skf['hs_compr_all'])
 
-            if not self.ml['globalCompR']:
-                # get initial compression radius
-                self.ml['CompressionRInit'].append(
-                    genml_init_compr(atomname, self.ml))
-
-        if self.ml['globalCompR']:
-            self.ml['CompressionRInit'] = [genml_init_compr(
-                ispe, self.ml, self.ml['globalCompR']) for ispe in self.dataset['specieGlobal']]
-
+            # atomname = self.dataset['symbols'][ibatch]
+            # if not self.ml['globalCompR']:
+            #     # get initial compression radius
+            #     self.ml['CompressionRInit'].append(
+            #         genml_init_compr(atomname, self.ml))
         # self.para['compr_ml'] = \
         #     Variable(pad1d(self.ml['CompressionRInit']), requires_grad=True)
-        # temperal test !!!!!!!!!!!!!!!!!!!
-        self.ml['CompressionRInit'] = t.from_numpy(np.loadtxt('../predcompr.dat'))
+
+        self.ml['CompressionRInit'] = t.ones(
+            self.nbatch, max(self.dataset['natomAll'])) * 3.5
         self.para['compr_ml'] = \
             Variable(self.ml['CompressionRInit'], requires_grad=True)
 
     def ml_compr_batch(self):
         """DFTB optimization of compression radius for given dataset."""
         maxorb = max(self.dataset['norbital'])
+        self.para['loss'] = []
 
         for istep in range(self.ml['mlSteps']):
             ham = t.zeros(self.nbatch, maxorb, maxorb)
@@ -366,26 +309,11 @@ class MLCompressionR:
                 lossdip = self.criterion(self.para['dipole'],
                                          pad1d(self.dataset['refDipole']))
                 loss = loss + lossdip
-                if self.para['dipole'].device.type == 'cuda':
-                    Save2D(self.para['dipole'].detach().cpu().numpy(),
-                           name='dipole.dat', dire='.', ty='a')
-                    Save1D(np.array([lossdip.cpu()]), name='lossdip.dat', dire='.', ty='a')
-                elif self.para['dipole'].device.type == 'cpu':
-                    Save2D(self.para['dipole'].detach().numpy(),
-                           name='dipole.dat', dire='.', ty='a')
-                    Save1D(np.array([lossdip]), name='lossdip.dat', dire='.', ty='a')
+                self.para['loss'].append(loss.detach())
             if 'HOMOLUMO' in self.ml['target']:
                 losshl = self.criterion(self.para['homo_lumo'],
                                        pad1d(self.dataset['refHOMOLUMO']))
                 loss = loss + losshl
-                if self.para['homo_lumo'].device.type == 'cuda':
-                    Save2D(self.para['homo_lumo'].detach().cpu().numpy(),
-                           name='homolumo.dat', dire='.', ty='a')
-                    Save1D(np.array([losshl.cpu()]), name='losshl.dat', dire='.', ty='a')
-                elif self.para['homo_lumo'].device.type == 'cpu':
-                    Save2D(self.para['homo_lumo'].detach().numpy(),
-                           name='homolumo.dat', dire='.', ty='a')
-                    Save1D(np.array([losshl]), name='losshl.dat', dire='.', ty='a')
             if 'gap' in self.ml['target']:
                 homolumo = self.para['homo_lumo']
                 refhl = pad1d(self.dataset['refHOMOLUMO'])
@@ -393,48 +321,18 @@ class MLCompressionR:
                 refgap = refhl[:, 1] - refhl[:, 0]
                 lossgap = 0.001 * self.criterion(gap, refgap)
                 loss = loss + lossgap
-                if gap.device.type == 'cuda':
-                    Save1D(gap.detach().cpu().numpy(), name='gap.dat', dire='.', ty='a')
-                    Save1D(np.array([lossgap.cpu()]), name='lossgap.dat', dire='.', ty='a')
-                elif gap.device.type == 'cpu':
-                    Save1D(gap.detach().numpy(), name='gap.dat', dire='.', ty='a')
-                    Save1D(np.array([lossgap]), name='lossgap.dat', dire='.', ty='a')
             if 'polarizability' in self.ml['target']:
                 losspol = self.criterion(self.para['alpha_mbd'],
                                        pad2d(self.dataset['refMBDAlpha']))
                 loss = loss + losspol
-                if self.para['alpha_mbd'].device.type == 'cuda':
-                    Save2D(self.para['alpha_mbd'].detach().cpu().numpy(),
-                           name='pol.dat', dire='.', ty='a')
-                    Save1D(np.array([losspol.cpu()]), name='losspol.dat', dire='.', ty='a')
-                elif self.para['alpha_mbd'].device.type == 'cpu':
-                    Save2D(self.para['alpha_mbd'].detach().numpy(),
-                           name='pol.dat', dire='.', ty='a')
-                    Save1D(np.array([losspol]), name='losspol.dat', dire='.', ty='a')
             if 'charge' in self.ml['target']:
                 lossq = self.criterion(self.para['fullCharge'],
                                        pad1d(self.dataset['refCharge']))
                 loss = loss + lossq
-                if self.para['fullCharge'].device.type == 'cuda':
-                    Save2D(self.para['fullCharge'].detach().cpu().numpy(),
-                        name='charge.dat', dire='.', ty='a')
-                    Save1D(np.array([lossq.cpu()]), name='lossq.dat', dire='.', ty='a')
-                elif self.para['fullCharge'].device.type == 'cpu':
-                    Save2D(self.para['fullCharge'].detach().numpy(),
-                        name='charge.dat', dire='.', ty='a')
-                    Save1D(np.array([lossq]), name='lossq.dat', dire='.', ty='a')
             if 'cpa' in self.ml['target']:
                 losscpa = 0.5 * self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
                 loss = loss + losscpa
-                if self.para['cpa'].device.type == 'cuda':
-                    Save2D(self.para['cpa'].detach().cpu().numpy(),
-                           name='cpa.dat', dire='.', ty='a')
-                    Save1D(np.array([losscpa.cpu()]), name='losscpa.dat', dire='.', ty='a')
-                elif self.para['cpa'].device.type == 'cpu':
-                    Save2D(self.para['cpa'].detach().numpy(),
-                           name='cpa.dat', dire='.', ty='a')
-                    Save1D(np.array([losscpa]), name='losscpa.dat', dire='.', ty='a')
             if 'pdos' in self.ml['target']:
                 loss += self.criterion(
                     self.para['cpa'], pad1d(self.dataset['refHirshfeldVolume']))
@@ -444,22 +342,13 @@ class MLCompressionR:
             print('compression radii', self.para['compr_ml'])
 
             # save data
-            if loss.device.type == 'cuda':
-                Save1D(np.array([loss.cpu()]), name='loss.dat', dire='.', ty='a')
-                if not self.ml['globalCompR']:
-                    Save2D(self.para['compr_ml'].detach().cpu().numpy(),
-                           name='compr.dat', dire='.', ty='a')
-                else:
-                    Save1D(self.para['compr_ml'].detach().cpu().squeeze().numpy(),
-                           name='compr.dat', dire='.', ty='a')
-            elif loss.device.type == 'cpu':
-                Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
-                if not self.ml['globalCompR']:
-                    Save2D(self.para['compr_ml'].detach().numpy(),
-                           name='compr.dat', dire='.', ty='a')
-                else:
-                    Save1D(self.para['compr_ml'].detach().cpu().squeeze().numpy(),
-                           name='compr.dat', dire='.', ty='a')
+            Save1D(np.array([self.para['loss']]), name='loss.dat', dire='.', ty='a')
+            if not self.ml['globalCompR']:
+                Save2D(self.para['compr_ml'].detach().numpy(),
+                       name='compr.dat', dire='.', ty='a')
+            else:
+                Save1D(self.para['compr_ml'].detach().cpu().squeeze().numpy(),
+                       name='compr.dat', dire='.', ty='a')
 
             # clear gradients and define back propagation
             self.optimizer.zero_grad()
@@ -469,66 +358,10 @@ class MLCompressionR:
             # check and save machine learning variables
             self._check()
 
-    def ml_compr_single(self):
-        """DFTB optimization of compression radius for given dataset."""
-        # do not perform batch calculation
-        self.para['Lbatch'] = False
-        self.sktran = SKTran(self.para, self.dataset, self.skf, self.ml)
-
-        for istep in range(self.ml['mlSteps']):
-
-            # set compr_ml every several steps, to avoid memory problem
-            # self.para['compr_ml'] = self.para['compr_ml'].clone().requires_grad_(True)
-            loss = 0
-            if 'offsetenergy' in self.ml['target']:
-                initenergy = []
-
-            for ibatch in range(self.nbatch):
-                self.skf['hs_compr_all'] = self.skf['hs_compr_all_'][ibatch]
-                if self.ml['reference'] == 'hdf':
-                    self.slako.genskf_interp_compr(ibatch)
-
-                # SK transformations
-                self.skf['hammat'], self.skf['overmat'] = self.sktran(ibatch)
-
-                # run each DFTB calculation separatedly
-                dftbcalculator.Rundftbpy(self.para, self.dataset, self.skf, ibatch)
-
-                # get loss function
-                if 'dipole' in self.ml['target']:
-                    loss += self.criterion(self.para['dipole'].squeeze(), self.dataset['refDipole'][ibatch])
-                elif 'charge' in self.ml['target']:
-                    loss += self.criterion(self.para['fullCharge'].squeeze(), self.dataset['refCharge'][ibatch])
-                elif 'homo_lumo' in self.ml['target']:
-                    loss += self.criterion(self.para['homo_lumo'].squeeze(), self.dataset['refHomoLumo'][ibatch])
-                elif 'formationenergy' in self.ml['target']:
-                    self.para['formation_energy'] = self.cal_optfor_energy(
-                        self.para['electronic_energy'], ibatch)
-                    loss += self.criterion(self.para['formation_energy'], self.dataset['refFormEnergy'][ibatch])
-                elif 'offsetenergy' in self.ml['target']:
-                    initenergy.append(self.para['electronic_energy'])
-                elif 'cpa' in self.ml['target']:
-                    loss += self.criterion(self.para['cpa'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch])
-                    print('cpa', self.criterion(self.para['cpa'].squeeze(), self.dataset['refHirshfeldVolume'][ibatch]))
-
-                print("*" * 50, "\n istep:", istep + 1, "\n ibatch", ibatch + 1)
-                print("loss:", loss, self.para['compr_ml'].grad)
-
-            # get loss function
-            if 'offsetenergy' in self.ml['target']:
-                offset = self.cal_offset_energy(initenergy, self.dataset['refFormEnergy'])
-                self.para['offsetEnergy'] = pad1d(initenergy) + offset
-                print(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
-                loss = self.criterion(self.para['offsetEnergy'], self.dataset['refFormEnergy'])
-
-            # save data
-            Save1D(np.array([loss]), name='loss.dat', dire='.', ty='a')
-            Save2D(self.para['compr_ml'].detach().numpy(), name='compr.dat', dire='.', ty='a')
-
-            # clear gradients and define back propagation
-            self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            self.optimizer.step()
+        import matplotlib.pyplot as plt
+        steps = len(self.para['loss'])
+        plt.plot(np.linspace(1, steps, steps), self.para['loss'])
+        plt.show()
 
     def _check(self):
         """Check the machine learning variables each step.

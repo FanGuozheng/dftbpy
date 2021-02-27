@@ -84,16 +84,6 @@ class BicubInterpVec:
         Returns:
             p(x, y) = [1, x, x**2, x**3] * a_mat * [1, y, y**2, y**3].T
         """
-        # check if xi, yi is out of range of xmesh, ymesh
-        # xmin = t.ge(xi, self.ml['compressionRMin'])
-        # xmax = t.le(xi, self.ml['compressionRMax'])
-        # ymin = t.ge(yi, self.ml['compressionRMin'])
-        # ymax = t.le(yi, self.ml['compressionRMax'])
-        # assert False not in xmin
-        # assert False not in xmax
-        # assert False not in ymin
-        # assert False not in ymax
-
         # directly give the coefficients matrices
         coeff = t.tensor([[1., 0., 0., 0.], [0., 0., 1., 0.],
                           [-3., 3., -2., -1.], [2., -2., 1., 1.]])

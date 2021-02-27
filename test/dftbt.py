@@ -33,10 +33,10 @@ def main(parameter=None, dataset=None):
     ml['globalCompR'] = False
     # dipole, charge, HOMOLUMO, gap, cpa, polarizability
     ml['target'] = 'dipole'
-    ml['referenceDataset'] = '../data/dataset/ani03_1000.hdf5'
-    dataset['sizeDataset'] = [2, 2, 2]
+    ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
+    dataset['sizeDataset'] = [1, 1, 1]
     ml['lr'] = 5E-2
-    ml['mlSteps'] = 10
+    ml['mlSteps'] = 15
     parameter['datasetSK'] = '../slko/hdf/skf.hdf5'
 
     # example 2.2: test compression radii
@@ -59,14 +59,14 @@ def main(parameter=None, dataset=None):
     #  example 3.1: if use this code directly to optimize compression radii
     # parameter['task'] = 'mlIntegral'
     # parameter['device'] = 'cpu'
-    # dataset['sizeDataset'] = [20, 20, 20]
-    # parameter['datasetSK'] = '../slko/hdf/skfsingle.hdf5'
+    # dataset['sizeDataset'] = [1, 1, 1]
+    # parameter['datasetSK'] = '../slko/hdf/skfmio.hdf5'
     # # dipole, charge, HOMOLUMO, gap, cpa, polarizability
     # parameter['dynamicSCC'] = True
-    # ml['target'] = 'charge'
+    # ml['target'] = 'dipole'
     # ml['referenceDataset'] = '../data/dataset/ani01_2000.hdf5'
-    # ml['mlSteps'] = 100
-    # ml['lr'] = 2E-3
+    # ml['mlSteps'] = 10
+    # ml['lr'] = 1E-3
 
     #  example 3.2: if use this code directly to optimize compression radii
     # parameter['task'] = 'testIntegral'
@@ -97,20 +97,7 @@ def main(parameter=None, dataset=None):
         DFTBCalculator(parameter, dataset)
 
     elif parameter['task'] in ('mlCompressionR', 'mlIntegral'):
-        if parameter['profiler'] and parameter['device'] == 'cuda':
-            with t.autograd.profiler.profile(use_cuda=True) as prof:
-                with t.cuda.device(0):
-                    DFTBMLTrain(parameter, dataset, ml=ml)
-            print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total"))
-        elif parameter['profiler'] and parameter['device'] == 'cpu':
-            with t.autograd.profiler.profile() as prof:
-                DFTBMLTrain(parameter, dataset, ml=ml)
-            print(prof.key_averages(group_by_input_shape=True).table(sort_by="cpu_time_total"))
-        elif not parameter['profiler'] and parameter['device'] == 'cuda':
-            with t.cuda.device(0):
-                DFTBMLTrain(parameter, dataset, ml=ml)
-        elif not parameter['profiler'] and parameter['device'] == 'cpu':
-            DFTBMLTrain(parameter, dataset, ml=ml)
+        DFTBMLTrain(parameter, dataset, ml=ml)
 
     elif parameter['task'] in ('testCompressionR', 'testIntegral'):
         DFTBMLTest(parameter, dataset, ml=ml)

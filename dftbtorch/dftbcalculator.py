@@ -12,7 +12,7 @@ from dftbtorch.matht import EigenSolver
 import dftbtorch.parameters as parameters
 import dftbtorch.parser as parser
 from IO.systems import System
-from DFTBMaLT.dftbmalt.dftb.mixer import Simple, Anderson  # Broyden
+from dftbtorch.mixer import Anderson
 from dftbtorch.mbd import MBD
 from IO.write import Print
 import DFTBMaLT.dftbmalt.dftb.dos as dos
@@ -281,16 +281,7 @@ class Rundftbpy:
         # calculate molecule
         else:
             # non-SCC-DFTB
-            if self.para['scc'] == 'nonscc':
-                scf.scf_npe_nscc(self.ibatch)
-
-            # SCC-DFTB
-            elif self.para['scc'] == 'scc':
-                scf.scf_npe_scc(self.ibatch)
-
-            # XLBOMD-DFTB
-            elif self.para['scc'] == 'xlbomd':
-                scf.scf_npe_xlbomd(self.ibatch)
+            scf.scf_npe_scc(self.ibatch)
 
     def run_repulsive(self):
         """Calculate repulsive term."""
@@ -299,11 +290,8 @@ class Rundftbpy:
 
     def run_analysis(self):
         """Analyse the DFTB calculation results and print."""
-        if self.para['scc'] == 'scc':
-            self.analysis.dftb_energy(shift_=self.para['shift'],
-                                      qatom=self.para['charge'])
-        elif self.para['scc'] == 'nonscc':
-            self.analysis.dftb_energy()
+        self.analysis.dftb_energy(shift_=self.para['shift'],
+                                  qatom=self.para['charge'])
 
         # claculate physical properties
         self.analysis.sum_property(self.ibatch)
@@ -336,35 +324,13 @@ class SCF:
         # single systems
         self.batch = self.para['Lbatch']
 
-        # batch size
-        # if self.para['task'] in ('mlCompressionR', 'mlIntegral', 'dftb', 'get_dftbplus_hdf'):
-        #     self.nb = self.dataset['nbatch']
-        # elif self.para['task'] in ('testCompressionR', 'testIntegral'):
-        #     self.nb = self.dataset['ntest']
         self.nb = self.dataset['nfile']
 
         self.mask = [[True] * self.nb]  # mask for convergence in batch
 
         # batch calculations for multi systems
-        if self.batch:
-            self.ham_ = self.skf['hammat_']
-            self.over_ = self.skf['overmat_']
-
-        # single system calculations
-        else:
-            ham_, over_ = self.skf['hammat'], self.skf['overmat']
-            self.ham_ = ham_ if ham_.dim() == 3 else ham_.unsqueeze(0)
-            self.over_ = over_ if over_.dim() == 3 else over_.unsqueeze(0)
-
-        # transfer lower or upper H0, S to full symmetric H0, S
-        ind_nat = sum(self.dataset['atomind'])  # self.dataset['norbital']
-        if self.para['HSSymmetry'] == 'half':
-            self.ham = self.half_to_sym(self.ham_, ind_nat)
-            self.over = self.half_to_sym(self.over_, ind_nat)
-
-        # replace H0, S name for convenience
-        elif self.para['HSSymmetry'] == 'all':
-            self.ham, self.over = self.ham_, self.over_
+        self.ham = self.skf['hammat_']
+        self.over = self.skf['overmat_']
 
         # number of atom in molecule
         self.nat = self.dataset['natomAll']
@@ -384,75 +350,8 @@ class SCF:
         # electronic DFTB calculation
         self.elect = DFTBelect(self.para, self.dataset, self.skf)
 
-        # mixing of charge
-        self.mix = Mixing(self.para)
-
         # print DFTB calculation information
         self.print_ = Print(self.para, self.dataset, self.skf)
-
-        # mixing method is simple method
-        if para['mixMethod'] == 'simple':
-            self.mixer = Simple(mix_param=self.para['mixFactor'])
-
-        # mixing method is anderson
-        elif para['mixMethod'] == 'anderson':
-            self.mixer = Anderson(mix_param=self.para['mixFactor'],
-                                  init_mix_param=self.para['mixFactor'],
-                                  generations=2)
-
-        # mixing method is broyden
-        elif para['mixMethod'] == 'broyden':
-            self.mixer = Broyden(mix_param=self.para['mixFactor'],
-                                 init_mix_param=self.para['mixFactor'],
-                                 generations=self.para['maxIter'])
-
-    def scf_npe_nscc(self, ibatch=[0]):
-        """DFTB for non-SCC, non-perodic calculation."""
-        # get electron information, such as initial charge
-        qatom = self.analysis.get_qatom(self.atomname, ibatch)
-
-        # qatom here is 2D, add up the along the rows
-        nelectron = qatom.sum(axis=1)
-
-        # initial neutral charge
-        self.para['qzero'] = qatom
-
-        # get eigenvector and eigenvalue (and cholesky decomposition)
-        epsilon, C = self.eigen.eigen(self.ham, self.over, self.batch, self.atind, ibatch)
-        # batch calculation of the occupation of electrons
-        occ, nocc = self.elect.fermi(epsilon, nelectron, self.para['tElec'])
-
-        # build density according to occ and eigenvector
-        # ==> t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
-        C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
-
-        # batch calculation of density, normal code is: C_scaled @ C_scaled.T
-        self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
-
-        # return the eigenvector, eigenvalue
-        self.para['eigenvec'] = C
-        self.para['eigenvalue'] = epsilon
-        self.para['occ'] = occ
-        self.para['nocc'] = nocc
-
-        # calculate mulliken charges
-        self.para['charge'] = pad1d([self.elect.mulliken(i, j, m, n)
-            for i, j, m, n in zip(self.over, self.para['denmat'], self.atind, self.nat)])
-        self.para['fullCharge'] = self.analysis.to_full_electron_charge(
-            self.atomname, self.para['charge'], ibatch)
-
-    def half_to_sym(self, in_mat, dim_out):
-        """Transfer 1D half H0, S to full, symmetric H0, S."""
-        # build 2D full, symmetric H0 or S
-        out_mat = t.zeros(dim_out, dim_out)
-
-        # transfer 1D to 2D
-        icount = 0
-        for iind in range(dim_out):
-            for jind in range(iind + 1):
-                out_mat[jind, iind] = out_mat[iind, jind] = in_mat[icount]
-                icount += 1
-        return out_mat
 
     def scf_npe_scc(self, ibatch=[0]):
         """SCF for non-periodic-ML system with scc.
@@ -487,40 +386,24 @@ class SCF:
                                               self.para['positions'])
 
         qatom = self.analysis.get_qatom(self.atomname, ibatch)
+        self.mixer = Anderson(qatom, return_convergence=True)
 
         # qatom here is 2D, add up the along the rows
         nelectron = qatom.sum(axis=1)
         self.para['qzero'] = qzero = qatom
-        q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
+        q_mixed = qzero.clone()
         for iiter in range(maxiter):
             # get index of mask where is True
             ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
 
-            # The "shift_" term is the a product of the gamma and dQ values
-            # 2D @ 3D, the normal single system code: (q_mixed - qzero) @ gmat
-            # t.einsum('ij, ijk-> ik', q_mixed - qzero, gmat) is much faster,
-            # but unstable: RuntimeError: Function 'BmmBackward' returned ...
             shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])
-
-            # repeat shift according to number of orbitals
-            # for convinience, we will keep the size of shiftorb_ unchanged
-            # during the dynamic SCC-DFTB batch calculations
-            if not self.batch:
-                shiftorb_ = pad1d([
-                    ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
-                        self.atind[self.mask[-1]], shift_)])
-            else:
-                shiftorb_ = pad1d([
-                    ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                        self.atind[self.mask[-1]], shift_)])
+            shiftorb_ = pad1d([
+                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                    self.atind[self.mask[-1]], shift_)])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
             # To get the Fock matrix "fock"; Construct the gamma matrix "G" then
-            # H0 + 0.5 * S * G. Note: the unsqueeze axis should be made into a
-            # relative value for true vectorisation. shift_mat is precomputed
-            # to make the code easier to understand, however it will be removed
-            # later in the development process to save on memory allocation.
             dim_ = shift_mat.shape[-1]   # the new dimension of max orbitals
             fock = self.ham[self.mask[-1]][:, :dim_, :dim_] + \
                 0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
@@ -534,7 +417,6 @@ class SCF:
                                          self.para['tElec'])
 
             # build density according to occ and eigenvector
-            # t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
             C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
 
             # batch calculation of density, normal code: C_scaled @ C_scaled.T
@@ -547,14 +429,9 @@ class SCF:
                     t.tensor(self.nat_)[self.mask[-1]])])
 
             # Last mixed charge is the current step now
-            if not self.batch:
-                if q_new.squeeze().dim() == 1:  # single atom
-                    q_new_ = q_new[:, :self.dataset['natomAll'][ibatch[0]]]
-                else:
-                    q_new_ = q_new[0][: self.dataset['natomAll'][ibatch[0]]]
-                q_mixed = self.mixer(q_new_.squeeze(), q_mixed.squeeze()).unsqueeze(0)
-            else:
-                q_mixed = self.mixer(q_new, q_mixed[self.mask[-1]], self.mask[-1])
+            q_mixed_, conv = self.mixer(q_new)
+            print(q_mixed_.shape, conv)
+            q_mixed[self.mask[-1]] = q_mixed_
             if self.para['convergenceType'] == 'energy':
                 # get energy: E0 + E_coul
                 convergencelist.append(
@@ -572,9 +449,10 @@ class SCF:
                 dif = self.print_.print_charge(iiter, convergencelist, self.nat)
 
             # if reached convergence, and append mask
-            conver_, self.mask = self.convergence(
-                iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask, self.Lmask)
-            if conver_:
+            # conver_, self.mask = self.convergence(
+            #     iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask, self.Lmask)
+            self.mask.append(~conv)
+            if conv.all():
                 self.para['reachConvergence'] = True
                 break
 
@@ -850,173 +728,6 @@ class Repulsive():
         else:
             print('Error: {} distance > cutoff'.format(nameij))
         return energy
-
-
-class Mixing:
-    """Mixing method."""
-
-    def __init__(self, para):
-        """Initialize parameters."""
-        self.para = para
-
-        # max iteration loop
-        self.nit = self.para['maxIteration']
-
-        # initialize broyden mixing parameters
-        if self.para['mixMethod'] == 'broyden':
-
-            # global diufference of charge difference
-            self.df = []
-
-            self.uu = []
-
-            # weight parameter in broyden method
-            self.ww = t.zeros(self.nit)
-
-            # global a parameter for broyden method
-            self.aa = t.zeros(self.nit, self.nit)
-
-            # global c parameter for broyden method
-            self.cc = t.zeros(self.nit, self.nit)
-
-            # global beta parameter for broyden method
-            self.beta = t.zeros(self.nit, self.nit)
-
-    def mix(self, iiter, qzero, qatom, qmix, qdiff):
-        """Deal with the first iteration."""
-        if iiter == 0:
-            qmix.append(qzero)
-            if self.para['mixMethod'] == 'broyden':
-                self.df.append(t.zeros((self.para['natom'])))
-                self.uu.append(t.zeros((self.para['natom'])))
-            qmix_ = self.simple_mix(qzero, qatom[-1], qdiff)
-            qmix.append(qmix_)
-        else:
-            if self.para['mixMethod'] == 'simple':
-                qmix_ = self.simple_mix(qmix[-1], qatom[-1], qdiff)
-            elif self.para['mixMethod'] == 'broyden':
-                qmix_ = self.broyden_mix(iiter, qmix, qatom[-1], qdiff)
-            elif self.para['mixMethod'] == 'anderson':
-                qmix_ = self.anderson_mix(iiter, qmix, qatom, qdiff)
-            qmix.append(qmix_)
-        self.para['charge'] = qatom
-
-    def simple_mix(self, oldqatom, qatom, qdiff):
-        """Simple mixing method."""
-        mixf = self.para['mixFactor']
-        qdiff.append(qatom - oldqatom)
-        qmix_ = oldqatom + mixf * qdiff[-1]
-        return qmix_
-
-    def anderson_mix(self, iiter, qmix, qatom, qdiff):
-        """Anderson mixing method."""
-        mixf = self.para['mixFactor']
-        qdiff.append(qatom[-1] - qmix[-1])
-        df_iiter, df_prev = qdiff[-1], qdiff[-2]
-        temp1 = t.dot(df_iiter, df_iiter - df_prev)
-        temp2 = t.dot(df_iiter - df_prev, df_iiter - df_prev)
-        beta = temp1 / temp2
-        average_qin = (1.0 - beta) * qmix[-1] + beta * qmix[-2]
-        average_qout = (1.0 - beta) * qatom[-1] + beta * qatom[-2]
-        qmix_ = (1 - mixf) * average_qin + mixf * average_qout
-        return qmix_
-
-    def broyden_mix(self, iiter, qmix, qatom_, qdiff):
-        """Broyden mixing method.
-
-        Reference:
-            D. D. Johnson, PRB, 38 (18), 1988.
-
-        """
-        # temporal a parameter for current interation
-        aa_ = []
-
-        # temporal c parameter for current interation
-        cc_ = []
-
-        weightfrac = 1e-2
-
-        omega0 = 1e-2
-
-        # max weight
-        maxweight = 1E5
-
-        # min weight
-        minweight = 1.0
-
-        alpha = self.para['mixFactor']
-
-        # get temporal parameter of last interation: <dF|dF>
-        ww_ = t.sqrt(qdiff[-1] @ qdiff[-1])
-
-        # build omega (ww) according to charge difference
-        # if weight from last loop is larger than: weightfrac / maxweight
-        if ww_ > weightfrac / maxweight:
-            self.ww[iiter - 1] = weightfrac / ww_
-
-        # here the gradient may break
-        else:
-            self.ww[iiter - 1] = maxweight
-
-        # if weight is smaller than: minweight
-        if self.ww[iiter - 1] < minweight:
-
-            # here the gradient may break
-            self.ww[iiter - 1] = minweight
-
-        # get updated charge difference
-        qdiff.append(qatom_ - qmix[-1])
-
-        # temporal (latest) difference of charge difference
-        df_ = qdiff[-1] - qdiff[-2]
-
-        # get normalized difference of charge difference
-        ndf = 1 / t.sqrt(df_ @ df_) * df_
-
-        if iiter >= 2:
-            # build loop from first loop to last loop
-            [aa_.append(idf @ ndf) for idf in  self.df[:-1]]
-
-            # build loop from first loop to last loop
-            [cc_.append(idf @ qdiff[-1]) for idf in self.df[:-1]]
-
-            # update last a parameter
-            self.aa[: iiter - 1, iiter] = aa_
-            self.aa[iiter, : iiter - 1] = aa_
-
-            # update last c parameter
-            self.cc[: iiter - 1, iiter] = cc_
-            self.cc[iiter, : iiter - 1] = cc_
-
-        self.aa[iiter - 1, iiter - 1] = 1.0
-
-        # update last c parameter
-        self.cc[iiter - 1, iiter - 1] = self.ww[iiter - 1] * (ndf @ qdiff[-1])
-
-        for ii in range(iiter):
-            self.beta[:iiter, ii] = self.ww[:iiter] * self.ww[ii] * \
-                self.aa[:iiter, ii]
-
-            self.beta[ii, ii] = self.beta[ii, ii] + omega0 ** 2
-
-        self.beta[: iiter, : iiter] = t.inverse(self.beta[: iiter, : iiter])
-
-        gamma = t.mm(self.cc[: iiter, : iiter], self.beta[: iiter, : iiter])
-
-        # add difference of charge difference
-        self.df.append(ndf)
-
-        df = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (qmix[-1] - qmix[-2])
-
-        qmix_ = qmix[-1] + alpha * qdiff[-1]
-
-        for ii in range(iiter):
-            qmix_ = qmix_ - self.ww[ii] * gamma[0, ii] * self.uu[ii]
-
-        qmix_ = qmix_ - self.ww[iiter - 1] * gamma[0, iiter - 1] * df
-
-        self.uu.append(df)
-        return qmix_
 
 
 class Analysis:

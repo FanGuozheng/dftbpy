@@ -1,880 +1,285 @@
-import torch as t
+"""Simple, Anderson mixer modules."""
+import torch
 from abc import ABC, abstractmethod
+Tensor = torch.Tensor
 
+class _Mixer(ABC):
+    """This is the abstract base class up on which all mixers are based.
 
-"""
-This module contains the abstract base class on which all mixers are based.
+    Arguments:
+        mix_param: Mixing parameter, controls the extent of charge mixing.
+        tolerance: Converged tolerance.
 
+    Keyword Args:
+        mask: Mask for dynamic SCC DFTB convergence.
+        generations: Store values of how many steps.
 
-Notes
------
-Updating parameters using gradients that have been backpropagated through a
-large number of mixing iterations may result in poor gradients.
-
-Todo
-----
-- Enable toggling of vector override behaviour.
-- Amend terminology; dQ is not necessarily whats being passed in. More commonly
-  it is the current atomic charges q.
-  [Priority: Low]
-- Replace pytorch math operations with their inplace equivalents wherever
-  applicable. [Priority: Low]
-"""
-
-# <Helper_Functions>
-# def __increment(self):
-#     """Wrapper func
-#     tion to increment the step ``mixing_step`` parameter.
-#     """
-
-# </Helper_Functions>
-
-
-class Mixer(ABC):
-    """This is the abstract base class up on which all, charge, mixers are based.
-
-    Parameters
-    ----------
-    mix_param : `float`
-        Mixing parameter, ∈(0, 1), controls the extent of charge mixing. Larger
-        values result in more aggressive mixing.
-
-    **kwargs
-        Additional keyword arguments:
-
-
-    Properties
-    ----------
-    converged : `bool`
-        Boolean indicating convergence status according to charges & and other
-        mixer specific properties.
-    _step_number : `int`:
-        Integer which tracks the number of mixing iterations performed thus far.
-        Updated via wrapper function prior to mixing operation.
-    _delta : `torch.tensor` [`float`]
-        Zero dimensional tensor holding the difference between the current and
-        previous charges. Use for checking convergence.
-
-    Notes
-    -----
-    `dQ_init` is handed elsewhere.
-
-    Todo
-    ----
-    - Fully vectorise mixing operations to enable multiple systems to be mixed
-      simultaneously. Will need code to purge selective parts of the history
-      associated with converged systems no longer requiring SCC operations,
-      and some code to deal with saving iteration counts for each system.
-      [Moderate]
-    - Abstract _mixing_step incrementation to an external wrapper function.
-        [Low]
-    - Add verbosity setting. [Low]
-    - Add logging options (i.e. save fock history) [Low]
     """
 
-    # Maximum permitted difference in charge between successive iterations.
-    charge_threashold = 1E-5
+    def __init__(self, q_init: Tensor, mix_param=0.1, tolerance=1E-8, **kwargs):
+        self.return_convergence = kwargs.get('return_convergence', False)
+        self.generations = kwargs.get('generations', 3)
+        q_init = q_init.unsqueeze(0) if q_init.dim() == 0 else q_init  # H atom
+        q_init = q_init.unsqueeze(0) if q_init.dim() == 1 else q_init  # -> batch
+        assert q_init.dim() == 2
 
-    def __init__(self, mix_param, **kwargs):
-
+        self.q_init = q_init
         self.mix_param = mix_param
-
+        self.tolerance = tolerance
         self._step_number = 0
-
         self._delta = None
 
     @abstractmethod
-    def __call__(self, dQ_new, **kwargs):
-        """Performs the mixing operation & returns the newly mixed dQ.
+    def __call__(self, q_new: Tensor, q_old=None, **kwargs):
+        """Perform the mixing operation & returns the newly mixed charges.
+
+        The single system will be transformed to batch. Adaptive mask.
+
+        Arguments:
+            q_new: The new charge that is to be mixed.
+            q_old: Optional old charge.
+
+        Keyword Args:
+            mask: Converged mask for batch mixing.
         """
-        # Mixing operation would best be performed in a different function
-        # this cleans up
-        pass
+        q_new = q_new.unsqueeze(0) if q_new.dim() == 0 else q_new  # H atom
+        q_new = q_new.unsqueeze(0) if q_new.dim() == 1 else q_new  # -> batch
+        assert q_new.dim() == 2
+        self.q_new, self.this_size = q_new, q_new.shape[-1]
 
-    @property
-    def converged(self):
-        """Getter for ``converged`` property.
+        self.mask = kwargs.get('mask', None)
+        if self.return_convergence is True and self.mask is None:
+            self.mask = self.conv_mat[1] == False
+        elif self.return_convergence is False and self.mask is None:
+            self.mask = torch.tensor([True]).repeat(self.q_new.shape[0])
 
-        Returns
-        -------
-        converged : `bool`
-            Boolien indicating convergence status
+        # make qnew input more flexible, either full batch or batch with mask
+        if self.q_new.shape[0] == self._F[0].shape[0]:
+            self.qnew = self.q_new[self.mask]
+        elif self.q_new.shape[0] == self._F[0, self.mask].shape[0]:
+            self.qnew = self.q_new
+        else:
+            raise ValueError('wrong batch dimension of q_new.')
+
+        # overwrite last entry if q_old is not None
+        if q_old is not None:
+            if q_old.shape[0] == self._F[0].shape[0]:
+                self._dQ[0, self.mask] = q_old[self.mask]
+            elif self.q_new.shape[0] == self._F[0, self.mask].shape[0]:
+                self._dQ[0, self.mask] = self.q_old
+            else:
+                raise ValueError('wrong batch dimension of q_new.')
+
+    @abstractmethod
+    def __convergence__(self):
+        """Get converged property.
+
+        Returns:
+            converged: Boolien indicating convergence status.
         """
-        # By default, only the charge difference is considered however other
-        # mixer specific terms could also be added by overriding this locally.
-        return t.max(t.abs(self._delta), -1).values < self.charge_threashold
-
-    def reset(self):
-        """Resets the mixer to its initial state. At the very least this must
-        reset the iteration counter.
-        """
-
-        raise NotImplementedError(
-            'Function not implemented or is invalid for the '
-            f'"{type(self).__name__}" mixer')
-
-    def _initialisation(self):
-        """Conducts any required initialisation operations. This helps to clean
-        up the __init__ function and should only ever be called there.
-
-        Notes
-        -----
-        This may not actually be necessary.
-        """
-        raise NotImplementedError('Function is not yet implemented')
-
-    def __repr__(self):
-        """Returns representative string (mostly used for logging).
-
-        Returns
-        -------
-        r: `str`
-            A string representation of the mixer.
-        """
-        pass
+        # convergence can be controlled either in mixer or out of mixer
+        return torch.max(torch.abs(self._delta), -1).values < self.tolerance
 
 
-class Simple(Mixer):
+class Simple(_Mixer):
     """Implementation of simple mixer.
 
-    Parameters
-    ----------
-    mix_param : `float`, optional
-        Mixing parameter, ∈(0, 1), controls the extent of charge mixing. Larger
-        values result in more aggressive mixing. [DEFAULT=0.05]
+    Arguments:
+        q_init: Very first initial charge.
+        mix_param: Mixing parameter, controls the extent of charge mixing.
+        generations: Number of generations to consider during mixing.
 
-    **kwargs
-        Additional keyword arguments:
-            ``dQ_init``:
-                Pre-initialises the mixer so ``dQ_old`` does not have to be
-                passed in the first mixing call. (`torch.tensor`). [DEFAULT=None]
-
-    Properties
-    ----------
-    converged : `bool`
-        Boolean indicating convergence status according to charges & and other
-        mixer specific properties.
-    _step_number : `int`:
-        Integer which tracks the number of mixing iterations performed thus far.
-        Updated via wrapper function prior to mixing operation.
-    _delta : `torch.tensor` [`float`]
-        Zero dimensional tensor holding the difference between the current and
-        previous charges. Use for checking convergence.
-
-    Todo
-    ----
-    - Document dQ_old. [Low]
-
+    Examples:
+        >>> from tbmalt.common.maths.mixer import Simple
+        >>> import torch
+        >>> qinit = torch.tensor([4, 1, 1, 1, 1])
+        >>> mixer = Simple(qinit)
+        >>> qnew = torch.tensor([4.4, 0.9, 0.9, 0.9, 0.9])
+        >>> qmix = mixer(qnew)
+        >>> qmix
+        >>> tensor([[4.080000000000000, 0.980000000000000, 0.980000000000000,
+                     0.980000000000000, 0.980000000000000]])
     """
-    def __init__(self, mix_param=0.05, **kwargs):
-        super().__init__(mix_param, **kwargs)
 
-        #|!>
-        # `dQ_init`'s behavior is mixer specific, thus it must
-        # be a child rather than parent property.
-        self.dQ_old = kwargs.get('dQ_init', None)
+    def __init__(self, q_init: Tensor, mix_param=0.2, generations=4, **kwargs):
+        super().__init__(q_init, mix_param, **kwargs)
+        self.mix_param = mix_param
+        self._build_matrices(self.q_init)
+        self._dQ[0] = self.q_init
 
-    def __call__(self, dQ_new, dQ_old=None, **kwargs):
-        """Performs the simple mixing operation & returns the mixed dQ vector.
+    def _build_matrices(self, q_init: Tensor):
+        """Build dQs, which stores all the mixing charges.
 
-        Parameters
-        ----------
-        dQ_new : `torch.tensor` [`float`]
-            The new dQ vector that is to be mixed.
-        dQ_old : `torch.tensor` [`float`], optional
-            Previous dQ with which ``dQ_new`` is to be mixed. Only required for
-            the first mix operation, and only if ``dQ_init`` was not specified
-            at instantiation. [see notes]
+        Arguments:
+            q_init: The first dQ tensor on which the new are to be based.
 
-        **kwargs
-            Additional keyword arguments:
-                ``mix_param``:
-                    Updates the mixing parameter to ``x`` for the current and all
-                    subsequent mixing operations (`float`).
-                ``inplace``: `bool`
-                    By default a new tensor instance is returned, however if
-                    ``inplace`` is set to True then dQ_old will be overridden.
-                    (`bool`) [DEFAULT=False]
-
-        Returns
-        -------
-        dQ_mixed : `torch.tensor` [`float`]
-            Mixed dQ vector.
-
-        Notes
-        -----
-        The ``dQ_old`` parameter becomes optional after the first mixing call.
-        This is because ``dQ_old`` is commonly just the``dQ_mixed`` value from
-        the previous cycle; which is stored locally. If ``dQ_init`` is specified
-        during class instantiation; ``dQ_old`` can be omitted completely. If
-        specified, ``dQ_old`` will be used rather than the stored value.
-
-        This will automatically assign the newly mixed dQ vector to the class'
-        ``self.dQ_old`` parameter.
-
-        Warnings
-        --------
-        This currently overwrites the dQ_old vector.
-
-        Todo
-        ----
-        - For the ``inplace`` keyword to result in true inplace behaviour no
-          tensor should be returned. [Priority: Low]
-        - Update comments regarding self assignment
         """
+        size = (self.generations + 1, *tuple(q_init.shape))
+        self._F = torch.zeros(size)
+        self._dQ = torch.zeros(size)
+        if self.return_convergence:
+            self.conv_mat = torch.zeros(self.generations + 1, q_init.shape[0],
+                                        dtype=bool)
 
-        # Increment _step_number variable (should be abstracted to a wrapper)
+    def __call__(self, q_new: Tensor, q_old=None, **kwargs):
+        """Perform the simple mixing operation & returns the mixed charge.
+
+        Arguments:
+            q_new: The new charge that is to be mixed.
+            q_old: Previous charge to be mixed.
+
+        Returns:
+            q_mix: Mixed charge.
+
+        """
+        super().__call__(q_new, q_old, **kwargs)
         self._step_number += 1
 
-        # Assign dQ_old to the stored value if it was not specified
-        dQ_old = self.dQ_old if dQ_old is None else dQ_old
+        self._F[0, self.mask, :self.this_size] = \
+            self.qnew - self._dQ[0, self.mask, :self.this_size]
+        q_mix = self._dQ[0, self.mask] + self._F[0, self.mask] * self.mix_param
 
-        # Check if a new mixing parameter "x" has been provided.
-        if 'mix_param' in kwargs:
-            # If so update the class' mixing parameter to the new value.
-            self.mix_param = kwargs['mix_param']
+        self._dQ[:, self.mask] = torch.roll(self._dQ[:, self.mask], 1, 0)
+        self._F[:, self.mask] = torch.roll(self._F[:, self.mask], 1, 0)
+        self._dQ[0, self.mask] = q_mix
 
-        # Calculate the difference between the new and old dQ vectors & add
-        # x times that difference to the old dQ vector to yield the mixed dQ.
-        delta = (dQ_new - dQ_old)
-        dQ_mixed = dQ_old + delta * self.mix_param
-
-        # Update the dQ_old attribute
-        self.dQ_old = dQ_mixed
-
-        # Update the self._delta property
-        self._delta = (dQ_new - dQ_old)
-
-        # Return the mixed dQ vector.
-        return dQ_mixed
-
-    def reset(self, dQ_init=None):
-        """Resets the mixer instance read to be used again.
-
-        Parameters
-        ----------
-        dQ_init : `torch.tensor` [`float`], optional
-            Pre-initialises the mixer so ``dQ_old`` does not have to be passed
-            in the first mixing call. (`torch.tensor`). [DEFAULT=None]
-        """
-        # Reset the step iteration counter
-        self._step_number = 0
-
-        # Check if dQ_init was specified
-        if dQ_init is not None:
-            # If so assign it
-            self.dQ_old = dQ_init
-
-        # Purge the _delta attribute
-        self._delta = None
-
-    def __repr__(self):
-        """Returns representative string (mostly used for logging).
-
-        Returns
-        -------
-        r: `str`
-            A string representation of the mixer.
-        """
-        # Return an informational string.
-        return f'{self.__class__.__qualname__}: step={self._step_number}'
-
-    def cull(self, cull_list):
-        """Purge specific systems from the mixer when in multi-system mode. This
-        is useful when a subset of systems have converged during the mixing of a
-        large number of systems.
-
-        Parameters
-        ----------
-        cull_list : `torch.tensor` [`bool`]
-            Tensor with a boolean per-system: True indicates a system should be
-            removed from history and that it will no longer be specified during
-            mixing, False indicates a system should be kept.
-        """
-        # Invert the cull_list, gather & reassign self.dQ_old and self._delta
-        # so only those marked False remain.
-        self.dQ_old = self.dQ_old[~cull_list]
-        self._delta = self._delta[~cull_list]
-
-
-class Anderson(Mixer):
-    """Performs Anderson mixing of input vectors through an iterative process.
-    Upon instantiation, a callable class instance will be returned. Calls to
-    this instance will take, as its arguments, two input vectors and return
-    a single mixed vector.
-
-    Parameters
-    ----------
-    mix_param : `float`, optional
-        Mixing parameter, ∈(0, 1), controls the extent of charge mixing. Larger
-        values result in more aggressive mixing. [DEFAULT=0.05]
-    generations : `int`, optional
-        Number of generations to consider during mixing. [DEFAULT=4]
-    init_mix_param : `float`, optional
-        Simple mixing parameter to use until `_step_number` >= `generations`.
-        [DEFAULT=0.01]
-    diagonal_offset : `float`, optioinal
-        Value added to the equation system's diagonal elements to help prevent
-        the emergence of linear dependencies during the mixing processes. If
-        set to None then rescaling will be disabled. [DEFAULT=0.01]
-
-    **kwargs
-        Additional keyword arguments:
-            ``dQ_init``:
-                Pre-initialises the mixer so ``dQ_old`` does not have to be
-                passed in the first mixing call. (`torch.tensor`). [DEFAULT=None]
-
-    Properties
-    ----------
-    converged : `bool`
-        Boolean indicating convergence status according to charges & and other
-        mixer specific properties.
-    _step_number : `int`:
-        Integer which tracks the number of mixing iterations performed thus far.
-        Updated via wrapper function prior to mixing operation.
-    _delta : `torch.tensor` [`float`]
-        Zero dimensional tensor holding the difference between the current and
-        previous charges. Use for checking convergence.
-
-    Attributes
-    ----------
-    _dQs `torch.tensor` [`float`]
-        History of dQ vectors (dQ_old).
-    _F : `torch.tensor` [`float`]
-        History of difference between dQ_new and dQ_old vectors.
-
-    Notes
-    -----
-    The Anderson mixing functions primarily follow the equations set out by
-    Eyert [1]. However, the borrows heavily from the DFTB+ implementation [2].
-    A more in depth discussion on the topic is given by Anderson [3].
-
-    This will perform simple mixing until the number of interactions surpasses
-    the number of generations requested.
-
-
-    Warnings
-    --------
-    Setting `generations` too high can lead to a linearly dependent set of
-    equations. However, this effect can be mitigated through the use of the
-    ``diagonal_offset`` parameter.
-
-    This deviates from the DFTB+ implementation in that it does not compute or
-    use the theta zero values. Which are currently causing stability issues,
-    see the "to do" list for more information.
-
-    .. [1] Eyert, V. (1996). A Comparative Study on Methods for Convergence
-       Acceleration of Iterative Vector Sequences. Journal of Computational
-       Physics, 124(2), 271–285.
-    .. [2] Hourahine, B., Aradi, B., Blum, V., Frauenheim, T. et al., (2020).
-       DFTB+, a software package for efficient approximate density functional
-       theory based atomistic simulations. The Journal of Chemical Physics,
-       152(12), 124101.
-    .. [3] Anderson, D. G. M. (2018). Comments on “Anderson Acceleration,
-       Mixing and Extrapolation.” Numerical Algorithms, 80(1), 135–234.
-
-    Todo
-    ----
-    - Identify why using theta 0 in a manner similar to DFTB+ causes such
-      highly divergent behaviour. Lines concerned:
-            theta_0 = 1 - torch.sum(thetas)
-            dQ_bar += theta_0 * self._dQs[0]
-            F_bar += theta_0 * self._F[0]
-      [Priority: Critical]
-    - Document dQ_list [Priority: Low]
-    """
-    def __init__(self, mix_param=0.05, generations=4, init_mix_param=0.01,
-                 diagonal_offset=0.01, **kwargs):
-        super().__init__(mix_param, **kwargs)
-
-        self.generations = generations
-
-        self.init_mix_param = init_mix_param
-
-        self.diagonal_offset = diagonal_offset
-
-        # If `dQ_init` is specified; _dQs & _F can be generated here
-        if 'dQ_init' in kwargs:
-            self.__build_F_and_dQs(kwargs['dQ_init'])
-            # Assign dQ_init to the _dQs list
-            self._dQs[0] = kwargs['dQ_init']
-        # Otherwise create placeholders to be overridden
+        # Save the last difference to _delta for convergence
+        if self.return_convergence:
+            self._delta = self._F[1]
+            self.conv_mat[0] = self.__convergence__()
+            self.conv_mat = torch.roll(self.conv_mat, 1, 0)
+            return q_mix, self.conv_mat[1]
         else:
-            self._dQs = None
-            self._F = None
+            return q_mix
 
-    def __build_F_and_dQs(self, dQ_first):
-        """Builds the F and dQs matrices. This is mainly used during the
-        initialisation prices, and has been abstracted to avoid code repetition
-        and help tidy things up.
-
-        Parameters
-        ----------
-        dQ_first : `torch.tensor`
-            The first dQ tensor on which the new are to be based.
-
-        Notes
-        -----
-        This function auto-assigns to the class variables so it returns nothing.
-
-        Todo
-        ----
-        - Rename this function to "_initialisation" to bring it into line with
-          the base class definition.
-        """
-        # Clone size and type settings.
-        size = (self.generations + 1, *tuple(dQ_first.shape))
-        dtype = dQ_first.dtype
-        self._F = t.zeros(size, dtype=dtype)
-        self._dQs = t.zeros(size, dtype=dtype)
-
-    def __call__(self, dQ_new, dQ_old=None, **kwargs):
-        """This performs the actual Anderson mixing operation.
-
-        Parameters
-        ----------
-        dQ_new : `torch.tensor` [`float`]
-            The newly calculated, pure, dQ vector that is to be mixed.
-        dQ_old : `torch.tensor` [`float`], optional
-            The previous, mixed, dQ vector which represents the current dQ value
-            that is to be updated. As this
+    def __convergence__(self):
+        """Return convergence."""
+        return super().__convergence__()
 
 
-        Notes
-        -----
-        This implementation is based off the Eyert paper, DFTB+ implementation
-        and "Comments on Anderson Acceleration, Mixing and Extrapolation".
+class Anderson(_Mixer):
+    """Anderson mixing.
 
-        This solver is currently equipped process the mixing of vectors only.
-        Passing in Fock matrices for example is likely to result in a crash.
-        The method used to set up the linear equation must be updated to enable
-        matrix mixing.
+    Arguments:
+        q_init: Very first initial charge.
+        mix_param: Mixing parameter, controls the extent of charge mixing.
+        generations: Number of generations to consider during mixing.
 
-        Todo
-        ----
-        - Find a more elegant approach to construct equation 4.3 (Eyert) that
-          does not require two implementations. [Priority: Low]
-        - Merge single & batch operations into one shape agnostic operation.
-          This primarily converns equations 4.1-4.3. [Priority: Moderate]
+    Keyword Args:
+        gamma: Value added to the equation system's diagonal elements to help
+            prevent the emergence of linear dependencies.
 
-        Warnings
-        --------
-        When vectoring the code for multi-system mixing, consideration must be
-        given to the torch.solve operation along with the squeeze & unsqueeze
-        operations associate with it.
+    Examples:
+        >>> from tbmalt.common.maths.mixer import Anderson
+        >>> import torch
+        >>> qinit = torch.tensor([4, 1, 1, 1, 1])
+        >>> mixer = Anderson(qinit)
+        >>> qnew = torch.tensor([4.4, 0.9, 0.9, 0.9, 0.9])
+        >>> qmix = mixer(qnew)
+        >>> qmix
+        >>> tensor([[4.080000000000000, 0.980000000000000, 0.980000000000000,
+                     0.980000000000000, 0.980000000000000]])
+
+    References:
+        .. [1] Eyert, V. (1996). Journal of Computational Physics, 124(2), 271.
+        .. [2] Hourahine, B., Aradi, B., Blum, V., Frauenheim, T. et al.,
+            (2020). The Journal of Chemical Physics, 152(12), 124101.
+        .. [3] Anderson, D. G. M. (2018). 80(1), 135–234.
+
+    """
+
+    def __init__(self, q_init: Tensor, mix_param=0.2, generations=3, **kwargs):
+        super().__init__(q_init, mix_param, **kwargs)
+        self.generations = generations
+        self.gamma = kwargs.get('gamma', 0.01)
+        self._build_matrices(self.q_init)
+        self._dQ[0] = self.q_init
+
+    def _build_matrices(self, q_init: Tensor):
+        """Builds the F and dQs matrices.
+
+        F is the charge difference of latest charge and previous charge. dQs
+        store all the mixing charges.
+
+        Arguments:
+            q_init: The first dQ tensor on which the new are to be based.
 
         """
-        # In this function "F" is used to refer to the delta:
-        #   F = dQ_new - dQ_previous
-        # this is in line with the notation used by Eyert. However, "dQs"
-        # takes the place of what would be "x" in Eyert's equations. These
-        # are the previous, mixed, charge values.
+        size = (self.generations + 1, *tuple(q_init.shape))
+        self._F = torch.zeros(size)
+        self._dQ = torch.zeros(size)
+        if self.return_convergence:
+            self.conv_mat = torch.zeros(self.generations + 1, q_init.shape[0],
+                                        dtype=bool)
 
-        # Batch-wise operations must be handled slightly different so identity
-        # if this is a batch operation (i.e. multi-system)
-        batch = dQ_new.dim() != 1
+    def __call__(self, q_new: Tensor, q_old=None, **kwargs):
+        """Perform the actual Anderson mixing operation.
 
-        # Increment _step_number variable (should be abstracted to a wrapper)
-        self._step_number += 1
+        Arguments:
+            q_new: The newly calculated, pure, dQ vector that is to be mixed.
+            q_old: The previous, mixed charges. If q_old is available,
+                assign q_old to dQs[0].
 
-        # If this is the 1st cycle; then the F & dQs arrays must be built.
-        # This will have been done during the init if dQ_init was given.
-        if self._step_number == 1 and self._F is None:
-            self.__build_F_and_dQs(dQ_new)
+        """
+        super().__call__(q_new, **kwargs)
+        self._step_number += 1  # increment _step_number
 
-        # If dQ_old specified; overwrite last entry in self._dQs.
-        if dQ_old is not None:
-            self._dQs[0] = dQ_old
+        self._F[0, self.mask, :self.this_size] = \
+            self.qnew - self._dQ[0, self.mask, :self.this_size]
 
-        # Calculate dQ_new - dQ_old delta & assign to the delta history _F
-        self._F[0] = dQ_new - dQ_old
+        if self._step_number >= 2:
+            previous_step = self._step_number if self._step_number < \
+                self.generations + 1 else self.generations + 1
 
-        # If a sufficient history has been built up then use Anderson mixing
-        if self._step_number > self.generations:
-            # Setup and solve the linear equation system, as described in equation
-            # 4.3 (Eyert), to get the coefficients "thetas":
-            #   a(i,j) =  <F(l) - F(l-i)|F(l) - F(l-j)>
-            #   b(i)   =  <F(l) - F(l-i)|F(l)>
-            # here dF = <F(l) - F(l-i)|
-            dF = self._F[0] - self._F[1:]
-            # Approach taken depends on if it is a single or a batch of vectors
-            # that are to be mixed. (At least if we want to avoid for loops)
-            if not batch:
-                a, b = dF @ dF.T, dF @ self._F[0]
-            else:
-                dF = dF.transpose(1, 0)
-                a = dF @ dF.transpose(1, 2)
-                b = t.squeeze(t.bmm(dF, t.unsqueeze(self._F[0], -1)))
+            # solve the linear equation system: equation 4.1 ~ 4.3
+            # aa_ij = <F(m)|F(m)-F(m-i)> - <F(m-j)|F(m)-F(m-i)>
+            # b_i = <F(m)|F(m)-F(m-i)>
+            tmp1 = self._F[0, self.mask] - self._F[1: previous_step, self.mask]
+            bb = torch.bmm(tmp1.transpose(1, 0),
+                           torch.unsqueeze(self._F[0, self.mask], -1))
+            aa = bb.permute(0, 2, 1) - torch.matmul(
+                self._F[1: previous_step, self.mask].transpose(1, 0),
+                tmp1.permute(1, 2, 0))
 
-            # Rescale diagonals to prevent linear dependence in a manner akin
-            # to equation 8.2 (Eyert)
-            if self.diagonal_offset is not None:
-                # Add (1 + diagonal_offset**2) to the diagonals of "a"
-                a += t.eye(a.shape[-1]) * (self.diagonal_offset ** 2)
+            # to equation 8.2 (Eyert) for linear dependent problem
+            if self.gamma is not None:
+                aa = aa * (1 + torch.eye(aa.shape[-1]) * self.gamma ** 2)
 
-            # Solve for the coefficients. As torch.solve cannot solve for 1D
-            # tensors a blank dimension must be added
-            thetas = t.squeeze(t.solve(t.unsqueeze(b, -1), a)[0])
+            # Solve for the coefficients, use mask to avoid singular U error
+            thetas = torch.solve(bb, aa)[0].squeeze(-1)
+            q_bar = (thetas * self._dQ[1: previous_step, self.mask].transpose(
+                2, 0)).transpose(2, 0).sum(0)
+            F_bar = (thetas * self._F[1: previous_step, self.mask].transpose(
+                2, 0)).transpose(2, 0).sum(0)
 
-            # Construct the 2nd terms of equations 4.1 and 4.2 (Eyert). These are
-            # the "averaged" histories of x and F respectively:
-            #   x_bar = sum(j=1 -> m) ϑ_j(l) * (|x(l-j)> - |x(l)>)
-            #   F_bar = sum(j=1 -> m) ϑ_j(l) * (|F(l-j)> - |F(l)>)
-            # These are not the x_bar & F_var values of equations 4.1 & 4.2 (Eyert)
-            # yet as they are still missing the 1st terms.
-            if not batch:
-                dQ_bar = t.sum(thetas * (self._dQs[1:] - self._dQs[0]).T, 1)
-                F_bar = t.sum(thetas * (-dF).T, 1)
-            else:
-                dQ_bar = t.sum(thetas.T * (self._dQs[1:] - self._dQs[0]).transpose(1, 0).T, 1).T
-                F_bar = t.sum(thetas.T * (-dF).T, 1).T
-
-            # The first terms of equations 4.1 & 4.2 (Eyert):
-            #   4.1: |x(l)> and & 4.2: |F(l)>
-            # Have been replaced by:
-            #   ϑ_0(l) * |x(j)> and ϑ_0(l) * |x(j)>
-            # respectively, where "ϑ_0(l)" is the coefficient for the current step
-            # and is defined as (Anderson):
-            #   ϑ_0(l) = 1 - sum(j=1 -> m) ϑ_j(l)
-
-            # Currently using the same method as DFTB+ causes stability issues.
-            theta_0 = 1 - t.sum(thetas)
-            # dQ_bar += theta_0 * self._dQs[0]
-            # F_bar += theta_0 * self._F[0]
-            dQ_bar += self._dQs[0]
-            F_bar += self._F[0]
+            # replace first terms of equations 4.1 and 4.2 with DFTB+ format
+            theta_0 = 1 - thetas.sum(1)
+            q_bar = q_bar + (theta_0 * self._dQ[0, self.mask].T).T
+            F_bar = F_bar + (theta_0 * self._F[0, self.mask].T).T
 
             # Calculate the new mixed dQ following equation 4.4 (Eyert):
-            #   |x(l+1)> = |x_bar(l)> + beta(l)|F_bar(l)>
-            # where "beta" is the mixing parameter
-            dQ_mixed = dQ_bar + (self.mix_param * F_bar)
+            q_mix = q_bar + (self.mix_param * F_bar)
 
         # If there is insufficient history for Anderson; use simple mixing
         else:
-            dQ_mixed = self._dQs[0] + (self._F[0] * self.init_mix_param)
+            q_mix = self._dQ[0, self.mask] + (self._F[0, self.mask] * self.mix_param)
 
-        # Shift F & dQ histories over; a roll follow by a reassignment is
-        # necessary to avoid a pytorch inplace error. (gradients remain intact)
-        self._F = t.roll(self._F, 1, 0)
-        self._dQs = t.roll(self._dQs, 1, 0)
+        # Shift F & dQ histories to avoid a pytorch inplace error
+        self._F[:, self.mask] = torch.roll(self._F[:, self.mask], 1, 0)
+        self._dQ[:, self.mask] = torch.roll(self._dQ[:, self.mask], 1, 0)
 
-        # Assign the mixed dQ to the dQs history array. The last dQ_mixed value
-        # is saved on the assumption that it will be used in the next step.
-        self._dQs[0] = dQ_mixed
+        # assign the mixed dQ to the dQs history array
+        self._dQ[0, self.mask] = q_mix
 
-        # Save the last difference to _delta
-        self._delta = self._F[1]
-
-        # Return the mixed parameter
-        return dQ_mixed
-
-    def reset(self, dQ_init=None):
-        """Resets the mixer instance read to be used again.
-
-        Parameters
-        ----------
-        dQ_init : `torch.tensor` [`float`], optional
-            Pre-initialises the mixer so ``dQ_old`` does not have to be passed
-            in the first mixing call. (`torch.tensor`). [DEFAULT=None]
-        """
-        # Reset the step iteration counter
-        self._step_number = 0
-
-        # Check if dQ_init was specified
-        if dQ_init is not None:
-            # Build the F and dQs lists
-            self.__build_F_and_dQs(dQ_init)
-            # Assign dQ_init to the _dQs list
-            self._dQs[0] = dQ_init
-        # Otherwise
+        # Save the last difference to _delta for convergence
+        if self.return_convergence:
+            self._delta = self._F[1]
+            self.conv_mat[0] = self.__convergence__()
+            self.conv_mat = torch.roll(self.conv_mat, 1, 0)
+            return q_mix, self.conv_mat[1]
         else:
-            # Purge self._F & _dQs attributes
-            self._dQs = None
-            self._F = None
-
-        # Reset the _delta attribute
-        self._delta = None
-
-    def __repr__(self):
-        """Returns representative string (mostly used for logging).
-
-        Returns
-        -------
-        r: `str`
-            A string representation of the mixer.
-        """
-        # Return an informational string.
-        return f'{self.__class__.__qualname__}: step={self._step_number}'
-
-    def cull(self, cull_list):
-        """Purge specific systems from the mixer when in multi-system mode. This
-        is useful when a subset of systems have converged during the mixing of a
-        large number of systems.
-
-        Parameters
-        ----------
-        cull_list : `torch.tensor` [`bool`]
-            Tensor with a boolean per-system: True indicates a system should be
-            removed from history and that it will no longer be specified during
-            mixing, False indicates a system should be kept.
-        """
-        # Invert the cull_list, gather & reassign self._delta self._dQs &
-        # self._F so only those marked False remain.
-        self._delta = self._delta[~cull_list]
-        self._dQs = self._dQs[:, ~cull_list]
-        self._F = self._F[:, ~cull_list]
-        # If only a single system remains; strip the extra axis
-        if t.sum(~cull_list) == 1:
-            self._delta = t.squeeze(self._delta)
-            self._dQs = t.squeeze(self._dQs)
-            self._F = t.squeeze(self._F)
-
-
-class Broyden(Mixer):
-    """Broyden mixing method.
-
-    Reference:
-        D. D. Johnson, PRB, 38 (18), 1988.
-
-    """
-
-    def __init__(self, mix_param=0.05, generations=60, init_mix_param=0.01,
-                 diagonal_offset=0.01, **kwargs):
-        super().__init__(mix_param, **kwargs)
-
-        self.init_mix_param = init_mix_param
-
-        self.generations = generations
-
-        self.diagonal_offset = diagonal_offset
-
-        # If `dQ_init` is specified; _dQs & _F can be generated here
-        if 'dQ_init' in kwargs:
-            self.__build_F_and_dQs(kwargs['dQ_init'])
-            # Assign dQ_init to the _dQs list
-            self._dQs[0] = kwargs['dQ_init']
-        # Otherwise create placeholders to be overridden
-        else:
-            self._dQs = None
-            self._F = None
-
-    def __build_F_and_dQs(self, dQ_first):
-        """Builds the F and dQs matrices. This is mainly used during the
-        initialisation prices, and has been abstracted to avoid code repetition
-        and help tidy things up.
-
-        Parameters
-        ----------
-        dQ_first : `torch.tensor`
-            The first dQ tensor on which the new are to be based.
-
-        Notes
-        -----
-        This function auto-assigns to the class variables so it returns nothing.
-
-        Todo
-        ----
-        - Rename this function to "_initialisation" to bring it into line with
-          the base class definition.
-        """
-        # Clone size and type settings.
-        size = (self.generations + 1, *tuple(dQ_first.shape))
-        dtype = dQ_first.dtype
-        self._F = t.zeros(size, dtype=dtype)
-        self._dQs = t.zeros(size, dtype=dtype)
-        self._U = t.zeros(size, dtype=dtype)
-        self.df = t.zeros(size, dtype=dtype)
-
-        # weight parameters
-        self.ww = t.zeros((self.generations), dtype=dtype)
-
-        # global a parameter for broyden method
-        self.aa = t.zeros(self.generations, self.generations)
-
-        # global c parameter for broyden method
-        self.cc = t.zeros(self.generations, self.generations)
-
-        # global beta parameter for broyden method
-        self.beta = t.zeros(self.generations, self.generations)
-
-        # global diufference of charge difference
-        # self.df = []
-
-        self.uu = []
-
-
-    def __call__(self, dQ_new, dQ_old=None, **kwargs):
-        # Batch-wise operations must be handled slightly different so identity
-        # if this is a batch operation (i.e. multi-system)
-        batch = dQ_new.dim() != 1
-
-        # Increment _step_number variable (should be abstracted to a wrapper)
-        self._step_number += 1
-
-        # If this is the 1st cycle; then the F & dQs arrays must be built.
-        # This will have been done during the init if dQ_init was given.
-        if self._step_number == 1 and self._F is None:
-            self.__build_F_and_dQs(dQ_new)
-
-        # If dQ_old specified; overwrite last entry in self._dQs.
-        if dQ_old is not None:
-            self._dQs[0] = dQ_old
-
-        # Calculate dQ_new - dQ_old delta & assign to the delta history _F
-        self._F[0] = dQ_new - dQ_old
-
-        # cc = t.zeros(self._step_number, self._step_number)
-
-        # temporal a parameter for current interation
-        # aa_ = []
-
-        # temporal c parameter for current interation
-        # cc_ = []
-
-        weightfrac = 1e-2
-
-        omega0 = 1e-2
-
-        # max weight
-        maxweight = 1E5
-
-        # min weight
-        minweight = 1.0
-
-        alpha = self.mix_param
-
-        # get temporal parameter of last interation: <dF|dF>
-        ww_ = t.sqrt(self._F[0] @ self._F[0])
-
-        # build omega (ww) according to charge difference
-        # if weight from last loop is larger than: weightfrac / maxweight
-        self.ww[self._step_number - 1] = weightfrac / ww_
-        '''if ww_ > weightfrac / maxweight:
-            self.ww[self._step_number - 1] = weightfrac / ww_
-
-        # here the gradient may break
-        else:
-            self.ww[self._step_number - 1] = maxweight
-
-        # if weight is smaller than: minweight
-        if self.ww[self._step_number - 1] < minweight:
-
-            # here the gradient may break
-            self.ww[self._step_number - 1] = minweight'''
-
-        # temporal (latest) difference of charge difference
-        df_ = self._F[0] - self._F[1]
-
-        # get normalized difference of charge difference
-        ndf = 1 / t.sqrt(df_ @ df_) * df_
-
-        if self._step_number == 1:
-            dQ_mixed = self._dQs[0] + (self._F[0] * self.init_mix_param)
-            idf = t.zeros(dQ_mixed.shape)
-            ndf = t.zeros(dQ_mixed.shape)
-
-        if self._step_number >= 2:
-            x = self.aa.clone()
-            sizea, sizec = self.aa.size(0), self.cc.size(0)
-            assert sizea == sizec
-
-            # for the second loop
-            self.aa[self._step_number - 1, self._step_number - 1] = 1.0
-
-            # update last c parameter
-            self.cc[self._step_number - 1, self._step_number - 1] = self.ww[self._step_number - 1] * (ndf @ self._F[0])
-            # diagc = self.ww * (self.df @ self._F[0])
-            # self.cc.as_strided([sizec], [sizec + 1]).copy_(diagc)
-
-            # fill beta off-diagonal and diagonal
-            beta = t.unsqueeze(self.ww, 1) @ t.unsqueeze(self.ww, 0) * self.aa
-            beta.add_(t.eye(len(beta)) * omega0 ** 2)
-
-            # get inverse of beta in equation 13
-            beta_ = beta[: self._step_number, : self._step_number].inverse()
-
-            # self.cc and self.beta is not filled, the rest is still zero
-            gamma = self.cc[: self._step_number, : self._step_number] @ beta_
-
-            idf = alpha * ndf + 1 / t.sqrt(df_ @ df_) * (self._dQs[0] - self._dQs[1])
-
-            dQ_mixed = self._dQs[0] + alpha * self._F[0]
-
-            for ii in range(self._step_number - 1):
-                dQ_mixed.add_(- self.ww[ii] * gamma[0, ii] * self._U[ii])
-
-            dQ_mixed.add_(- self.ww[self._step_number - 1] * gamma[0, self._step_number - 1] * idf)
-
-            # self.uu.append(idf)
-
-        if self._step_number >= 3:
-            aa_ = self.df[:self._step_number - 2] @ ndf
-            cc_ = self.df[:self._step_number - 2] @ self._F[0]
-
-            # update last a parameter
-            self.aa[: self._step_number - 2, self._step_number - 1] = aa_
-            self.aa[self._step_number - 1, : self._step_number - 2] = aa_
-            '''tmp_ = self.aa.clone()
-            tmp_[: self._step_number - 2, self._step_number - 1] = aa_
-            tmp_[self._step_number - 1, : self._step_number - 2] = aa_
-            self.aa = tmp_'''
-
-
-            # update last c parameter
-            self.cc[: self._step_number - 2, self._step_number - 1] = cc_
-            self.cc[self._step_number - 1, : self._step_number - 2] = cc_
-            '''tmpc_ = self.cc.clone()
-            tmpc_[: self._step_number - 2, self._step_number - 1] = cc_
-            tmpc_[self._step_number - 1, : self._step_number - 2] = cc_
-            self.cc = tmpc_'''
-
-        # Shift F & dQ histories over; a roll follow by a reassignment is
-        # necessary to avoid a pytorch inplace error. (gradients remain intact)
-        self._F = t.roll(self._F, 1, 0)
-
-        self._dQs = t.roll(self._dQs, 1, 0)
-
-        # Assign the mixed dQ to the dQs history array. The last dQ_mixed value
-        # is saved on the assumption that it will be used in the next step.
-        self._dQs[0] = dQ_mixed
-
-        # Save the last difference to _delta
-        self._delta = self._F[1]
-
-        # self.df = t.roll(self.df, 1, 0)
-        self.df[self._step_number - 1] = ndf
-        self._U = t.roll(self._U, 1, 0)
-        self._U[0] = idf
-
-        # Return the mixed parameter
-        return dQ_mixed
-
-    def reset(self, dQ_init=None):
-        """Resets the mixer instance read to be used again.
-
-        Parameters
-        ----------
-        dQ_init : `torch.tensor` [`float`], optional
-            Pre-initialises the mixer so ``dQ_old`` does not have to be passed
-            in the first mixing call. (`torch.tensor`). [DEFAULT=None]
-        """
-        # Reset the step iteration counter
-        self._step_number = 0
-
-        # Check if dQ_init was specified
-        if dQ_init is not None:
-            # Build the F and dQs lists
-            self.__build_F_and_dQs(dQ_init)
-            # Assign dQ_init to the _dQs list
-            self._dQs[0] = dQ_init
-        # Otherwise
-        else:
-            # Purge self._F & _dQs attributes
-            self._dQs = None
-            self._F = None
-
-        # Reset the _delta attribute
-        self._delta = None
-
-    def __repr__(self):
-        pass
+            return q_mix
+
+    def __convergence__(self):
+        """Return convergence."""
+        return super().__convergence__()
