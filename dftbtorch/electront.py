@@ -10,10 +10,9 @@ import torch.nn.functional as F
 class DFTBelect:
     """Deal with electronic calculation."""
 
-    def __init__(self, para, geometry, skf):
+    def __init__(self, para, skf):
         """Initialize parameters."""
         self.para = para
-        self.geo = geometry
         self.skf = skf
 
     def fermi(self, eigval, nelectron, telec=0.):

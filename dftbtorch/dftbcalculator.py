@@ -6,9 +6,11 @@ import numpy as np
 import torch as t
 import bisect
 from dftbtorch.sk import SKTran, GetSKTable, GetSK_, skt
+import common.maths as maths
 from dftbtorch.electront import DFTBelect
 from dftbtorch.periodic import Periodic
-from dftbtorch.matht import EigenSolver
+from dftbtorch.electrons import fermi
+from dftbtorch.properties import mulliken
 import dftbtorch.parameters as parameters
 import dftbtorch.parser as parser
 from IO.systems import System
@@ -83,9 +85,6 @@ class DFTBCalculator:
         else:
             Rundftbpy(self.parameter, self.dataset, self.skf, self.dataset['nfile'])
 
-    def get_result(self):
-        pass
-
 
 class Initialization:
     """Initialize parameters for DFTB.
@@ -116,18 +115,10 @@ class Initialization:
         self.parameter = initpara.dftb_parameter(self.parameter)
 
         # set the default tesnor dtype
-        if self.parameter['device'] == 'cpu':
-            if self.parameter['precision'] in (t.float64, t.float32):
-                t.set_default_dtype(self.parameter['precision'])  # cpu device
-            else:
-                raise ValueError('device is cpu, please select float64 or float32')
-        elif self.parameter['device'] == 'cuda':
-            if self.parameter['precision'] in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
-                t.set_default_tensor_type(self.parameter['precision'])  # gpu device
-            else:
-                raise ValueError('device is cuda, please select cuda.FloatTensor or cuda.DoubleTensor')
+        if self.parameter['precision'] in (t.float64, t.float32):
+            t.set_default_dtype(self.parameter['precision'])  # cpu device
         else:
-            raise ValueError('device only support cpu and cuda')
+            raise ValueError('device is cpu, please select float64 or float32')
 
         # get SKF parameters dictionary
         self.skf = initpara.skf_parameter(self.parameter, self.skf)
@@ -341,9 +332,6 @@ class SCF:
         # the name of all atoms
         self.atomname = self.dataset['symbols']
 
-        # eigen solver
-        self.eigen = EigenSolver(self.para['eigenMethod'])
-
         # analyze DFTB result
         self.analysis = Analysis(self.para, self.dataset, self.skf)
 
@@ -370,9 +358,6 @@ class SCF:
         # set initial reachConvergence as False
         self.para['reachConvergence'] = False
 
-        # define convergence list, append charge or energy to convergencelist
-        convergencelist = []
-
         if self.para['densityProfile'] == 'spherical':
             gmat_ = [self.elect.gmatrix(
                 self.dataset['distances'][i], self.nat[i],
@@ -393,13 +378,13 @@ class SCF:
         self.para['qzero'] = qzero = qatom
         q_mixed = qzero.clone()
         for iiter in range(maxiter):
-            # get index of mask where is True
-            ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
+            shift_ = t.stack(
+                [(im - iz) @ ig for im, iz, ig in zip(
+                    q_mixed[self.mask[-1]], qzero[self.mask[-1]], gmat[self.mask[-1]])])
 
-            shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])
-            shiftorb_ = pad1d([
-                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                    self.atind[self.mask[-1]], shift_)])
+            # repeat shift according to number of orbitals
+            shiftorb_ = pad1d([ishif.repeat_interleave(iorb) for iorb, ishif in
+                              zip(self.atind[self.mask[-1]], shift_)])
             shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
                                  for ishift in shiftorb_])
 
@@ -409,12 +394,8 @@ class SCF:
                 0.5 * self.over[self.mask[-1]][:, :dim_, :dim_] * shift_mat
 
             # Calculate the eigen-values & vectors via a Cholesky decomposition
-            epsilon, C = self.eigen.eigen(
-                fock, self.over[self.mask[-1]][:, :dim_, :dim_], self.batch,
-                self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]], inverse=self.para['inverse'])
-            # Calculate the occupation of electrons via the fermi method
-            occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
-                                         self.para['tElec'])
+            epsilon, C = maths.eighb(fock, self.over[self.mask[-1]][:, :dim_, :dim_])
+            occ, nocc = fermi(epsilon, nelectron[self.mask[-1]])
 
             # build density according to occ and eigenvector
             C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
@@ -423,41 +404,16 @@ class SCF:
             rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
             # calculate mulliken charges for each system in batch
-            q_new = pad1d([
-                self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
-                    self.over[self.mask[-1]][:, :dim_, :dim_], rho, self.atind[self.mask[-1]],
-                    t.tensor(self.nat_)[self.mask[-1]])])
+            q_new = mulliken(self.over[self.mask[-1], :dim_, :dim_],
+                             rho, self.atind[self.mask[-1]])
 
             # Last mixed charge is the current step now
-            q_mixed_, conv = self.mixer(q_new)
-            print(q_mixed_.shape, conv)
-            q_mixed[self.mask[-1]] = q_mixed_
-            if self.para['convergenceType'] == 'energy':
-                # get energy: E0 + E_coul
-                convergencelist.append(
-                    t.stack([iep @ iocc + 0.5 * ish @ (iqm + iqz)
-                             for iep, iocc, ish, iqm, iqz in
-                             zip(epsilon, occ, shift_, q_mixed, qzero[self.mask[-1]])]))
+            q_mixed[self.mask[-1]], conv = self.mixer(q_new)
 
-                # return energy difference and print energy information
-                dif = self.print_.print_energy(iiter, convergencelist,
-                                               self.batch, self.nb, self.mask, self.Lmask)
-
-            # use charge as convergence condition
-            elif self.para['convergenceType'] == 'charge':
-                convergencelist.append(q_mixed)
-                dif = self.print_.print_charge(iiter, convergencelist, self.nat)
-
-            # if reached convergence, and append mask
-            # conver_, self.mask = self.convergence(
-            #     iiter, maxiter, dif, self.batch, self.para['convergenceTolerance'], self.mask, ind_mask, self.Lmask)
             self.mask.append(~conv)
             if conv.all():
                 self.para['reachConvergence'] = True
                 break
-
-            # delete the previous charge or energy to save memory
-            del convergencelist[:-2]
 
         # return eigenvalue and charge
         self.para['charge'] = q_mixed
@@ -467,18 +423,12 @@ class SCF:
         # return the final shift
         self.para['shift'] = t.stack([(iqm - iqz) @ igm for iqm, iqz, igm
                                       in zip(q_mixed, qzero, gmat)])
-        if not self.batch:
-            shiftorb = pad1d([
-                    ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
-                        self.atind, self.para['shift'])])
-        else:
-            shiftorb = pad1d([
-                    ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                        self.atind, self.para['shift'])])
+        shiftorb = pad1d([
+            ishif.repeat_interleave(iorb) for iorb, ishif in zip(
+                self.atind, self.para['shift'])])
         shift_mat = t.stack([t.unsqueeze(ish, 1) + ish for ish in shiftorb])
         fock = self.ham + 0.5 * self.over * shift_mat
-        self.para['eigenvalue'], self.para['eigenvec'] = \
-            self.eigen.eigen(fock, self.over, self.batch, self.atind)
+        self.para['eigenvalue'], self.para['eigenvec'] = maths.eighb(fock, self.over)
 
         # return occupied states
         self.para['occ'], self.para['nocc'] = \
@@ -489,174 +439,6 @@ class SCF:
             self.para['eigenvec']) * self.para['eigenvec']
         self.para['denmat'] = t.matmul(C_scaled, C_scaled.transpose(1, 2))
 
-
-    def scf_pe_scc(self):
-        """SCF for periodic."""
-        pass
-
-    def scf_npe_xlbomd(self, ibatch=[0]):
-        """SCF for non-periodic-ML system with scc."""
-        self.atind = pad1d([self.atind[ii] for ii in ibatch])
-        self.nat_ = [self.nat[ii] for ii in ibatch]
-        maxiter = self.para['maxIteration']
-
-        self.Lmask = self.para['dynamicSCC']
-
-        # set initial reachConvergence as False
-        self.para['reachConvergence'] = False
-
-        # define convergence list, append charge or energy to convergencelist
-        convergencelist = []
-
-        if self.para['densityProfile'] == 'spherical':
-            gmat_ = [self.elect.gmatrix(
-                self.dataset['distances'][i], self.nat[i],
-                self.dataset['symbols'][i]) for i in ibatch]
-
-            # pad a list of 2D gmat with different size
-            gmat = pad2d(gmat_)
-
-        elif self.para['scc_den_basis'] == 'gaussian':
-            gmat = self.elect._gamma_gaussian(self.para['this_U'],
-                                              self.para['positions'])
-
-        qatom = self.analysis.get_qatom(self.atomname, ibatch)
-
-        # qatom here is 2D, add up the along the rows
-        nelectron = qatom.sum(axis=1)
-        self.para['qzero'] = qzero = qatom
-        q_mixed = qzero.clone()  # q_mixed will maintain the shape unchanged
-        qatom_xlbomd = self.para['qatom_xlbomd']
-
-        ind_mask = list(np.where(np.array(self.mask[-1]) == True)[0])
-        shift_ = t.stack([(q_mixed[i] - qzero[i]) @ gmat[i] for i in ind_mask])
-
-        if not self.batch:
-            shiftorb_ = pad1d([
-                ishif.repeat_interleave(iorb[iorb!=0]) for iorb, ishif in zip(
-                    self.atind[self.mask[-1]], shift_)])
-        else:
-            shiftorb_ = pad1d([
-                ishif.repeat_interleave(iorb) for iorb, ishif in zip(
-                    self.atind[self.mask[-1]], shift_)])
-        shift_mat = t.stack([t.unsqueeze(ishift, 1) + ishift
-                             for ishift in shiftorb_])
-        # dim_ = shift_mat.shape[-1]   # the new dimension of max orbitals
-        fock = self.ham[self.mask[-1]] + 0.5 * self.over[self.mask[-1]] * shift_mat
-
-        # Calculate the eigen-values & vectors via a Cholesky decomposition
-        epsilon, C = self.eigen.eigen(
-            fock, self.over[self.mask[-1]], self.batch,
-            self.atind[self.mask[-1]], t.tensor(ibatch)[self.mask[-1]], inverse=self.para['inverse'])
-        # Calculate the occupation of electrons via the fermi method
-        occ, nocc = self.elect.fermi(epsilon, nelectron[self.mask[-1]],
-                                         self.para['tElec'])
-
-        # build density according to occ and eigenvector
-        # t.stack([t.sqrt(occ[i]) * C[i] for i in range(self.nb)])
-        C_scaled = t.sqrt(occ).unsqueeze(1).expand_as(C) * C
-
-        # batch calculation of density, normal code: C_scaled @ C_scaled.T
-        rho = t.matmul(C_scaled, C_scaled.transpose(1, 2))
-
-        # calculate mulliken charges for each system in batch
-        q_new = pad1d([
-            self.elect.mulliken(i, j, m, n) for i, j, m, n in zip(
-                self.over[self.mask[-1]], rho, self.atind[self.mask[-1]],
-                t.tensor(self.nat_)[self.mask[-1]])])
-
-
-
-
-
-    def convergence(self, iiter, maxiter, dif, batch=False, tolerance=1E-6, mask=None, ind=None, Lmask=True):
-        """Convergence for SCC loops."""
-        # for multi system, the max of difference will be chosen instead
-        difmax = dif.max() if batch else None
-
-        # use energy as convergence condition
-        if self.para['convergenceType'] == 'energy':
-            if not batch:
-                if abs(dif) < tolerance:
-                    return True, mask
-
-                # read max iterations, end DFTB calculation
-                elif iiter + 1 >= maxiter:
-                    if abs(dif) > tolerance:
-                        print('Warning: SCF donot reach required convergence')
-                        return False, mask
-                # do not reach convergence and iiter < maxiter
-                else:
-                    return False, mask
-
-            # batch calculations
-            elif batch and Lmask:
-                # if mask.append(mask[-1]), all columns will change
-                mask.append([True if ii is True else False for ii in mask[-1]])
-                for ii, iind in enumerate(ind):
-                    if abs(dif[ii]) < tolerance:  # ii is index in not convergenced
-                        mask[-1][iind] = False  # iind is index in whole batch
-                if abs(difmax) < tolerance:
-                    print('All systems reached convergence')
-                    return True, mask
-
-                # read max iterations, end DFTB calculation
-                elif iiter + 1 >= maxiter:
-                    if abs(difmax) > tolerance:
-                        print('Warning: SCF donot reach required convergence')
-                        return False, mask
-                # do not reach convergence and iiter < maxiter
-                else:
-                    return False, mask
-
-            elif batch and not Lmask:
-                # if mask.append(mask[-1]), all columns will change
-                if abs(difmax) < tolerance:
-                    print('All systems reached convergence')
-                    return True, mask
-
-                # read max iterations, end DFTB calculation
-                elif iiter + 1 >= maxiter:
-                    if abs(difmax) > tolerance:
-                        print('Warning: SCF donot reach required convergence')
-                        return False, mask
-                # do not reach convergence and iiter < maxiter
-                else:
-                    return False, mask
-
-
-        # use charge as convergence condition
-        elif self.para['convergenceType'] == 'charge':
-            if not batch:
-                if abs(dif) < tolerance:
-                    return True, mask
-
-                # read max iterations, end DFTB calculation
-                elif iiter + 1 >= maxiter:
-                    if abs(dif) > tolerance:
-                        print('Warning: SCF donot reach required convergence')
-                        return False, mask
-                else:
-                    return False, mask
-
-            # batch calculations
-            elif batch:
-                for ii, iind in enumerate(ind):
-                    mask.append(mask[-1])
-                    if abs(dif[ii]) < tolerance:  # ii ==> not convergenced
-                        mask[-1][iind] = False  # iind ==> whole batch
-                if abs(difmax) < tolerance:
-                    print('All systems reached convergence')
-                    return True, mask
-
-                # read max iterations, end DFTB calculation
-                elif iiter + 1 >= maxiter:
-                    if abs(difmax) > tolerance:
-                        print('Warning: SCF donot reach required convergence')
-                        return False, mask
-                # do not reach convergence and iiter < maxiter
-                else:
-                    return False, mask
 
 class Repulsive():
     """Calculate repulsive for DFTB."""
@@ -843,6 +625,3 @@ class Analysis:
 
             # gaussian smearing
             sigma=1E-1)
-        import matplotlib.pyplot as plt
-        plt.plot(self.para['pdos_E'], self.para['pdos'].squeeze())
-        print('dos', self.para['pdos'].squeeze().shape)

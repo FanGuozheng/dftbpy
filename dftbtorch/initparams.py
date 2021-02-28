@@ -31,11 +31,11 @@ def dftb_parameter(parameter_=None):
         # dataset of skf
         'datasetSK': '../slko/hdf/skf.hdf5',
 
-        # task: dftb, mlCompressionR, mlIntegral
-        'task': 'dftb',
+        # # task: dftb, mlCompressionR, mlIntegral
+        # 'task': 'dftb',
 
         # precision control: t.float64, t.float32, cuda.DoubleTensor
-        'precision': t.cuda.DoubleTensor,
+        'precision': t.float64,
 
         # device
         'device': 'cpu',
@@ -60,7 +60,7 @@ def dftb_parameter(parameter_=None):
 
         # get inverse of tensor directly or from torch.solve or np.solve
         'inverse': True,
-        
+
         # dynamic convergence in batch calculations
         'dynamicSCC': True,
 
@@ -125,99 +125,23 @@ def dftb_parameter(parameter_=None):
 
     # update temporal parameter_ with input parameter
     parameter.update(parameter_)
-    if parameter['precision'] == 't.float64':
-        parameter['precision'] = t.float64
-    elif parameter['precision'] == 't.float32':
-        parameter['precision'] = t.float32
-    elif parameter['precision'] == 't.cuda.DoubleTensor':
-        parameter['precision'] = t.cuda.DoubleTensor
-    elif parameter['precision'] == 't.cuda.FloatTensor':
-        parameter['precision'] = t.cuda.FloatTensor
-    if parameter['device'] == 'cpu':
-        if parameter['precision'] not in (t.float64, t.float32):
-            parameter['precision'] = t.float64
-            print('convert precision to cpu type')
-    elif parameter['device'] == 'cuda':
-        if parameter['precision'] not in (t.cuda.DoubleTensor, t.cuda.FloatTensor):
-            parameter['precision'] = t.cuda.DoubleTensor
-            print('convert precison to cuda type')
 
-    # is machine learning is on, it means that the task is machine learning
-    parameter['Lml'] = True if parameter['task'] in (
-        'mlCompressionR', 'mlIntegral', 'testCompressionR', 'testIntegral') else False
+    # # is machine learning is on, it means that the task is machine learning
+    # parameter['Lml'] = True if parameter['task'] in (
+    #     'mlCompressionR', 'mlIntegral', 'testCompressionR', 'testIntegral') else False
 
-    # batch calculation, usually True for machine learning
-    if 'Lbatch' not in parameter:
-        parameter['Lbatch'] = True if parameter['Lml'] is True else False
+    # # batch calculation, usually True for machine learning
+    # if 'Lbatch' not in parameter:
+    #     parameter['Lbatch'] = True if parameter['Lml'] is True else False
 
     # return DFTB calculation parameters
     return parameter
 
 
-def init_dataset(dataset_=None):
-    """Return the dataset or geometric parameters for DFTB calculations.
-
-    If parameters in dataset have nothing to do with ML, the parameters will be
-    in dict dataset, else it will be in ml.
-    If parameters used in both non-ML and ML, it will be in dict dataset.
-
-    Args:
-        dataset (dict, optional): a dictionary which includes dataset,
-            geometric parameters.
-
-    Returns:
-        dataset (dict, optional): default dataset, geometric parameters if not
-            defined in advance.
-
-    """
-    dataset_ = {} if dataset_ is None else dataset_
-
-    dataset = {
-        # default dataset is ani
-        'dataset': ['../data/dataset/an1/ani_gdb_s01.h5'],
-
-        # optional datatype: ani, json, hdf, runani
-        'datasetType': 'ani',
-
-        # get the dataset path
-        'directoryDataset': '../data/dataset/',
-
-        # directly read SKF or interpolate from a list of skf files
-        'LSKFinterpolation': False,
-
-        # define path of files with feature information in machine learning
-        'pathFeature': '.',
-
-        # how many molecules for each molecule specie !!
-        'sizeDataset': [6, 6, 6],
-
-        # used to test (optimize ML algorithm parameters) !!
-        'sizeTest': [6, 6, 6],
-
-        # mix different molecule specie type
-        'LdatasetMixture': True}
-
-    # update temporal dataset_ with input dataset
-    dataset.update(dataset_)
-
-    return dataset
-
-
-def init_ml(para=None, dataset=None, skf=None, ml_=None):
-    """Return the machine learning parameters for DFTB calculations.
-
-    Args:
-        dataset (dict, optional): a dictionary which includes dataset,
-            geometric parameters.
-
-    Returns:
-        dataset (dict, optional): default dataset, geometric parameters if not
-            defined in advance.
-
-    """
+def init_ml(para=None, skf=None, ml_=None):
+    """Return the machine learning parameters for DFTB calculations."""
     para = {} if para is None else para
     ml_ = {} if ml_ is None else ml_
-    dataset = {} if dataset is None else dataset
     skf = {} if skf is None else skf
 
     ml = {
@@ -330,13 +254,6 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
         if 'LacsfG5' not in ml.keys():
             ml['LacsfG5'] = False
 
-    # read hdf (with coordinates, reference physical properties) type
-    if ml['reference'] == 'hdf':
-
-        # if read SKF from a list of files with interpolation, instead from hdf
-        if 'LSKFInterpolation' not in ml.keys():
-            dataset['LSKFInterpolation'] = False
-
     if ml['reference'] in ('dftbase', 'dftbplus'):
         # path of binary, executable DFTB file
         if 'dftbplus' not in ml.keys():
@@ -361,19 +278,19 @@ def init_ml(para=None, dataset=None, skf=None, ml_=None):
     if 'polarizability' in ml['target']:
         para['LCPA'], para['LMBD'] = True, True
 
-    # optimize integral directly
-    if para['task'] == ('mlIntegral', 'testIntegral'):
-        # spline type to generate integral
-        if 'interpolationType' not in ml.keys():
-            ml['interpolationType'] = 'Polyspline'
+    # # optimize integral directly
+    # if para['task'] == ('mlIntegral', 'testIntegral'):
+    #     # spline type to generate integral
+    #     if 'interpolationType' not in ml.keys():
+    #         ml['interpolationType'] = 'Polyspline'
 
     # optimize compression radius: by interpolation or by ML prediction
-    if para['task'] in ('mlCompressionR', 'testCompressionR'):
-        # interpolation of compression radius: BiCub, BiCubVec
-        if 'interpolationType' not in ml.keys():
-            ml['interpolationType'] = 'BiCubVec'
+    # if para['task'] in ('mlCompressionR', 'testCompressionR'):
+    #     # interpolation of compression radius: BiCub, BiCubVec
+    #     if 'interpolationType' not in ml.keys():
+    #         ml['interpolationType'] = 'BiCubVec'
 
-    return para, dataset, skf, ml
+    return para, skf, ml
 
 
 def skf_parameter(para, skf_=None):
@@ -436,10 +353,10 @@ def skf_parameter(para, skf_=None):
         skf['uhubbNN'] = t.tensor([0.0E+00, 4.308879578818E-01, 4.308879578818E-01])
         skf['uhubbOO'] = t.tensor([0.0E+00, 4.954041702122E-01, 4.954041702122E-01])
 
-    if para['task'] in ('mlCompressionR', 'testCompressionR'):
-        skf['ReadSKType'] = 'compressionRadii'
-    elif para['task'] in ('mlIntegral', 'testIntegral'):
-        skf['ReadSKType'] = 'mlIntegral'
+    # if para['task'] in ('mlCompressionR', 'testCompressionR'):
+    #     skf['ReadSKType'] = 'compressionRadii'
+    # elif para['task'] in ('mlIntegral', 'testIntegral'):
+    #     skf['ReadSKType'] = 'mlIntegral'
 
     # return skf
     return skf

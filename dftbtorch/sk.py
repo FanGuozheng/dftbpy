@@ -9,7 +9,6 @@ from IO.save import Save1D, Save2D
 from dftbtorch.matht import DFTBmath, BicubInterp
 from dftbtorch.interpolator import PolySpline, BicubInterpVec
 from dftbmalt.utils.utilities import split_by_size
-from ml.padding import pad1d, pad2d
 ATOMNAME = {1: 'H', 6: 'C', 7: 'N', 8: 'O'}
 _SQR3 = np.sqrt(3.)
 _HSQR3 = 0.5 * np.sqrt(3.)
@@ -19,118 +18,7 @@ class GetSKTable:
     """Read skf type files.
 
     Files marked with the "skf" extension are primarily used by DFTB+ to hold
-    Slater-Koster integral tables & their associated repulsive components.
-
-    Args:
-        elements : `torch.tensor` [`int`]
-            Atomic numbers of the elements involved. A single atomic number
-            can also be specified, however it will be resolve to a tensor.
-        H : `torch.tensor` [`float`]
-            Hamilton_grid_pointsan integral table, interaction type varies over columns
-            and distance over rows, see notes for more information.
-        S : `torch.tensor` [`float`]
-            Overlap integral table, see notes for more information.
-        HS_grid : `torch.tensor` [`float`]
-            Grid points at which the H & S integrals are evaluated.
-        on_site : `torch.tensor` [`float`]
-            On-site energies for angular momenta (f), d, p & s. "f" is only
-            present for the extended file format.
-        U : `torch.tensor` [`float`]
-            Hubbard Us for the angular momenta present in ``on_site``.
-        occupations: `torch.tensor` [`float`]
-            The occupancies of the angular momenta present in ``on_site``.
-
-    Optional Parameters:
-        R : `torch.tensor` [`float`], optional
-            Coefficients for the main part of the repulsive spline. The
-            Notes section of this doc-string should be consulted for
-            more information about the repulsive component.
-        R_short : `torch.tensor` [`float`], optional
-            Coefficients for the exponential region before the main spline.
-        R_long : `torch.tensor` [`float`], optional
-            Coefficients for distances beyond the main spline.
-        R_grid : `torch.tensor` [`float`], optional
-            Grid points at which the main repulsive spline is evaluated
-            note that one additional point indicating the termination
-            point of the last spline region is needed.
-        R_cutoff : `torch.tensor` [`float`]
-            The cutoff value for the repulsive interaction, beyond which
-            it is taken to be zero. (zero dimensional tensor)
-        R_poly : `torch.tensor` [`float`], optional
-            Polynomial coefficients for the repulsive component, but only
-            if ``repulsion_by_spline`` is False.
-        mass: `torch.tensor` [`float`]
-            Mass of the atom in atomic un_grid_pointsts. Only used when ``homo`` is True.
-
-
-    Properties:
-        repulsion_by_spline : `bool`
-            True if repulsive interaction is described via a spline & False
-            if described by polynomial coefficients.
-        version : `str` # KWARG***
-            Identifies the file version number upon read, and controls the
-            format used during writing. [DEFAULT = 1.0]
-        homo : `bool`
-
-            Indicates if this is the HOMO-nuclear case.
-
-    Notes:
-        This class is currently only capable of reading skf files. This is
-        due to the way in which this class currently handel's the repulsive
-        spline.
-
-        The electron_grid_pointsc section of the skf file is more or less always the
-        same. The only variation in its defin_grid_pointstion is in the version 1.0
-        extended file format, which introduces f orbitals. In the 0.9 and
-        1.0 (standard) versions there is a hamilton_grid_pointsan and overlap element
-        for each of the following interactions:
-            ddσ, ddπ, ddδ, pdσ, pdπ, ppσ, ppπ, sdσ, spσ, ssσ
-
-    Note that this order is maintained in the columns of ``H`` & ``S``.
-    For the extended (1.0e) file format the available interactions are:
-        ffσ, ffπ ffδ ffγ, dfσ, dfπ, dfδ, ddσ, ddπ, ddδ, pfσ, pfπ,
-        pdσ, pdπ, ppσ, ppπ, sfσ, sdσ, spσ, ssσ
-
-    The rows in ``H`` and ``S`` correspond to the each distances found
-    in ``HS_grid``.
-
-    Within skf file versions 0.9 & 1.0 the repulsive component can be
-    specified by either 1) a set of polynomial coefficients & a cutoff
-    or 2) a spline with a short-range exponential region & a long range
-    tail. To define repulsive interaction via the first method only two
-    parameter is required:
-     - ``R_poly``: [c2, c3, c5, c5, c6, c7, c8, c9]
-     - ``R_cutoff``: Point beyond which repulsion is pinned to zero.
-    For the spline method the following parameters are required:
-     - ``R``: [c0, c1, c2, c3] coefficient sets for each spline region.
-     - ``R_short``: [a1, a2, a3]
-     - ``R_long``: [c0, c1, c2, c3]
-     - ``R_grid``: regions over which the spline segments act.
-     - ``R_cutoff``: Point beyond which repulsion is pinned to zero.
-    Here; ``R_short`` acts on any distance below the first ``R_grid``
-    point, ``R_long`` upon distances between the last ``R_grid`` point
-    and ``R_cutoff``, & the n'th region of the main spline acts over the
-    distance spanned between the n'th & n'th + 1 point of ``R_grid``.
-    It should be noted the spline and polynomial forms are mutually
-    exclusive. A more detailed description of the repulsive term can be
-    found in the skf file specification.
-
-    This does not yet support the 2.0 skf file specification. It is worth
-    noting that the non-extended 1.0 version and the 0.9 version are one
-    in the same, with the exception of a comment, hence they are treated
-    identically.
-
-    More in-depth file specificationn information can be found at:
-        github.com/bhourahine/slako-doc
-        dftb.org/parameters/introduction
-
-    Todo:
-    - Refactor the code completely to neaten it up, and make it more
-      legible. [Priority: Moderate]
-    - Add in functionality to automatically construct repulsive splines
-      from list of values over a specified range of distances.
-      [Priority: Moderate]
-    """
+    Slater-Koster integral tables & their associated repulsive components."""
 
     def __init__(self, elements, H, S, HS_grid, R_cutoff, **kwargs):
         # If a single element was specified, resolve it to a tensor
@@ -442,13 +330,6 @@ class GetSKTable:
         - This is a stale function and so should be removed and its
           contents moved to the in_grid_pointst. [Priority: Low]
         """
-        # If a repulsive spline is used make sure that there are n+1 values in
-        # R_grid; where n is the number of entries in R. While requiring the
-        # user to provide an additional point is somewhat unorthodox, hence the
-        # explicit check, the only other alternatives would be have a second
-        # distance argument, which would not be great given the already vast
-        # number or arguments required; or to require the distance be placed
-        # in the R_long array, which would be unexpected.
         if 'R' in kwargs:
             if kwargs['R'].shape[0] + 1 != kwargs['R_grid'].shape[0]:
                 raise Exception(
@@ -483,18 +364,18 @@ class GetSKTable:
 class GetSK_:
     """Get integral from interpolation."""
 
-    def __init__(self, para, dataset, skf, ml=None):
+    def __init__(self, para, skf, ml=None, sys=None):
         """Initialize parameters."""
         self.para = para
-        self.dataset = dataset
         self.skf = skf
         self.ml = ml
+        self.sys = sys
         self.math = DFTBmath(self.para, self.skf)
 
     def integral_spline_parameter(self):
         """Get integral from hdf binary according to atom species."""
         time0 = time.time()
-
+        self.global_spe, _, _, _ = self.sys.get_global_species()
         # ML variables
         ml_variable = []
 
@@ -507,8 +388,8 @@ class GetSK_:
 
         self.skf['hs_compr_all'] = []
         with h5py.File(hdfsk, 'r') as f:
-            for ispecie in self.dataset['specieGlobal']:
-                for jspecie in self.dataset['specieGlobal']:
+            for ispecie in self.global_spe:
+                for jspecie in self.global_spe:
                     nameij = ispecie + jspecie
                     grid_distance = f[nameij + '/grid_dist'][()]
                     ngrid = f[nameij + '/ngridpoint'][()]
@@ -534,13 +415,9 @@ class GetSK_:
         time0 = time.time()
         ninterp = self.skf['sizeInterpolationPoints']
         self.skf['hs_compr_all'] = []
-        atomnumber = self.dataset['numbers'][ibatch]
-        distance = self.dataset['distances'][ibatch]
+        atomnumber = self.sys.numbers[ibatch]
+        distance = self.sys.distances[ibatch]
 
-        # index of row, column of distance matrix, no digonal
-        # ind = t.triu_indices(distance.shape[0], distance.shape[0], 1)
-        # dist_1d = distance[ind[0], ind[1]]
-        # get the skf with hdf type
         hdfsk = self.para['datasetSK']
         if not os.path.isfile(hdfsk):
             raise FileExistsError('dataset %s do not exist' % hdfsk)
@@ -584,13 +461,13 @@ class GetSK_:
         """
         time0 = time.time()
         # all atom name for current calculation
-        atomname = self.dataset['atomNameAll']
+        atomname = self.sys.symbols
 
         # number of atom
-        natom = self.dataset['natomall']
+        natom = self.sys.size_system
 
         # atom specie
-        atomspecie = self.dataset['atomspecie']
+        atomspecie = self.sys.symbols #self.dataset['atomspecie']
 
         # number of compression radius grid points
         ncompr = self.para['ncompr']
@@ -604,7 +481,7 @@ class GetSK_:
 
         for iatom in range(natom):
             for jatom in range(natom):
-                dij = self.dataset['distance'][iatom, jatom]
+                dij = self.sys.distances[iatom, jatom]
                 namei, namej = atomname[iatom], atomname[jatom]
                 nameij = namei + namej
                 compr_grid = self.para[namei + '_compr_grid']
@@ -722,52 +599,21 @@ class GetSK_:
             H and S matrice ([natom, natom, 20])
 
         """
-        natom = self.dataset['natomAll'][ibatch]
-        atomname = self.dataset['symbols'][ibatch]
+        natom = self.sys.size_system[ibatch]
+        atomname = self.sys.symbols[ibatch]
         time0 = time.time()
         print('Get HS table according to compression R: [N_atom1, N_atom2, 20]')
 
-        if self.ml['interpolationType'] == 'BiCubVec':
-            if self.ml['globalCompR'] and self.para['task'] == 'mlCompressionR':
-                bicubic = BicubInterpVec(self.para, self.ml)
-                zmesh = self.skf['hs_compr_all']
-                name_ = self.dataset['specieGlobal']
-                name_ = list(name_) if type(name_) is not list else name_
-                compr = pad1d([self.para['compr_ml'][name_.index(iname)] for iname in atomname]).squeeze()
-                mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
-                hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
-            else:
-                bicubic = BicubInterpVec(self.para, self.ml)
-                zmesh = self.skf['hs_compr_all']
-                if self.para['compr_ml'].dim() == 2:
-                    compr = self.para['compr_ml'][ibatch][:natom]
-                else:
-                    compr = self.para['compr_ml']
-                mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
-                hs_ij = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
+        bicubic = BicubInterpVec(self.para, self.ml)
+        zmesh = self.skf['hs_compr_all']
+        print('ibatch', ibatch)
+        if self.para['compr_ml'].dim() == 2:
+            compr = self.para['compr_ml'][ibatch][:natom]
+        else:
+            compr = self.para['compr_ml']
+        mesh = t.stack([self.ml[iname + '_compr_grid'] for iname in atomname])
+        self.skf['hs_all'] = bicubic.bicubic_2d(mesh, zmesh, compr, compr)
 
-        # elif self.ml['interp_compr_type'] == 'BiCub':
-        #     icount = 0
-        #     bicubic = BicubInterp()
-        #     hs_ij = t.zeros(natom, natom, 20)
-        #     for iatom in range(natom):
-        #         iname = atomname[iatom]
-        #         icompr = self.para['compr_ml'][ibatch][iatom]
-        #         xmesh = self.ml[iname + '_compr_grid']
-        #         for jatom in range(natom):
-        #             jname = atomname[jatom]
-        #             ymesh = self.ml[jname + '_compr_grid']
-        #             jcompr = self.para['compr_ml'][ibatch][jatom]
-        #             zmeshall = self.skf['hs_compr_all'][iatom, jatom]
-        #             if iatom != jatom:
-        #                 for icol in range(0, 20):
-        #                     hs_ij[iatom, jatom, icol] = \
-        #                         bicubic.bicubic_2d(
-        #                                 xmesh, ymesh, zmeshall[:, :, icol],
-        #                                 icompr, jcompr)
-        #             icount += 1
-
-        self.skf['hs_all'] = hs_ij
         timeend = time.time()
         print('total time genskf_interp_compr:', timeend - time0)
 
@@ -775,7 +621,7 @@ class GetSK_:
 class SKTran:
     """Slater-Koster Transformations."""
 
-    def __init__(self, para, dataset, skf, ml):
+    def __init__(self, para, skf, ml, sys):
         """Initialize parameters.
 
         Args:
@@ -786,51 +632,29 @@ class SKTran:
         """
         self.para = para
         self.skf = skf
-        self.dataset = dataset
         self.ml = ml
+        self.sys = sys
         self.math = DFTBmath(self.para, self.skf)
         # self.ibatch = ibatch
+        self.global_spe, _, _, _ = self.sys.get_global_species()
 
     def __call__(self, ibatch):
         self.ibatch = ibatch
-        # if machine learning or not
-        if not self.para['Lml']:
-
-            # read integrals from .skf with various compression radius
-            if not self.dataset['LSKFinterpolation']:
-                self.get_sk_all(self.ibatch)
+        # use ACSF to generate compression radius, then SK transformation
+        if self.para['task'] in ('mlCompressionR', 'testCompressionR'):
 
             # build H0 and S with full, symmetric matrices
-            if self.para['HSSymmetry'] == 'all':
-                return self.sk_tran_symall(self.ibatch) 
+            return self.sk_tran_symall(self.ibatch)
 
-            # build H0 and S with only half matrices
-            elif self.para['HSSymmetry'] == 'half':
-                self.sk_tran_half(self.ibatch)
-
-        # machine learning is True, some method only apply in this case
-        if self.para['Lml']:
-
-            # use ACSF to generate compression radius, then SK transformation
-            if self.para['task'] in ('mlCompressionR', 'testCompressionR'):
-
-                # build H0 and S with full, symmetric matrices
-                if self.para['HSSymmetry'] == 'all':
-                    return self.sk_tran_symall(self.ibatch) 
-
-                # build H0, S with half matrices
-                elif self.para['HSSymmetry'] == 'half':
-                    self.sk_tran_half(self.ibatch)
-
-            # directly get integrals with spline, or some other method
-            elif self.para['task'] in ('mlIntegral', 'testIntegral'):
-                self.get_hs_spline(self.ibatch)
-                return self.sk_tran_symall(self.ibatch) 
+        # directly get integrals with spline, or some other method
+        elif self.para['task'] in ('mlIntegral', 'testIntegral'):
+            self.get_hs_spline(self.ibatch)
+            return self.sk_tran_symall(self.ibatch)
 
     def get_hs_spline(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.dataset['natomAll'][self.ibatch]
+        natom = self.sys.size_system[self.ibatch]
 
         # build H0 or S
         self.skf['hs_all'] = t.zeros(natom, natom, 20)
@@ -840,8 +664,8 @@ class SKTran:
                 # if iat != jat:
 
                 # get the name of i, j atom pair
-                namei = self.dataset['symbols'][ibatch][iat]
-                namej = self.dataset['symbols'][ibatch][jat]
+                namei = self.sys.symbols[ibatch][iat]
+                namej = self.sys.symbols[ibatch][jat]
                 nameij = namei + namej
 
                 # get spline parameters
@@ -851,14 +675,14 @@ class SKTran:
                         self.skf['polySplinec' + nameij],
                         self.skf['polySplined' + nameij]]
                 # the distance is from cal_coor
-                dd = self.dataset['distances'][ibatch][iat, jat]
+                dd = self.sys.distances[ibatch][iat, jat]
                 poly = PolySpline(x=xx, abcd=abcd)
                 self.skf['hs_all'][iat, jat] = poly(dd)
         return self.skf['hs_all']
-                
+
     def save_spl_param(self):
-        for ispe in self.dataset['specieGlobal']:
-            for jspe in self.dataset['specieGlobal']:
+        for ispe in self.global_spe:
+            for jspe in self.global_spe:
                 nameij = ispe + jspe
 
                 # get spline parameters
@@ -890,7 +714,7 @@ class SKTran:
     def get_sk_all(self, ibatch):
         """Get integrals from .skf data with given distance."""
         # number of atom in each calculation
-        natom = self.dataset['natomAll'][self.ibatch]
+        natom = self.sys.size_system[ibatch]
 
         # build H0 or S
         self.skf['hs_all'] = t.zeros(natom, natom, 20)
@@ -898,98 +722,18 @@ class SKTran:
         for iat in range(natom):
             for jat in range(natom):
                 # get the name of i, j atom pair
-                namei = self.dataset['symbols'][ibatch][iat]
-                namej = self.dataset['symbols'][ibatch][jat]
+                namei = self.sys.symbols[ibatch, iat]  # self.dataset['symbols'][ibatch][iat]
+                namej = self.sys.symbols[ibatch, jat]
                 nameij = namei + namej
 
                 # the distance is from cal_coor
-                dd = self.dataset['distances'][ibatch][iat, jat]
-
+                dd = self.sys.distances[ibatch, iat, jat]
                 # two atom are too close, exit
                 if dd < 1E-1 and iat != jat:
                     sys.exit()
                 elif iat != jat:
                     # get the integral by interpolation from integral table
                     self.skf['hs_all'][iat, jat, :] = self.math.sk_interp(dd, nameij)
-
-    def sk_tran_half(self):
-        """Transfer H and S according to slater-koster rules."""
-        # index of the orbitals
-        atomind = self.para['atomind']
-
-        # number of atom
-        natom = self.para['natom']
-
-        # name of all atom in each calculation
-        atomname = self.para['atomNameAll']
-
-        # vectors between different atoms (Bohr)
-        dvec = self.para['dvec']
-
-        # the sum of orbital index, equal to dimension of H0 and S
-        atomind2 = self.para['atomind2']
-
-        # build 1D, half H0, S matrices
-        self.skf['hammat'] = t.zeros(atomind2)
-        self.skf['overmat'] = t.zeros(atomind2)
-
-        # temporary distance matrix
-        rr = t.zeros(3)
-
-        for iat in range(natom):
-
-            # l of i atom
-            lmaxi = self.para['lmaxall'][iat]
-            for jat in range(iat):
-
-                # l of j atom
-                lmaxj = self.para['lmaxall'][jat]
-                lmax = max(lmaxi, lmaxj)
-
-                # temporary H, S with dimension 9 (s, p, d orbitals)
-                self.para['hams'] = t.zeros(9, 9)
-                self.para['ovrs'] = t.zeros(9, 9)
-
-                # atom name of i and j
-                self.para['nameij'] = atomname[iat] + atomname[jat]
-
-                # coordinate vector between ia
-                rr[:] = dvec[iat, jat, :]
-
-                # generate ham, over only between i, j (no f orbital)
-                self.slkode(rr, iat, jat, lmax, lmaxi, lmaxj)
-
-                # transfer temporary ham and ovr matrices to final H0, S
-                for n in range(atomind[jat + 1] - atomind[jat]):
-                    nn = atomind[jat] + n
-                    for m in range(atomind[iat + 1] - atomind[iat]):
-
-                        # calculate the orbital index in the 1D H0, S matrices
-                        mm = atomind[iat] + m
-                        idx = int(mm * (mm + 1) / 2 + nn)
-
-                        # controls only half H0, S will be written
-                        if nn <= mm:
-                            idx = int(mm * (mm + 1) / 2 + nn)
-                            self.skf['hammat'][idx] = self.skf['hams'][m, n]
-                            self.skf['overmat'][idx] = self.skf['ovrs'][m, n]
-
-            # build temporary on-site
-            self.para['h_o'] = t.zeros(9)
-            self.para['s_o'] = t.zeros(9)
-
-            # get the name between atoms
-            self.para['nameij'] = atomname[iat] + atomname[iat]
-
-            # get on-site between i and j atom
-            self.slkode_onsite(rr, iat, lmaxi)
-
-            # write on-site between i and j to final on-site matrix
-            for m in range(atomind[iat + 1] - atomind[iat]):
-                mm = atomind[iat] + m
-                idx = int(mm * (mm + 1) / 2 + mm)
-                self.skf['hammat'][idx] = self.skf['h_o'][m]
-                self.skf['overmat'][idx] = self.skf['s_o'][m]
 
     def sk_tran_symall(self, ibatch):
         """Transfer H0, S according to Slater-Koster rules.
@@ -998,34 +742,32 @@ class SKTran:
 
         """
         # index of atom orbital
-        atomind = self.dataset['atomind'][ibatch]
+        atomind = self.sys.atom_orbitals[ibatch]
 
         # number of atom
-        natom = self.dataset['natomAll'][ibatch]
+        natom = self.sys.size_system[ibatch]
+        position_vec = self.sys.get_positions_vec()[ibatch]
 
         # total orbitals, equal to dimension of H0, S
         norb = sum(atomind[:natom])
 
         # atom name
-        atomname = self.dataset['symbols'][ibatch]
+        atomname = self.sys.symbols[ibatch]
 
         # atom coordinate vector (Bohr)
-        # dvec = self.dataset['dvec']
 
         # build H0, S
         self.skf['hammat'] = t.zeros(norb, norb)
         self.skf['overmat'] = t.zeros(norb, norb)
 
         for iat in range(natom):
-
             # l of i atom
-            lmaxi = self.dataset['lmaxall'][ibatch][iat]
+            lmaxi = self.sys.l_max[ibatch, iat]
 
             for jat in range(natom):
 
                 # l of j atom
-                lmaxj = self.dataset['lmaxall'][ibatch][jat]
-
+                lmaxj = self.sys.l_max[ibatch, jat]
                 # temporary H, S between i and j atom
                 self.skf['hams'] = t.zeros(9, 9)
                 self.skf['ovrs'] = t.zeros(9, 9)
@@ -1038,7 +780,7 @@ class SKTran:
                 self.para['nameij'] = atomname[iat] + atomname[jat]
 
                 # distance vector between i and j atom
-                rr = self.dataset['positions_vec'][ibatch][iat, jat]  # dvec[ibatch][iat, jat, :]
+                rr = position_vec[iat, jat]
 
                 # for the same atom, where on-site should be construct
                 if iat == jat:

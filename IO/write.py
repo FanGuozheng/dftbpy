@@ -5,10 +5,9 @@ import numpy as np
 class Print:
     """Print DFTB results."""
 
-    def __init__(self, para, dataset, skf):
+    def __init__(self, para, skf):
         """Initialize parameters."""
         self.para = para
-        self.dataset = dataset
         self.skf = skf
 
         # set print precision
@@ -164,9 +163,6 @@ class Print:
 
     def print_dftb_tail(self):
         """Print DFTB calculation physical results."""
-        # print atoms
-        print('list of atoms in batch:', self.dataset['symbols'])
-
         # print charge
         print('\n charge (e): ', self.para['charge'])
 
