@@ -1,1 +1,22 @@
-<mxfile host="app.diagrams.net" modified="2021-12-26T15:20:55.229Z" agent="5.0 (X11)" version="15.4.3" etag="rrBnNqoIZjo4gf6uI4By" type="github"><diagram id="jpIfYPccHARkmzPR2QEJ">UzV2zq1wL0osyPDNT0nNUTV2VTV2LsrPL4GwciucU3NyVI0MMlNUjV1UjYwMgFjVyA2HrCFY1qAgsSg1rwSLBiADYTaQg2Y1AA==</diagram></mxfile>
+<mxfile host="app.diagrams.net" modified="2021-12-30T21:36:20.332Z" agent="5.0 (X11)" etag="jbEVM5mIuG11sFo4CL6i" version="15.4.3" type="github">
+  <diagram id="jpIfYPccHARkmzPR2QEJ" name="Page-1">
+    <mxGraphModel dx="1422" dy="741" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="KSVqPr-JwLYGf7Qptz_w-1" value="Preceptron" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="30" y="330" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="KSVqPr-JwLYGf7Qptz_w-2" value="BPNN" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="200" y="330" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="KSVqPr-JwLYGf7Qptz_w-3" value="CNN" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="400" y="331" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="KSVqPr-JwLYGf7Qptz_w-4" value="RNN" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="200" y="460" width="80" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
